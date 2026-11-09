@@ -1,5 +1,10 @@
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 
+import { AUDIT_NOT_IMPORT_SUMMARY } from "../row-audit.ts";
+
+// Inside a format() string literal, so its quotes are doubled.
+const WHEN_NOT_IMPORT = AUDIT_NOT_IMPORT_SUMMARY.replaceAll("'", "''");
+
 /**
  * `names.tables.registry`: the settings of tables registered before audit()
  * kept them on the trigger. The module only reads and forgets rows.
@@ -204,16 +209,16 @@ ${statementChecks()}
     );
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
-      'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (${WHEN_NOT_IMPORT}) execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
     execute format(
-      'create %strigger bsb_audit_update after update on %s %sfor each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (${WHEN_NOT_IMPORT})) execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text
     );
   else
     execute format(
-      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (${WHEN_NOT_IMPORT}) execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
   end if;

@@ -1185,10 +1185,11 @@ export interface BlockNameRegistry {
   };
   readonly "imports": {
     readonly tables: {
-      readonly "runs": "id" | "tenant" | "source" | "status" | "mapping" | "counts" | "errors" | "dryRun" | "full" | "inputChecksum" | "correlationId" | "scopeAliases" | "createdBy" | "createdAt" | "startedAt" | "finishedAt";
+      readonly "runs": "id" | "tenant" | "source" | "status" | "mapping" | "counts" | "errors" | "dryRun" | "full" | "inputChecksum" | "correlationId" | "mapperVersion" | "scopeAliases" | "createdBy" | "createdAt" | "startedAt" | "finishedAt";
       readonly "records": "id" | "tenant" | "source" | "scope" | "entity" | "externalKey" | "role" | "subjectType" | "subjectId" | "contentHash" | "firstRun" | "lastRun" | "subjectUpdatedAt" | "missingSince";
+      readonly "chunks": "run" | "tenant" | "entity" | "chunk" | "items" | "status" | "result" | "claimedAt" | "doneAt" | "createdAt";
     };
-    readonly functions: "begin_import_session" | "cancel_import_run" | "enqueue_import_chunks" | "finish_import" | "finish_import_run" | "get_import_run" | "import_apply_batch" | "import_resolve" | "import_upsert_batch" | "list_import_runs" | "mark_import_running" | "start_import" | "start_import_run";
+    readonly functions: "begin_import_session" | "cancel_import_run" | "claim_import_chunk" | "complete_import_chunk" | "enqueue_import_chunks" | "export_import_hashes" | "finish_import" | "finish_import_run" | "get_import_run" | "import_apply_batch" | "import_chunk_progress" | "import_resolve" | "import_upsert_batch" | "list_import_runs" | "mark_import_running" | "process_import_chunk" | "reapply_import_records" | "start_import" | "start_import_run" | "store_import_chunk";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
@@ -2120,7 +2121,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "documents": "tenant" | "subjectType" | "subjectId" | "title" | "titleSearch" | "body" | "url" | "tsv" | "contentHash" | "embedding" | "updatedAt" | "description";
     };
-    readonly functions: "search" | "search_favorites" | "search_index_row" | "search_normalize" | "search_recents" | "search_refresh" | "search_reindex" | "search_remove" | "search_star" | "search_touch" | "search_user_state";
+    readonly functions: "search" | "search_enqueue" | "search_favorites" | "search_index_row" | "search_normalize" | "search_recents" | "search_refresh" | "search_refresh_dirty" | "search_reindex" | "search_remove" | "search_star" | "search_touch" | "search_user_state";
     readonly actions: "read";
     readonly hooks: "before_search_document_index" | "after_search_document_index";
     readonly entities: {};

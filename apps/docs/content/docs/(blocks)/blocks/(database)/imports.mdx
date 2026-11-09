@@ -88,6 +88,18 @@ role is the one `resolve` returns). `updatedAt` is
 overwrites. An entity without a target fails the batch with
 `IMPORT_TARGET_UNKNOWN`.
 
+A target can add `batch: "schema.function"`, `(run uuid, items jsonb) returns
+jsonb`, to write a whole batch in set-based statements. The items that need a
+write (not unchanged, not conflicted) arrive as one array of what `write`
+receives as `item`, plus `subjectId`. It returns an array with one answer per
+item in order: what `write` returns, or `{ "error": { code, message } }` for an
+item it refused without writing. When it raises, each item runs through `write`
+on its own, so one bad row costs only its own error. A key that repeats inside
+a batch is written after the earlier one is recorded, as with `write`. A batch
+target pays off when the per-row work is in the function, not in triggers on the
+table: on the local fixture, 3,000 customers took 356 ms through `batch` and
+365 ms through `write`, because the customer triggers dominate.
+
 These blocks contribute targets:
 
 | Block           | Entity               | Writes                                                                                |
@@ -179,7 +191,14 @@ payload, and `emit` leaves it as it is. `audit` is `rows` (the default) or
 with the actor kind `integration` and the correlation id `import:<run>`. In
 `summary` mode a row writes no entry, and `finish_import_run` writes one
 `import.entity_completed` entry per entity that inserted or updated rows, so a
-second identical run adds none.
+second identical run adds none. The row audit triggers carry the check in their
+`when` clause, so `audit_row_change` does not start for a row of a `summary`
+import.
+
+A quote or invoice whose number is already taken fails by default. Put
+`onTaken: "next_free"` in the item's `data` and the import issues the next free
+number instead and reports `IMPORT_NUMBER_REASSIGNED` as a warning; an unknown
+value is `IMPORT_ITEM_INVALID`.
 
 A state machine accepts any declared status on insert in import mode. It
 writes one history row from no status to the inserted status with the reason
@@ -240,7 +259,36 @@ Map `tables.runs` onto the app's import table. Optional columns can be `null`.
 
 ## Run an import in one call
 
-`run({ organizationId, source, entities, batchSize?, onBatch? })` is for the service role. It starts a run, marks it running, writes each entity's items in batches of `batchSize` in the order given, then finishes the run. Item errors do not stop the run: they come back in `errors`. When the run cannot start or a batch call fails, the run is cancelled and the error is returned.
+`run({ organizationId, source, entities, batchSize?, maxBatchSize?, targetBatchMs?, onBatch? })` is for the service role. It starts a run, marks it running, writes each entity's items in batches of `batchSize` in the order given, then finishes the run. Item errors do not stop the run: they come back in `errors`. When the run cannot start or a batch call fails, the run is cancelled and the error is returned.
+
+The batch size adapts. A batch that takes longer than `targetBatchMs` (default 30,000) halves the next one, and with `maxBatchSize` set a batch under half of it doubles the next one up to that size. A batch that hits the statement timeout (SQLSTATE `57014`) is split in two and each half is sent again, down to one item. The result's `suggestedBatchSize` is the size to start the next run of the source with. Two batches of one run can write at the same time: `import_upsert_batch` reads the run without a row lock and only the counts update at its end locks the row.
+
+## Mapper versions and the record map
+
+`runs.start({ mapperVersion })` stores the version of the mapping code that produced a run's items (`ImportRun.mapperVersion`). After a mapper fix, `reapply_import_records(tenant, source, mapper_version, entity?)` clears the content hash of the source's records that a run of another version last wrote, and returns how many; the next run counts them as changed and rewrites them through their target (a row a user edited since stays as it is). `export_import_hashes(tenant, source, entity?)` lists the record map as `{ entity, scope, key, role, hash, subjectType, subjectId }` objects in key order, so you can compare what a source sends with what was imported without reading the rows. Both are service-role functions.
+
+## Large imports in chunks
+
+A source with millions of rows writes in chunks, so a worker pool shares the work and a retry never writes a chunk twice. Cut each entity's items into chunks, store them, queue one job per chunk and let workers process them:
+
+```ts
+for (const [chunk, items] of chunksOf(rows, 500).entries()) {
+  await imports.chunks
+    .store({ runId, entity: "customer", chunk, items })
+    .orThrow();
+}
+
+await db.$rpc("enqueue_import_chunks", {
+  run: runId,
+  entity: "customer",
+  chunks: count,
+});
+
+// In the worker process, with an `imports` queue whose schema is importChunkSchema:
+await runImportWorker({ imports, queue, concurrency: 4, signal });
+```
+
+`chunks.process` claims the chunk, writes it with `upsertBatch` and marks it done in one transaction, so a failure leaves it pending, a done chunk answers what it answered, and a chunk another worker holds is skipped (a claim older than five minutes is taken over). `chunks.progress(runId)` returns `{ pending, claimed, done }`; call `runs.finish` once nothing is pending or claimed. `importChunkHandler(imports)` is the job handler for a worker you run yourself. The chunk rows go with the run and with a tenant purge.
 
 ## Hooks
 

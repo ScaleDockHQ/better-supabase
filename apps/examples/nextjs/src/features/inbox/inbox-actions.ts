@@ -7,9 +7,10 @@ import { after } from "next/server";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
-import { answerHelp } from "./help-bot";
+import type { answerHelp } from "./help-bot";
+
 import {
   AssigneeFilter,
   ConversationStatus,
@@ -20,6 +21,19 @@ import {
   toMessageRow,
   toScheduledRow,
 } from "./inbox-types";
+
+type HelpArgs = Parameters<typeof answerHelp>;
+
+/**
+ * Loads the help bot when a member asks. The bot imports the AI SDK, the
+ * assistant and the knowledge base (about 440 KB raw on the server), which
+ * every page's layout would otherwise load for this one action (ADR 0542).
+ */
+async function answerLater(...args: HelpArgs): Promise<void> {
+  const { answerHelp } = await import("./help-bot");
+
+  await answerHelp(...args);
+}
 
 const Id = v.pipe(v.string(), v.uuid());
 const Body = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4000));
@@ -233,7 +247,7 @@ export const askForHelp = bsb.action(
 
     if (auth.kind === "user") {
       const userId = auth.user.id;
-      after(() => answerHelp(supabase, userId, opened.data.id, message));
+      after(() => answerLater(supabase, userId, opened.data.id, message));
     }
 
     return ok(opened.data.id);
@@ -255,7 +269,7 @@ export const sendHelp = bsb.action(
 
     if (auth.kind === "user") {
       const userId = auth.user.id;
-      after(() => answerHelp(supabase, userId, conversationId, message));
+      after(() => answerLater(supabase, userId, conversationId, message));
     }
 
     return ok(sent.data.id);

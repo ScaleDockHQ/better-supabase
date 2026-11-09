@@ -34,16 +34,16 @@ commit that adds it. "Open" has a reason.
 
 ## Fields and work
 
-| Item                                     | State                                                                   |
-| ---------------------------------------- | ----------------------------------------------------------------------- |
-| Custom fields update, delete, seal       | Exists                                                                  |
-| Tasks create fields, optional columns    | Done (ADR 0269): `fields` on create existed; `locked` is optional       |
-| Time entries: `on` links, employee owner | Done (ADR 0269): `options.on`; the employee owner exists (`owner`)      |
-| Leave ledger by employee                 | Exists (`owner: "employee"`)                                            |
-| Expenses employee owner                  | Exists (`owner: "employee"`)                                            |
-| Employees statuses from the app enum     | Exists: `typed` status with value maps (`employees-shapes.test.ts`)     |
-| Hiring simplified                        | Exists: `stages`, `hiringManager`; no further change named (ADR 0269)   |
-| Approvals request policy and floors      | Exists: floors, tenant policies, extra columns on requests and policies |
+| Item                                     | State                                                                                     |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Custom fields update, delete, seal       | Exists                                                                                    |
+| Tasks create fields, optional columns    | Done (ADR 0269): `fields` on create existed; `locked` is optional                         |
+| Time entries: `on` links, employee owner | Done (ADR 0269): `options.on`; the employee owner exists (`owner`)                        |
+| Leave ledger by employee                 | Exists (`owner: "employee"`)                                                              |
+| Expenses employee owner                  | Exists (`owner: "employee"`)                                                              |
+| Employees statuses from the app enum     | Exists: `typed` status with value maps (`employees-shapes.test.ts`)                       |
+| Hiring simplified                        | Exists: `stages`, `hiringManager`; no further change named (ADR 0269)                     |
+| Approvals request policy and floors      | Exists: floors, tenant policies, extra columns on requests, policies and items (ADR 0585) |
 
 ## Platform and runtime
 
@@ -52,7 +52,7 @@ commit that adds it. "Open" has a reason.
 | Comments avatar                                                   | Exists: `list_comments` returns the avatar with profiles                    |
 | Notifications `resolveAddress`                                    | Done (ADR 0270): `options.resolveAddress`                                   |
 | Realtime triggers as static app SQL                               | Done (ADR 0270): static `create trigger` statements                         |
-| Drive grants mode                                                 | Role hooks exist (`DriveRoleHook`); a separate mode is not built (ADR 0270) |
+| Drive grants mode                                                 | Role hooks exist (`DriveRoleHook`); a separate mode is not built (ADR 0586) |
 | Imports without events                                            | Exists: `events: "skip"`                                                    |
 | Outbox subject                                                    | Exists for app tables (`subjectType`, `subjectId`)                          |
 | Optional workflow tables                                          | Done (ADR 0270): `workflow_opt_outs` is optional                            |

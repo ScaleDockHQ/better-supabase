@@ -1463,7 +1463,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:a2026329227b02f2d5793c72292bf9cd39623fb6b854af689b148ab74a20f2c2
+-- @bsb-hash sha256:b483a0a4da7b2bb80bbbc3c9027f9b70732d90f98f3579f7551ab59fef2b54bf
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3065,8 +3065,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" a
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.companies deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"company","event_prefix":"company"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.people deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"person","event_prefix":"person"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.companies deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"company","event_prefix":"company"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.people deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"person","event_prefix":"person"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts

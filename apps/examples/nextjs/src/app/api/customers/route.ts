@@ -1,6 +1,6 @@
-import { bsb } from "../../../lib/supabase/server";
+import { bsbCore } from "../../../lib/supabase/server-core";
 
-export const GET = bsb.route((request, { db }) => {
+export const GET = bsbCore.route((request, { db }) => {
   const search = request.nextUrl.searchParams.get("q");
 
   return db.customers.list({

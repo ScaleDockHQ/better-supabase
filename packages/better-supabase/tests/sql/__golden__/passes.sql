@@ -323,7 +323,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:030e5cd20d358473b5e99149c4771defc52379d02a7c28099489059491786726
+-- @bsb-hash sha256:ad1ed632496d6f38049e8c2afe9ee8326ff167fb0e6f38dbac7be054b64ef9c8
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -730,8 +730,8 @@ revoke execute on function "better_supabase"."pass_occupancy"(uuid) from public,
 grant execute on function "better_supabase"."pass_occupancy"(uuid) to authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.passes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pass","event_prefix":"pass"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.pass_check_ins deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pass_check_in","event_prefix":"pass_check_in"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.passes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pass","event_prefix":"pass"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pass_check_ins deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pass_check_in","event_prefix":"pass_check_in"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_118_passes.sql
 -- better-supabase module: passes

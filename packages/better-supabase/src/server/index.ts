@@ -296,6 +296,21 @@ export {
   snapshotOf,
 } from "../auth/snapshot.ts";
 
+export { purgeKeys } from "../auth/resolve.ts";
+
+export {
+  BOOTSTRAP_PERMISSIONS_API_VERSION,
+  compactBootstrapPermissions,
+  expandBootstrapPermissions,
+} from "../core/bootstrap-permissions.ts";
+
+export type {
+  BootstrapPermissions,
+  BootstrapPermissionsCompact,
+  BootstrapPermissionsFull,
+  BootstrapPermissionsWire,
+} from "../core/bootstrap-permissions.ts";
+
 export { passwordGrant, safeRedirectPath } from "../auth/sign-in.ts";
 
 export {
@@ -323,6 +338,7 @@ export type { PasswordGrantOptions } from "../auth/sign-in.ts";
 
 export type {
   SessionMemo,
+  SessionMemoCounters,
   SessionMemoOptions,
   SessionMemoStats,
   SessionSnapshot,

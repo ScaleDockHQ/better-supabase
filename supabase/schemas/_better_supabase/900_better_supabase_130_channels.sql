@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:70367fe00d451b253358005a401b4d7233bd0e76403e3ae95d7f14d673574ea4
+-- @bsb-hash sha256:e9f44f33ea82bda1c1fa83167c436b3a38c92d15ea3d51e037b93a104d9f01db
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -442,7 +442,7 @@ create trigger "bsb_search_channel_index"
   for each row execute function "better_supabase"."search_index_row"('channel', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.channels deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"channel","event_prefix":"channel"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.channels deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"channel","event_prefix":"channel"}');
 
 -- blocks.channels.api: entry points for the Data API.
 create schema if not exists "api";

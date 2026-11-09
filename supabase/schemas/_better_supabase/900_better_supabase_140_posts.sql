@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:492e2ba5ea5ac1ae24654aa93e476518dbfa7bd99b4fd5ad4798165bfbdb378c
+-- @bsb-hash sha256:d0b4494501a924551fdffe407c3b96b5486cb46f7d1f9b60c502a9ed088e4fc1
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -687,8 +687,8 @@ create trigger "bsb_search_post_index"
   for each row execute function "better_supabase"."search_index_row"('post', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.post_boards deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post_board","event_prefix":"post_board"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.posts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post","event_prefix":"post"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.post_boards deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post_board","event_prefix":"post_board"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.posts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post","event_prefix":"post"}');
 
 -- blocks.posts.api: entry points for the Data API.
 create schema if not exists "api";

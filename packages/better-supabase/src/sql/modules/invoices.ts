@@ -196,6 +196,8 @@ const NAMES: BlockSqlNames = {
     "after_invoice_clone",
   ],
   options: [
+    "titleTemplate",
+    "openingTitleTemplate",
     "company",
     "contact",
     "prefix",

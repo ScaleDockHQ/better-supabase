@@ -629,7 +629,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:f89f4b1b0c6de6c3358b229663b56fc7f6039fd978b271ad0cb63241fca628ce
+-- @bsb-hash sha256:6333c3ce5314111c1aaed1345df938d7e2fa1251069694212fd206795d0601b2
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1305,7 +1305,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."content_entries" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.content_entries deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"content_entry","event_prefix":"content_entry"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.content_entries deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"content_entry","event_prefix":"content_entry"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_142_content.sql
 -- better-supabase module: content

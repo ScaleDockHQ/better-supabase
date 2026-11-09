@@ -227,3 +227,88 @@ describe("BS359 seed function without a locale", () => {
     expect(findings[0]?.message).toContain("seed_tax_defaults");
   });
 });
+
+describe("BS396 single-row seed inserts", () => {
+  const rows = (count: number, table = "public.items"): string =>
+    Array.from(
+      { length: count },
+      (_, at) => `insert into ${table} (id, name) values (${String(at)}, 'x');`,
+    ).join("\n");
+
+  it("flags ten single-row inserts into one table", async () => {
+    const findings = await run("BS396", {
+      blockNames: [],
+      files: [{ path: "supabase/seeds/a.sql", text: rows(10) }],
+    });
+
+    expect(findings).toMatchObject([
+      {
+        target: "supabase/seeds/a.sql:items",
+        location: { file: "supabase/seeds/a.sql", line: 1 },
+      },
+    ]);
+  });
+
+  it("accepts fewer rows, multi-row inserts, selects and sample files", async () => {
+    const multi = `insert into public.items (id, name) values ${Array.from({ length: 30 }, (_, at) => `(${String(at)}, 'x')`).join(", ")};`;
+
+    const select = Array.from(
+      { length: 12 },
+      () => "insert into public.items select * from public.other;",
+    ).join("\n");
+
+    expect(
+      await run("BS396", {
+        blockNames: [],
+        files: [
+          { path: "supabase/seeds/few.sql", text: rows(9) },
+          { path: "supabase/seeds/multi.sql", text: multi },
+          { path: "supabase/seeds/select.sql", text: select },
+          {
+            path: "supabase/seeds/sample.sql",
+            text: `${SAMPLE_FILE_MARKER}\n${rows(20)}`,
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("BS397 data in schema files", () => {
+  const schema = {
+    path: "supabase/schemas/app/seed.sql",
+    text: "create table public.kinds (id int);\ninsert into public.kinds values (1);\n",
+  };
+
+  const migration = {
+    path: "supabase/migrations/1_kinds.sql",
+    text: "insert into public.kinds values (1) on conflict do nothing;",
+  };
+
+  it("flags a statement on a table a migration also writes", async () => {
+    const findings = await run("BS397", {
+      blockNames: [],
+      sqlFiles: [schema, migration],
+    });
+
+    expect(findings).toMatchObject([
+      { location: { file: "supabase/schemas/app/seed.sql", line: 2 } },
+    ]);
+  });
+
+  it("leaves tables nothing else writes, and block files", async () => {
+    expect(await run("BS397", { blockNames: [], sqlFiles: [schema] })).toEqual(
+      [],
+    );
+
+    expect(
+      await run("BS397", {
+        blockNames: [],
+        sqlFiles: [
+          { ...schema, text: `-- @bsb-block seeds@1\n${schema.text}` },
+          migration,
+        ],
+      }),
+    ).toEqual([]);
+  });
+});

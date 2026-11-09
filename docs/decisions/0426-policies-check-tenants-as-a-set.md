@@ -1,0 +1,42 @@
+# 0426: Check tenants as a set in block policies
+
+- Status: accepted
+- Date: 2026-11-08
+- Amends: 0104
+
+## Context
+
+`better_supabase.can('tenant', "tenant_id", 'key')` with a column argument runs
+once per row, even inside `(select ...)`. The access contract says to use
+`tenant_id in (select better_supabase.tenant_ids_with('key'))` in a policy.
+Searching the generated schema found two policies that still called `can` with a
+column: the organization settings insert policy and the attachments insert
+policy.
+
+## Decision
+
+The settings insert policy uses the set form (`ctx.scope.check`). The
+attachments insert policy keeps `can(...)`: its permission is a `case` over
+`subject_type` (`messages.send`, `expenses.submit`, `attachments.upload`), which
+a set cannot express without one set per key; it is left as the next slice, with
+the provider set-helper placeholder (a template for the provider's set helper so
+a block policy never renders a per-row provider call), which is not built.
+
+`subjectReadable` takes `tenantColumn: true` when its tenant argument is a column
+of the guarded table, and then checks the subject's permission, its `also` key and
+the record grants with `tenant_ids_with`. The attachments read policy uses it.
+
+## Measured
+
+Attachments read, 60,000 customers and 12,000 attachments as a member: 2,468 ms
+with the check inlined, 73 ms with the tenant checked as a set.
+
+Plan shape only: the settings insert policy has no `can(` call and carries
+`tenant_ids_with` (pgTAP `settings_insert_set_check`). The settings table has
+few rows, so there is no timing to report.
+
+## Consequences
+
+`better-supabase upgrade` rewrites the `settings` module and the next schema
+migration replaces one policy. No data migration. The read-sets module is
+regenerated too, because its count now uses the estimated mode (ADR 0425).

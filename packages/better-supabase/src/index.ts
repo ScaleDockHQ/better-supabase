@@ -6,6 +6,10 @@ export type {
   RpcDefinition,
 } from "./core/define-types.ts";
 
+export { formatPageTotal } from "./core/page-total.ts";
+
+export type { FormatPageTotalOptions, PageTotal } from "./core/page-total.ts";
+
 export { EMPTY_STATS, recordStats, StatsRecorder } from "./core/stats.ts";
 
 export type { DbStats } from "./core/stats.ts";

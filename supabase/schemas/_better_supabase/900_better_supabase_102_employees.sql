@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:816de25bb420beaaf205a8eb432026af3314120e2312199b6cc3b767865e5bfe
+-- @bsb-hash sha256:52cbdf6a14cdc775d87144d6c7608cbb07561879a2214fc3dedac5db7c14633b
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -927,7 +927,7 @@ create trigger "bsb_search_employee_index"
   for each row execute function "better_supabase"."search_index_row"('employee', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.employees deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"employee","event_prefix":"employee"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.employees deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"employee","event_prefix":"employee"}');
 
 -- blocks.employees.api: entry points for the Data API.
 create schema if not exists "api";

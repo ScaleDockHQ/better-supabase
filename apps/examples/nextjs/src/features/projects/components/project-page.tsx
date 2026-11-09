@@ -30,7 +30,7 @@ import {
 } from "../projects-queries";
 import { ProjectHistory } from "./project-history";
 import { ProjectLoadError } from "./project-load-error";
-import { TaskFormDialog } from "./task-form-dialog";
+import { TaskFormDialogLazy } from "./task-form-dialog-lazy";
 import { TaskImportAction } from "./task-import-action";
 import { TaskStatusBadge } from "./task-status-badge";
 
@@ -107,7 +107,7 @@ export async function ProjectPage({ id }: { id: string }) {
             </CardDescription>
             <CardAction className="flex items-center gap-2">
               <TaskImportAction projectId={record.id} />
-              <TaskFormDialog
+              <TaskFormDialogLazy
                 projects={[{ id: record.id, name: record.name }]}
                 members={members.data}
                 defaultProjectId={record.id}

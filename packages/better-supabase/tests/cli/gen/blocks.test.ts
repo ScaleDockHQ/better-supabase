@@ -12,6 +12,7 @@ import {
   schemaExtensions,
 } from "../../../src/cli/gen/blocks.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
+import { emitServerBlocks } from "../../../src/cli/gen/server-blocks.ts";
 import { resolveConfig as resolveDefault } from "../../../src/config/resolve.ts";
 import { zod } from "../../../src/generators/zod.ts";
 import { PRESET_CATALOG } from "../../../src/preset/catalog.generated.ts";
@@ -878,6 +879,72 @@ describe("blocks.client.ts", () => {
 
     expect(emitClientBlocks(config)).toBeUndefined();
     expect(emitBlockConfigModule(config)).toBeUndefined();
+  });
+});
+
+describe("blocks.<name>.ts", () => {
+  const install = { memberships: {}, attachments: {}, tags: {} };
+
+  const configOf = (serverBlocks: Record<string, readonly string[]>) =>
+    resolveConfig({ blocks: install, gen: { serverBlocks } }, "/project");
+
+  it("writes one set per name over only the listed instances", () => {
+    const [file, ...rest] = emitServerBlocks(configOf({ shell: ["tags"] }));
+
+    expect(rest).toEqual([]);
+    expect(file?.path).toBe("src/lib/supabase/blocks.shell.ts");
+    expect(file?.contents).toContain('from "better-supabase/blocks/tags"');
+    expect(file?.contents).not.toContain("blocks/attachments");
+    expect(file?.contents).not.toContain('from "./blocks.generated');
+    expect(file?.contents).toContain("export const shellInstances = {");
+
+    expect(file?.contents).toContain(
+      "export const shellBlocks = defineBlocks(blockConfig, shellInstances);",
+    );
+  });
+
+  it("writes nothing without sets", () => {
+    expect(
+      emitServerBlocks(resolveConfig({ blocks: install }, "/project")),
+    ).toEqual([]);
+  });
+
+  it("rejects an unknown instance and a block without a client", () => {
+    expect(() => emitServerBlocks(configOf({ shell: ["nope"] }))).toThrow(
+      /gen\.serverBlocks\.shell lists "nope", which `blocks` doesn't install/,
+    );
+
+    expect(() =>
+      emitServerBlocks(
+        resolveConfig(
+          {
+            blocks: { ...install, "updated-at": {} },
+            gen: { serverBlocks: { shell: ["updated-at"] } },
+          },
+          "/project",
+        ),
+      ),
+    ).toThrow(/no client/);
+  });
+
+  it("fails when a listed block needs a port no listed block provides", () => {
+    const needy: PresetCatalog = {
+      ...PRESET_CATALOG,
+      manifests: PRESET_CATALOG.manifests.map((manifest) =>
+        manifest.name === "tags"
+          ? { ...manifest, consumes: { notifier: "required" } }
+          : manifest,
+      ),
+    };
+
+    const config = configOf({
+      shell: ["tags"],
+      both: ["tags", "notifications"],
+    });
+
+    expect(() => emitServerBlocks(config, { catalog: needy })).toThrow(
+      /gen\.serverBlocks\.shell lists "tags", which needs a block that provides the notifier port/,
+    );
   });
 });
 

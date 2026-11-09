@@ -2,6 +2,7 @@ import type { AuthorizationProvider } from "../../config/authorization.ts";
 import type { PresetMigrationFile } from "../types.ts";
 import type { MatrixCell, MatrixCommand, MatrixRole } from "./verify.ts";
 
+import { resolvePersonas } from "../../config/authorization.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
 import { MATRIX_COMMANDS } from "./verify.ts";
 
@@ -290,7 +291,7 @@ export function providerPersonaTests(
   const directory = options.directory ?? "supabase/tests/database";
   const scope = provider.tenantScope;
 
-  return (provider.personas ?? []).map(
+  return resolvePersonas(provider).map(
     (persona, index): PresetMigrationFile => {
       const sub =
         options.subs?.[persona.name] ??

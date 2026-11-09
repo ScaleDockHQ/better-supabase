@@ -97,6 +97,7 @@ const NAMES: BlockSqlNames = {
     "after_quote_clone",
   ],
   options: [
+    "titleTemplate",
     "company",
     "contact",
     "prefix",

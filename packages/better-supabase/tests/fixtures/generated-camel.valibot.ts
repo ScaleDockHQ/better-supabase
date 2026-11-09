@@ -564,6 +564,11 @@ export const importCustomerArgs: v.GenericSchema<{ item: Json; run: string; subj
   subject_id: v.string(),
 }), v.title("import_customer arguments"));
 
+export const importCustomerBatchArgs: v.GenericSchema<{ items: Json; run: string }> = v.pipe(v.object({
+  items: json,
+  run: v.pipe(v.string(), v.uuid()),
+}), v.title("import_customer_batch arguments"));
+
 export const importCustomerUpdatedAtArgs: v.GenericSchema<{ subject_id: string }> = v.pipe(v.object({
   subject_id: v.string(),
 }), v.title("import_customer_updated_at arguments"));
@@ -611,6 +616,8 @@ export const updateMyProfileArgs: v.GenericSchema<{ full_name: string }> = v.pip
 }), v.title("update_my_profile arguments"));
 
 export const importCustomerResult: v.GenericSchema<Json> = json;
+
+export const importCustomerBatchResult: v.GenericSchema<Json> = json;
 
 export const importCustomerUpdatedAtResult: v.GenericSchema<string | null> = v.nullable(v.pipe(v.string(), v.isoTimestamp()));
 

@@ -448,6 +448,46 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0482: Use the runtime's Temporal in the browser and load the polyfill only when it is missing.
 - 0483: Load header dialogs on intent, render the side navigation on the server and load the chat panel after paint.
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
+- 0421: Index search records once per import batch.
+- 0422: Check the import summary mode in the audit trigger's when clause.
+- 0423: Import batches do not lock the run, and their size adapts.
+- 0424: Inline the subject check in the attachments policies.
+- 0425: Count defaults to the estimated mode.
+- 0426: Check tenants as a set in block policies.
+- 0427: Scale baseline and the measure-first verdicts.
+- 0428: Expose better_supabase.importing() to app SQL.
+- 0429: Default import titles come from a template option.
+- 0431: `gen --offline` reads only the saved snapshot.
+- 0432: Re-issue a taken number when the item asks.
+- 0433: Counts report whether the planner answered.
+- 0434: No block policy calls can() per row, and the provider set helper is the template that serves.
+- 0435: Keep the row trigger as the audit default for import targets.
+- 0436: Import targets may write a batch in set-based statements.
+- 0437: Store import chunks in the library and process them from the queue.
+- 0438: Name trigger-filled columns with a table tag.
+- 0439: Record the mapper version of a run and expose the record map's hashes.
+- 0441: Import brief items that are verified, measured away or still open.
+- 0500: Check scale practices in doctor from the catalog and the schema files.
+- 0501: Keep the legal entity number key swaps as `do` blocks until the owning modules render the key.
+- 0520: Accept the 0.26 provider fields as optional additions.
+- 0521: Plan the access token hook: reuse a current refresh, slim OAuth tokens.
+- 0522: Cap the Supabase JWKS cache at 600 seconds and expose purgeKeys.
+- 0523: Measure the JWT matrix: hook time is small, memberships claim bytes are not.
+- 0524: Return the caller's permissions from the bootstrap in a versioned, compact form.
+- 0540: Count object levels in `renameBlock`, not wrappers, and cap the depth at 4.
+- 0541: Record what the server layout items measured and why four stay open.
+- 0542: Build a route's server from a named block set, and load the help bot on demand.
+- 0560: Keep `@ai-sdk/react` and the full Supabase browser client.
+- 0561: Load the board view and the task form on use.
+- 0580: Turn a feature off when an owned table lacks its column.
+- 0581: Time AsyncResult against a promise chain in the type bench.
+- 0582: Detect SvelteKit, TanStack Start and React Router with their own bindings, and pin adapterBase use.
+- 0583: Build each example app that has a bundler in its own CI job.
+- 0584: Hold the Lienlink projection shape with a pgTAP file.
+- 0585: Give approval items the app's columns, and leave hiring as it is.
+- 0586: Keep the drive grants mode and block client reads through views deferred.
+- 0587: Record the status of the ADR 0393 and 0420 leftovers.
+- 0588: Defer tenantless notifications and audit.
 
 ## Pre-release pins
 

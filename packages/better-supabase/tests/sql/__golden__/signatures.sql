@@ -463,7 +463,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:65a697bc9e34dd33c95c71348c2f858020a3fbd566f450b7cc11316d6f968605
+-- @bsb-hash sha256:b39d099337bbdd37d27fb37a3faadff18273e0c6fd1863c2bfc90eb3fe8dec5d
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -959,7 +959,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.signature_requests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"signature_request","event_prefix":"signature_request"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.signature_requests deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"signature_request","event_prefix":"signature_request"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures

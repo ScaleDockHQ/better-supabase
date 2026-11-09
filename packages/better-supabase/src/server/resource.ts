@@ -322,7 +322,7 @@ export function defineResource<
               repository.page({
                 ...extra,
                 ...page.data,
-                ...("page" in page.data ? { count: "exact" } : {}),
+                ...("page" in page.data ? { count: "estimated" } : {}),
               } as never),
             );
         }

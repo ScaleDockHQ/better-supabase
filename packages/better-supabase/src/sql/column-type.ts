@@ -117,7 +117,23 @@ as $$
   end;
 $$;
 revoke execute on function better_supabase.import_run() from public;
-grant execute on function better_supabase.import_run() to anon, authenticated, service_role;`;
+grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
+
+-- True while the transaction runs in import mode, for an app trigger or
+-- function that skips a side effect during an import: \`if not
+-- better_supabase.importing() then ... end if;\`. Only the service role can
+-- begin an import session, so a user session always gets false.
+create or replace function better_supabase.importing()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select better_supabase.import_run() is not null;
+$$;
+revoke execute on function better_supabase.importing() from public;
+grant execute on function better_supabase.importing() to anon, authenticated, service_role;`;
 }
 
 /**

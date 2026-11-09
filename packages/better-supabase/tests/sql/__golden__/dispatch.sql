@@ -798,7 +798,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:97c2f5272b17ed1465a4f02d877d2f3277d2dd0b188b93f16289d99cbc35c951
+-- @bsb-hash sha256:99d8ab909626c6d1673adf84a44524f5e70bae3c4165602f3352a9245185c134
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1687,9 +1687,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_order","event_prefix":"work_order"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.dispatch_routes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dispatch_route","event_prefix":"dispatch_route"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_order_parts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_order_part","event_prefix":"work_order_part"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_orders deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_order","event_prefix":"work_order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.dispatch_routes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dispatch_route","event_prefix":"dispatch_route"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_order_parts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_order_part","event_prefix":"work_order_part"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch

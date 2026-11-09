@@ -363,7 +363,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:4bfaaf274a3dd6a1ab15dec1b483e9826718055568d44df6db10a341f06455ec
+-- @bsb-hash sha256:d1ea9066d8e7934786bb4765289a2c7c2b5eb40567432111d7371c533a94b962
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -710,7 +710,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_scheduled_tasks deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_scheduled_task","event_prefix":"ai_scheduled_task"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_scheduled_tasks deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_scheduled_task","event_prefix":"ai_scheduled_task"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules

@@ -1,6 +1,6 @@
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:ea56259e5b5b8eb29cbe52a02e80a9f02a8eb1b5149257a29f0eab3b3f5c3322
+-- @bsb-hash sha256:95ce2e9280378899b389d427442d897e746a71d185cc6a631f191a894076a4ab
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -705,7 +705,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_document","event_prefix":"ai_document"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_documents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_document","event_prefix":"ai_document"}');
 
 -- blocks.ai-files.api: entry points for the Data API.
 create schema if not exists "api";

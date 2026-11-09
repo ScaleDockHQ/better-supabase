@@ -1,6 +1,6 @@
 -- better-supabase module: time-entries
 -- @bsb-block time-entries@3 managed
--- @bsb-hash sha256:89b2da0d6c825050126e6b4537dc153a5ce78b57e12b5f25b899c8006a566076
+-- @bsb-hash sha256:e30668162a03dff644d7c2b9f3c8229ac22e0b51cfecf3cca776d0270ebb684a
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1041,8 +1041,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.time_entries deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"time_entry","event_prefix":"time_entry"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.timesheets deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"timesheet","event_prefix":"timesheet"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.time_entries deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"time_entry","event_prefix":"time_entry"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.timesheets deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"timesheet","event_prefix":"timesheet"}');
 
 -- blocks.time-entries.api: entry points for the Data API.
 create schema if not exists "api";

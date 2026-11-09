@@ -656,6 +656,8 @@ describe.skipIf(!live)("PostgREST integration", () => {
       defaultSort: "name",
       facetCounts: true,
       pagination: "offset",
+      // The planner estimates a total, and the estimate follows the table's statistics.
+      count: "exact",
     });
 
     const acme = await asOrganizationMember(ACME);

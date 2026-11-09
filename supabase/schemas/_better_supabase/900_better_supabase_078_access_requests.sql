@@ -1,6 +1,6 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:7796517c6fb346225aec381963b6ff18f337cf52484fc119f4f4539945a4e779
+-- @bsb-hash sha256:f6a45caf49ecd4018ad275f6a340821658273e0a0515f9fd11b33633eab433b1
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -707,7 +707,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.access_requests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"access_request","event_prefix":"access_request"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.access_requests deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"access_request","event_prefix":"access_request"}');
 
 -- blocks.access-requests.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:b43555a657e942133032ba4964dc73805ac7e4193d9a0f9bcfefddc42ce2846c
+-- @bsb-hash sha256:f87e925bd2afb8996d1295a9f3b14b965cd1dc6055b42d6fb8244d80fc455dbd
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -656,7 +656,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."field_values" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.field_definitions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"field_definition","event_prefix":"field_definition"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.field_definitions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"field_definition","event_prefix":"field_definition"}');
 
 -- blocks.custom-fields.api: entry points for the Data API.
 create schema if not exists "api";

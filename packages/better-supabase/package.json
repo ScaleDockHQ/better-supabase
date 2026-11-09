@@ -2665,6 +2665,7 @@
   },
   "scripts": {
     "bench": "node tests/next/next.bench.ts && node tests/core/plugins.bench.ts && node tests/core/compile.bench.ts && node tests/server/context.bench.ts && node tests/cli/spec/spec.bench.ts",
+    "bench:jwt": "node tests/bench/jwt-matrix.ts",
     "bench:live": "node tests/bench/postgrest-floor.ts && node tests/bench/executors.ts",
     "bench:sql": "node tests/bench/approval-eligible-ids.ts && node tests/bench/audit-statement.ts",
     "build": "tsdown",

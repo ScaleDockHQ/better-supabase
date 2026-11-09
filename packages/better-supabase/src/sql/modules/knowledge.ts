@@ -711,7 +711,8 @@ ${userGrant(`${fn("delete_knowledge_document")}(uuid)`)}
 -- priority_order is false. Returns a JSON array of {document_id, idx,
 -- chunk_id, organization_id, content, metadata, title, score}; chunk_id is
 -- the document id and idx joined by '#', and organization_id is null for a
--- system document.
+-- system document. The custom plan setting lets the planner fold the null
+-- collections parameter, so the collection filter can use its index.
 drop function if exists ${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb);
 drop function if exists ${fn("knowledge_search")}(${id}, ${embedding.type}, text, jsonb, integer, jsonb, uuid[]);
 create or replace function ${fn("knowledge_search")}(
@@ -729,6 +730,7 @@ language plpgsql
 stable
 security invoker
 set search_path = ''
+set plan_cache_mode = force_custom_plan
 as $$
 declare
   previous_scan text := current_setting('hnsw.iterative_scan', true);

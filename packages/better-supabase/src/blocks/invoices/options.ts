@@ -4,6 +4,18 @@ import { blockOptions, option } from "../options.ts";
 
 /** `blocks.invoices.options`. */
 export type InvoicesSqlOptions = {
+  /**
+   * The default title of a imported invoice, with `{number}` for its number,
+   * such as `Offerte {number}`. A title in the import item or the call still
+   * wins. Default `Invoice {number}`.
+   */
+  readonly titleTemplate?: string;
+  /**
+   * The default title of a imported opening balance, with `{number}` for its
+   * number, such as `Offerte {number}`. A title in the import item or the call
+   * still wins. Default `Opening balance {number}`.
+   */
+  readonly openingTitleTemplate?: string;
   readonly company?: string;
   readonly contact?: string;
   readonly prefix?: string;
@@ -81,6 +93,10 @@ export type InvoicesSqlOptions = {
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
   blockOptions<InvoicesSqlOptions>({
+    titleTemplate: option.string({ default: "Invoice {number}" }),
+    openingTitleTemplate: option.string({
+      default: "Opening balance {number}",
+    }),
     company: option.string({ default: "company" }),
     contact: option.string({ default: "person" }),
     prefix: option.string({ default: "INV-" }),

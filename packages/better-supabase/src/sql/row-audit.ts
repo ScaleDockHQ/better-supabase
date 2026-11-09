@@ -108,6 +108,15 @@ export function rowAuditData(
 }
 
 /**
+ * The `when` condition of a row audit trigger: false while an import run with
+ * `imports.audit: summary` writes, so the function never starts for a row the
+ * run audits per entity at its end (ADR 0141). The import check keeps a user
+ * session from setting the flag.
+ */
+export const AUDIT_NOT_IMPORT_SUMMARY =
+  "better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary'";
+
+/**
  * The trigger `better_supabase.audit(target, ...)` creates, as one static
  * statement. The settings are the trigger's argument, so the row's key columns
  * fall back to its primary key when the trigger runs.
@@ -119,5 +128,5 @@ export function auditTrigger(
 ): string {
   const settings = JSON.stringify({ ignore: [], redact: [], ...names });
 
-  return `create ${deferred ? "constraint " : ""}trigger bsb_audit after insert or update or delete on ${target} ${deferred ? "deferrable initially deferred " : ""}for each row execute function better_supabase.audit_row_change(${sqlString(settings)});`;
+  return `create ${deferred ? "constraint " : ""}trigger bsb_audit after insert or update or delete on ${target} ${deferred ? "deferrable initially deferred " : ""}for each row when (${AUDIT_NOT_IMPORT_SUMMARY}) execute function better_supabase.audit_row_change(${sqlString(settings)});`;
 }

@@ -7,6 +7,9 @@ create table public.invoices (
   issued_on date,
   due_on date,
   note text,
+  subtotal bigint not null default 0,
+  tax_total bigint not null default 0,
+  total bigint not null default 0,
   created_at timestamptz not null default now()
 );
 

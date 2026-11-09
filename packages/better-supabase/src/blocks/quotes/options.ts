@@ -4,6 +4,12 @@ import { blockOptions, option } from "../options.ts";
 
 /** `blocks.quotes.options`. */
 export type QuotesSqlOptions = {
+  /**
+   * The default title of a quote, with `{number}` for its number, such as
+   * `Offerte {number}`. A title in the import item or the call still wins.
+   * Default `Quote {number}`.
+   */
+  readonly titleTemplate?: string;
   readonly company?: string;
   readonly contact?: string;
   readonly prefix?: string;
@@ -74,6 +80,7 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     company: option.string({ default: "company" }),
     contact: option.string({ default: "person" }),
     prefix: option.string({ default: "Q-" }),
+    titleTemplate: option.string({ default: "Quote {number}" }),
     validDays: option.number({ default: 30 }),
     lineRates: option.string<"bps" | "percent">({ default: "bps" }),
     workingCopy: option.boolean({ default: false }),

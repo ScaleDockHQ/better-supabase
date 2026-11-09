@@ -697,7 +697,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:cd83a9822cd1e90db7e3b5ede44abc0bb4d75c5f66ba1c93cc3c2ea072f38677
+-- @bsb-hash sha256:3d4d467225546eebdfb64422c0a1b0cbe199af1daea502f1cc9d06499041c976
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1440,8 +1440,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."contract_obligations
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.contracts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"contract","event_prefix":"contract"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.contract_obligations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"contract_obligation","event_prefix":"contract_obligation"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.contracts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"contract","event_prefix":"contract"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.contract_obligations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"contract_obligation","event_prefix":"contract_obligation"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts

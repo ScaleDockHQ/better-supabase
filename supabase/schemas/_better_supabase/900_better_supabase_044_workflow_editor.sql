@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:126084a1f764822e94d63096de02540fce96917cbf2377e9233b3fcede2db4de
+-- @bsb-hash sha256:a4d598435b10cccf88fc74be0f6b925d06e1da3183c831aa8b026acd4e208706
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2168,7 +2168,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."workflow_credentials
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.workflow_definitions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"workflow_definition","event_prefix":"workflow_definition"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.workflow_definitions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"workflow_definition","event_prefix":"workflow_definition"}');
 
 -- blocks.workflow-editor.api: entry points for the Data API.
 create schema if not exists "api";

@@ -20,6 +20,26 @@ import {
  * items (deals, quotes, invoices) declares one with these names, so every line
  * table has the same shape.
  */
+/**
+ * The update that writes a record's totals. An app table that owns none of the
+ * total columns has nothing to write, and `set` with no assignment is a syntax
+ * error.
+ */
+const updateTotals = (
+  table: string,
+  totalsSet: string,
+  afterTotals: string | undefined,
+  where: string,
+): string => {
+  const assignments = [totalsSet, afterTotals].filter(
+    (part): part is string => part !== undefined && part !== "",
+  );
+
+  return assignments.length === 0
+    ? "null;"
+    : `update ${table} x set\n    ${assignments.join(",\n    ")}\n  where ${where};`;
+};
+
 const LINE_COLUMNS = {
   id: "id",
   tenant: "tenant_id",
@@ -643,9 +663,7 @@ begin
   select coalesce(sum(${list}), 0), coalesce(sum(${discount}), 0), coalesce(sum(${tax}), 0)
     into v_list, v_discount, v_tax
   from ${t} l where l.${c("parent")} = ${options.setter}_recount.parent;
-  update ${p} x set
-    ${totalsSet}${items.afterTotals === undefined ? "" : `,\n    ${items.afterTotals}`}
-  where x.${pc("id")} = ${options.setter}_recount.parent;
+  ${updateTotals(p, totalsSet, items.afterTotals, `x.${pc("id")} = ${options.setter}_recount.parent`)}
 end;
 $$;
 revoke execute on function ${recount}(uuid) from public, anon, authenticated;
@@ -1055,9 +1073,7 @@ function documentRecountSql(
 `;
 
   const writeSql = `  v_discount := v_line_discount + v_record_discount;${writeTaxLines}
-  update ${p} x set
-    ${totalsSet}${items.afterTotals === undefined ? "" : `,\n    ${items.afterTotals}`}
-  where x.${pc("id")} = ${parent};`;
+  ${updateTotals(p, totalsSet, items.afterTotals, `x.${pc("id")} = ${parent}`)}`;
 
   if (options.values === undefined) {
     return `

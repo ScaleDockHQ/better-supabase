@@ -1699,7 +1699,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:8515cf3bb5d82f35f92771e0f144715f27783b6f564d0e30fc80d34a8f4fc747
+-- @bsb-hash sha256:866fa2be404b61bcfe8f625881d27cbda8dc6862f51f3fc6292e5819d9f48a36
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3472,13 +3472,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.pick_lists deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pick_list","event_prefix":"pick_list"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.pick_waves deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pick_wave","event_prefix":"pick_wave"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.pick_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pick_line","event_prefix":"pick_line"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.count_plans deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"count_plan","event_prefix":"count_plan"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.putaway_rules deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"putaway_rule","event_prefix":"putaway_rule"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.bin_slots deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bin_slot","event_prefix":"bin_slot"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.variant_sizes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"variant_size","event_prefix":"variant_size"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pick_lists deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pick_list","event_prefix":"pick_list"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pick_waves deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pick_wave","event_prefix":"pick_wave"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pick_lines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pick_line","event_prefix":"pick_line"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.count_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"count_plan","event_prefix":"count_plan"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.putaway_rules deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"putaway_rule","event_prefix":"putaway_rule"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bin_slots deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bin_slot","event_prefix":"bin_slot"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.variant_sizes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"variant_size","event_prefix":"variant_size"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse

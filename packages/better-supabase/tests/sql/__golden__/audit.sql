@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:b495f8b7df475b7156147479f1519aeb926f78c1a5304574dfdf23d7e2ba795d
+-- @bsb-hash sha256:6a855b50aada67770861cd3f7e4cc6deab93467e20e4a5480a4a69a93d37f8c8
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -624,16 +624,16 @@ begin
     );
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
-      'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
     execute format(
-      'create %strigger bsb_audit_update after update on %s %sfor each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text
     );
   else
     execute format(
-      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
   end if;
@@ -1763,7 +1763,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:67e0abf3e628c788e1830cd9ea7ff6a1c0c0982a4ec2f749693b427897ef08e3
+-- @bsb-hash sha256:944641a19f3716301c476765f5b432430ad756695baf24b9def3485f00b04891
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2405,16 +2405,16 @@ begin
     );
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
-      'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
     execute format(
-      'create %strigger bsb_audit_update after update on %s %sfor each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text
     );
   else
     execute format(
-      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
   end if;
@@ -3709,7 +3709,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:9e7774241d1a9231042517cd9bb648fcbe2b6591e492f585284564989a7d2487
+-- @bsb-hash sha256:0bb3c372d060e686b46102d1e487de0b62433ab4b484501e7365ff854dd2cd01
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4332,16 +4332,16 @@ begin
     );
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
-      'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
     execute format(
-      'create %strigger bsb_audit_update after update on %s %sfor each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text
     );
   else
     execute format(
-      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
   end if;
@@ -5471,7 +5471,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:8c29ca14836742859c44c80397d45a884351226739bca6eb6613fbc9dd7225b4
+-- @bsb-hash sha256:ea05f27b0b988cf05f1e6860c67f884f4cb953295b1773d3db61d047f1225a0d
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6094,16 +6094,16 @@ begin
     );
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
-      'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
     execute format(
-      'create %strigger bsb_audit_update after update on %s %sfor each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text
     );
   else
     execute format(
-      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
   end if;
@@ -7352,7 +7352,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:e1df5d242a03ef1e163cd91440fce2e43f4951574a371bfa80b6542e8546bd96
+-- @bsb-hash sha256:009a25dc70273aad85642b83ed9fc3b3c1b504d14f29f77fae090193f8bd07fe
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7904,16 +7904,16 @@ begin
     );
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
-      'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
     execute format(
-      'create %strigger bsb_audit_update after update on %s %sfor each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text
     );
   else
     execute format(
-      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
   end if;
@@ -8968,7 +8968,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:20d43ae932f0d5ebdcb0eff88675f264b85a9bf3e121069be5fd92b8e69ce73c
+-- @bsb-hash sha256:4beeabbedaa6f5e05aa56ea31143049d2e79b71e65879f07fcbe5850cfb1c52d
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9591,16 +9591,16 @@ begin
     );
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
-      'create %strigger bsb_audit after insert or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
     execute format(
-      'create %strigger bsb_audit_update after update on %s %sfor each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text
     );
   else
     execute format(
-      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row execute function better_supabase.audit_row_change(%L)',
+      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',
       trigger_kind, target, trigger_timing, base_settings::text
     );
   end if;

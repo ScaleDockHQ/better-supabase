@@ -193,6 +193,12 @@ export interface SubjectSearch {
     readonly key: string;
     readonly via?: string;
     readonly through?: readonly SearchWatchHop[];
+    /**
+     * The columns of `table` whose change re-indexes the record, next to `key`.
+     * Without it, any update of a row does, and a trigger on `update of` these
+     * columns skips the rest.
+     */
+    readonly columns?: readonly string[];
   }[];
 }
 

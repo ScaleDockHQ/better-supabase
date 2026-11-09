@@ -778,6 +778,14 @@ export const importCustomerArgs: TableSchema<{ item: Json; run: string; subject_
   },
 });
 
+export const importCustomerBatchArgs: TableSchema<{ items: Json; run: string }> = tableSchema({
+  title: "import_customer_batch arguments",
+  fields: {
+    items: {"kind":"json"},
+    run: {"kind":"uuid"},
+  },
+});
+
 export const importCustomerUpdatedAtArgs: TableSchema<{ subject_id: string }> = tableSchema({
   title: "import_customer_updated_at arguments",
   fields: {

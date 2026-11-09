@@ -1,6 +1,6 @@
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:afa718ae9542e8706adb51b13d6e954ba8c4751a9d944a14160a86c8013ab8b0
+-- @bsb-hash sha256:fcd7aa0b7f7e098913e0c81a08781b177598171b24e9c1b70c786e846e862d2a
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -555,7 +555,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.connector_servers deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"connector_server","event_prefix":"connector_server"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.connector_servers deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"connector_server","event_prefix":"connector_server"}');
 
 -- blocks.connectors.api: entry points for the Data API.
 create schema if not exists "api";

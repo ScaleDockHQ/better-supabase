@@ -1,6 +1,6 @@
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:e16cb9b4f40759cbef30bd965216d5bdcda52fc73149f6f02afa0a09dac5f11a
+-- @bsb-hash sha256:dae3d7ff70e8fc1afbaf833236412537f9e6b6a55bf343d6dcd0ad8f3b948db1
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -729,8 +729,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.guests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest","event_prefix":"guest"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.guest_grants deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest_grant","event_prefix":"guest_grant"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guests deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest","event_prefix":"guest"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guest_grants deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest_grant","event_prefix":"guest_grant"}');
 
 -- blocks.guests.api: entry points for the Data API.
 create schema if not exists "api";

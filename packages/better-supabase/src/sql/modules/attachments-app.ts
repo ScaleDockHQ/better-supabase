@@ -1,7 +1,11 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
+import type { Subject } from "../subjects.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER } from "../shared.ts";
+import { installedTables, laterTables } from "../later-tables.ts";
+import { quotedTable, SERVICE_CALLER } from "../shared.ts";
+import { subjectReadable } from "../subjects.ts";
 
 /**
  * A row of `table` as JSON under the module's default column names, which the
@@ -170,3 +174,48 @@ export const HASH_UPGRADE = {
   sql: (ctx: BlockSqlContext): string =>
     `drop function if exists ${ctx.fn("set_attachment_status")}(uuid, text, text);`,
 };
+
+/**
+ * The policy form of `attachment_subject_readable` over the row's columns (ADR
+ * 0424): the subjects whose table exists inline, a later module's subject types
+ * through `fallback`, which binds late.
+ */
+export function inlineSubjectReadable(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+  subjects: readonly (readonly [string, Subject])[],
+  columns: {
+    readonly type: string;
+    readonly id: string;
+    readonly tenant: string;
+    readonly fallback: string;
+  },
+): string {
+  if (subjects.length === 0) {
+    return "true";
+  }
+
+  const later = laterTables(ctx, layout, "attachments");
+
+  const known = installedTables(ctx, layout);
+  const own = `"${ctx.schemaName}".`;
+
+  // A block-schema table no installed block creates, such as `tasks` when the
+  // block is only installed as a renamed instance, would fail an early-bound
+  // policy, so its type goes through the fallback too.
+  const early = subjects.filter(([, entry]) => {
+    const table = quotedTable(entry.table);
+
+    return !later.has(table) && (!table.startsWith(own) || known.has(table));
+  });
+
+  const { fallback, ...args } = columns;
+
+  const readable = subjectReadable(ctx, early, args, {
+    guest: true,
+    tenantColumn: true,
+    fallback,
+  });
+
+  return `(${columns.type} is null or ${readable})`;
+}

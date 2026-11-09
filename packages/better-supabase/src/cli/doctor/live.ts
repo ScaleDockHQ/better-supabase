@@ -61,7 +61,9 @@ const megabytes = (bytes: number): string =>
   `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
 /** The schema `pg_stat_statements` lives in, when the extension is installed. */
-async function statementsView(db: LiveDatabase): Promise<string | undefined> {
+export async function statementsView(
+  db: LiveDatabase,
+): Promise<string | undefined> {
   const [row] = await db.query<{ schema: string }>(
     `select n.nspname as schema from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pg_stat_statements'`,
   );

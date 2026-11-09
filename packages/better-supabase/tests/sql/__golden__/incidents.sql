@@ -1258,7 +1258,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:2e6c8042a9bf3fba2439abf1dd06a908521362625b247b7f9d1318d3aa137a44
+-- @bsb-hash sha256:9741472e7855212761be10b5f762d621dfd00c18f7107bb72948fa1117562f99
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2731,10 +2731,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_page
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.incidents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"incident","event_prefix":"incident"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.incident_status_components deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"status_component","event_prefix":"status_component"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.incident_postmortems deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"incident_postmortem","event_prefix":"incident_postmortem"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.incident_status_pages deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"status_page","event_prefix":"status_page"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.incidents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"incident","event_prefix":"incident"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.incident_status_components deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"status_component","event_prefix":"status_component"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.incident_postmortems deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"incident_postmortem","event_prefix":"incident_postmortem"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.incident_status_pages deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"status_page","event_prefix":"status_page"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents

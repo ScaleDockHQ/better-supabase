@@ -232,7 +232,8 @@ describe("single-row reads", () => {
 
 describe("count and aggregate", () => {
   it.each([
-    [undefined, "exact"],
+    [undefined, "estimated"],
+    ["exact", "exact"],
     ["planned", "planned"],
     ["estimated", "estimated"],
   ] as const)("counts with mode %s", async (mode, expected) => {
@@ -248,6 +249,38 @@ describe("count and aggregate", () => {
       head: true,
       selection: { columns: [], includes: [] },
       where: col("status", "eq", "lead"),
+    });
+  });
+
+  it("counted reports whether the planner answered", async () => {
+    const planned = connect(() => ok({ rows: [], count: 5000, capped: true }));
+
+    expect(await planned.db.customers.counted({ mode: "planned" })).toEqual(
+      ok({ count: 5000, capped: true }),
+    );
+
+    const exact = connect(() => rowsOf([], 7));
+
+    expect(await exact.db.customers.counted({ mode: "exact" })).toEqual(
+      ok({ count: 7, capped: false }),
+    );
+    expect(exact.select()).toMatchObject({ count: "exact", head: true });
+  });
+
+  it("carries capped into the page envelope", async () => {
+    const capped = connect(() =>
+      ok({ rows: [{ id: "a" }], count: 4200, capped: true }),
+    );
+
+    const page = await capped.db.customers.page({
+      select: ["id"],
+      size: 1,
+      withCount: true,
+    });
+
+    expect(page.ok && page.data.page).toMatchObject({
+      total: 4200,
+      capped: true,
     });
   });
 

@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:2d78095d914bd51d7e40a29f3e0faa07a09a218288fe7a7d8319ba3f49430d47
+-- @bsb-hash sha256:065b9cdb7f4eef3247ef0f8b4ad71a7872068b362f83a95dcc4904cc2bbe0ec5
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1939,8 +1939,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."observations" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.observations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"observation","event_prefix":"observation"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.observation_definitions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"observation_definition","event_prefix":"observation_definition"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.observations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"observation","event_prefix":"observation"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.observation_definitions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"observation_definition","event_prefix":"observation_definition"}');
 
 -- blocks.observations.api: entry points for the Data API.
 create schema if not exists "api";

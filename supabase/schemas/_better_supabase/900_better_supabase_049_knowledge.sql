@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:c0ac7428744934df825585910cde8fef0502a1985c4e01da3ed9f5a09e329adb
+-- @bsb-hash sha256:5e0555023b4124f424039951afd6f1b382a7d6eb16579ecb4230e66fda13d1a7
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -608,7 +608,8 @@ grant execute on function "better_supabase"."delete_knowledge_document"(uuid) to
 -- priority_order is false. Returns a JSON array of {document_id, idx,
 -- chunk_id, organization_id, content, metadata, title, score}; chunk_id is
 -- the document id and idx joined by '#', and organization_id is null for a
--- system document.
+-- system document. The custom plan setting lets the planner fold the null
+-- collections parameter, so the collection filter can use its index.
 
 create or replace function "better_supabase"."knowledge_search"(
   tenant uuid,
@@ -625,6 +626,7 @@ language plpgsql
 stable
 security invoker
 set search_path = ''
+set plan_cache_mode = force_custom_plan
 as $$
 declare
   previous_scan text := current_setting('hnsw.iterative_scan', true);
@@ -876,7 +878,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."knowledge_collection
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.knowledge_documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"knowledge_document","event_prefix":"knowledge_document"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.knowledge_documents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"knowledge_document","event_prefix":"knowledge_document"}');
 
 -- blocks.knowledge.api: entry points for the Data API.
 create schema if not exists "api";

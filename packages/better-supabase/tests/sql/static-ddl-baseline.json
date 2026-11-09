@@ -1,8 +1,4 @@
 {
-  "supabase/schemas/_better_supabase/900_better_supabase_070_search.sql": {
-    "doBlocks": 1,
-    "withExecute": 0
-  },
   "supabase/schemas/_better_supabase/900_better_supabase_157_legal_entities.sql": {
     "doBlocks": 3,
     "withExecute": 3

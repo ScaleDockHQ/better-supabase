@@ -1,6 +1,6 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:3eb18688308482b0ae1ff497793d0337239472c0db61aeabd3e7dee8c40b4555
+-- @bsb-hash sha256:64227cf94161aa0de8ee44199361af312440bb7195edfbd5ee3912259860f40c
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -605,7 +605,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."taggings" as restric
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.tags deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tag","event_prefix":"tag"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.tags deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tag","event_prefix":"tag"}');
 
 -- blocks.tags.api: entry points for the Data API.
 create schema if not exists "api";

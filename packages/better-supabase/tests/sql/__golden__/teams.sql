@@ -347,7 +347,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:26df8defd85465c0b510765d20c40b48b71650abb045f3085e33f12a6903d30f
+-- @bsb-hash sha256:8d1a3db5d95d5c4a74753a9abde0824c85c41445c5efd67051ac1599d40b3c02
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -727,7 +727,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."team_members" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.teams deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"team","event_prefix":"team"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.teams deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"team","event_prefix":"team"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_058_teams.sql
 -- better-supabase module: teams

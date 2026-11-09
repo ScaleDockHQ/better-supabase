@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:520594190b6a56544e01fcef19cfce82e481879441b43c56b4e84e6ebc3ace29
+-- @bsb-hash sha256:dee572d4f86b76305ddb7773abe11c66c66bec6a7ac25d24f3924473cdc8c829
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -526,7 +526,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."versions" as restric
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.versions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"version","event_prefix":"version"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.versions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"version","event_prefix":"version"}');
 
 -- blocks.versions.api: entry points for the Data API.
 create schema if not exists "api";

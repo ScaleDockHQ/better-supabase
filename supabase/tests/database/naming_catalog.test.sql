@@ -98,9 +98,9 @@ select extensions.is(
     from pg_catalog.pg_proc p
     join pg_catalog.pg_namespace s on s.oid = p.pronamespace
     where s.nspname = 'public' and p.prosecdef
-      and p.proname not in ('customers_owner_team_check', 'import_customer', 'import_customer_updated_at')),
+      and p.proname not in ('customers_owner_team_check', 'import_customer', 'import_customer_batch', 'import_customer_updated_at')),
   '',
-  'security definer functions stay out of public (the three fixture app functions are listed)'
+  'security definer functions stay out of public (the four fixture app functions are listed)'
 );
 
 select * from extensions.finish();

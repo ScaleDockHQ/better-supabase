@@ -165,6 +165,14 @@ begin
     ${fail("IMPORT_ITEM_INVALID", "an issued document needs its issue date", "22023")}
   end if;
 
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    ${fail("IMPORT_ITEM_INVALID", "onTaken is fail or next_free", "22023")}
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and v_number is not null and exists (select 1 from ${t("invoices")} x where x.${i("tenant")} = v_tenant and x.${i("identifier")} = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
@@ -177,7 +185,7 @@ begin
     v_id := (v_made ->> ${sqlString(plain(i("id")))})::uuid;
   else
     v_made := ${fn("create_invoice")}(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-      'title', coalesce(nullif(v_data ->> 'title', ''), 'Invoice ' || coalesce(v_number, 'draft')),
+      'title', coalesce(nullif(v_data ->> 'title', ''), replace(${sqlString(ctx.text("titleTemplate", "Invoice {number}"))}, '{number}', coalesce(v_number, 'draft'))),
       'currency', v_data -> 'currency',
       'termsDays', v_data -> 'termsDays',
       'note', v_data -> 'note',
@@ -279,8 +287,8 @@ begin
     'direction', case when v_data ->> 'side' = 'supplier' then 'purchase' else 'sales' end,`
         : ""
     }
-    'title', coalesce(nullif(v_data ->> 'title', ''), 'Opening balance ' || coalesce(v_data ->> 'number', '')),
-    'lines', jsonb_build_array(jsonb_build_object('description', 'Opening balance ' || coalesce(v_data ->> 'number', ''),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace(${sqlString(ctx.text("openingTitleTemplate", "Opening balance {number}"))}, '{number}', coalesce(v_data ->> 'number', ''))),
+    'lines', jsonb_build_array(jsonb_build_object('description', replace(${sqlString(ctx.text("openingTitleTemplate", "Opening balance {number}"))}, '{number}', coalesce(v_data ->> 'number', '')),
       'quantity', 1, 'unitAmount', v_balance, 'taxRateBps', 0)),
     'totals', jsonb_build_object('subtotal', v_balance, 'tax', 0, 'total', v_balance)))),
     import_open_item.subject_id, false);

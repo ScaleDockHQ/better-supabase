@@ -221,6 +221,10 @@ membership lasts until the next refresh. When that window matters:
 - Keep layouts synchronous: pass the `bsb.claims()` promise to
   `<SessionProvider session={...}>` and read it with `useSession()`. The
   provider holds the session in a store; `sessionPromise` is the 0.34 name.
+- Don't write a `verifySession()` data access layer: `bsb.claims()` is the
+  memoized check and `bsb.user()` is the DTO. `createNext` taints the tokens
+  and the server and admin contexts (with `experimental.taint`), so passing one
+  to a Client Component fails; the clients are not tainted, so return data.
 
 ## Native and Expo
 

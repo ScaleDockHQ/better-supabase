@@ -485,7 +485,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:2af25eefb115e5f9d9148d741be0f66d751b41be0022eb4a2897632b75382ceb
+-- @bsb-hash sha256:54e439531d40f26f089d085ba3ae2260f35bdf0ff1acb55fe4fa53cebfe0520e
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1009,8 +1009,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.guests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest","event_prefix":"guest"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.guest_grants deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest_grant","event_prefix":"guest_grant"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guests deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest","event_prefix":"guest"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guest_grants deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest_grant","event_prefix":"guest_grant"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
 -- better-supabase module: guests

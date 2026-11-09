@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:c15f957ff6819b69e9d86149cb82a0918931f8909604486cf72c26669884c259
+-- @bsb-hash sha256:780e3e23a6a30d5ffacef86c49dc2dad4e847e38cf3948bf2a1310e8dcf9a710
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3253,6 +3253,14 @@ begin
     raise exception 'an issued document needs its issue date' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and v_number is not null and exists (select 1 from "better_supabase"."invoices" x where x."tenant_id" = v_tenant and x."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
@@ -3265,7 +3273,7 @@ begin
     v_id := (v_made ->> 'id')::uuid;
   else
     v_made := "better_supabase"."create_invoice"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-      'title', coalesce(nullif(v_data ->> 'title', ''), 'Invoice ' || coalesce(v_number, 'draft')),
+      'title', coalesce(nullif(v_data ->> 'title', ''), replace('Invoice {number}', '{number}', coalesce(v_number, 'draft'))),
       'currency', v_data -> 'currency',
       'termsDays', v_data -> 'termsDays',
       'note', v_data -> 'note',
@@ -3379,8 +3387,8 @@ begin
     'currency', v_data -> 'currency', 'company', v_data -> 'company', 'contact', v_data -> 'contact',
     'legalEntityId', v_data -> 'legalEntityId',
     'direction', case when v_data ->> 'side' = 'supplier' then 'purchase' else 'sales' end,
-    'title', coalesce(nullif(v_data ->> 'title', ''), 'Opening balance ' || coalesce(v_data ->> 'number', '')),
-    'lines', jsonb_build_array(jsonb_build_object('description', 'Opening balance ' || coalesce(v_data ->> 'number', ''),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Opening balance {number}', '{number}', coalesce(v_data ->> 'number', ''))),
+    'lines', jsonb_build_array(jsonb_build_object('description', replace('Opening balance {number}', '{number}', coalesce(v_data ->> 'number', '')),
       'quantity', 1, 'unitAmount', v_balance, 'taxRateBps', 0)),
     'totals', jsonb_build_object('subtotal', v_balance, 'tax', 0, 'total', v_balance)))),
     import_open_item.subject_id, false);

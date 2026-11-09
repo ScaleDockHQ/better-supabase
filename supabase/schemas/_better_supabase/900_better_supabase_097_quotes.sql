@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:0ebf8f0c9661a64c1a24acff2e66b3f6607ea9ae7f0ccfb40bf4ea73a213ab95
+-- @bsb-hash sha256:ecbe8441a94d39b83af67da3766076cc82959d32f628a9d022ad71721f8dc6bc
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1726,9 +1726,18 @@ begin
   if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
     raise exception 'a quote needs at least one line' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and exists (select 1 from "better_supabase"."quotes" y where y."tenant_id" = v_tenant and y."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+  if v_number is not null then
+    perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  end if;
   v_made := "better_supabase"."create_quote"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), 'Quote ' || v_number),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', coalesce(v_number, ''))),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',
@@ -1904,7 +1913,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."quote_tax_lines" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.quotes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"quote","event_prefix":"quote"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.quotes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"quote","event_prefix":"quote"}');
 
 -- blocks.quotes.api: entry points for the Data API.
 create schema if not exists "api";

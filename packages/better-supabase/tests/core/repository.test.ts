@@ -251,7 +251,30 @@ describe("reads", () => {
     const result = await db.customers.count({ where: { status: "active" } });
     expect(result.data).toBe(42);
     expect(last().method).toBe("HEAD");
+    expect(last().headers.get("prefer")).toContain("count=estimated");
+
+    await db.customers.count({ where: { status: "active" }, mode: "exact" });
     expect(last().headers.get("prefer")).toContain("count=exact");
+  });
+
+  it("reports an estimated PostgREST count as capped past 1,000 rows", async () => {
+    const big = capturingClient(() => ({
+      body: [],
+      headers: { "content-range": "*/5000" },
+    }));
+
+    expect(
+      await sbCamel.connect(big.client).customers.counted().orThrow(),
+    ).toEqual({ count: 5000, capped: true });
+
+    const small = capturingClient(() => ({
+      body: [],
+      headers: { "content-range": "*/42" },
+    }));
+
+    expect(
+      await sbCamel.connect(small.client).customers.counted().orThrow(),
+    ).toEqual({ count: 42, capped: false });
   });
 
   it("paginates with a keyset cursor", async () => {
@@ -641,7 +664,7 @@ describe("writes", () => {
 
     expect(page.page.total).toBe(42);
     expect(page.page.pages).toBe(5);
-    expect(last().headers.get("prefer")).toContain("count=exact");
+    expect(last().headers.get("prefer")).toContain("count=estimated");
   });
 
   it("counts cursor pages with withCount, once more after the first page", async () => {

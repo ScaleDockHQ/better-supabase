@@ -105,7 +105,7 @@ describe.each(["sqlite-postgres", "pglite"] as const)(
       );
 
       expect(ctx.auth.kind).toBe("user");
-      expect(await ctx.db.contacts.count().orThrow()).toBe(1);
+      expect(await ctx.db.contacts.count({ mode: "exact" }).orThrow()).toBe(1);
 
       const forged = await signTestJwt("not-the-lite-secret-0123456789abcdef", {
         sub: BOB,

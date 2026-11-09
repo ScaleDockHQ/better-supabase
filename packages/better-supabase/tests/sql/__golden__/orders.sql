@@ -2419,7 +2419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:7754880fa30be358188d976e4a61224c5484e992bd5d109f77fcadb13831bfd5
+-- @bsb-hash sha256:86eae9f9582adf771a2d139ca7ab4017d17e404adc41938b57b1a6c03667cdbe
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3598,7 +3598,7 @@ begin
     end loop;
     end if;
     v_invoice := "better_supabase"."create_invoice"(v_order.tenant,
-      jsonb_build_object('title', 'Order ' || v_order.number, 'currency', v_order.currency, 'termsDays', 0,
+      jsonb_build_object('title', replace('Order {number}', '{number}', v_order.number::text), 'currency', v_order.currency, 'termsDays', 0,
         'origin', jsonb_build_object('type', 'order', 'id', v_order.id::text)),
       (select coalesce(jsonb_agg(jsonb_build_object(
       'description', case when l."quantity" = 1 then l."title" else l."title" || ' x ' || l."quantity"::text end,
@@ -5048,8 +5048,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"order","event_prefix":"order"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.carts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"cart","event_prefix":"cart"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.orders deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"order","event_prefix":"order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.carts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"cart","event_prefix":"cart"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders

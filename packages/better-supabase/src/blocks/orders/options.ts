@@ -4,6 +4,12 @@ import { blockOptions, option } from "../options.ts";
 
 /** `blocks.orders.options`. */
 export type OrdersSqlOptions = {
+  /**
+   * The default title of a checkout invoice, with `{number}` for its number,
+   * such as `Offerte {number}`. A title in the import item or the call still
+   * wins. Default `Order {number}`.
+   */
+  readonly titleTemplate?: string;
   readonly paymentWindowMinutes?: number;
   /** Per-line preparation states and kitchen stations. Off by default. */
   readonly kitchen?: boolean;
@@ -20,6 +26,7 @@ export type OrdersSqlOptions = {
 
 export const ordersSqlOptions: BlockOptionsSchema<OrdersSqlOptions> =
   blockOptions<OrdersSqlOptions>({
+    titleTemplate: option.string({ default: "Order {number}" }),
     paymentWindowMinutes: option.number({ default: 30 }),
     kitchen: option.boolean({ default: false }),
     discountMatrix: option.boolean({ default: false }),

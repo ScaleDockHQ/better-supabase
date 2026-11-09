@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. The first step landed; the default flip waits.
+Accepted. Step 2 landed in ADR 0580.
 
 ## Context
 

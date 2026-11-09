@@ -786,7 +786,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:ef2272acba3ae7d943d21e4570fc9cefa52547da3ab45aa745a4621113cc65aa
+-- @bsb-hash sha256:fbafed6f856f5c9a092f54791c98c06fa60f23370ed0267dd248aa935361e36b
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1650,7 +1650,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.employees deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"employee","event_prefix":"employee"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.employees deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"employee","event_prefix":"employee"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_102_employees.sql
 -- better-supabase module: employees

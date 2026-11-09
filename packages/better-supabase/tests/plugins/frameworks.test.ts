@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { withTemplates } from "../../src/cli/framework-templates.ts";
 import { emitHooks } from "../../src/cli/gen/hooks.ts";
 import { baseFiles } from "../../src/cli/templates.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
@@ -61,9 +62,27 @@ describe("frameworkRegistry", () => {
   it("lists the built-in bindings and detects them from packages", () => {
     const registry = frameworkRegistry();
 
-    expect(registry.names).toEqual(["react", "svelte", "vue", "solid"]);
+    expect(registry.names).toEqual([
+      "sveltekit",
+      "tanstack-start",
+      "react-router",
+      "react",
+      "svelte",
+      "vue",
+      "solid",
+    ]);
     expect(registry.detect({ "solid-js": "1" })?.name).toBe("solid");
     expect(registry.detect({ express: "5" })).toBeUndefined();
+    expect(registry.detect({ "@sveltejs/kit": "2", svelte: "5" })?.name).toBe(
+      "sveltekit",
+    );
+    expect(
+      registry.detect({ "@tanstack/react-start": "1", react: "19" })?.name,
+    ).toBe("tanstack-start");
+    expect(
+      registry.detect({ "@react-router/dev": "7", react: "19" })?.name,
+    ).toBe("react-router");
+    expect(registry.detect({ svelte: "5" })?.name).toBe("svelte");
     expect(registry.get("react")?.tier).toBe("supported");
     expect(registry.get("nope")).toBeUndefined();
   });
@@ -105,6 +124,9 @@ describe("gen.hooks with a registered framework", () => {
   it("resolves the name and keeps the registry on the config", () => {
     expect(config.hooks).toBe("qwik");
     expect(config.frameworks.map((binding) => binding.name)).toEqual([
+      "sveltekit",
+      "tanstack-start",
+      "react-router",
       "react",
       "svelte",
       "vue",
@@ -125,7 +147,7 @@ describe("gen.hooks with a registered framework", () => {
 
   it("refuses a name nothing registers, listing what is registered", () => {
     expect(() => resolveConfig({ gen: { hooks: "qwik" } }, "/project")).toThrow(
-      'gen.hooks names framework "qwik", which nothing registers; the registered frameworks are react, svelte, vue, solid',
+      'gen.hooks names framework "qwik", which nothing registers; the registered frameworks are sveltekit, tanstack-start, react-router, react, svelte, vue, solid',
     );
     expect(() =>
       resolveConfig({ gen: { hooks: { framework: "nope" } } }, "/project"),
@@ -211,5 +233,49 @@ describe("serverSubpath and templates", () => {
       },
     ]);
     expect(plugins.frameworkFiles(qwik, context)).toEqual([]);
+  });
+});
+
+describe("the SvelteKit, TanStack Start and React Router bindings", () => {
+  const context = {
+    srcDir: "src",
+    generated: "src/lib/supabase/generated.ts",
+    tsExtensions: false,
+  };
+
+  it.each([
+    ["sveltekit", "src/hooks.server.ts", "better-supabase/sveltekit"],
+    [
+      "tanstack-start",
+      "src/lib/supabase/middleware.ts",
+      "better-supabase/tanstack-start",
+    ],
+    [
+      "react-router",
+      "src/lib/supabase/middleware.server.ts",
+      "better-supabase/react-router",
+    ],
+  ])("%s writes %s from its server adapter", (name, path, adapter) => {
+    const binding = frameworkRegistry().get(name)!;
+
+    const [file, ...rest] = plugins.frameworkFiles(
+      withTemplates(binding),
+      context,
+    );
+
+    expect(rest).toEqual([]);
+    expect(file?.path).toBe(path);
+    expect(file?.contents).toContain(`from '${adapter}'`);
+    expect(plugins.serverImportOf(binding)).toBe(adapter);
+  });
+
+  it("keeps hooks from the library the framework builds on", () => {
+    const registry = frameworkRegistry();
+
+    expect(registry.get("sveltekit")?.hooksSubpath).toBe("svelte");
+    expect(registry.get("react-router")?.hooksSubpath).toBe("react");
+    expect(registry.get("tanstack-start")?.hooksDirective).toBe(
+      '"use client";',
+    );
   });
 });

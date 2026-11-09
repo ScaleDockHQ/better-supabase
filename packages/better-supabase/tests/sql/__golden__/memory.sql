@@ -1098,7 +1098,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:9e0aebe0b5d61b6768c13d40b6e25fa0fdc339053ad047ccc1d5bf412c575158
+-- @bsb-hash sha256:a3769774ef8251541f7cec8a0021a5c06b3dc86d652898cbf88775fa3a45bcef
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2182,7 +2182,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."memory_message_embed
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.memories deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"memory","event_prefix":"memory"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.memories deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"memory","event_prefix":"memory"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory

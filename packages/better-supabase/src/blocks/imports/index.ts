@@ -45,6 +45,17 @@ export {
   type UpsertBatchResult,
 } from "./imports.ts";
 
+export {
+  importChunkHandler,
+  importChunkSchema,
+  runImportWorker,
+  type ImportChunkJob,
+  type ImportChunkOutcome,
+  type ImportChunkProgress,
+  type ImportChunks,
+  type ImportWorkerQueue,
+} from "./chunks.ts";
+
 export { importsSqlOptions, type ImportsSqlOptions } from "./options.ts";
 
 export { importsBlock } from "./manifest.ts";

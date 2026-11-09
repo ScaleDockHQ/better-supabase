@@ -944,6 +944,18 @@
                 },
                 "subject": {
                   "type": "string"
+                },
+                "subjectForTenant": {
+                  "type": "string"
+                },
+                "bootstrapPermissions": {
+                  "type": "string"
+                },
+                "approverFor": {
+                  "type": "string"
+                },
+                "managedUsers": {
+                  "type": "string"
                 }
               },
               "required": ["idsWith", "isPlatform"],
@@ -981,6 +993,12 @@
                     "type": "boolean"
                   },
                   "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "levels": {
                     "type": "array",
                     "items": {
                       "type": "string"
@@ -1034,6 +1052,9 @@
                     "type": "string"
                   },
                   "userColumn": {
+                    "type": "string"
+                  },
+                  "userKey": {
                     "type": "string"
                   },
                   "scope": {
@@ -1126,6 +1147,9 @@
                   },
                   "required": ["table", "id"],
                   "additionalProperties": false
+                },
+                "userKey": {
+                  "type": "string"
                 }
               },
               "additionalProperties": false
@@ -1217,6 +1241,40 @@
               "additionalProperties": false
             },
             "personas": {
+              "anyOf": [
+                {
+                  "const": "roles"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]*$"
+                      },
+                      "setup": {
+                        "type": "string"
+                      },
+                      "claims": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "permissions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["name", "setup", "permissions"],
+                    "additionalProperties": false
+                  }
+                }
+              ]
+            },
+            "fixtureRoles": {
               "type": "array",
               "items": {
                 "type": "object",
@@ -1228,15 +1286,15 @@
                   "setup": {
                     "type": "string"
                   },
-                  "claims": {
-                    "type": "object",
-                    "additionalProperties": {}
-                  },
                   "permissions": {
                     "type": "array",
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "claims": {
+                    "type": "object",
+                    "additionalProperties": {}
                   }
                 },
                 "required": ["name", "setup", "permissions"],
@@ -1289,6 +1347,9 @@
                   "minItems": 1
                 },
                 "truncatedClaim": {
+                  "type": "string"
+                },
+                "teamIdsTruncatedClaim": {
                   "type": "string"
                 },
                 "registeredClaims": {
@@ -1723,6 +1784,12 @@
                         },
                         "required": ["table", "from", "to"],
                         "additionalProperties": false
+                      }
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
                       }
                     }
                   },
@@ -2771,6 +2838,15 @@
             "type": "string"
           }
         },
+        "serverBlocks": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
         "powersync": {
           "type": "object",
           "properties": {
@@ -2853,7 +2929,15 @@
             {
               "anyOf": [
                 {
-                  "enum": ["react", "svelte", "vue", "solid"],
+                  "enum": [
+                    "sveltekit",
+                    "tanstack-start",
+                    "react-router",
+                    "react",
+                    "svelte",
+                    "vue",
+                    "solid"
+                  ],
                   "type": "string"
                 },
                 {
@@ -2871,7 +2955,15 @@
                 "framework": {
                   "anyOf": [
                     {
-                      "enum": ["react", "svelte", "vue", "solid"],
+                      "enum": [
+                        "sveltekit",
+                        "tanstack-start",
+                        "react-router",
+                        "react",
+                        "svelte",
+                        "vue",
+                        "solid"
+                      ],
                       "type": "string"
                     },
                     {
@@ -5865,6 +5957,14 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "titleTemplate": {
+                "type": "string",
+                "default": "Invoice {number}"
+              },
+              "openingTitleTemplate": {
+                "type": "string",
+                "default": "Opening balance {number}"
+              },
               "company": {
                 "type": "string",
                 "default": "company"
@@ -6486,6 +6586,10 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "titleTemplate": {
+                "type": "string",
+                "default": "Order {number}"
+              },
               "paymentWindowMinutes": {
                 "type": "number",
                 "default": 30
@@ -6901,6 +7005,10 @@
                 "type": "string",
                 "default": "Q-"
               },
+              "titleTemplate": {
+                "type": "string",
+                "default": "Quote {number}"
+              },
               "validDays": {
                 "type": "number",
                 "default": 30
@@ -7309,6 +7417,7 @@
                 },
                 "default": []
               },
+              "hook": {},
               "policies": {
                 "type": "boolean",
                 "default": false

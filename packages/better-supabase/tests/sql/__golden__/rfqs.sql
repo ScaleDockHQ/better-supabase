@@ -927,7 +927,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:1eda3b12a03203e06f669c1a54acdd42af63b7d8a102fd73de4e167c00b4d618
+-- @bsb-hash sha256:10529be98b8cc59d2be8f6553bf04c49c840bc72acbec6fbb4e51be17058297a
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1921,11 +1921,11 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfqs deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq","event_prefix":"rfq"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_line","event_prefix":"rfq_line"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_suppliers deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_supplier","event_prefix":"rfq_supplier"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_quotes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_quote","event_prefix":"rfq_quote"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_quote_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_quote_line","event_prefix":"rfq_quote_line"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfqs deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq","event_prefix":"rfq"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_lines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_line","event_prefix":"rfq_line"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_suppliers deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_supplier","event_prefix":"rfq_supplier"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_quotes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_quote","event_prefix":"rfq_quote"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_quote_lines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_quote_line","event_prefix":"rfq_quote_line"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs

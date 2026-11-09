@@ -668,7 +668,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:edb6df37fe74406a88a0709a5f0082697b4bcaebd8b5bb8f5f3ddc86baab2af9
+-- @bsb-hash sha256:b3535eff9a867866bc0ca27900d07317ed9f46c5a8dd7ad4c22f3486428a1ead
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2165,7 +2165,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_histo
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.pipelines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pipeline","event_prefix":"pipeline"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pipelines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pipeline","event_prefix":"pipeline"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines

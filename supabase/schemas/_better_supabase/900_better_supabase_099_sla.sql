@@ -1,6 +1,6 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:f61fc5eabb657a3bb7d347c11846908d0c8668ed786be95a80c8ebfb6e613502
+-- @bsb-hash sha256:ac04222f13ca09f9f2f38e439d1146efd44b56ad15ee1b8ded292eec3777ba60
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -745,7 +745,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."sla_clocks" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.sla_policies deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"sla_policy","event_prefix":"sla_policy"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.sla_policies deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"sla_policy","event_prefix":"sla_policy"}');
 
 -- blocks.sla.api: entry points for the Data API.
 create schema if not exists "api";

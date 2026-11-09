@@ -152,7 +152,8 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   (signed in, page permission). Server Components read the verified claims
   and never refresh. Actions and route handlers check again with
   `permission:` (the `permissionsAuthorizer`), because they can be called
-  without a page.
+  without a page. `next-auth.mdx` maps this onto the Next.js authentication
+  guide (DAL, DTOs, optimistic checks); keep the two in step.
 - Start a private read together with `getPermissions()` instead of after it.
   Two reads in a row keep the response open for two round trips, and Chrome
   holds a reload of the same URL until that response ends (its HTTP cache
@@ -351,7 +352,8 @@ Build: `createNextConfig()` sets `experimental.taint: true`
 (`packages/next-config/src/next-config.ts`). `createNext` calls
 `experimental_taintUniqueValue` on the access and refresh tokens and
 `experimental_taintObjectReference` on the `ServerContext`, `AuthState` and the
-Supabase clients it hands out, behind a guard for React builds without the API.
+`bsb.admin()` context, behind a guard for React builds without the API. The
+Supabase clients a context creates are not tainted, as `next.mdx` says.
 
 Prove it: a `tests/next` case passes a tainted object and a tainted token to a
 client component and expects the React taint error; the DTO rule (`bsb.user()`)

@@ -382,6 +382,7 @@ describe.skipIf(!live)("messaging", () => {
           memo: {
             table: "public.messaging_test_memos",
             idType: "uuid",
+            tenant: "tenant_id",
             title: "title",
             url: "/memos/{id}",
           },

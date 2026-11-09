@@ -841,6 +841,13 @@ export type Functions = {
     };
     Returns: Json;
   };
+  import_customer_batch: {
+    Args: {
+      items: Json | null;
+      run: string | null;
+    };
+    Returns: Json;
+  };
   import_customer_updated_at: {
     Args: {
       subject_id: string | null;

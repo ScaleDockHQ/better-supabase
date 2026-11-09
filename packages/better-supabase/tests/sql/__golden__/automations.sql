@@ -1238,7 +1238,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:40692dd7f68062c641ce6a6ed9ef1d3e4f2b3502612cd423bdc05e6c69f81ec5
+-- @bsb-hash sha256:9baba1e7076faa883d2aaaf46ac5a3663dfbe73b5f2a5955aaa51f2701d9e45f
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2539,7 +2539,7 @@ revoke execute on function "better_supabase"."install_default_rules"(uuid) from 
 grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.automations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"automation","event_prefix":"automation"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.automations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"automation","event_prefix":"automation"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations

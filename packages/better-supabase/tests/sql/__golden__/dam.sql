@@ -363,7 +363,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:f56d16aa98df7b9c4bc250071a285b930bd00833e5f95492dd509343d5d6f5d6
+-- @bsb-hash sha256:07e0a9e583c3836760dc5a5264be193eee4b8d18fbb7183edc2d1126d3888eb3
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -778,8 +778,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_usage_rights deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_usage_right","event_prefix":"dam_usage_right"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_renditions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_rendition","event_prefix":"dam_rendition"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_usage_rights deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_usage_right","event_prefix":"dam_usage_right"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_renditions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_rendition","event_prefix":"dam_rendition"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_161_dam.sql
 -- better-supabase module: dam

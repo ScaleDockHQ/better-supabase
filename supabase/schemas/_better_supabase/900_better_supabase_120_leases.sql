@@ -1,6 +1,6 @@
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:12f90b9bcf9a1589ae433260fcc17f66066bdd3d6ef5570df67b936a1422ec7d
+-- @bsb-hash sha256:6a5bbee5ecbd50964375cc63311495a8f01e337eb742ae6bbce96839dbf965d2
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -741,7 +741,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."lease_charges" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.leases deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lease","event_prefix":"lease"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.leases deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lease","event_prefix":"lease"}');
 
 -- blocks.leases.api: entry points for the Data API.
 create schema if not exists "api";

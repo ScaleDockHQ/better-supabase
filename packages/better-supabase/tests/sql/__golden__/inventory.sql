@@ -3378,7 +3378,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:2f71f4ab8aa3cf2c8eec1ef00ce92ecd6b1cb8ddf7c8d14287539db9d0148b2c
+-- @bsb-hash sha256:9aa5e113b38b2cca8403d3969ba873850e1b34d5404713103e157eb9b3db37fd
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6800,10 +6800,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" a
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.inventory_locations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inventory_location","event_prefix":"inventory_location"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.purchase_orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"purchase_order","event_prefix":"purchase_order"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.purchase_requisitions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"purchase_requisition","event_prefix":"purchase_requisition"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.inventory_receipts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inventory_receipt","event_prefix":"inventory_receipt"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.inventory_locations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inventory_location","event_prefix":"inventory_location"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.purchase_orders deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"purchase_order","event_prefix":"purchase_order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.purchase_requisitions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"purchase_requisition","event_prefix":"purchase_requisition"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.inventory_receipts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inventory_receipt","event_prefix":"inventory_receipt"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory

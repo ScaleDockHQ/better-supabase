@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:46f8767e05668c4250d1694ca028b1a577879fd1e831d5c6533d439740983226
+-- @bsb-hash sha256:cea6805bdbc3d022d8e60a0e008351b20653f51bf799ddab776364d0718584f2
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21,6 +21,7 @@ alter table "better_supabase"."import_runs" add column "dry_run" boolean not nul
 alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column "input_checksum" text;
 alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "mapper_version" text;
 alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
@@ -57,6 +58,26 @@ revoke all on "better_supabase"."import_records" from public, anon, authenticate
 grant select on "better_supabase"."import_records" to authenticated;
 grant all on "better_supabase"."import_records" to service_role;
 
+create table "better_supabase"."import_chunks" (
+  "run_id" uuid not null references "better_supabase"."import_runs" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "entity" text not null,
+  "chunk" integer not null,
+  "items" jsonb not null,
+  "status" text not null default 'pending',
+  "result" jsonb,
+  "claimed_at" timestamptz,
+  "done_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  primary key ("run_id", "entity", "chunk")
+);
+alter table "better_supabase"."import_chunks" add constraint "bsb_import_chunks_status"
+  check ("status" in ('pending', 'claimed', 'done'));
+alter table "better_supabase"."import_chunks" enable row level security;
+revoke all on "better_supabase"."import_chunks" from public, anon, authenticated;
+grant all on "better_supabase"."import_chunks" to service_role;
+create index "import_chunks_tenant_idx" on "better_supabase"."import_chunks" ("tenant_id");
+
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -81,7 +102,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -90,6 +111,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -133,7 +155,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -152,7 +174,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -307,6 +329,8 @@ begin
       continue;
     end if;
 
+    
+
     -- jsonb text is key-ordered, so equal content hashes equally.
     v_hash := encode(extensions.digest(v_data::text, 'sha256'), 'hex');
 
@@ -365,48 +389,51 @@ begin
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
 
-        v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-        if not exists (
-          select 1 from jsonb_array_elements(v_subjects) s
-          where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-        ) then
-          raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-        end if;
+          v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
 
-        for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
-          end if;
-          insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-          values (
-            v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
-            coalesce(v_subject ->> 'role', 'primary'),
-            coalesce(v_subject ->> 'subjectType', v_subject_type),
-            v_subject ->> 'subjectId',
-            v_hash, v_run_id, v_run_id,
-            coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-            null
-          )
-          on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
-            "subject_type" = excluded."subject_type",
-            "subject_id" = excluded."subject_id",
-            "content_hash" = excluded."content_hash",
-            "last_run_id" = excluded."last_run_id",
-            "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-            "went_missing_at" = null;
-        end loop;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
-        if v_found then
-          v_updated := v_updated + 1;
-        else
-          v_inserted := v_inserted + 1;
-        end if;
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
       end if;
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
     end;
   end loop;
+
+  
 
   return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
@@ -468,7 +495,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -476,7 +505,7 @@ begin
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
   end loop;
   perform "better_supabase"."begin_import_session"(v_run_id);
@@ -492,7 +521,7 @@ begin
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     perform set_config(v_name, v_previous ->> v_name, true);
   end loop;
 
@@ -639,13 +668,195 @@ begin
     raise exception 'chunks must be at least 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    perform "better_supabase"."enqueue_job"(queue => '''imports''', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
   end loop;
   return enqueue_import_chunks.chunks;
 end;
 $$;
 revoke execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) to service_role;
+
+-- Stores the items of one chunk of an entity, ready for a worker. Storing a chunk
+-- again before it is done replaces its items; a done chunk is left as it is and
+-- the answer is false.
+create or replace function "better_supabase"."store_import_chunk"(run uuid, entity text, chunk integer, items jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run "better_supabase"."import_runs";
+begin
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = store_import_chunk.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if store_import_chunk.chunk is null or store_import_chunk.chunk < 0 or jsonb_typeof(store_import_chunk.items) is distinct from 'array' then
+    raise exception 'a chunk has a number from 0 and an array of items' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."import_chunks" ("run_id", "tenant_id", "entity", "chunk", "items")
+  values (store_import_chunk.run, v_run."tenant_id", store_import_chunk.entity, store_import_chunk.chunk, store_import_chunk.items)
+  on conflict ("run_id", "entity", "chunk") do update
+    set "items" = excluded."items", "status" = 'pending', "claimed_at" = null
+    where "better_supabase"."import_chunks"."status" <> 'done';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- Takes a pending chunk, or one whose claim is older than lease seconds (a worker
+-- that died), and returns { entity, chunk, items }. Null when the chunk is done,
+-- missing or held by a live worker. Rows another worker holds are skipped, not waited for.
+create or replace function "better_supabase"."claim_import_chunk"(run uuid, entity text, chunk integer, lease integer default 300)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_items jsonb;
+begin
+  with pick as (
+    select x."run_id", x."entity", x."chunk"
+    from "better_supabase"."import_chunks" x
+    where x."run_id" = claim_import_chunk.run and x."entity" = claim_import_chunk.entity and x."chunk" = claim_import_chunk.chunk
+      and (x."status" = 'pending' or (x."status" = 'claimed' and x."claimed_at" < now() - make_interval(secs => greatest(claim_import_chunk.lease, 1))))
+    for update skip locked
+  )
+  update "better_supabase"."import_chunks" x set "status" = 'claimed', "claimed_at" = now()
+  from pick
+  where x."run_id" = pick."run_id" and x."entity" = pick."entity" and x."chunk" = pick."chunk"
+  returning x."items" into v_items;
+  if v_items is null then
+    return null;
+  end if;
+  return jsonb_build_object('entity', claim_import_chunk.entity, 'chunk', claim_import_chunk.chunk, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) to service_role;
+
+-- Marks a claimed chunk done and keeps what its batch answered.
+create or replace function "better_supabase"."complete_import_chunk"(run uuid, entity text, chunk integer, result jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_chunks" x set "status" = 'done', "done_at" = now(), "result" = complete_import_chunk.result
+  where x."run_id" = complete_import_chunk.run and x."entity" = complete_import_chunk.entity
+    and x."chunk" = complete_import_chunk.chunk and x."status" = 'claimed';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- One worker step: claim the chunk, write it with import_upsert_batch and mark it
+-- done, in one transaction, so a failure leaves the chunk pending for the next try.
+-- A chunk that is done answers what its batch answered; one that is missing or
+-- held by another worker answers { skipped: true }.
+create or replace function "better_supabase"."process_import_chunk"(run uuid, entity text, chunk integer)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_done jsonb;
+  v_claim jsonb;
+  v_result jsonb;
+begin
+  select x."result" into v_done from "better_supabase"."import_chunks" x
+  where x."run_id" = process_import_chunk.run and x."entity" = process_import_chunk.entity
+    and x."chunk" = process_import_chunk.chunk and x."status" = 'done';
+  if found then
+    return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('done', true);
+  end if;
+  v_claim := "better_supabase"."claim_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk);
+  if v_claim is null then
+    return jsonb_build_object('skipped', true);
+  end if;
+  v_result := "better_supabase"."import_upsert_batch"(process_import_chunk.run, process_import_chunk.entity, v_claim -> 'items');
+  perform "better_supabase"."complete_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk, v_result);
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) to service_role;
+
+-- How many chunks of a run are pending, claimed and done, so a caller knows when to
+-- finish the run.
+create or replace function "better_supabase"."import_chunk_progress"(run uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'pending', count(*) filter (where x."status" = 'pending'),
+    'claimed', count(*) filter (where x."status" = 'claimed'),
+    'done', count(*) filter (where x."status" = 'done')
+  )
+  from "better_supabase"."import_chunks" x
+  where x."run_id" = import_chunk_progress.run
+$$;
+revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
+
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -694,7 +905,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:473f44686e4918a48dcdd308da919ae085416134afeb346881d420a9f76fafb7
+-- @bsb-hash sha256:33735f1bccec2451f3a2788f7c18ebc7a2464ce58bf15b03df79ee97eaba7637
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -714,6 +925,7 @@ alter table "better_supabase"."import_runs" add column "dry_run" boolean not nul
 alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column "input_checksum" text;
 alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "mapper_version" text;
 alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
@@ -750,6 +962,26 @@ revoke all on "better_supabase"."import_records" from public, anon, authenticate
 grant select on "better_supabase"."import_records" to authenticated;
 grant all on "better_supabase"."import_records" to service_role;
 
+create table "better_supabase"."import_chunks" (
+  "run_id" uuid not null references "better_supabase"."import_runs" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "entity" text not null,
+  "chunk" integer not null,
+  "items" jsonb not null,
+  "status" text not null default 'pending',
+  "result" jsonb,
+  "claimed_at" timestamptz,
+  "done_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  primary key ("run_id", "entity", "chunk")
+);
+alter table "better_supabase"."import_chunks" add constraint "bsb_import_chunks_status"
+  check ("status" in ('pending', 'claimed', 'done'));
+alter table "better_supabase"."import_chunks" enable row level security;
+revoke all on "better_supabase"."import_chunks" from public, anon, authenticated;
+grant all on "better_supabase"."import_chunks" to service_role;
+create index "import_chunks_tenant_idx" on "better_supabase"."import_chunks" ("tenant_id");
+
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -774,7 +1006,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -783,6 +1015,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -826,7 +1059,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -845,7 +1078,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -999,6 +1232,8 @@ begin
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', 'IMPORT_ITEM_INVALID', 'message', 'an item needs a key and a data object'));
       continue;
     end if;
+
+    
 
     -- jsonb text is key-ordered, so equal content hashes equally.
     v_hash := encode(extensions.digest(v_data::text, 'sha256'), 'hex');
@@ -1162,48 +1397,51 @@ begin
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
     end case;
 
-        v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-        if not exists (
-          select 1 from jsonb_array_elements(v_subjects) s
-          where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-        ) then
-          raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-        end if;
+          v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
 
-        for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
-          end if;
-          insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-          values (
-            v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
-            coalesce(v_subject ->> 'role', 'primary'),
-            coalesce(v_subject ->> 'subjectType', v_subject_type),
-            v_subject ->> 'subjectId',
-            v_hash, v_run_id, v_run_id,
-            coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-            null
-          )
-          on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
-            "subject_type" = excluded."subject_type",
-            "subject_id" = excluded."subject_id",
-            "content_hash" = excluded."content_hash",
-            "last_run_id" = excluded."last_run_id",
-            "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-            "went_missing_at" = null;
-        end loop;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
-        if v_found then
-          v_updated := v_updated + 1;
-        else
-          v_inserted := v_inserted + 1;
-        end if;
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
       end if;
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
     end;
   end loop;
+
+  
 
   return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
@@ -1265,7 +1503,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -1273,10 +1513,11 @@ begin
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
   end loop;
   perform "better_supabase"."begin_import_session"(v_run_id);
+  perform set_config('better_supabase.search_deferred', 'on', true);
 
   if v_run."dry_run" then
     begin
@@ -1287,9 +1528,10 @@ begin
     end;
   else
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
+    perform "better_supabase"."search_refresh_dirty"();
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     perform set_config(v_name, v_previous ->> v_name, true);
   end loop;
 
@@ -1436,13 +1678,195 @@ begin
     raise exception 'chunks must be at least 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    perform "better_supabase"."enqueue_job"(queue => '''imports''', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
   end loop;
   return enqueue_import_chunks.chunks;
 end;
 $$;
 revoke execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) to service_role;
+
+-- Stores the items of one chunk of an entity, ready for a worker. Storing a chunk
+-- again before it is done replaces its items; a done chunk is left as it is and
+-- the answer is false.
+create or replace function "better_supabase"."store_import_chunk"(run uuid, entity text, chunk integer, items jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run "better_supabase"."import_runs";
+begin
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = store_import_chunk.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if store_import_chunk.chunk is null or store_import_chunk.chunk < 0 or jsonb_typeof(store_import_chunk.items) is distinct from 'array' then
+    raise exception 'a chunk has a number from 0 and an array of items' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."import_chunks" ("run_id", "tenant_id", "entity", "chunk", "items")
+  values (store_import_chunk.run, v_run."tenant_id", store_import_chunk.entity, store_import_chunk.chunk, store_import_chunk.items)
+  on conflict ("run_id", "entity", "chunk") do update
+    set "items" = excluded."items", "status" = 'pending', "claimed_at" = null
+    where "better_supabase"."import_chunks"."status" <> 'done';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- Takes a pending chunk, or one whose claim is older than lease seconds (a worker
+-- that died), and returns { entity, chunk, items }. Null when the chunk is done,
+-- missing or held by a live worker. Rows another worker holds are skipped, not waited for.
+create or replace function "better_supabase"."claim_import_chunk"(run uuid, entity text, chunk integer, lease integer default 300)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_items jsonb;
+begin
+  with pick as (
+    select x."run_id", x."entity", x."chunk"
+    from "better_supabase"."import_chunks" x
+    where x."run_id" = claim_import_chunk.run and x."entity" = claim_import_chunk.entity and x."chunk" = claim_import_chunk.chunk
+      and (x."status" = 'pending' or (x."status" = 'claimed' and x."claimed_at" < now() - make_interval(secs => greatest(claim_import_chunk.lease, 1))))
+    for update skip locked
+  )
+  update "better_supabase"."import_chunks" x set "status" = 'claimed', "claimed_at" = now()
+  from pick
+  where x."run_id" = pick."run_id" and x."entity" = pick."entity" and x."chunk" = pick."chunk"
+  returning x."items" into v_items;
+  if v_items is null then
+    return null;
+  end if;
+  return jsonb_build_object('entity', claim_import_chunk.entity, 'chunk', claim_import_chunk.chunk, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) to service_role;
+
+-- Marks a claimed chunk done and keeps what its batch answered.
+create or replace function "better_supabase"."complete_import_chunk"(run uuid, entity text, chunk integer, result jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_chunks" x set "status" = 'done', "done_at" = now(), "result" = complete_import_chunk.result
+  where x."run_id" = complete_import_chunk.run and x."entity" = complete_import_chunk.entity
+    and x."chunk" = complete_import_chunk.chunk and x."status" = 'claimed';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- One worker step: claim the chunk, write it with import_upsert_batch and mark it
+-- done, in one transaction, so a failure leaves the chunk pending for the next try.
+-- A chunk that is done answers what its batch answered; one that is missing or
+-- held by another worker answers { skipped: true }.
+create or replace function "better_supabase"."process_import_chunk"(run uuid, entity text, chunk integer)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_done jsonb;
+  v_claim jsonb;
+  v_result jsonb;
+begin
+  select x."result" into v_done from "better_supabase"."import_chunks" x
+  where x."run_id" = process_import_chunk.run and x."entity" = process_import_chunk.entity
+    and x."chunk" = process_import_chunk.chunk and x."status" = 'done';
+  if found then
+    return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('done', true);
+  end if;
+  v_claim := "better_supabase"."claim_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk);
+  if v_claim is null then
+    return jsonb_build_object('skipped', true);
+  end if;
+  v_result := "better_supabase"."import_upsert_batch"(process_import_chunk.run, process_import_chunk.entity, v_claim -> 'items');
+  perform "better_supabase"."complete_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk, v_result);
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) to service_role;
+
+-- How many chunks of a run are pending, claimed and done, so a caller knows when to
+-- finish the run.
+create or replace function "better_supabase"."import_chunk_progress"(run uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'pending', count(*) filter (where x."status" = 'pending'),
+    'claimed', count(*) filter (where x."status" = 'claimed'),
+    'done', count(*) filter (where x."status" = 'done')
+  )
+  from "better_supabase"."import_chunks" x
+  where x."run_id" = import_chunk_progress.run
+$$;
+revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
+
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1491,7 +1915,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:10ac7b5af5cc4e34ffbbdcdbb326ea80d74bcdce380e727d4dfbdae6285fc4fe
+-- @bsb-hash sha256:b94300072bc4ead254960764a1b867417676c81b97eb0568fd55409e5a118c52
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1516,6 +1940,7 @@ alter table "app_private"."import_runs" add column "dry_run" boolean not null de
 alter table "app_private"."import_runs" add column "full" boolean not null default false;
 alter table "app_private"."import_runs" add column "input_checksum" text;
 alter table "app_private"."import_runs" add column "correlation_id" text;
+alter table "app_private"."import_runs" add column "mapper_version" text;
 alter table "app_private"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "app_private"."import_runs" add column "started_at" timestamptz;
 alter table "app_private"."import_runs" add column "finished_at" timestamptz;
@@ -1552,6 +1977,26 @@ revoke all on "app_private"."import_records" from public, anon, authenticated;
 grant select on "app_private"."import_records" to authenticated;
 grant all on "app_private"."import_records" to service_role;
 
+create table "app_private"."import_chunks" (
+  "run_id" uuid not null references "app_private"."import_runs" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "entity" text not null,
+  "chunk" integer not null,
+  "items" jsonb not null,
+  "status" text not null default 'pending',
+  "result" jsonb,
+  "claimed_at" timestamptz,
+  "done_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  primary key ("run_id", "entity", "chunk")
+);
+alter table "app_private"."import_chunks" add constraint "bsb_import_chunks_status"
+  check ("status" in ('pending', 'claimed', 'done'));
+alter table "app_private"."import_chunks" enable row level security;
+revoke all on "app_private"."import_chunks" from public, anon, authenticated;
+grant all on "app_private"."import_chunks" to service_role;
+create index "import_chunks_tenant_idx" on "app_private"."import_chunks" ("tenant_id");
+
 create or replace function "app_private"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -1576,7 +2021,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "app_private"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "app_private"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -1585,6 +2030,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -1628,7 +2074,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "app_private"."get_import_run"(uuid) from public, anon;
@@ -1647,7 +2093,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "app_private"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -1802,6 +2248,8 @@ begin
       continue;
     end if;
 
+    
+
     -- jsonb text is key-ordered, so equal content hashes equally.
     v_hash := encode(extensions.digest(v_data::text, 'sha256'), 'hex');
 
@@ -1860,48 +2308,51 @@ begin
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
 
-        v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-        if not exists (
-          select 1 from jsonb_array_elements(v_subjects) s
-          where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-        ) then
-          raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-        end if;
+          v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
 
-        for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
-          end if;
-          insert into "app_private"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-          values (
-            v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
-            coalesce(v_subject ->> 'role', 'primary'),
-            coalesce(v_subject ->> 'subjectType', v_subject_type),
-            v_subject ->> 'subjectId',
-            v_hash, v_run_id, v_run_id,
-            coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-            null
-          )
-          on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
-            "subject_type" = excluded."subject_type",
-            "subject_id" = excluded."subject_id",
-            "content_hash" = excluded."content_hash",
-            "last_run_id" = excluded."last_run_id",
-            "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-            "went_missing_at" = null;
-        end loop;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "app_private"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
-        if v_found then
-          v_updated := v_updated + 1;
-        else
-          v_inserted := v_inserted + 1;
-        end if;
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
       end if;
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
     end;
   end loop;
+
+  
 
   return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
@@ -1963,7 +2414,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "app_private"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "app_private"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -1971,7 +2424,7 @@ begin
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
   end loop;
   perform "app_private"."begin_import_session"(v_run_id);
@@ -1987,7 +2440,7 @@ begin
     v_result := "app_private"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     perform set_config(v_name, v_previous ->> v_name, true);
   end loop;
 
@@ -2134,13 +2587,195 @@ begin
     raise exception 'chunks must be at least 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    perform "better_supabase"."enqueue_job"(queue => '''imports''', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
   end loop;
   return enqueue_import_chunks.chunks;
 end;
 $$;
 revoke execute on function "app_private"."enqueue_import_chunks"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "app_private"."enqueue_import_chunks"(uuid, text, integer) to service_role;
+
+-- Stores the items of one chunk of an entity, ready for a worker. Storing a chunk
+-- again before it is done replaces its items; a done chunk is left as it is and
+-- the answer is false.
+create or replace function "app_private"."store_import_chunk"(run uuid, entity text, chunk integer, items jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run "app_private"."import_runs";
+begin
+  select * into v_run from "app_private"."import_runs" r where r."id" = store_import_chunk.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if store_import_chunk.chunk is null or store_import_chunk.chunk < 0 or jsonb_typeof(store_import_chunk.items) is distinct from 'array' then
+    raise exception 'a chunk has a number from 0 and an array of items' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "app_private"."import_chunks" ("run_id", "tenant_id", "entity", "chunk", "items")
+  values (store_import_chunk.run, v_run."tenant_id", store_import_chunk.entity, store_import_chunk.chunk, store_import_chunk.items)
+  on conflict ("run_id", "entity", "chunk") do update
+    set "items" = excluded."items", "status" = 'pending', "claimed_at" = null
+    where "app_private"."import_chunks"."status" <> 'done';
+  return found;
+end;
+$$;
+revoke execute on function "app_private"."store_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."store_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- Takes a pending chunk, or one whose claim is older than lease seconds (a worker
+-- that died), and returns { entity, chunk, items }. Null when the chunk is done,
+-- missing or held by a live worker. Rows another worker holds are skipped, not waited for.
+create or replace function "app_private"."claim_import_chunk"(run uuid, entity text, chunk integer, lease integer default 300)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_items jsonb;
+begin
+  with pick as (
+    select x."run_id", x."entity", x."chunk"
+    from "app_private"."import_chunks" x
+    where x."run_id" = claim_import_chunk.run and x."entity" = claim_import_chunk.entity and x."chunk" = claim_import_chunk.chunk
+      and (x."status" = 'pending' or (x."status" = 'claimed' and x."claimed_at" < now() - make_interval(secs => greatest(claim_import_chunk.lease, 1))))
+    for update skip locked
+  )
+  update "app_private"."import_chunks" x set "status" = 'claimed', "claimed_at" = now()
+  from pick
+  where x."run_id" = pick."run_id" and x."entity" = pick."entity" and x."chunk" = pick."chunk"
+  returning x."items" into v_items;
+  if v_items is null then
+    return null;
+  end if;
+  return jsonb_build_object('entity', claim_import_chunk.entity, 'chunk', claim_import_chunk.chunk, 'items', v_items);
+end;
+$$;
+revoke execute on function "app_private"."claim_import_chunk"(uuid, text, integer, integer) from public, anon, authenticated;
+grant execute on function "app_private"."claim_import_chunk"(uuid, text, integer, integer) to service_role;
+
+-- Marks a claimed chunk done and keeps what its batch answered.
+create or replace function "app_private"."complete_import_chunk"(run uuid, entity text, chunk integer, result jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "app_private"."import_chunks" x set "status" = 'done', "done_at" = now(), "result" = complete_import_chunk.result
+  where x."run_id" = complete_import_chunk.run and x."entity" = complete_import_chunk.entity
+    and x."chunk" = complete_import_chunk.chunk and x."status" = 'claimed';
+  return found;
+end;
+$$;
+revoke execute on function "app_private"."complete_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."complete_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- One worker step: claim the chunk, write it with import_upsert_batch and mark it
+-- done, in one transaction, so a failure leaves the chunk pending for the next try.
+-- A chunk that is done answers what its batch answered; one that is missing or
+-- held by another worker answers { skipped: true }.
+create or replace function "app_private"."process_import_chunk"(run uuid, entity text, chunk integer)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_done jsonb;
+  v_claim jsonb;
+  v_result jsonb;
+begin
+  select x."result" into v_done from "app_private"."import_chunks" x
+  where x."run_id" = process_import_chunk.run and x."entity" = process_import_chunk.entity
+    and x."chunk" = process_import_chunk.chunk and x."status" = 'done';
+  if found then
+    return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('done', true);
+  end if;
+  v_claim := "app_private"."claim_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk);
+  if v_claim is null then
+    return jsonb_build_object('skipped', true);
+  end if;
+  v_result := "app_private"."import_upsert_batch"(process_import_chunk.run, process_import_chunk.entity, v_claim -> 'items');
+  perform "app_private"."complete_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk, v_result);
+  return v_result;
+end;
+$$;
+revoke execute on function "app_private"."process_import_chunk"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "app_private"."process_import_chunk"(uuid, text, integer) to service_role;
+
+-- How many chunks of a run are pending, claimed and done, so a caller knows when to
+-- finish the run.
+create or replace function "app_private"."import_chunk_progress"(run uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'pending', count(*) filter (where x."status" = 'pending'),
+    'claimed', count(*) filter (where x."status" = 'claimed'),
+    'done', count(*) filter (where x."status" = 'done')
+  )
+  from "app_private"."import_chunks" x
+  where x."run_id" = import_chunk_progress.run
+$$;
+revoke execute on function "app_private"."import_chunk_progress"(uuid) from public, anon, authenticated;
+grant execute on function "app_private"."import_chunk_progress"(uuid) to service_role;
+
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "app_private"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "app_private"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "app_private"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "app_private"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "app_private"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "app_private"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "app_private"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."export_import_hashes"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2189,7 +2824,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:8a91734d9ccfdec774c9c25ce70c2bb425fcd3f9070c8bd16e956b921bf526e2
+-- @bsb-hash sha256:ab6c9ea232964edc6917639245446c2968144b190b7b2095da98944e16a7015e
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2209,6 +2844,7 @@ alter table "better_supabase"."import_runs" add column "dry_run" boolean not nul
 alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column "input_checksum" text;
 alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "mapper_version" text;
 alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
@@ -2245,6 +2881,26 @@ revoke all on "better_supabase"."import_records" from public, anon, authenticate
 grant select on "better_supabase"."import_records" to authenticated;
 grant all on "better_supabase"."import_records" to service_role;
 
+create table "better_supabase"."import_chunks" (
+  "run_id" uuid not null references "better_supabase"."import_runs" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "entity" text not null,
+  "chunk" integer not null,
+  "items" jsonb not null,
+  "status" text not null default 'pending',
+  "result" jsonb,
+  "claimed_at" timestamptz,
+  "done_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  primary key ("run_id", "entity", "chunk")
+);
+alter table "better_supabase"."import_chunks" add constraint "bsb_import_chunks_status"
+  check ("status" in ('pending', 'claimed', 'done'));
+alter table "better_supabase"."import_chunks" enable row level security;
+revoke all on "better_supabase"."import_chunks" from public, anon, authenticated;
+grant all on "better_supabase"."import_chunks" to service_role;
+create index "import_chunks_tenant_idx" on "better_supabase"."import_chunks" ("tenant_id");
+
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -2269,7 +2925,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -2278,6 +2934,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -2321,7 +2978,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -2340,7 +2997,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -2495,6 +3152,8 @@ begin
       continue;
     end if;
 
+    
+
     -- jsonb text is key-ordered, so equal content hashes equally.
     v_hash := encode(extensions.digest(v_data::text, 'sha256'), 'hex');
 
@@ -2553,48 +3212,51 @@ begin
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
 
-        v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-        if not exists (
-          select 1 from jsonb_array_elements(v_subjects) s
-          where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-        ) then
-          raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-        end if;
+          v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
 
-        for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
-          end if;
-          insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-          values (
-            v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
-            coalesce(v_subject ->> 'role', 'primary'),
-            coalesce(v_subject ->> 'subjectType', v_subject_type),
-            v_subject ->> 'subjectId',
-            v_hash, v_run_id, v_run_id,
-            coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-            null
-          )
-          on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
-            "subject_type" = excluded."subject_type",
-            "subject_id" = excluded."subject_id",
-            "content_hash" = excluded."content_hash",
-            "last_run_id" = excluded."last_run_id",
-            "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-            "went_missing_at" = null;
-        end loop;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
-        if v_found then
-          v_updated := v_updated + 1;
-        else
-          v_inserted := v_inserted + 1;
-        end if;
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
       end if;
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
     end;
   end loop;
+
+  
 
   return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
@@ -2656,7 +3318,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -2664,7 +3328,7 @@ begin
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
   end loop;
   perform "better_supabase"."begin_import_session"(v_run_id);
@@ -2680,7 +3344,7 @@ begin
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     perform set_config(v_name, v_previous ->> v_name, true);
   end loop;
 
@@ -2827,13 +3491,195 @@ begin
     raise exception 'chunks must be at least 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    perform "better_supabase"."enqueue_job"(queue => '''imports''', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
   end loop;
   return enqueue_import_chunks.chunks;
 end;
 $$;
 revoke execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) to service_role;
+
+-- Stores the items of one chunk of an entity, ready for a worker. Storing a chunk
+-- again before it is done replaces its items; a done chunk is left as it is and
+-- the answer is false.
+create or replace function "better_supabase"."store_import_chunk"(run uuid, entity text, chunk integer, items jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run "better_supabase"."import_runs";
+begin
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = store_import_chunk.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if store_import_chunk.chunk is null or store_import_chunk.chunk < 0 or jsonb_typeof(store_import_chunk.items) is distinct from 'array' then
+    raise exception 'a chunk has a number from 0 and an array of items' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."import_chunks" ("run_id", "tenant_id", "entity", "chunk", "items")
+  values (store_import_chunk.run, v_run."tenant_id", store_import_chunk.entity, store_import_chunk.chunk, store_import_chunk.items)
+  on conflict ("run_id", "entity", "chunk") do update
+    set "items" = excluded."items", "status" = 'pending', "claimed_at" = null
+    where "better_supabase"."import_chunks"."status" <> 'done';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- Takes a pending chunk, or one whose claim is older than lease seconds (a worker
+-- that died), and returns { entity, chunk, items }. Null when the chunk is done,
+-- missing or held by a live worker. Rows another worker holds are skipped, not waited for.
+create or replace function "better_supabase"."claim_import_chunk"(run uuid, entity text, chunk integer, lease integer default 300)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_items jsonb;
+begin
+  with pick as (
+    select x."run_id", x."entity", x."chunk"
+    from "better_supabase"."import_chunks" x
+    where x."run_id" = claim_import_chunk.run and x."entity" = claim_import_chunk.entity and x."chunk" = claim_import_chunk.chunk
+      and (x."status" = 'pending' or (x."status" = 'claimed' and x."claimed_at" < now() - make_interval(secs => greatest(claim_import_chunk.lease, 1))))
+    for update skip locked
+  )
+  update "better_supabase"."import_chunks" x set "status" = 'claimed', "claimed_at" = now()
+  from pick
+  where x."run_id" = pick."run_id" and x."entity" = pick."entity" and x."chunk" = pick."chunk"
+  returning x."items" into v_items;
+  if v_items is null then
+    return null;
+  end if;
+  return jsonb_build_object('entity', claim_import_chunk.entity, 'chunk', claim_import_chunk.chunk, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) to service_role;
+
+-- Marks a claimed chunk done and keeps what its batch answered.
+create or replace function "better_supabase"."complete_import_chunk"(run uuid, entity text, chunk integer, result jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_chunks" x set "status" = 'done', "done_at" = now(), "result" = complete_import_chunk.result
+  where x."run_id" = complete_import_chunk.run and x."entity" = complete_import_chunk.entity
+    and x."chunk" = complete_import_chunk.chunk and x."status" = 'claimed';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- One worker step: claim the chunk, write it with import_upsert_batch and mark it
+-- done, in one transaction, so a failure leaves the chunk pending for the next try.
+-- A chunk that is done answers what its batch answered; one that is missing or
+-- held by another worker answers { skipped: true }.
+create or replace function "better_supabase"."process_import_chunk"(run uuid, entity text, chunk integer)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_done jsonb;
+  v_claim jsonb;
+  v_result jsonb;
+begin
+  select x."result" into v_done from "better_supabase"."import_chunks" x
+  where x."run_id" = process_import_chunk.run and x."entity" = process_import_chunk.entity
+    and x."chunk" = process_import_chunk.chunk and x."status" = 'done';
+  if found then
+    return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('done', true);
+  end if;
+  v_claim := "better_supabase"."claim_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk);
+  if v_claim is null then
+    return jsonb_build_object('skipped', true);
+  end if;
+  v_result := "better_supabase"."import_upsert_batch"(process_import_chunk.run, process_import_chunk.entity, v_claim -> 'items');
+  perform "better_supabase"."complete_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk, v_result);
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) to service_role;
+
+-- How many chunks of a run are pending, claimed and done, so a caller knows when to
+-- finish the run.
+create or replace function "better_supabase"."import_chunk_progress"(run uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'pending', count(*) filter (where x."status" = 'pending'),
+    'claimed', count(*) filter (where x."status" = 'claimed'),
+    'done', count(*) filter (where x."status" = 'done')
+  )
+  from "better_supabase"."import_chunks" x
+  where x."run_id" = import_chunk_progress.run
+$$;
+revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
+
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2989,6 +3835,71 @@ as $$ select "better_supabase"."enqueue_import_chunks"($1, $2, $3) $$;
 revoke execute on function "api"."enqueue_import_chunks"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "api"."enqueue_import_chunks"(uuid, text, integer) to service_role;
 
+create or replace function "api"."store_import_chunk"(run uuid, entity text, chunk integer, items jsonb)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."store_import_chunk"($1, $2, $3, $4) $$;
+revoke execute on function "api"."store_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "api"."store_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+create or replace function "api"."claim_import_chunk"(run uuid, entity text, chunk integer, lease integer default 300)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."claim_import_chunk"($1, $2, $3, $4) $$;
+revoke execute on function "api"."claim_import_chunk"(uuid, text, integer, integer) from public, anon, authenticated;
+grant execute on function "api"."claim_import_chunk"(uuid, text, integer, integer) to service_role;
+
+create or replace function "api"."complete_import_chunk"(run uuid, entity text, chunk integer, result jsonb)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."complete_import_chunk"($1, $2, $3, $4) $$;
+revoke execute on function "api"."complete_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "api"."complete_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+create or replace function "api"."process_import_chunk"(run uuid, entity text, chunk integer)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."process_import_chunk"($1, $2, $3) $$;
+revoke execute on function "api"."process_import_chunk"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "api"."process_import_chunk"(uuid, text, integer) to service_role;
+
+create or replace function "api"."import_chunk_progress"(run uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."import_chunk_progress"($1) $$;
+revoke execute on function "api"."import_chunk_progress"(uuid) from public, anon, authenticated;
+grant execute on function "api"."import_chunk_progress"(uuid) to service_role;
+
+create or replace function "api"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."reapply_import_records"($1, $2, $3, $4) $$;
+revoke execute on function "api"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "api"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+create or replace function "api"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."export_import_hashes"($1, $2, $3) $$;
+revoke execute on function "api"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."export_import_hashes"(uuid, text, text) to service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block-data imports
@@ -3006,7 +3917,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:cd8ffc6c4f35f78337dbfa9c7bd5bec44d9687d40029dfdb3cd78d6695a804fb
+-- @bsb-hash sha256:2b23985af17b871c7fc253e8fa46372ca4b68c1b0aa822d7f7b6315e955932fc
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3025,6 +3936,7 @@ alter table "better_supabase"."import_runs" add column if not exists "dry_run" b
 alter table "better_supabase"."import_runs" add column if not exists "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column if not exists "input_checksum" text;
 alter table "better_supabase"."import_runs" add column if not exists "correlation_id" text;
+alter table "better_supabase"."import_runs" add column if not exists "mapper_version" text;
 alter table "better_supabase"."import_runs" add column if not exists "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column if not exists "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column if not exists "finished_at" timestamptz;
@@ -3055,6 +3967,21 @@ alter table "better_supabase"."import_records" enable row level security;
 grant select on "better_supabase"."import_records" to authenticated;
 grant all on "better_supabase"."import_records" to service_role;
 
+-- better_supabase.import_chunks is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."import_chunks" add column if not exists "run_id" uuid references "better_supabase"."import_runs" ("id") on delete cascade;
+alter table "better_supabase"."import_chunks" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."import_chunks" add column if not exists "entity" text;
+alter table "better_supabase"."import_chunks" add column if not exists "chunk" integer;
+alter table "better_supabase"."import_chunks" add column if not exists "items" jsonb;
+alter table "better_supabase"."import_chunks" add column if not exists "status" text not null default 'pending';
+alter table "better_supabase"."import_chunks" add column if not exists "result" jsonb;
+alter table "better_supabase"."import_chunks" add column if not exists "claimed_at" timestamptz;
+alter table "better_supabase"."import_chunks" add column if not exists "done_at" timestamptz;
+alter table "better_supabase"."import_chunks" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."import_chunks" enable row level security;
+grant all on "better_supabase"."import_chunks" to service_role;
+create index if not exists "import_chunks_tenant_idx" on "better_supabase"."import_chunks" ("tenant_id");
+
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -3079,7 +4006,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("tenant_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -3088,6 +4015,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -3131,7 +4059,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."tenant_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."tenant_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -3150,7 +4078,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."tenant_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -3305,6 +4233,8 @@ begin
       continue;
     end if;
 
+    
+
     -- jsonb text is key-ordered, so equal content hashes equally.
     v_hash := encode(extensions.digest(v_data::text, 'sha256'), 'hex');
 
@@ -3363,48 +4293,51 @@ begin
         v_call := v_item || jsonb_build_object('tenant', v_run."tenant_id", 'scope', v_scope);
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
 
-        v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-        if not exists (
-          select 1 from jsonb_array_elements(v_subjects) s
-          where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-        ) then
-          raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-        end if;
+          v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
 
-        for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
-          end if;
-          insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-          values (
-            v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
-            coalesce(v_subject ->> 'role', 'primary'),
-            coalesce(v_subject ->> 'subjectType', v_subject_type),
-            v_subject ->> 'subjectId',
-            v_hash, v_run_id, v_run_id,
-            coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-            null
-          )
-          on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
-            "subject_type" = excluded."subject_type",
-            "subject_id" = excluded."subject_id",
-            "content_hash" = excluded."content_hash",
-            "last_run_id" = excluded."last_run_id",
-            "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-            "went_missing_at" = null;
-        end loop;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "better_supabase"."import_records" ("tenant_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."tenant_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("tenant_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
-        if v_found then
-          v_updated := v_updated + 1;
-        else
-          v_inserted := v_inserted + 1;
-        end if;
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
       end if;
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
     end;
   end loop;
+
+  
 
   return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
@@ -3466,7 +4399,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -3474,7 +4409,7 @@ begin
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
   end loop;
   perform "better_supabase"."begin_import_session"(v_run_id);
@@ -3490,7 +4425,7 @@ begin
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     perform set_config(v_name, v_previous ->> v_name, true);
   end loop;
 
@@ -3637,13 +4572,195 @@ begin
     raise exception 'chunks must be at least 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    perform "better_supabase"."enqueue_job"(queue => '''imports''', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
   end loop;
   return enqueue_import_chunks.chunks;
 end;
 $$;
 revoke execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) to service_role;
+
+-- Stores the items of one chunk of an entity, ready for a worker. Storing a chunk
+-- again before it is done replaces its items; a done chunk is left as it is and
+-- the answer is false.
+create or replace function "better_supabase"."store_import_chunk"(run uuid, entity text, chunk integer, items jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run "better_supabase"."import_runs";
+begin
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = store_import_chunk.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if store_import_chunk.chunk is null or store_import_chunk.chunk < 0 or jsonb_typeof(store_import_chunk.items) is distinct from 'array' then
+    raise exception 'a chunk has a number from 0 and an array of items' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."import_chunks" ("run_id", "tenant_id", "entity", "chunk", "items")
+  values (store_import_chunk.run, v_run."tenant_id", store_import_chunk.entity, store_import_chunk.chunk, store_import_chunk.items)
+  on conflict ("run_id", "entity", "chunk") do update
+    set "items" = excluded."items", "status" = 'pending', "claimed_at" = null
+    where "better_supabase"."import_chunks"."status" <> 'done';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- Takes a pending chunk, or one whose claim is older than lease seconds (a worker
+-- that died), and returns { entity, chunk, items }. Null when the chunk is done,
+-- missing or held by a live worker. Rows another worker holds are skipped, not waited for.
+create or replace function "better_supabase"."claim_import_chunk"(run uuid, entity text, chunk integer, lease integer default 300)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_items jsonb;
+begin
+  with pick as (
+    select x."run_id", x."entity", x."chunk"
+    from "better_supabase"."import_chunks" x
+    where x."run_id" = claim_import_chunk.run and x."entity" = claim_import_chunk.entity and x."chunk" = claim_import_chunk.chunk
+      and (x."status" = 'pending' or (x."status" = 'claimed' and x."claimed_at" < now() - make_interval(secs => greatest(claim_import_chunk.lease, 1))))
+    for update skip locked
+  )
+  update "better_supabase"."import_chunks" x set "status" = 'claimed', "claimed_at" = now()
+  from pick
+  where x."run_id" = pick."run_id" and x."entity" = pick."entity" and x."chunk" = pick."chunk"
+  returning x."items" into v_items;
+  if v_items is null then
+    return null;
+  end if;
+  return jsonb_build_object('entity', claim_import_chunk.entity, 'chunk', claim_import_chunk.chunk, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) to service_role;
+
+-- Marks a claimed chunk done and keeps what its batch answered.
+create or replace function "better_supabase"."complete_import_chunk"(run uuid, entity text, chunk integer, result jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_chunks" x set "status" = 'done', "done_at" = now(), "result" = complete_import_chunk.result
+  where x."run_id" = complete_import_chunk.run and x."entity" = complete_import_chunk.entity
+    and x."chunk" = complete_import_chunk.chunk and x."status" = 'claimed';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- One worker step: claim the chunk, write it with import_upsert_batch and mark it
+-- done, in one transaction, so a failure leaves the chunk pending for the next try.
+-- A chunk that is done answers what its batch answered; one that is missing or
+-- held by another worker answers { skipped: true }.
+create or replace function "better_supabase"."process_import_chunk"(run uuid, entity text, chunk integer)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_done jsonb;
+  v_claim jsonb;
+  v_result jsonb;
+begin
+  select x."result" into v_done from "better_supabase"."import_chunks" x
+  where x."run_id" = process_import_chunk.run and x."entity" = process_import_chunk.entity
+    and x."chunk" = process_import_chunk.chunk and x."status" = 'done';
+  if found then
+    return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('done', true);
+  end if;
+  v_claim := "better_supabase"."claim_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk);
+  if v_claim is null then
+    return jsonb_build_object('skipped', true);
+  end if;
+  v_result := "better_supabase"."import_upsert_batch"(process_import_chunk.run, process_import_chunk.entity, v_claim -> 'items');
+  perform "better_supabase"."complete_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk, v_result);
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) to service_role;
+
+-- How many chunks of a run are pending, claimed and done, so a caller knows when to
+-- finish the run.
+create or replace function "better_supabase"."import_chunk_progress"(run uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'pending', count(*) filter (where x."status" = 'pending'),
+    'claimed', count(*) filter (where x."status" = 'claimed'),
+    'done', count(*) filter (where x."status" = 'done')
+  )
+  from "better_supabase"."import_chunks" x
+  where x."run_id" = import_chunk_progress.run
+$$;
+revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
+
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."tenant_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."tenant_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -3692,7 +4809,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:dcea7b49ddc28143067511a2b047cbe066382fbed66c3464194b24871c83850c
+-- @bsb-hash sha256:1a980b1bf7cc684c883ce6811d9ad5e3b70dbaeee964d1e54bc9dac096c36022
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3712,6 +4829,7 @@ alter table "better_supabase"."import_runs" add column "dry_run" boolean not nul
 alter table "better_supabase"."import_runs" add column "full" boolean not null default false;
 alter table "better_supabase"."import_runs" add column "input_checksum" text;
 alter table "better_supabase"."import_runs" add column "correlation_id" text;
+alter table "better_supabase"."import_runs" add column "mapper_version" text;
 alter table "better_supabase"."import_runs" add column "scope_aliases" jsonb not null default '[]'::jsonb;
 alter table "better_supabase"."import_runs" add column "started_at" timestamptz;
 alter table "better_supabase"."import_runs" add column "finished_at" timestamptz;
@@ -3748,6 +4866,26 @@ revoke all on "better_supabase"."import_records" from public, anon, authenticate
 grant select on "better_supabase"."import_records" to authenticated;
 grant all on "better_supabase"."import_records" to service_role;
 
+create table "better_supabase"."import_chunks" (
+  "run_id" uuid not null references "better_supabase"."import_runs" ("id") on delete cascade,
+  "org_id" uuid not null,
+  "entity" text not null,
+  "chunk" integer not null,
+  "items" jsonb not null,
+  "status" text not null default 'pending',
+  "result" jsonb,
+  "claimed_at" timestamptz,
+  "done_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  primary key ("run_id", "entity", "chunk")
+);
+alter table "better_supabase"."import_chunks" add constraint "bsb_import_chunks_status"
+  check ("status" in ('pending', 'claimed', 'done'));
+alter table "better_supabase"."import_chunks" enable row level security;
+revoke all on "better_supabase"."import_chunks" from public, anon, authenticated;
+grant all on "better_supabase"."import_chunks" to service_role;
+create index "import_chunks_tenant_idx" on "better_supabase"."import_chunks" ("org_id");
+
 create or replace function "better_supabase"."start_import_run"(tenant uuid, source text, options jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -3772,7 +4910,7 @@ begin
     raise exception 'scopeAliases must be an array of { scope, of, entities }' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   begin
-    insert into "better_supabase"."import_runs" as r ("org_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "scope_aliases", "created_by")
+    insert into "better_supabase"."import_runs" as r ("org_id", "source", "mapping", "dry_run", "full", "input_checksum", "correlation_id", "mapper_version", "scope_aliases", "created_by")
     values (
       start_import_run.tenant,
       start_import_run.source,
@@ -3781,6 +4919,7 @@ begin
       coalesce((v_options ->> 'full')::boolean, false),
       v_options ->> 'inputChecksum',
       v_options ->> 'correlationId',
+      nullif(v_options ->> 'mapperVersion', ''),
       coalesce(v_options -> 'scopeAliases', '[]'::jsonb),
       auth.uid()
     )
@@ -3824,7 +4963,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_run."org_id", 'imports.manage'), false)) then
     raise exception 'not allowed to read this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."org_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
+  return jsonb_build_object('id', v_run."id", 'organizationId', v_run."org_id", 'source', v_run."source", 'status', v_run."status", 'mapping', v_run."mapping", 'counts', v_run."counts", 'errors', v_run."errors", 'dryRun', v_run."dry_run", 'full', v_run."full", 'inputChecksum', v_run."input_checksum", 'correlationId', v_run."correlation_id", 'mapperVersion', v_run."mapper_version", 'scopeAliases', v_run."scope_aliases", 'createdBy', v_run."created_by", 'createdAt', v_run."created_at", 'startedAt', v_run."started_at", 'finishedAt', v_run."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_import_run"(uuid) from public, anon;
@@ -3843,7 +4982,7 @@ begin
     raise exception 'not allowed to list imports' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   return query
-    select jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
+    select jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'source', r."source", 'status', r."status", 'mapping', r."mapping", 'counts', r."counts", 'errors', r."errors", 'dryRun', r."dry_run", 'full', r."full", 'inputChecksum', r."input_checksum", 'correlationId', r."correlation_id", 'mapperVersion', r."mapper_version", 'scopeAliases', r."scope_aliases", 'createdBy', r."created_by", 'createdAt', r."created_at", 'startedAt', r."started_at", 'finishedAt', r."finished_at")
     from "better_supabase"."import_runs" r
     where r."org_id" = list_import_runs.tenant
       and (list_import_runs.source is null or r."source" = list_import_runs.source)
@@ -3998,6 +5137,8 @@ begin
       continue;
     end if;
 
+    
+
     -- jsonb text is key-ordered, so equal content hashes equally.
     v_hash := encode(extensions.digest(v_data::text, 'sha256'), 'hex');
 
@@ -4056,48 +5197,51 @@ begin
         v_call := v_item || jsonb_build_object('tenant', v_run."org_id", 'scope', v_scope);
         raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
 
-        v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
-        if not exists (
-          select 1 from jsonb_array_elements(v_subjects) s
-          where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
-        ) then
-          raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
-        end if;
+          v_subjects := case jsonb_typeof(v_out) when 'array' then v_out else jsonb_build_array(v_out) end;
+  if not exists (
+    select 1 from jsonb_array_elements(v_subjects) s
+    where coalesce(s.value ->> 'role', 'primary') = 'primary' and nullif(s.value ->> 'subjectId', '') is not null
+  ) then
+    raise exception 'the import target returned no primary subject' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
 
-        for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
-          if jsonb_typeof(v_subject -> 'warnings') = 'array' then
-            v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
-          end if;
-          insert into "better_supabase"."import_records" ("org_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
-          values (
-            v_run."org_id", v_run."source", v_scope, v_entity, v_key,
-            coalesce(v_subject ->> 'role', 'primary'),
-            coalesce(v_subject ->> 'subjectType', v_subject_type),
-            v_subject ->> 'subjectId',
-            v_hash, v_run_id, v_run_id,
-            coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
-            null
-          )
-          on conflict ("org_id", "source", "scope", "entity", "external_key", "role") do update set
-            "subject_type" = excluded."subject_type",
-            "subject_id" = excluded."subject_id",
-            "content_hash" = excluded."content_hash",
-            "last_run_id" = excluded."last_run_id",
-            "subject_imported_updated_at" = excluded."subject_imported_updated_at",
-            "went_missing_at" = null;
-        end loop;
+  for v_subject in select s.value from jsonb_array_elements(v_subjects) s loop
+    if jsonb_typeof(v_subject -> 'warnings') = 'array' then
+      v_warnings := v_warnings || (select coalesce(jsonb_agg(w.value || jsonb_build_object('entity', v_entity, 'key', v_key)), '[]'::jsonb) from jsonb_array_elements(v_subject -> 'warnings') w);
+    end if;
+    insert into "better_supabase"."import_records" ("org_id", "source", "scope", "entity", "external_key", "role", "subject_type", "subject_id", "content_hash", "first_run_id", "last_run_id", "subject_imported_updated_at", "went_missing_at")
+    values (
+      v_run."org_id", v_run."source", v_scope, v_entity, v_key,
+      coalesce(v_subject ->> 'role', 'primary'),
+      coalesce(v_subject ->> 'subjectType', v_subject_type),
+      v_subject ->> 'subjectId',
+      v_hash, v_run_id, v_run_id,
+      coalesce((v_subject ->> 'updatedAt')::timestamptz, now()),
+      null
+    )
+    on conflict ("org_id", "source", "scope", "entity", "external_key", "role") do update set
+      "subject_type" = excluded."subject_type",
+      "subject_id" = excluded."subject_id",
+      "content_hash" = excluded."content_hash",
+      "last_run_id" = excluded."last_run_id",
+      "subject_imported_updated_at" = excluded."subject_imported_updated_at",
+      "went_missing_at" = null;
+  end loop;
 
-        if v_found then
-          v_updated := v_updated + 1;
-        else
-          v_inserted := v_inserted + 1;
-        end if;
+  if v_found then
+    v_updated := v_updated + 1;
+  else
+    v_inserted := v_inserted + 1;
+  end if;
+  
       end if;
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
     end;
   end loop;
+
+  
 
   return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
@@ -4159,7 +5303,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -4167,7 +5313,7 @@ begin
     raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
   end loop;
   perform "better_supabase"."begin_import_session"(v_run_id);
@@ -4183,7 +5329,7 @@ begin
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     perform set_config(v_name, v_previous ->> v_name, true);
   end loop;
 
@@ -4330,13 +5476,195 @@ begin
     raise exception 'chunks must be at least 1' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   for v_chunk in 0 .. enqueue_import_chunks.chunks - 1 loop
-    perform "better_supabase"."enqueue_job"(queue => '''imports''', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
+    perform "better_supabase"."enqueue_job"(queue => 'imports', payload => jsonb_build_object('run', v_run."id", 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk), dedupe_key => v_run."id"::text || ':' || enqueue_import_chunks.entity || ':' || v_chunk::text, dedupe_running => false);
   end loop;
   return enqueue_import_chunks.chunks;
 end;
 $$;
 revoke execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."enqueue_import_chunks"(uuid, text, integer) to service_role;
+
+-- Stores the items of one chunk of an entity, ready for a worker. Storing a chunk
+-- again before it is done replaces its items; a done chunk is left as it is and
+-- the answer is false.
+create or replace function "better_supabase"."store_import_chunk"(run uuid, entity text, chunk integer, items jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_run "better_supabase"."import_runs";
+begin
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = store_import_chunk.run;
+  if not found then
+    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
+  end if;
+  if store_import_chunk.chunk is null or store_import_chunk.chunk < 0 or jsonb_typeof(store_import_chunk.items) is distinct from 'array' then
+    raise exception 'a chunk has a number from 0 and an array of items' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  insert into "better_supabase"."import_chunks" ("run_id", "org_id", "entity", "chunk", "items")
+  values (store_import_chunk.run, v_run."org_id", store_import_chunk.entity, store_import_chunk.chunk, store_import_chunk.items)
+  on conflict ("run_id", "entity", "chunk") do update
+    set "items" = excluded."items", "status" = 'pending', "claimed_at" = null
+    where "better_supabase"."import_chunks"."status" <> 'done';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- Takes a pending chunk, or one whose claim is older than lease seconds (a worker
+-- that died), and returns { entity, chunk, items }. Null when the chunk is done,
+-- missing or held by a live worker. Rows another worker holds are skipped, not waited for.
+create or replace function "better_supabase"."claim_import_chunk"(run uuid, entity text, chunk integer, lease integer default 300)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_items jsonb;
+begin
+  with pick as (
+    select x."run_id", x."entity", x."chunk"
+    from "better_supabase"."import_chunks" x
+    where x."run_id" = claim_import_chunk.run and x."entity" = claim_import_chunk.entity and x."chunk" = claim_import_chunk.chunk
+      and (x."status" = 'pending' or (x."status" = 'claimed' and x."claimed_at" < now() - make_interval(secs => greatest(claim_import_chunk.lease, 1))))
+    for update skip locked
+  )
+  update "better_supabase"."import_chunks" x set "status" = 'claimed', "claimed_at" = now()
+  from pick
+  where x."run_id" = pick."run_id" and x."entity" = pick."entity" and x."chunk" = pick."chunk"
+  returning x."items" into v_items;
+  if v_items is null then
+    return null;
+  end if;
+  return jsonb_build_object('entity', claim_import_chunk.entity, 'chunk', claim_import_chunk.chunk, 'items', v_items);
+end;
+$$;
+revoke execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."claim_import_chunk"(uuid, text, integer, integer) to service_role;
+
+-- Marks a claimed chunk done and keeps what its batch answered.
+create or replace function "better_supabase"."complete_import_chunk"(run uuid, entity text, chunk integer, result jsonb)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_chunks" x set "status" = 'done', "done_at" = now(), "result" = complete_import_chunk.result
+  where x."run_id" = complete_import_chunk.run and x."entity" = complete_import_chunk.entity
+    and x."chunk" = complete_import_chunk.chunk and x."status" = 'claimed';
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."complete_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- One worker step: claim the chunk, write it with import_upsert_batch and mark it
+-- done, in one transaction, so a failure leaves the chunk pending for the next try.
+-- A chunk that is done answers what its batch answered; one that is missing or
+-- held by another worker answers { skipped: true }.
+create or replace function "better_supabase"."process_import_chunk"(run uuid, entity text, chunk integer)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_done jsonb;
+  v_claim jsonb;
+  v_result jsonb;
+begin
+  select x."result" into v_done from "better_supabase"."import_chunks" x
+  where x."run_id" = process_import_chunk.run and x."entity" = process_import_chunk.entity
+    and x."chunk" = process_import_chunk.chunk and x."status" = 'done';
+  if found then
+    return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('done', true);
+  end if;
+  v_claim := "better_supabase"."claim_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk);
+  if v_claim is null then
+    return jsonb_build_object('skipped', true);
+  end if;
+  v_result := "better_supabase"."import_upsert_batch"(process_import_chunk.run, process_import_chunk.entity, v_claim -> 'items');
+  perform "better_supabase"."complete_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk, v_result);
+  return v_result;
+end;
+$$;
+revoke execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."process_import_chunk"(uuid, text, integer) to service_role;
+
+-- How many chunks of a run are pending, claimed and done, so a caller knows when to
+-- finish the run.
+create or replace function "better_supabase"."import_chunk_progress"(run uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'pending', count(*) filter (where x."status" = 'pending'),
+    'claimed', count(*) filter (where x."status" = 'claimed'),
+    'done', count(*) filter (where x."status" = 'done')
+  )
+  from "better_supabase"."import_chunks" x
+  where x."run_id" = import_chunk_progress.run
+$$;
+revoke execute on function "better_supabase"."import_chunk_progress"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_chunk_progress"(uuid) to service_role;
+
+-- Clears the content hash of the records of a source (and entity) that a run of
+-- another mapper version last wrote, so the next import treats them as changed and
+-- rewrites them through their target (a row a user changed since stays as it is, as
+-- for any changed hash). Returns how many records it cleared.
+create or replace function "better_supabase"."reapply_import_records"(tenant uuid, source text, mapper_version text, entity text default null)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer;
+begin
+  update "better_supabase"."import_records" x set "content_hash" = ''
+  where x."org_id" = reapply_import_records.tenant and x."source" = reapply_import_records.source
+    and (reapply_import_records.entity is null or x."entity" = reapply_import_records.entity)
+    and x."content_hash" <> ''
+    and (select r."mapper_version" from "better_supabase"."import_runs" r where r."id" = x."last_run_id") is distinct from reapply_import_records.mapper_version;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."reapply_import_records"(uuid, text, text, text) to service_role;
+
+-- The record map of a source as { entity, scope, key, role, hash, subjectType,
+-- subjectId }, one object per record in key order, so a caller can compare what the
+-- source sends with what was imported without reading the rows.
+create or replace function "better_supabase"."export_import_hashes"(tenant uuid, source text, entity text default null)
+returns setof jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('entity', x."entity", 'scope', x."scope", 'key', x."external_key", 'role', x."role",
+    'hash', x."content_hash", 'subjectType', x."subject_type", 'subjectId', x."subject_id")
+  from "better_supabase"."import_records" x
+  where x."org_id" = export_import_hashes.tenant and x."source" = export_import_hashes.source
+    and (export_import_hashes.entity is null or x."entity" = export_import_hashes.entity)
+  order by x."entity", x."scope", x."external_key", x."role"
+$$;
+revoke execute on function "better_supabase"."export_import_hashes"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."export_import_hashes"(uuid, text, text) to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

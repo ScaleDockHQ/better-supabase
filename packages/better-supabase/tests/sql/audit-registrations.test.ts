@@ -144,6 +144,19 @@ describe("audit pgTAP files", () => {
 });
 
 describe("auditRegistrations of static triggers", () => {
+  it("reads a bsb_audit trigger with a when clause", () => {
+    expect(
+      auditRegistrations([
+        {
+          text: `create trigger bsb_audit after insert or update or delete on public.invoices
+  for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore": ["updated_at"], "redact": []}');`,
+        },
+      ]),
+    ).toEqual([
+      { target: "public.invoices", ignore: ["updated_at"], redact: [] },
+    ]);
+  });
+
   it("reads bsb_audit triggers that pass their settings to audit_row_change", () => {
     expect(
       auditRegistrations([

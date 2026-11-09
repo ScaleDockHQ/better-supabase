@@ -39,25 +39,26 @@ quote a value that holds spaces. A table has one tag per name, and a config
 key of the same meaning wins over the tag. `better-supabase table <name>
 enable <feature>` writes a tag for you (see [table](/docs/cli/table)).
 
-| Tag               | What it does                                                                                                                              |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `subject`         | Registers the table as a subject type: comments, tags, search, versions and the other blocks reach it.                                    |
-| `realtime`        | Adds the table to the realtime publication and registry.                                                                                  |
-| `audit`           | Writes a row to the audit log for each change.                                                                                            |
-| `audit-reads`     | Audits reads of the table's sensitive columns.                                                                                            |
-| `append-only`     | Refuses update, delete and truncate for every role.                                                                                       |
-| `function-writes` | Removes the Data API write privileges, so rows arrive through security definer functions.                                                 |
-| `chain`           | Links each inserted row to the previous one with a hash, per `organization_id` when the table has it.                                     |
-| `template`        | Adds `template_id` and `source_template_id`, and refuses a row switching between a template and a live record. Needs the templates block. |
-| `vector-search`   | Keeps an embedding column and its index.                                                                                                  |
-| `json`            | Types the table's jsonb columns, `json meta=Type`.                                                                                        |
-| `expose`          | Exposes the table through the Data API.                                                                                                   |
-| `encrypted`       | Names the columns stored with field encryption, `encrypted diagnosis=text birth_date=date`.                                               |
-| `lookup`          | Names the encrypted columns that keep a lookup hash for equality searches, `lookup bsn email`.                                            |
-| `server`          | Names the columns signed-in users can't select, so `gen` types them as not selectable.                                                    |
-| `search`          | Adds a stored `search_tsv` tsvector column and a GIN index, `search columns="name, notes"`.                                               |
-| `events`          | Writes `<type>.created`, `.updated` and `.deleted` to the outbox, `events include="status, project_id"`.                                  |
-| `embedding`       | Keeps a vector column current from text columns, `embedding content=title,body dimensions=1536`.                                          |
+| Tag                 | What it does                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subject`           | Registers the table as a subject type: comments, tags, search, versions and the other blocks reach it.                                                  |
+| `realtime`          | Adds the table to the realtime publication and registry.                                                                                                |
+| `audit`             | Writes a row to the audit log for each change.                                                                                                          |
+| `audit-reads`       | Audits reads of the table's sensitive columns.                                                                                                          |
+| `filled-by-trigger` | Names columns a trigger fills, so an insert may leave them out (the same as `tables.<t>.insertOptional`): `@bsb filled-by-trigger created_by owner_id`. |
+| `append-only`       | Refuses update, delete and truncate for every role.                                                                                                     |
+| `function-writes`   | Removes the Data API write privileges, so rows arrive through security definer functions.                                                               |
+| `chain`             | Links each inserted row to the previous one with a hash, per `organization_id` when the table has it.                                                   |
+| `template`          | Adds `template_id` and `source_template_id`, and refuses a row switching between a template and a live record. Needs the templates block.               |
+| `vector-search`     | Keeps an embedding column and its index.                                                                                                                |
+| `json`              | Types the table's jsonb columns, `json meta=Type`.                                                                                                      |
+| `expose`            | Exposes the table through the Data API.                                                                                                                 |
+| `encrypted`         | Names the columns stored with field encryption, `encrypted diagnosis=text birth_date=date`.                                                             |
+| `lookup`            | Names the encrypted columns that keep a lookup hash for equality searches, `lookup bsn email`.                                                          |
+| `server`            | Names the columns signed-in users can't select, so `gen` types them as not selectable.                                                                  |
+| `search`            | Adds a stored `search_tsv` tsvector column and a GIN index, `search columns="name, notes"`.                                                             |
+| `events`            | Writes `<type>.created`, `.updated` and `.deleted` to the outbox, `events include="status, project_id"`.                                                |
+| `embedding`         | Keeps a vector column current from text columns, `embedding content=title,body dimensions=1536`.                                                        |
 
 ### The subject tag
 

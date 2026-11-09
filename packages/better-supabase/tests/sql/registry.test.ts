@@ -222,7 +222,7 @@ describe("renderBlocks", () => {
     expect(unwrapped).toEqual([]);
   });
 
-  it("checks tenant permissions in read policies with a set, not can() per row", () => {
+  it("checks tenant permissions in policies with a set, not can() per row", () => {
     const layouts = [
       {},
       {
@@ -240,9 +240,11 @@ describe("renderBlocks", () => {
       const perRow = renderBlocks(Object.keys(SQL_MODULES), layout).flatMap(
         (file) =>
           [...file.contents.matchAll(/create policy[\s\S]*?;\n/g)]
-            .map((match) => match[0].split(/\bwith check\b/)[0]!)
-            .filter((using) =>
-              /\busing \([\s\S]*better_supabase\.can\('tenant', "/.test(using),
+            .map((match) => match[0])
+            .filter((policy) =>
+              /\b(?:using|with check) \([\s\S]*better_supabase\.can\('tenant', "/.test(
+                policy,
+              ),
             )
             .map((policy) => `${file.module}: ${policy.slice(0, 100)}`),
       );

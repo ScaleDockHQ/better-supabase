@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:586c72adbbc280fedd65f684872247c958ee1ac11c97f5b9d0a5e26ba3e73606
+-- @bsb-hash sha256:0d0e1f45e99ed94572bdffcf1a6c940b26c128d767ff354ab04626960664a382
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2365,8 +2365,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document","event_prefix":"document"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.document_suggestions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_suggestion","event_prefix":"document_suggestion"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.documents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document","event_prefix":"document"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.document_suggestions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_suggestion","event_prefix":"document_suggestion"}');
 
 -- blocks.documents.api: entry points for the Data API.
 create schema if not exists "api";

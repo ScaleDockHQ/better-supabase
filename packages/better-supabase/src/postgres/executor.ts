@@ -98,6 +98,7 @@ async function run(
     : [];
 
   let count: number | null = null;
+  let capped: boolean | undefined;
 
   if (plan.count) {
     const [first] = await client.queryRaw<{ count: unknown }>(plan.count.text, [
@@ -112,9 +113,13 @@ async function run(
       count > plan.countThreshold
     ) {
       count = Math.max(count, await plannedRows(client, plan.plannedCount));
+      capped = true;
+    } else if (plan.plannedCount) {
+      capped = false;
     }
   } else if (plan.plannedCount) {
     count = await plannedRows(client, plan.plannedCount);
+    capped = true;
   } else if (op.kind !== "select") {
     count = rows.length;
   }
@@ -125,7 +130,7 @@ async function run(
     count = (count ?? 0) + (more.count ?? 0);
   }
 
-  return { rows, count };
+  return { rows, count, ...(capped === undefined ? {} : { capped }) };
 }
 
 /**

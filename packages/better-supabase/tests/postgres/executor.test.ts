@@ -148,7 +148,11 @@ describe("postgresExecutor", () => {
       context,
     );
 
-    expect(result.ok && result.data).toEqual({ rows: [], count: 1234 });
+    expect(result.ok && result.data).toEqual({
+      rows: [],
+      count: 1234,
+      capped: true,
+    });
     expect(fake.texts()).toEqual([
       expect.stringMatching(
         /^explain \(format json\) select 1 from "public"\."customers"/,
@@ -188,6 +192,7 @@ describe("postgresExecutor", () => {
     }).execute(select({ head: true, count: "estimated" }), context);
 
     expect(result.ok && result.data.count).toBe(3);
+    expect(result.ok && result.data.capped).toBe(false);
     expect(fake.texts()).toHaveLength(1);
     expect(fake.texts()[0]).toContain("limit 11) as c");
   });
@@ -203,6 +208,7 @@ describe("postgresExecutor", () => {
     }).execute(select({ head: true, count: "estimated" }), context);
 
     expect(result.ok && result.data.count).toBe(900);
+    expect(result.ok && result.data.capped).toBe(true);
 
     const low = fakeSql([
       ["count(*)::bigint", [{ count: "11" }]],
@@ -214,6 +220,17 @@ describe("postgresExecutor", () => {
     }).execute(select({ head: true, count: "estimated" }), context);
 
     expect(floored.ok && floored.data.count).toBe(11);
+  });
+
+  it("reports no capped flag for an exact count", async () => {
+    const fake = fakeSql([["count(*)::bigint", [{ count: "5" }]]]);
+
+    const result = await postgresExecutor(fake.sql).execute(
+      select({ head: true, count: "exact" }),
+      context,
+    );
+
+    expect(result.ok && result.data).toEqual({ rows: [], count: 5 });
   });
 
   it("reads rows without a count outside a transaction", async () => {

@@ -1,6 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:1e5e0749ed5391a163b91ee89e1277be2ea787d8ce7537c2809b38d7b08dc39a
+-- @bsb-hash sha256:7d2e7bcaa74d80f9bd56ed66bb9ac423cb5dc69b940d8f7296d2798d5f024966
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1236,7 +1236,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.forms deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"form","event_prefix":"form"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.forms deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"form","event_prefix":"form"}');
 
 -- blocks.forms.api: entry points for the Data API.
 create schema if not exists "api";

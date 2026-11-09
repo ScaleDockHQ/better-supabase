@@ -104,6 +104,32 @@ describe("withTableTags", () => {
     });
   });
 
+  it("reads filled-by-trigger as the table's insertOptional columns", async () => {
+    const { name } = await first();
+
+    const config = resolveConfig({ blocks: {} }, "/tmp");
+
+    const next = withTableTags(
+      config,
+      await tagged(name, "@bsb filled-by-trigger created_by owner_id"),
+    );
+
+    expect(next.tables[name]?.insertOptional).toEqual([
+      "created_by",
+      "owner_id",
+    ]);
+
+    const merged = withTableTags(
+      { ...config, tables: { [name]: { insertOptional: ["created_by"] } } },
+      await tagged(name, "@bsb filled-by-trigger created_by owner_id"),
+    );
+
+    expect(merged.tables[name]?.insertOptional).toEqual([
+      "created_by",
+      "owner_id",
+    ]);
+  });
+
   it("keeps what the config sets itself", async () => {
     const { name, key } = await first();
 

@@ -1019,7 +1019,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:74ee3f3853516704147e3a79ce4948009fb43eb27402a6d721681653334f4e05
+-- @bsb-hash sha256:9b8e879c7f283aaeb2bef3ed42c47cd7e435c485c0ec409f596f870bbd95bb80
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2051,7 +2051,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."deal_lines" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.deals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deal","event_prefix":"deal"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.deals deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deal","event_prefix":"deal"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_deals.sql
 -- better-supabase module: deals

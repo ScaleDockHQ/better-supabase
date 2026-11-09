@@ -64,6 +64,7 @@ import { commandMeta } from "../core/manifest.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
 import { latestMigrationVersion } from "../doctor/migration-safety.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
+import { withTemplates } from "../framework-templates.ts";
 import {
   CANCELLED,
   chooseIntegrations,
@@ -532,7 +533,7 @@ async function runInit(
       ...integrationFiles(integrations, templateContext),
       ...(hooksBinding === undefined
         ? []
-        : frameworkFiles(hooksBinding, {
+        : frameworkFiles(withTemplates(hooksBinding), {
             srcDir: templateContext.srcDir,
             generated: templateContext.generated,
             tsExtensions: templateContext.tsExtensions,

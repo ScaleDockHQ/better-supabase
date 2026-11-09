@@ -641,7 +641,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:d75ee67fb7af11ee15d0bfd9747d3b531385e366dbfd3e1ecca3bb5de031a932
+-- @bsb-hash sha256:b12b5052f45865ba3d6c9a5115ac4963adabe09e953b7ed639ddb5716e17b5cc
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1325,8 +1325,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."posts" as restrictiv
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.post_boards deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post_board","event_prefix":"post_board"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.posts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post","event_prefix":"post"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.post_boards deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post_board","event_prefix":"post_board"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.posts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post","event_prefix":"post"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_140_posts.sql
 -- better-supabase module: posts

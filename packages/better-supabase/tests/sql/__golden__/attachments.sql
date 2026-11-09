@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:c1e76166b0cf32a7453f75a3eed54c1ff137ea9a55d48f1b78bd65791d4948c4
+-- @bsb-hash sha256:64234ef08b0189077380899be5eb00ffc25b675ff790cf4d45805f3e1da599eb
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -359,12 +359,12 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 create policy bsb_attachments_read on "better_supabase"."attachments"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true);
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true) and (select better_supabase.actor_may_write()));
 create policy bsb_attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
@@ -1037,15 +1037,15 @@ create policy bsb_tenant_scope_select on "better_supabase"."attachments" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true)
   );
 create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
   for update to public
@@ -1116,7 +1116,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:a9a4b1a77686b150864f648a522ebd32ffa1c938d0fb4d8cf3b9c0c5887b6d23
+-- @bsb-hash sha256:f2e0800821b91cc8c5b18c984c36947b37622dd5a028d4f035ca779e9996fa76
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1484,12 +1484,12 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 create policy bsb_attachments_read on "better_supabase"."attachments"
   for select to authenticated
-  using (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and true);
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and (coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+    and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
+    and true) and (select better_supabase.actor_may_write()));
 create policy bsb_attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
@@ -2294,15 +2294,15 @@ create policy bsb_tenant_scope_select on "better_supabase"."attachments" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and (coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    and ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
+    and true)
   );
 create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
   for update to public
@@ -2348,7 +2348,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.attachments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"attachment","event_prefix":"attachment"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.attachments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"attachment","event_prefix":"attachment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
@@ -2376,7 +2376,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:eb778b95b5331c4a5434b6d8ea606c3c0e598efcafc927864b1d683b750595c8
+-- @bsb-hash sha256:d924c2fb049474033c4e68c223f71f6456774f4765df476daed5cc5673c286fb
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2739,12 +2739,12 @@ grant execute on function "app_private"."attachment_subject_readable"(text, text
 
 create policy bsb_attachments_read on "app_private"."attachments"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "app_private"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true);
 create policy bsb_attachments_insert on "app_private"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
-    and "app_private"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true) and (select better_supabase.actor_may_write()));
 create policy bsb_attachments_delete on "app_private"."attachments"
   for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
@@ -3417,15 +3417,15 @@ create policy bsb_tenant_scope_select on "app_private"."attachments" as restrict
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "app_private"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "app_private"."attachments" as restrictive
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
-    and "app_private"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true)
   );
 create policy bsb_tenant_scope_update on "app_private"."attachments" as restrictive
   for update to public
@@ -3496,7 +3496,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:e147fb60b5c9be4da8d19d80357fe0da7dc5f7847022317e4bb39c16b016122e
+-- @bsb-hash sha256:86d52391d555b4b231c70eb4c25cf6268032101711f59f06bb47a31a5ef81771
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3854,12 +3854,12 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 create policy bsb_attachments_read on "better_supabase"."attachments"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true);
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true) and (select better_supabase.actor_may_write()));
 create policy bsb_attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
@@ -4532,15 +4532,15 @@ create policy bsb_tenant_scope_select on "better_supabase"."attachments" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true)
   );
 create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
   for update to public
@@ -4796,7 +4796,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:f5ffb8a3d49a5806052d3ba153f1316bd9a25ed1f1395cd0a98c32b7ca7877c3
+-- @bsb-hash sha256:d2f4f139c33e6b2baf2132fd4501ed694203c094ff8538c7969f185b009d7996
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5089,12 +5089,12 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 create policy bsb_attachments_select on "better_supabase"."attachments"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true);
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true) and (select better_supabase.actor_may_write()));
 create policy bsb_attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
@@ -5652,15 +5652,15 @@ create policy bsb_tenant_scope_select on "better_supabase"."attachments" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "tenant_id", 'attachments.upload'), false)
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true)
   );
 create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
   for update to public
@@ -5726,7 +5726,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:1c3c4ff20f0ab97ce33c7646d0d2b55cb1af6c41b82ad60493fc33e2fe758ba8
+-- @bsb-hash sha256:b5fb93aefc814c78ac9941110de9ef93841a6d213fda9291e54f5bccf7041c71
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6084,12 +6084,12 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 create policy bsb_attachments_read on "better_supabase"."attachments"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "org_id"));
+  using ("org_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true);
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "org_id", 'attachments.upload'), false)
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "org_id")) and (select better_supabase.actor_may_write()));
+    and "org_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true) and (select better_supabase.actor_may_write()));
 create policy bsb_attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
@@ -6762,15 +6762,15 @@ create policy bsb_tenant_scope_select on "better_supabase"."attachments" as rest
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "org_id"))
+    or ("org_id" in (select better_supabase.tenant_ids_with('attachments.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
   for insert to public
   with check (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "org_id", 'attachments.upload'), false)
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "org_id"))
+    and "org_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
+    and true)
   );
 create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
   for update to public

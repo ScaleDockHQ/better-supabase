@@ -616,7 +616,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:c850b7e3d35d5f7536f8bc5f5470cb6367dfcd11ff4d2184184fb19f507e084f
+-- @bsb-hash sha256:f485233fa49c68a0a2730fb7dccef79b3feab82dee9c84561e037f61a5f64546
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1250,7 +1250,7 @@ grant execute on function "better_supabase"."flag_enabled"(text, uuid) to authen
 grant execute on function "better_supabase"."flag_definitions"() to service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.flags deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"flag","event_prefix":"flag"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.flags deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"flag","event_prefix":"flag"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_flags.sql
 -- better-supabase module: flags

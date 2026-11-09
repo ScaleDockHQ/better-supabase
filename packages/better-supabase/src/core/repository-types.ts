@@ -246,6 +246,11 @@ export interface OffsetPage<R, Counted extends boolean = false> {
     readonly total: Counted extends true ? number : number | null;
     readonly pages: Counted extends true ? number : number | null;
     readonly hasMore: boolean;
+    /**
+     * With a count: `true` when `total` is the planner's estimate, `false` when
+     * it is exact. Absent when the executor does not say.
+     */
+    readonly capped?: boolean;
   };
 }
 
@@ -315,6 +320,14 @@ export interface Repository<
       : Payload<M, T, A>
   >;
   count(args?: CountOptions<M, T> & FindExt<E, M, T>): AsyncResult<number>;
+  /**
+   * `count`, with whether the figure is the planner's estimate: `capped` is
+   * `true` for a `planned` count and for an `estimated` one past 1,000 rows,
+   * and `false` for an exact one.
+   */
+  counted(
+    args?: CountOptions<M, T> & FindExt<E, M, T>,
+  ): AsyncResult<{ readonly count: number; readonly capped: boolean }>;
   /**
    * Counts, sums, averages, minimums and maximums in one request, grouped by
    * `groupBy` columns. Needs `pgrst.db_aggregates_enabled` over PostgREST.

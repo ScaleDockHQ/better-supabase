@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:c18c8cbbba35b0ded611439588ad2d287c261c2679958ce419ef024d6f1bd953
+-- @bsb-hash sha256:dc18c3fc170a1da2531f5f2ad14a5de69008d903491d6001c8d71b8e47a77293
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4239,6 +4239,14 @@ begin
     raise exception 'an issued document needs its issue date' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and v_number is not null and exists (select 1 from "better_supabase"."invoices" x where x."tenant_id" = v_tenant and x."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
@@ -4251,7 +4259,7 @@ begin
     v_id := (v_made ->> 'id')::uuid;
   else
     v_made := "better_supabase"."create_invoice"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-      'title', coalesce(nullif(v_data ->> 'title', ''), 'Invoice ' || coalesce(v_number, 'draft')),
+      'title', coalesce(nullif(v_data ->> 'title', ''), replace('Invoice {number}', '{number}', coalesce(v_number, 'draft'))),
       'currency', v_data -> 'currency',
       'termsDays', v_data -> 'termsDays',
       'note', v_data -> 'note',
@@ -4389,8 +4397,8 @@ begin
     'currency', v_data -> 'currency', 'company', v_data -> 'company', 'contact', v_data -> 'contact',
     'legalEntityId', v_data -> 'legalEntityId',
     'direction', case when v_data ->> 'side' = 'supplier' then 'purchase' else 'sales' end,
-    'title', coalesce(nullif(v_data ->> 'title', ''), 'Opening balance ' || coalesce(v_data ->> 'number', '')),
-    'lines', jsonb_build_array(jsonb_build_object('description', 'Opening balance ' || coalesce(v_data ->> 'number', ''),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Opening balance {number}', '{number}', coalesce(v_data ->> 'number', ''))),
+    'lines', jsonb_build_array(jsonb_build_object('description', replace('Opening balance {number}', '{number}', coalesce(v_data ->> 'number', '')),
       'quantity', 1, 'unitAmount', v_balance, 'taxRateBps', 0)),
     'totals', jsonb_build_object('subtotal', v_balance, 'tax', 0, 'total', v_balance)))),
     import_open_item.subject_id, false);
@@ -4850,7 +4858,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.invoices deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"invoice","event_prefix":"invoice"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.invoices deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"invoice","event_prefix":"invoice"}');
 
 -- blocks.invoices.api: entry points for the Data API.
 create schema if not exists "api";
