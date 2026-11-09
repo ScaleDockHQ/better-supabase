@@ -263,6 +263,29 @@ Map `tables.runs` onto the app's import table. Optional columns can be `null`.
 
 The batch size adapts. A batch that takes longer than `targetBatchMs` (default 30,000) halves the next one, and with `maxBatchSize` set a batch under half of it doubles the next one up to that size. A batch that hits the statement timeout (SQLSTATE `57014`) is split in two and each half is sent again, down to one item. The result's `suggestedBatchSize` is the size to start the next run of the source with. Two batches of one run can write at the same time: `import_upsert_batch` reads the run without a row lock and only the counts update at its end locks the row.
 
+## Large imports in chunks
+
+A source with millions of rows writes in chunks, so a worker pool shares the work and a retry never writes a chunk twice. Cut each entity's items into chunks, store them, queue one job per chunk and let workers process them:
+
+```ts
+for (const [chunk, items] of chunksOf(rows, 500).entries()) {
+  await imports.chunks
+    .store({ runId, entity: "customer", chunk, items })
+    .orThrow();
+}
+
+await db.$rpc("enqueue_import_chunks", {
+  run: runId,
+  entity: "customer",
+  chunks: count,
+});
+
+// In the worker process, with an `imports` queue whose schema is importChunkSchema:
+await runImportWorker({ imports, queue, concurrency: 4, signal });
+```
+
+`chunks.process` claims the chunk, writes it with `upsertBatch` and marks it done in one transaction, so a failure leaves it pending, a done chunk answers what it answered, and a chunk another worker holds is skipped (a claim older than five minutes is taken over). `chunks.progress(runId)` returns `{ pending, claimed, done }`; call `runs.finish` once nothing is pending or claimed. `importChunkHandler(imports)` is the job handler for a worker you run yourself. The chunk rows go with the run and with a tenant purge.
+
 ## Hooks
 
 `createImports` takes `hooks`, keyed by method name, that run your code

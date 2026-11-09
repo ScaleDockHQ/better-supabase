@@ -22,6 +22,12 @@ import {
   userGrant,
 } from "../shared.ts";
 import { batchSql } from "./imports-batch.ts";
+import {
+  CHUNK_CONTRACT,
+  CHUNK_TABLE,
+  chunkFunctions,
+  chunkTable,
+} from "./imports-chunks.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** The SQLSTATE a dry run raises to roll its writes back. */
@@ -103,6 +109,7 @@ const NAMES: BlockSqlNames = {
         missingSince: "went_missing_at",
       },
     },
+    chunks: CHUNK_TABLE,
   },
 };
 
@@ -292,7 +299,7 @@ create table if not exists ${records} (
 );
 create index if not exists ${sqlIdent(`${recordsName}_subject_idx`)} on ${records} (${x("tenant")}, ${x("subjectType")}, ${x("subjectId")});
 ${lockTable(records, { read: true })}
-`
+${chunkTable(ctx, runs)}`
     : "";
 
   const known = `array[${targets.map((target) => sqlString(target.entity)).join(", ")}]::text[]`;
@@ -944,7 +951,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${ctx.fn("enqueue_import_chunks")}(uuid, text, integer)`)}
-`;
+${chunkFunctions(ctx, runs)}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -985,6 +992,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "text", "integer"],
       returns: "integer",
     },
+    ...CHUNK_CONTRACT,
   ];
 }
 

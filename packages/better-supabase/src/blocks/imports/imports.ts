@@ -2,6 +2,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { ImportChunks } from "./chunks.ts";
 import type { ImportBatchReply, ImportItem } from "./define-import.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -182,6 +183,11 @@ export interface Imports {
     source: string;
     mapping?: Readonly<Record<string, string>> | undefined;
   }): AsyncResult<{ readonly id: string }>;
+  /**
+   * Stored chunks of an entity's items, so a worker writes a large import in
+   * batches that each survive a retry; see \`runImportWorker\`.
+   */
+  readonly chunks: ImportChunks;
   readonly runs: {
     /**
      * Starts a pending run. Fails with `IMPORT_RUN_ACTIVE` while another is
@@ -533,6 +539,46 @@ export function createImports(options: ImportsOptions): Imports {
         ),
       cancel: (id) =>
         call("cancel_import_run", { id }, (value) => value === true),
+    },
+    chunks: {
+      store: ({ runId, entity, chunk, items }) =>
+        call(
+          "store_import_chunk",
+          { run: runId, entity, chunk, items: items.map(itemArg) },
+          (value) => value === true,
+        ),
+      process: ({ runId, entity, chunk }) =>
+        call("process_import_chunk", { run: runId, entity, chunk }, (value) => {
+          const row = recordOf(value, "process_import_chunk");
+
+          return row["skipped"] === true
+            ? { status: "skipped" as const }
+            : {
+                status: row["done"] === true ? "done" : "processed",
+                inserted: toCount(row["inserted"]),
+                updated: toCount(row["updated"]),
+                unchanged: toCount(row["unchanged"]),
+                conflicted: toCount(row["conflicted"]),
+                errors: recordsOf(
+                  row["errors"] ?? [],
+                  "process_import_chunk",
+                ).map((error) => ({
+                  key: nullableText(error["key"]),
+                  code: textOf(error["code"]),
+                  message: textOf(error["message"]),
+                })),
+              };
+        }),
+      progress: (runId) =>
+        call("import_chunk_progress", { run: runId }, (value) => {
+          const row = recordOf(value, "import_chunk_progress");
+
+          return {
+            pending: toCount(row["pending"]),
+            claimed: toCount(row["claimed"]),
+            done: toCount(row["done"]),
+          };
+        }),
     },
     markRunning: (id) =>
       call("mark_import_running", { id }, (value) => value === true),
