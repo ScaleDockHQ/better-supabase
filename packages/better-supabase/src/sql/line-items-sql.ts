@@ -688,7 +688,18 @@ begin
   for v_parent in execute case tg_op
     when 'INSERT' then ${sqlString(`select distinct n.${c("parent")} from new_rows n order by 1`)}
     when 'DELETE' then ${sqlString(`select distinct o.${c("parent")} from old_rows o order by 1`)}
-    else ${sqlString(`select n.${c("parent")} from new_rows n union select o.${c("parent")} from old_rows o order by 1`)}
+    else ${sqlString(`select parent from (
+      select n.${c("parent")} as parent from new_rows n
+      join old_rows o on o.${c("id")} = n.${c("id")}
+      where n.${c("quantity")} is distinct from o.${c("quantity")}
+        or n.${c("unitAmount")} is distinct from o.${c("unitAmount")}
+      union
+      select n.${c("parent")} from new_rows n
+      where not exists (select 1 from old_rows o where o.${c("id")} = n.${c("id")})
+      union
+      select o.${c("parent")} from old_rows o
+      where not exists (select 1 from new_rows n where n.${c("id")} = o.${c("id")})
+    ) changed order by 1`)}
   end loop
     perform ${recount}(v_parent);
   end loop;

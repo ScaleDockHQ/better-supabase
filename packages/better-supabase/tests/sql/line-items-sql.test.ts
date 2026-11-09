@@ -34,9 +34,8 @@ describe("line item totals", () => {
     expect(sql).toContain(
       `when 'INSERT' then 'select distinct n."parent_id" from new_rows n order by 1'`,
     );
-    expect(sql).toContain(
-      `else 'select n."parent_id" from new_rows n union select o."parent_id" from old_rows o order by 1'`,
-    );
+    expect(sql).toContain("is distinct from");
+    expect(sql).toContain("not exists (select 1 from old_rows");
     expect(sql).toContain(
       `revoke execute on function better_supabase.${trigger}() from public, anon, authenticated;`,
     );
