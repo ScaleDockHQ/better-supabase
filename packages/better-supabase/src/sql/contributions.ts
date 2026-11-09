@@ -233,6 +233,11 @@ export interface ImportTargetContribution {
    */
   readonly naturalKey?: string;
   /**
+   * Ref field to the entity it points at, resolved in one query before the
+   * write.
+   */
+  readonly refs?: Readonly<Record<string, string>>;
+  /**
    * When true, this target replaces a block contribution of the same entity
    * instead of being refused as a duplicate.
    */

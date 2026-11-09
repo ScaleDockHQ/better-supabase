@@ -32,6 +32,7 @@ import {
   assignCase,
   naturalLookupOf,
   readerCaseOf,
+  refResolveSql,
   targetsOf,
 } from "./imports-targets.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -320,6 +321,17 @@ ${writeArms}
     `v_run.${r("tenant")}`,
   );
 
+  const resolvedRefs = refResolveSql(
+    targets,
+    sqlString,
+    records,
+    x("tenant"),
+    x("source"),
+    x("entity"),
+    x("externalKey"),
+    x("subjectId"),
+  );
+
   const queue = ctx.enqueue(
     "imports",
     `jsonb_build_object('run', v_run.${r("id")}, 'entity', enqueue_import_chunks.entity, 'chunk', v_chunk)`,
@@ -564,6 +576,8 @@ declare
   v_current timestamptz;
   v_owned text;
   v_natural text;
+  v_ref_map jsonb := '{}'::jsonb;
+  v_resolved jsonb := '{}'::jsonb;
   v_out jsonb;
   v_subjects jsonb;
   v_subject jsonb;
@@ -584,6 +598,8 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
   if jsonb_typeof(v_items) <> 'array' then
     ${fail("IMPORT_ITEM_INVALID", "items must be an array of { key, scope, data, refs }", "22023")}
   end if;
+
+  v_ref_map := ${resolvedRefs.map};
 
   for v_item in
     select e.value from jsonb_array_elements(v_items) e
@@ -692,6 +708,7 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
       if not v_done then
         v_subject_id := case when v_found then v_rec.${x("subjectId")} else null end;
         v_call := v_item || jsonb_build_object('tenant', v_run.${r("tenant")}, 'scope', v_scope);
+        ${resolvedRefs.attach}
         ${writeBlock}
       end if;
     exception when others then

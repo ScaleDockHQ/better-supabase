@@ -398,6 +398,7 @@ describe("imports SQL", () => {
                 write: "public.import_invoice",
                 replaces: true,
                 before: "public.import_invoice_before",
+                refs: { customer: "customer" },
               },
             },
           },
@@ -414,6 +415,7 @@ describe("imports SQL", () => {
     expect(sql).toContain('"public"."import_invoice_before"');
     expect(sql).not.toContain('"better_supabase"."import_invoice"');
     expect(sql).toContain("content_hash");
+    expect(sql).toContain("IMPORT_REF_MISSING");
   });
 
   it("adopts a row a natural key already finds", () => {
