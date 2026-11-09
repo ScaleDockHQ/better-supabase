@@ -128,6 +128,44 @@ export default defineConfig({
     );
   });
 
+  it("leaves an object with a spread in its order", () => {
+    const { text } = renameConfigKeys(
+      "export default defineConfig({ blocks: { ...shared, bulk: {}, tasks: {} } });",
+      rows,
+    );
+
+    expect(text).toBe(
+      'export default defineConfig({ blocks: { ...shared, "bulk-actions": {}, tasks: {} } });',
+    );
+  });
+
+  it("keeps a trailing comma and the comments in front of an entry when it sorts", () => {
+    const { text } = renameConfigKeys(
+      `export default defineConfig({
+  blocks: {
+    alpha: {},
+    // keep with mid
+    mid: {},
+    /* last */
+    omega: {},
+  },
+});
+`,
+      [row("blocks.alpha", "blocks.zeta")],
+    );
+
+    expect(text).toBe(`export default defineConfig({
+  blocks: {
+    // keep with mid
+    mid: {},
+    /* last */
+    omega: {},
+    zeta: {},
+  },
+});
+`);
+  });
+
   it("quotes a new key that is not an identifier", () => {
     const { text } = renameConfigKeys(
       "export default defineConfig({ blocks: { bulk: {}, tasks: { bulk: 1 } } });",
