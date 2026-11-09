@@ -350,7 +350,10 @@ begin
         select 'invoice'::text as document_type, x.${i("id")} as id, ${sideOf("x")} as side, ${partyOf("x")} as party,
           x.${i("identifier")}::text as identifier, x.${i("currency")}::text as currency, x.${i("issuedOn")} as issued_on, x.${i("dueOn")} as due_on,
           (x.${i("total")} + ${charged("x")} - x.${i("creditedTotal")})::bigint as gross,
-          (x.${i("total")} + ${charged("x")} - x.${i("creditedTotal")} - ${paidAsOf("x")})::bigint as balance,
+          case when open_items_for_party.as_of is null or open_items_for_party.as_of = current_date
+            then (x.${i("total")} + ${charged("x")} - x.${i("creditedTotal")} - x.${i("paidTotal")})::bigint
+            else (x.${i("total")} + ${charged("x")} - x.${i("creditedTotal")} - ${paidAsOf("x")})::bigint
+          end as balance,
           ${early ? `x.${i("discountDueOn")}` : "null::date"} as discount_due_on,
           ${early ? `coalesce(x.${i("discountAmountEarly")}, 0)::bigint` : "0::bigint"} as discount_amount,
           ${entity} as entity,

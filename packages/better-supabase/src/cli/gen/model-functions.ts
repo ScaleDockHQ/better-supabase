@@ -6,6 +6,24 @@ import { arrayOf, configFor } from "./shared.ts";
 
 const NOT_NULL_TAG = /@notNull(?:\(([^)]*)\))?/u;
 
+const COALESCE_RETURN = /\b(?:return|select)\s+coalesce\s*\(/i;
+
+/**
+ * A scalar function whose body returns `coalesce(...)` always yields a value.
+ * `undefined` when the body is missing or the shape is not that simple.
+ */
+export function inferNotNull(source: string | undefined): true | undefined {
+  if (source === undefined) {
+    return undefined;
+  }
+
+  const body = source
+    .replaceAll(/--[^\n]*/g, "")
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "");
+
+  return COALESCE_RETURN.test(body) ? true : undefined;
+}
+
 /**
  * The `@notNull` tag in a function's comment: `true` for every result, or the
  * columns `@notNull(a, b)` names. `undefined` without a tag.
@@ -94,7 +112,8 @@ export function buildFunctions(
         fn.name,
       )?.notNull;
 
-      const notNull = configured ?? notNullTag(fn.comment);
+      const notNull =
+        configured ?? inferNotNull(fn.source) ?? notNullTag(fn.comment);
 
       const source =
         configured === undefined

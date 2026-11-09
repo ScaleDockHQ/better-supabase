@@ -612,7 +612,10 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
     ${fail("IMPORT_ITEM_INVALID", "items must be an array of { key, scope, data, refs }", "22023")}
   end if;
 
-  for v_item in select e.value from jsonb_array_elements(v_items) e loop
+  for v_item in
+    select e.value from jsonb_array_elements(v_items) e
+    order by e.value #>> '{data,orderBy}', e.value #>> '{data,readAt}', e.value ->> 'key'
+  loop
     v_key := v_item ->> 'key';
     v_scope := coalesce(v_item ->> 'scope', '');
     v_data := v_item -> 'data';
