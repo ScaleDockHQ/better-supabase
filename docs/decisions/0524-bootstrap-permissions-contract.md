@@ -67,3 +67,12 @@ for an app whose provider sets it, `db diff` then updates the wrappers, and no
 data migration is needed. A provider that returns no value changes nothing.
 The key index and bit order are part of `apiVersion: 1`; changing either needs
 a new version.
+
+## Server size
+
+The shared server chunk grows with this track's runtime code (the permissions
+reader, the JWKS purge and the claim readers): per-route server baselines rose
+by 1.6 to 2.6 KB raw (0.1 percent) and by up to 0.84 KB gzip, for example
+`/[locale]/(app)/customers/page` 1,603 B raw and 648 B gzip more. The client
+first-load baselines did not move. The baselines were raised by hand in the
+same commit, as the update script never raises them.
