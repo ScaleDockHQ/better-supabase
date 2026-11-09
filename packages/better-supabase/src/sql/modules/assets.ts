@@ -28,6 +28,7 @@ import {
   geographyPoint,
   hasCoordinates,
 } from "./assets-functions.ts";
+import { assetImportSql, assetImportTargets } from "./assets-import.ts";
 import { meterImportTargets, meterReadingsSql } from "./assets-meters.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -150,6 +151,11 @@ const NAMES: BlockSqlNames = {
         name: "name",
         tag: "tag",
         serial: "serial_number",
+        make: "make",
+        model: "model",
+        modelYear: "model_year",
+        ownership: "ownership",
+        product: "product_id",
         status: "status",
         assigneeType: "assignee_type",
         assigneeId: "assignee_id",
@@ -165,6 +171,11 @@ const NAMES: BlockSqlNames = {
       optional: [
         "tag",
         "serial",
+        "make",
+        "model",
+        "modelYear",
+        "ownership",
+        "product",
         "latitude",
         "longitude",
         "metadata",
@@ -306,7 +317,7 @@ create table if not exists ${assets} (
   ${s("tenant")} ${idType} not null,
   ${s("location")} uuid references ${locations} (${l("id")}) on delete set null,
   ${s("kind")} text not null check (${s("kind")} ~ '^[a-z][a-z0-9_]{0,62}$'),
-  ${s("name")} text not null check (length(${s("name")}) between 1 and 200),${ctx.has("assets", "tag") ? "\n  -- The asset tag, unique per organization." : ""}${column("assets", "tag", (tag) => `${tag} text check (${tag} is null or length(${tag}) between 1 and 100)`)}${column("assets", "serial", (serial) => `${serial} text check (${serial} is null or length(${serial}) <= 200)`)}
+  ${s("name")} text not null check (length(${s("name")}) between 1 and 200),${ctx.has("assets", "tag") ? "\n  -- The asset tag, unique per organization." : ""}${column("assets", "tag", (tag) => `${tag} text check (${tag} is null or length(${tag}) between 1 and 100)`)}${column("assets", "serial", (serial) => `${serial} text check (${serial} is null or length(${serial}) <= 200)`)}${column("assets", "make", (make) => `${make} text`)}${column("assets", "model", (model) => `${model} text`)}${column("assets", "modelYear", (year) => `${year} integer`)}${column("assets", "ownership", (ownership) => `${ownership} text check (${ownership} is null or ${ownership} in ('customer', 'stock', 'trade_in', 'loan', 'rental'))`)}${column("assets", "product", (product) => `${product} uuid`)}
   ${s("status")} text not null default 'active' check (${s("status")} in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
   ${s("assigneeType")} text check (${s("assigneeType")} is null or ${s("assigneeType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -399,6 +410,7 @@ ${tables}
 ${assetsFunctions(ctx)}
 ${meterReadingsSql(ctx)}
 ${depreciationFunctions(ctx)}
+${assetImportSql(ctx)}
 ${accountingSourcesSql(ctx, assetAccountingSources(ctx))}`;
 }
 
@@ -462,6 +474,6 @@ export const ASSETS: BlockSqlDefinition = {
   contributes: {
     accounting: (own) =>
       accountingContributions(own, assetAccountingSources(own)),
-    imports: (own) => meterImportTargets(own),
+    imports: (own) => [...meterImportTargets(own), ...assetImportTargets(own)],
   },
 };
