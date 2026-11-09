@@ -66,6 +66,8 @@ run is 0.74 s against a warm no-op of 0.43 s.
 
 ## Not done
 
+- A column added to a table a block owns re-renders 30 to 36 files, because
+  `ctx.has` reads the table's column list entry by entry (ADR 0591).
 - Inputs every module reads (`dir`, `prefix`, the provider's functions, each
   block's `columns`) still render every module, because the context reads them
   while it is built. Narrowing that needs the context to read them lazily.
