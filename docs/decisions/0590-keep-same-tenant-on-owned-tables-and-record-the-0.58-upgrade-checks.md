@@ -58,6 +58,6 @@ same_tenant triggers above the item loop.
 Not done in the same change, and left for the next plan: pinning the old default
 names of existing app tables in `codemod naming` (drive `deleted_at`, the actor
 columns of scorecards and status history), renaming block column names in the
-app's own SQL and seeds, a trace diff of the runtime program between 0.57 and
-0.58 (346k to 405k types), a server bench program with a check time above the
-calibration floor, and a profile of the `gen` and `upgrade --check` times.
+app's own SQL and seeds. The trace diff of the runtime program between 0.57 and
+0.58 (346k to 405k types), the server bench program and the profile of the
+`gen` and `upgrade --check` times are in ADR 0591.
