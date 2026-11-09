@@ -500,7 +500,7 @@ begin
     ${fail("EMPLOYEE_ATTRS_INVALID", "the end date is before the start date", "22023")}
   end;
 ${moveUp ? moveReports(`v_row.${e("id")}`, `v_row.${e("manager")}`) : ""}${offboardedAt("now()", `v_row.${e("id")}`)}
-  ${record("employee.offboarded", "v_row", `, 'endDate', ${has("endDate") ? `v_row.${e("endDate")}` : "current_date"}, 'reason', ${has("offboardReason") ? `v_row.${e("offboardReason")}` : "nullif(trim(offboard_employee.reason), '')"}`)}
+  ${record("employee.offboarded", "v_row", `, 'endDate', ${has("endDate") ? `v_row.${e("endDate")}` : "current_date"}`)}
   ${ctx.hook("after_employee_offboard", [["uuid", `v_row.${e("id")}`]])}
   return ${n.json("v_row")};
 end;

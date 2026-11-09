@@ -53,6 +53,7 @@
           "tenant": "organization_id"
         },
         "members": {
+          "employee": null,
           "tenant": "organization_id"
         }
       }

@@ -116,6 +116,7 @@ describe("block fields", () => {
       description: null,
       status: "active",
       memberIds: [],
+      memberEmployeeIds: [],
       fields: {},
     });
     expect(fake.calls[0]?.args["fields"]).toBeUndefined();

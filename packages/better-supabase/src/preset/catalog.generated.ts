@@ -1742,7 +1742,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "inbox",
         "outbox",
-        "audit"
+        "audit",
+        "employees"
       ],
       "manifest": "teams",
       "scopes": [
@@ -4958,7 +4959,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "relations",
         "hiring",
         "time-entries",
-        "approvals"
+        "approvals",
+        "teams"
       ],
       "manifest": "employees",
       "scopes": [

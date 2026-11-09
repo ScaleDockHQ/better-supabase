@@ -198,6 +198,19 @@ Use your own table and column names if you map the block to your table.
 Give each row a distinct `identifier`, or renumber the duplicates, before you
 apply the migration.
 
+## Employees on teams
+
+An app that installs `employees` next to `teams` gets employees as team members.
+`team_members` gains `employee_id`, `user_id` becomes nullable, and the primary
+key `(team_id, user_id)` gives way to two partial unique indexes. The schema diff
+writes that change for the block's own table. When `team_members` is your own
+table, drop its primary key and the `not null` on its user column yourself, or
+map `blocks.teams.columns.members.employee` to `null` to keep user-only members.
+`add --adopt` then turns the teams data file into a migration that fills
+`employee_id` for members with an employee record and adds each employee to the
+team in `employees.team_id`. Apps without `employees` see no change. See
+[Teams](/docs/blocks/teams#employees-as-members).
+
 ## Database names
 
 `codemod naming` writes the migration for an installed app. No data moves, and

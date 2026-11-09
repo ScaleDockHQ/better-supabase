@@ -786,7 +786,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:fbafed6f856f5c9a092f54791c98c06fa60f23370ed0267dd248aa935361e36b
+-- @bsb-hash sha256:b76e11df09729bbbc7ad72fe860d5988b9ee6aeda9922fbc3ae8ddc509d955c4
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1216,7 +1216,7 @@ begin
   end loop;
   update "better_supabase"."employee_private_details" x set "offboarded_at" = now()
   where x."employee_id" = v_row."id";
-  perform "better_supabase".emit_event('employee.offboarded', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id", 'endDate', v_row."end_date", 'reason', v_row."offboard_reason"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
+  perform "better_supabase".emit_event('employee.offboarded', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id", 'endDate', v_row."end_date"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_employee_offboard"(uuid)');
   begin
@@ -1595,6 +1595,56 @@ $$;
 revoke execute on function better_supabase.bsb_time_entries_employee_sync() from public, anon, authenticated;
 create trigger bsb_time_entries_employee_sync after insert or update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_time_entries_employee_sync();
+
+alter table "better_supabase"."team_members" add constraint "team_members_employee_fkey"
+  foreign key ("employee_id") references "better_supabase"."employees" ("id") on delete cascade;
+
+-- The employee's team rows carry the employee's account while it is a member
+-- of the organization; linking an account merges that user's own rows.
+-- Setting the team adds a row for it; the row of the previous team stays.
+create or replace function better_supabase.bsb_employee_team_members()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user uuid;
+begin
+  if new."user_id" is not null and exists (
+    select 1 from "better_supabase"."memberships" m
+    where m."organization_id" = new."tenant_id"
+      and m."user_id" = new."user_id"
+  ) then
+    v_user := new."user_id";
+  end if;
+  if tg_op = 'INSERT' or new."user_id" is distinct from old."user_id" then
+    if v_user is not null then
+      delete from "better_supabase"."team_members" x
+      where x."user_id" = v_user and x."employee_id" is null
+        and exists (
+          select 1 from "better_supabase"."team_members" y
+          where y."team_id" = x."team_id" and y."employee_id" = new."id"
+        );
+      update "better_supabase"."team_members" set "employee_id" = new."id"
+      where "tenant_id" = new."tenant_id" and "user_id" = v_user and "employee_id" is null;
+    end if;
+    update "better_supabase"."team_members" set "user_id" = v_user
+    where "employee_id" = new."id" and "user_id" is distinct from v_user;
+  end if;
+  if new."team_id" is not null and (tg_op = 'INSERT' or new."team_id" is distinct from old."team_id") then
+    insert into "better_supabase"."team_members" ("team_id", "user_id", "employee_id", "tenant_id")
+    select t."id", v_user, new."id", new."tenant_id"
+    from "better_supabase"."teams" t
+    where t."id" = new."team_id" and t."tenant_id" = new."tenant_id"
+    on conflict do nothing;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_employee_team_members() from public, anon, authenticated;
+create trigger bsb_employee_team_members after insert or update of "user_id", "team_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_team_members();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

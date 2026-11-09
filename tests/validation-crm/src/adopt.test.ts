@@ -94,7 +94,7 @@ describe("add --preset --adopt on the CRM schema", () => {
     });
     expect(blocks["teams"]?.columns).toEqual({
       teams: { tenant: "organization_id" },
-      members: { tenant: "organization_id" },
+      members: { employee: null, tenant: "organization_id" },
     });
   });
 

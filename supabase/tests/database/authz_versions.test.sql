@@ -5,7 +5,7 @@
 -- `authz_ver` next to the active organization's permission keys. User …00a1 is an admin and owns organization …0001, and
 -- …00a2 is a member there, in supabase/seed.sql.
 begin;
-select plan(13);
+select plan(14);
 
 create temp table seen as
 select user_id, version from better_supabase.user_authz_versions;
@@ -128,6 +128,16 @@ select ok(
     ) -> 'claims' ? 'permissions_truncated'
   ),
   'keys within the budget carry no truncated marker'
+);
+
+insert into auth.users (id, email)
+values ('00000000-0000-4000-8000-0000000000d9', 'leaving@example.test');
+insert into public.memberships (organization_id, user_id, role)
+values ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000d9', (select id from better_supabase.roles limit 1));
+
+select lives_ok(
+  $$delete from auth.users where id = '00000000-0000-4000-8000-0000000000d9'$$,
+  'deleting a user with a membership bumps no version for the deleted user'
 );
 
 select * from finish();

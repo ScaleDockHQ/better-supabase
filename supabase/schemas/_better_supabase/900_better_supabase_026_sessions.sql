@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:0c5dd9fe7e6403c5859a6089d40c2859102002641383fc932947594e464abe12
+-- @bsb-hash sha256:ab958b41960f0ebfca3d29e54c5d69d1bf255c9153ac9c048c51ba1f58856f04
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -296,7 +296,8 @@ security definer
 set search_path = ''
 as $$
   insert into better_supabase.user_authz_versions as v (user_id)
-  select distinct u from unnest(p_users) u where u is not null
+  select distinct u from unnest(p_users) u
+  where u is not null and exists (select 1 from auth.users x where x.id = u)
   on conflict (user_id) do update
     set version = v.version + 1, updated_at = now()
 $$;
