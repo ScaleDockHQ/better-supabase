@@ -488,6 +488,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0586: Keep the drive grants mode and block client reads through views deferred.
 - 0587: Record the status of the ADR 0393 and 0420 leftovers.
 - 0588: Defer tenantless notifications and audit.
+- 0590: Keep same_tenant on owned tables and record the 0.58 upgrade checks.
 
 ## Pre-release pins
 
