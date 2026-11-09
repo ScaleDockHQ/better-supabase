@@ -711,3 +711,50 @@ describe("billing", () => {
     });
   });
 });
+
+describe("reportUsageToStripe under sql.tenantColumn", () => {
+  it("reads the tenant of a counter from tenant_id too", async () => {
+    let served = false;
+
+    const { transport } = fakeTransport((fn) => {
+      if (fn === "unreported_usage") {
+        const rows = served
+          ? []
+          : [
+              {
+                tenant_id: "org-1",
+                meter: "api_calls",
+                day: "2026-10-05",
+                value: 10,
+                reported_value: 4,
+              },
+            ];
+
+        served = true;
+
+        return rows;
+      }
+
+      return fn === "tenant_stripe_customer" ? "cus_1" : true;
+    });
+
+    const sent: unknown[] = [];
+
+    const stripe = {
+      billing: {
+        meterEvents: {
+          create: async (params: unknown) => {
+            sent.push(params);
+
+            return {};
+          },
+        },
+      },
+    } as unknown as StripeClient;
+
+    expect(await reportUsageToStripe({ transport, stripe, batch: 10 })).toEqual(
+      { reported: 1, skipped: 0 },
+    );
+    expect(JSON.stringify(sent)).toContain("org-1:api_calls");
+  });
+});

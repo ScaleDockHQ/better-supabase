@@ -8,6 +8,7 @@ import type { BlockOptions, CursorPageOptions } from "../shared.ts";
 import type { StripeSource } from "../stripe.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { tenantOf } from "../../core/tenant-key.ts";
 import { amountText } from "../money-codec.ts";
 import {
   blockCall,
@@ -752,7 +753,7 @@ export async function reportUsageToStripe(
     const lookups = new Set<string>();
 
     for (const row of rows) {
-      const organizationId = textOf(row["organization_id"]);
+      const organizationId = textOf(tenantOf(row));
 
       if (
         !customers.has(organizationId) &&
@@ -773,7 +774,7 @@ export async function reportUsageToStripe(
     const sends: PendingReport[] = [];
 
     for (const row of rows) {
-      const organizationId = textOf(row["organization_id"]);
+      const organizationId = textOf(tenantOf(row));
       const meter = textOf(row["meter"]);
 
       if (skipMeters.has(meter) || skipTenants.has(organizationId)) {

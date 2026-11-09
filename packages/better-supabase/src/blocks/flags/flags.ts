@@ -3,6 +3,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
+import { tenantOf } from "../../core/tenant-key.ts";
 import {
   blockCall,
   DEFAULT_BLOCK_SCHEMA,
@@ -610,7 +611,7 @@ function overrideOf(entry: Readonly<Record<string, unknown>>): FlagOverride {
   const contextKey = optionalText(entry["context_key"]);
 
   return {
-    organizationId: optionalText(entry["organization_id"]),
+    organizationId: optionalText(tenantOf(entry)),
     userId: optionalText(entry["user_id"]),
     ...(context !== undefined && { context }),
     ...(contextKey !== undefined && { contextKey }),

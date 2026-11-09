@@ -570,3 +570,17 @@ describe("API keys in a server", () => {
     expect((await app.request("/users/x", { headers })).status).toBe(403);
   });
 });
+
+describe("tenant_id in results", () => {
+  it("reads the tenant the block-names middleware restored as tenant_id", async () => {
+    const { transport } = fakeTransport(() => [
+      row({ organization_id: undefined, tenant_id: ORG }),
+    ]);
+
+    const [listed] = await createApiKeys({ transport, prefix: "acme" })
+      .list(ORG)
+      .orThrow();
+
+    expect(listed?.organizationId).toBe(ORG);
+  });
+});

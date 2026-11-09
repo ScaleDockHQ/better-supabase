@@ -21,6 +21,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { tenantOf } from "../../core/tenant-key.ts";
 import {
   blockCall,
   DEFAULT_BLOCK_SCHEMA,
@@ -288,7 +289,7 @@ function stateOf(
 
 function apiKeyOf(value: unknown): ApiKey {
   const row = recordOf(value, "api key");
-  const organizationId = optionalText(row["organization_id"]);
+  const organizationId = optionalText(tenantOf(row));
   const userId = optionalText(row["user_id"]);
   const expiresAt = optionalInstant(row["expires_at"]);
   const lastUsedAt = optionalInstant(row["last_used_at"]);

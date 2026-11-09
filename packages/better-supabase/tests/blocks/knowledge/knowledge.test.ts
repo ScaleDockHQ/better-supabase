@@ -884,3 +884,27 @@ describe("knowledge collections", () => {
     expect(calls[2]?.args).toMatchObject({ collections: ["c1"] });
   });
 });
+
+describe("search hits under sql.tenantColumn", () => {
+  it("reads the tenant of a hit from tenant_id too", async () => {
+    const { transport } = fakeTransport({
+      knowledge_search: () => [
+        {
+          document_id: "a",
+          idx: 0,
+          content: "a",
+          metadata: null,
+          title: "a",
+          score: 0.1,
+          tenant_id: "o1",
+        },
+      ],
+    });
+
+    const hits = await createKnowledge({ transport })
+      .search({ organizationId: "o1", query: { text: "x" } })
+      .orThrow();
+
+    expect(hits[0]?.organizationId).toBe("o1");
+  });
+});

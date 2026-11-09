@@ -924,3 +924,15 @@ describe("organization fields and hooks", () => {
     expect(seen).toEqual([true]);
   });
 });
+
+describe("switch under sql.tenantColumn", () => {
+  it("reads the organization from tenant_id too", async () => {
+    const { transport } = fake({
+      switch_organization: { tenant_id: "org-1", refresh: false },
+    });
+
+    expect(
+      await createOrganizations({ transport }).switch("org-1"),
+    ).toMatchObject({ ok: true, data: { organizationId: "org-1" } });
+  });
+});
