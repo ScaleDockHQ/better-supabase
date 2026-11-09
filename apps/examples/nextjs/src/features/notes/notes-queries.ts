@@ -1,5 +1,5 @@
 import "server-only";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 /**
  * The latest embedded note and the notes nearest to it. `db.$search` calls

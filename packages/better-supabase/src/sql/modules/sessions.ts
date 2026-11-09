@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { AUTHZ_EVENT, AUTHZ_TOPIC } from "../../core/authz-topic.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { tableGlobs } from "../schema-scan.ts";
@@ -65,7 +66,11 @@ const FUNCTION_NAME = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 
 function isFunctionRef(
   value: unknown,
-): value is { readonly function: string; readonly subject?: string | false } {
+): value is {
+  readonly function: string;
+  readonly subject?: string | false;
+  readonly permissions?: false;
+} {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -96,7 +101,11 @@ function checkTables(name: string, entry: object): void {
 
 function isReadSetRef(
   value: unknown,
-): value is { readonly readSet: string; readonly subject?: string | false } {
+): value is {
+  readonly readSet: string;
+  readonly subject?: string | false;
+  readonly permissions?: false;
+} {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -111,6 +120,7 @@ function isReadSetsRef(
   readonly readSets: readonly string[];
   readonly shell?: string;
   readonly subject?: string | false;
+  readonly permissions?: false;
 } {
   return (
     typeof value === "object" &&
@@ -128,6 +138,19 @@ interface BootstrapTarget {
   readonly readSets: readonly string[];
   /** A no-argument function whose jsonb result is the authorizer subject. */
   readonly subject?: string | undefined;
+  /** The entry sets `permissions: false`. */
+  readonly noPermissions?: boolean;
+  /**
+   * `authorization.functions.subjectForTenant` with the call's tenant filled
+   * in, for a target that uses the provider's `subject`. `null` for an unknown
+   * tenant, so the payload never names the user's other tenants.
+   */
+  readonly subjectForTenant?: string | undefined;
+  /**
+   * `authorization.functions.bootstrapPermissions` with the call's tenant
+   * filled in; absent when the entry sets `permissions: false`.
+   */
+  readonly permissions?: string | undefined;
 }
 
 /**
@@ -158,6 +181,43 @@ function subjectOf(
 }
 
 function bootstrapFunctions(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): readonly BootstrapTarget[] {
+  const template = layout.accessProvider?.functions.subjectForTenant;
+  const provider = layout.accessProvider;
+
+  const permissions = provider?.functions.bootstrapPermissions;
+
+  return bootstrapTargets(ctx, layout).map((target) => ({
+    ...target,
+    ...(template !== undefined &&
+    provider !== undefined &&
+    target.subject !== undefined &&
+    target.subject === provider.functions.subject
+      ? {
+          subjectForTenant: fillTemplate(
+            "authorization.functions.subjectForTenant",
+            template,
+            { tenant: "(args ->> 'tenant')", scope: provider.scope },
+          ),
+        }
+      : {}),
+    ...(permissions !== undefined &&
+    provider !== undefined &&
+    !target.noPermissions
+      ? {
+          permissions: fillTemplate(
+            "authorization.functions.bootstrapPermissions",
+            permissions,
+            { tenant: "nullif(args ->> 'tenant', '')", scope: provider.scope },
+          ),
+        }
+      : {}),
+  }));
+}
+
+function bootstrapTargets(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
 ): readonly BootstrapTarget[] {
@@ -200,6 +260,7 @@ function bootstrapFunctions(
         fn: fn.function,
         readSets: [],
         subject: subjectOf(name, fn.subject, fallback),
+        ...(fn.permissions === false ? { noPermissions: true } : {}),
       };
     }
 
@@ -226,6 +287,7 @@ function bootstrapFunctions(
         fn: fn.shell,
         readSets: fn.readSets,
         subject: subjectOf(name, fn.subject, fallback),
+        ...(fn.permissions === false ? { noPermissions: true } : {}),
       };
     }
 
@@ -241,6 +303,7 @@ function bootstrapFunctions(
         fn: `public.rs_${fn.readSet}`,
         readSets: [],
         subject: subjectOf(name, fn.subject, fallback),
+        ...(fn.permissions === false ? { noPermissions: true } : {}),
       };
     }
 
@@ -269,6 +332,24 @@ function hasVersionSource(
 }
 
 /**
+ * The `'subject'` pair of a wrapper. With `subjectForTenant` a call that names
+ * a tenant gets the subject restricted to it, and a call without one the whole
+ * subject.
+ */
+function subjectSql(
+  subject: string | undefined,
+  subjectForTenant: string | undefined,
+): string {
+  if (!subject) {
+    return "";
+  }
+
+  return subjectForTenant === undefined
+    ? `,\n    'subject', to_jsonb(${subject}())`
+    : `,\n    'subject', case when nullif(args ->> 'tenant', '') is null then to_jsonb(${subject}()) else to_jsonb(${subjectForTenant}) end`;
+}
+
+/**
  * One wrapper per `bootstrap` entry: the session check, the authorization
  * version and the app function's data in one jsonb, so a page's first query
  * carries all three. It runs as the caller, so the app function's policies
@@ -290,21 +371,22 @@ function bootstrapWrappers(
     ? "to_jsonb(better_supabase.caller_authz_version())"
     : "auth.jwt() -> 'authz_ver'";
 
-  const wrappers = functions.map(({ name, fn, readSets, subject }) => {
-    const wrapper = `better_supabase.bootstrap_${name}`;
-    const picks = readSets.length > 0;
-    const dataSql = fn === undefined ? "null" : `to_jsonb(${fn}(args))`;
+  const wrappers = functions.map(
+    ({ name, fn, readSets, subject, subjectForTenant, permissions }) => {
+      const wrapper = `better_supabase.bootstrap_${name}`;
+      const picks = readSets.length > 0;
+      const dataSql = fn === undefined ? "null" : `to_jsonb(${fn}(args))`;
 
-    const signature = picks
-      ? `args jsonb default '{}'::jsonb, read_set text default null, read_params jsonb default null`
-      : `args jsonb default '{}'::jsonb`;
+      const signature = picks
+        ? `args jsonb default '{}'::jsonb, read_set text default null, read_params jsonb default null`
+        : `args jsonb default '{}'::jsonb`;
 
-    const argTypes = picks ? "jsonb, text, jsonb" : "jsonb";
+      const argTypes = picks ? "jsonb, text, jsonb" : "jsonb";
 
-    // A static case: the set is one of the listed functions, never a name the
-    // caller builds. Each runs as the caller, so its policies apply.
-    const readsSql = picks
-      ? `,
+      // A static case: the set is one of the listed functions, never a name the
+      // caller builds. Each runs as the caller, so its policies apply.
+      const readsSql = picks
+        ? `,
     'reads', case read_set
 ${readSets
   .map(
@@ -314,21 +396,21 @@ ${readSets
   .join("\n")}
       else null
     end`
-      : "";
+        : "";
 
-    const guard = picks
-      ? `
+      const guard = picks
+        ? `
   if read_set is not null and read_set not in (${readSets.map((set) => `'${set}'`).join(", ")}) then
     raise exception 'unknown read set %', read_set using errcode = '22023';
   end if;`
-      : "";
+        : "";
 
-    // The earlier one-argument wrapper would make a named call ambiguous.
-    const dropOld = picks
-      ? `drop function if exists ${wrapper}(jsonb);\n\n`
-      : "";
+      // The earlier one-argument wrapper would make a named call ambiguous.
+      const dropOld = picks
+        ? `drop function if exists ${wrapper}(jsonb);\n\n`
+        : "";
 
-    return `${dropOld}create or replace function ${wrapper}(${signature})
+      return `${dropOld}create or replace function ${wrapper}(${signature})
 returns jsonb
 language plpgsql
 security invoker
@@ -350,14 +432,15 @@ begin${guard}
     'authz_version', ${live},
     'token_authz_version', auth.jwt() -> 'authz_ver',
     'tenant', args ->> 'tenant',
-    'data', ${dataSql}${readsSql}${subject ? `,\n    'subject', to_jsonb(${subject}())` : ""}
+    'data', ${dataSql}${readsSql}${subjectSql(subject, subjectForTenant)}${permissions === undefined ? "" : `,\n    'permissions', to_jsonb(${permissions})`}
   );
 end;
 $$;
 
 revoke execute on function ${wrapper}(${argTypes}) from public, anon;
 grant execute on function ${wrapper}(${argTypes}) to authenticated;`;
-  });
+    },
+  );
 
   return `
 
@@ -366,6 +449,151 @@ grant execute on function ${wrapper}(${argTypes}) to authenticated;`;
 -- (the live one when the database keeps it, and the token's) with the app
 -- function's data, so a cache miss is one query.
 ${wrappers.join("\n\n")}`;
+}
+
+/**
+ * `blocks['sessions'].options.hook`: `better_supabase.hook_plan(event)`, which
+ * tells the app's access token hook how much to read.
+ *
+ * - `slim`: the token has a `client_id` claim (the OAuth server issues those) and
+ *   `oauth` is `'slim'`. The hook leaves out memberships, permissions,
+ *   `team_ids` and `authz_ver`, and reads nothing.
+ * - `reuse`: a `token_refresh` whose incoming `authz_ver` equals the user's
+ *   current version, with a `memberships` array and no truncation flag. The
+ *   hook returns the event unchanged.
+ * - `full`: everything else.
+ *
+ * Supabase Auth builds refresh claims itself, so `reuse` applies only where the
+ * event carries the previous token's `authz_ver`; any doubt reads again.
+ */
+function hookPlan(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
+  const raw = ctx.option("hook");
+
+  if (raw === undefined || raw === false) {
+    return "";
+  }
+
+  const options: Readonly<Record<string, unknown>> | undefined =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw)
+      ? Object.fromEntries(Object.entries(raw))
+      : raw === true
+        ? {}
+        : undefined;
+
+  if (options === undefined) {
+    throw new TypeError(
+      "blocks['sessions'].options.hook must be true or { refresh, oauth, truncatedClaim }",
+    );
+  }
+
+  const choose = (key: string, allowed: readonly string[]): string => {
+    const value = options[key];
+
+    if (value === undefined) {
+      return allowed[0]!;
+    }
+
+    if (typeof value !== "string" || !allowed.includes(value)) {
+      throw new TypeError(
+        `blocks['sessions'].options.hook.${key} must be ${allowed.map((entry) => `'${entry}'`).join(" or ")}`,
+      );
+    }
+
+    return value;
+  };
+
+  const refresh = choose("refresh", ["reuse", "full"]);
+  const oauth = choose("oauth", ["full", "slim"]);
+  const flag = options["truncatedClaim"];
+  const teamFlag = options["teamIdsTruncatedClaim"];
+
+  const teamClaim =
+    teamFlag === undefined
+      ? (layout.accessProvider?.teamIdsTruncatedClaim ?? "team_ids_truncated")
+      : typeof teamFlag === "string" && /^[a-z_][a-z0-9_]*$/.test(teamFlag)
+        ? teamFlag
+        : undefined;
+
+  if (teamClaim === undefined) {
+    throw new TypeError(
+      "blocks['sessions'].options.hook.teamIdsTruncatedClaim must be a claim name (letters, digits, _)",
+    );
+  }
+
+  const truncated =
+    flag === undefined
+      ? (layout.accessProvider?.truncatedClaim ?? "permissions_truncated")
+      : typeof flag === "string" && /^[a-z_][a-z0-9_]*$/.test(flag)
+        ? flag
+        : undefined;
+
+  if (truncated === undefined) {
+    throw new TypeError(
+      "blocks['sessions'].options.hook.truncatedClaim must be a claim name (letters, digits, _)",
+    );
+  }
+
+  if (refresh === "reuse" && !hasVersionSource(ctx, layout)) {
+    throw new TypeError(
+      "blocks['sessions'].options.hook.refresh 'reuse' needs authorization versions: set options.authzVersions or give the authorization provider `versions`, or set refresh to 'full'",
+    );
+  }
+
+  const provider = layout.authzVersionsProvider;
+
+  const current = provider
+    ? `${provider.function}(v_user)`
+    : "better_supabase.authz_version(v_user)";
+
+  const slim =
+    oauth === "slim"
+      ? `
+  if coalesce(v_claims ->> 'client_id', '') <> '' then
+    return 'slim';
+  end if;
+`
+      : "";
+
+  const reuse =
+    refresh === "reuse"
+      ? `
+  if event ->> 'authentication_method' = 'token_refresh'
+    and jsonb_typeof(v_claims -> 'authz_ver') = 'number'
+    and jsonb_typeof(v_claims -> 'memberships') = 'array'
+    and coalesce(v_claims ->> '${truncated}', 'false') <> 'true'
+    and coalesce(v_claims ->> '${teamClaim}', 'false') <> 'true'
+    and (v_claims ->> 'authz_ver')::bigint = ${current}
+  then
+    return 'reuse';
+  end if;
+`
+      : "";
+
+  return `
+
+-- blocks['sessions'].options.hook: how much the access token hook reads for
+-- this event, as 'slim' (an OAuth client token: leave out memberships,
+-- permissions, team_ids and authz_ver), 'reuse' (a refresh whose authz_ver is
+-- still current: return the event unchanged, no membership reads) or 'full'.
+-- Call it first in the hook:
+--   plan := better_supabase.hook_plan(event);
+create or replace function better_supabase.hook_plan(event jsonb)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_claims jsonb := coalesce(event -> 'claims', '{}'::jsonb);
+  v_user uuid := nullif(event ->> 'user_id', '')::uuid;
+begin${slim}${reuse}
+  return 'full';
+end;
+$$;
+
+revoke execute on function better_supabase.hook_plan(jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.hook_plan(jsonb) to supabase_auth_admin, service_role;`;
 }
 
 /**
@@ -559,7 +787,7 @@ export const SESSIONS: BlockSqlDefinition = {
   names: {
     reads: SESSIONS_READS,
     tables: {},
-    options: ["authzVersions", "bootstrap", "exclude", "policies"],
+    options: ["authzVersions", "bootstrap", "exclude", "hook", "policies"],
   },
   title: "Session revocation",
   description:
@@ -721,5 +949,5 @@ ${SESSIONS_OVERVIEW_SQL}
 -- create policy session_required on public.invoices as restrictive
 --   for all to authenticated
 --   using ((select better_supabase.session_active()))
---   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}${authzVersions(ctx, layout)}${callerAuthzVersion(ctx, layout)}${bootstrapWrappers(ctx, layout)}`,
+--   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}${authzVersions(ctx, layout)}${hookPlan(ctx, layout)}${callerAuthzVersion(ctx, layout)}${bootstrapWrappers(ctx, layout)}`,
 };

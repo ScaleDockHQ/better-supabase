@@ -521,7 +521,7 @@ function inbox(ctx: BlockSqlContext, n: NotifyNames): string {
       and (${fn}.read is null or (rc.${r("readAt")} is not null) = ${fn}.read)
       and (${fn}.resolved is null or ${resolved ? `(rc.${r("resolvedAt")} is not null) = ${fn}.resolved` : `not ${fn}.resolved`})
       ${tenantFilter(fn)}
-      and (${fn}.types is null or ev.${e("type")} = any(${fn}.types))
+      and ev.${e("type")} = any(coalesce(${fn}.types, array[ev.${e("type")}]))
       and (${fn}.subject_types is null${subjectType ? ` or ev.${e("subjectType")} = any(${fn}.subject_types)` : ""})
       and (${fn}.search is null or btrim(${fn}.search) = '' or concat_ws(' ', ${[...haystack, `ev.${e("type")}`].join(", ")}) ilike ${like})
       and case coalesce(${fn}.status, 'all')
@@ -699,7 +699,12 @@ as $$
     where rc.${r("user")} = auth.uid()
       and rc.${r("readAt")} is null
       and rc.${r("dismissedAt")} is null
-      and (mark_notifications_read.ids is null or rc.${r("id")} = any(mark_notifications_read.ids))
+      and rc.${r("id")} in (
+        select picked from unnest(mark_notifications_read.ids) picked
+        union all
+        select all_rc.${r("id")} from ${n.table("recipients")} all_rc
+        where mark_notifications_read.ids is null and all_rc.${r("user")} = auth.uid() and all_rc.${r("readAt")} is null
+      )
       ${tenantFilter("mark_notifications_read")}
     returning rc.*
   )

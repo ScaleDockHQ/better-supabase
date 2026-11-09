@@ -364,6 +364,12 @@ export interface BlockSqlLayout {
   readonly appColumns?: Readonly<
     Record<string, readonly { readonly name: string; readonly type: string }[]>
   >;
+  /**
+   * Render the columns a block adds to a table in `ownTables` even when the
+   * app's files don't declare them (the behavior before ADR 0580). Only
+   * `codemod owned-columns` and doctor BS622 set it, to find those columns.
+   */
+  readonly keepUndeclaredColumns?: boolean;
   /** The columns of the tables in `ownTables`, where they are known. */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
   /**
@@ -499,6 +505,7 @@ export interface BlockSqlAccessProvider {
   readonly suspension?: {
     readonly user?: DisabledRow;
     readonly tenant?: DisabledRow;
+    readonly userKey?: string;
   };
   /**
    * An adopted `tenant` module on one of these tables reads role names the same
@@ -523,6 +530,8 @@ export interface BlockSqlAccessProvider {
   readonly ownsPermissions?: boolean;
   /** The claim the provider's hook sets when it truncated `permissions`. */
   readonly truncatedClaim?: string;
+  /** The provider hook's `team_ids_truncated` claim name, for the hook plan. */
+  readonly teamIdsTruncatedClaim?: string;
   /** The wildcard grants `permission_matches` honours; unset is `all`. */
   readonly wildcards?: "all" | "prefix" | "none";
 }

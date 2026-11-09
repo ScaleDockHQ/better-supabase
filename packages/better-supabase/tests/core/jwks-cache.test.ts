@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { jwksSource } from "../../src/core/jwks-cache.ts";
+import {
+  clearJwksCache,
+  jwksSource,
+  purgeJwks,
+  sharedJwks,
+} from "../../src/core/jwks-cache.ts";
 
 const KEY = {
   kty: "OKP",
@@ -80,5 +85,89 @@ describe("jwksSource", () => {
       ok: false,
       error: { message: "The JWKS could not be loaded: boom" },
     });
+  });
+});
+
+describe("sharedJwks", () => {
+  const keys = { keys: [KEY] };
+
+  const counting = () =>
+    vi.fn<typeof globalThis.fetch>(async () => Response.json(keys));
+
+  it("fetches a Supabase key set again after 600 seconds at most, whatever cacheSeconds says", async () => {
+    clearJwksCache();
+
+    let clock = 0;
+    const fetch = counting();
+
+    const url = new URL(
+      "https://abc.supabase.co/auth/v1/.well-known/jwks.json",
+    );
+
+    const options = { fetch, now: () => clock, cacheSeconds: 86_400 };
+
+    await sharedJwks(url, false, options);
+    clock = 599_000;
+    await sharedJwks(url, false, options);
+    expect(fetch).toHaveBeenCalledOnce();
+
+    clock = 601_000;
+    await sharedJwks(url, false, options);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps another issuer's cacheSeconds", async () => {
+    clearJwksCache();
+
+    let clock = 0;
+    const fetch = counting();
+    const options = { fetch, now: () => clock, cacheSeconds: 3600 };
+
+    await sharedJwks(JWKS_URL, false, options);
+    clock = 3_000_000;
+    await sharedJwks(JWKS_URL, false, options);
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("refetches once for an unknown kid and then waits out the cooldown", async () => {
+    clearJwksCache();
+
+    let clock = 0;
+    const fetch = counting();
+    const options = { fetch, now: () => clock };
+
+    await sharedJwks(JWKS_URL, false, options);
+    clock = 10_000;
+    await sharedJwks(JWKS_URL, true, options);
+    expect(fetch).toHaveBeenCalledOnce();
+
+    clock = 31_000;
+    await sharedJwks(JWKS_URL, true, options);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("purges one key set so the next call fetches it again", async () => {
+    clearJwksCache();
+
+    const fetch = counting();
+    const other = new URL("https://other.example.com/jwks.json");
+
+    await sharedJwks(JWKS_URL, false, { fetch });
+    await sharedJwks(other, false, { fetch });
+    purgeJwks(JWKS_URL);
+    await sharedJwks(JWKS_URL, false, { fetch });
+    await sharedJwks(other, false, { fetch });
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("purges every key set without an argument", async () => {
+    clearJwksCache();
+
+    const fetch = counting();
+
+    await sharedJwks(JWKS_URL, false, { fetch });
+    purgeJwks();
+    await sharedJwks(JWKS_URL, false, { fetch });
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });

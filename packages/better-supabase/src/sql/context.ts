@@ -626,6 +626,12 @@ export interface BlockSqlContextSource {
   readonly permissionWildcards?: "all" | "prefix" | "none";
   /** `layout.ownViews`: the entries of `ownTables` that are views. */
   readonly ownViews?: Readonly<Record<string, OwnView>>;
+  /**
+   * `layout.ownColumns`: the columns of the app's tables. A column of an owned
+   * table that is missing here is off for `ctx.has` (ADR 0325 step 2, ADR
+   * 0580).
+   */
+  readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
   /** `layout.appColumns`: the columns the app's files add to tables. */
   readonly appColumns?: Readonly<
     Record<string, readonly { readonly name: string; readonly type: string }[]>
@@ -1290,8 +1296,22 @@ export function createModuleContext(
       return `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
     },
     colName: (table, logical) => requiredColumn(table, logical),
-    has: (table, logical) =>
-      config.tables[table] !== null && column(table, logical) !== null,
+    has(table, logical) {
+      const physical = column(table, logical);
+
+      if (config.tables[table] === null || physical === null) {
+        return false;
+      }
+
+      if (!owned.appOwned.includes(table)) {
+        return true;
+      }
+
+      const parts = owned.tableName(table);
+      const known = source.ownColumns?.[`${parts.schema}.${parts.name}`];
+
+      return known === undefined || known.includes(physical);
+    },
     hasTable: (table) => {
       if (!names.tables[table]) {
         throw new TypeError(`Module "${module}" has no table "${table}"`);

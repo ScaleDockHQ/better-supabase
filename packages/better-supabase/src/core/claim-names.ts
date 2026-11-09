@@ -25,3 +25,6 @@ export const PERMISSIONS_CLAIM = "permissions";
  * claim. A provider that declares `tokenHook.truncatedClaim` uses its own.
  */
 export const PERMISSIONS_TRUNCATED_CLAIM = "permissions_truncated";
+
+/** Set to `true` by a hook when `team_ids` is not the user's whole list. */
+export const TEAM_IDS_TRUNCATED_CLAIM = "team_ids_truncated";

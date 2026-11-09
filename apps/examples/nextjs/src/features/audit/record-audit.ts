@@ -8,7 +8,7 @@ import type { AppDb } from "@/lib/supabase";
  * failed write is logged, not returned: the change itself already happened.
  */
 export async function recordAudit(
-  db: AppDb,
+  db: Pick<AppDb, "audit">,
   event: AuditEventInput,
 ): Promise<void> {
   const recorded = await db.audit.record({ source: "app", ...event });

@@ -293,7 +293,7 @@ export async function ownLayout(
     (source) => !writtenByBlocks(source),
   );
 
-  const columns = Object.fromEntries(
+  const columns: Record<string, string[]> = Object.fromEntries(
     [...declaredTableColumns(own, config.schemas)].map(([table, names]) => [
       table,
       [...names],
@@ -301,9 +301,19 @@ export async function ownLayout(
   );
 
   const views = ownDeclaredViews(own, config.schemas);
+  const added = appColumnsOf(own);
+
+  // A column the app's files add with `alter table` is declared as well (ADR 0580).
+  for (const [table, list] of Object.entries(added)) {
+    if (table in columns) {
+      columns[table] = [
+        ...new Set([...columns[table]!, ...list.map((column) => column.name)]),
+      ];
+    }
+  }
 
   return {
-    appColumns: appColumnsOf(own),
+    appColumns: added,
     ownTables: {
       ...database.tables,
       ...ownDeclaredTables(own, config.schemas),

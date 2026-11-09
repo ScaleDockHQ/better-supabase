@@ -143,4 +143,36 @@ describe("BS426", () => {
       "blocks.memberships.columns.memberships.disabledAt",
     ]);
   });
+
+  it("reports a disabled setting equal to the provider's suspension", async () => {
+    const user = { table: "app.profiles", id: "id", disabledAt: "banned_at" };
+
+    const provider: AuthorizationProvider = {
+      ...stubProvider,
+      suspension: { user, userKey: "user_id" },
+    };
+
+    const config = resolveConfig(
+      {
+        auth: { authorization: provider },
+        blocks: {
+          permissions: {
+            model: "provider",
+            disabled: { user, userKey: "user_id" },
+          },
+        },
+      },
+      "/project",
+    );
+
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+
+    // SAFETY: BS426 reads only `config`.
+    const found = rule?.check({ config } as unknown as DoctorContext);
+
+    expect((await found)?.map((finding) => finding.target)).toEqual([
+      "blocks.permissions.disabled.user",
+      "blocks.permissions.disabled.userKey",
+    ]);
+  });
 });

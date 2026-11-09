@@ -10,6 +10,7 @@ import { configFor } from "../gen/shared.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import { enrichedAppTables } from "./app-table-scope.ts";
 import { escape, withoutStrings } from "./rls.ts";
+import { SCALE_RULES } from "./scale.ts";
 import { SCHEMA_COST_RULES } from "./schema-cost.ts";
 import {
   catalogOf,
@@ -122,6 +123,35 @@ const PRISMA = /["']@prisma\/client["']|\bnew\s+PrismaClient\b/;
 const OFFSET_PAGINATION = /\bpagination\s*:\s*["'`]offset["'`]/;
 
 const EXACT_COUNT = /\bcount\s*:\s*["'`]exact["'`]/;
+
+/**
+ * Whether a line has a repository `.count()` or `.count({ ... })` call with no
+ * `mode`, which counts exactly.
+ */
+function countsWithoutMode(text: string): boolean {
+  for (const match of text.matchAll(/\.count\(/g)) {
+    let depth = 1;
+    let at = match.index + match[0].length;
+    const start = at;
+
+    while (at < text.length && depth > 0) {
+      depth += text[at] === "(" ? 1 : text[at] === ")" ? -1 : 0;
+      at += 1;
+    }
+
+    if (depth > 0) {
+      continue;
+    }
+
+    const args = text.slice(start, at - 1).trim();
+
+    if (args === "" || (args.startsWith("{") && !/\bmode\b/.test(args))) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 /** `format_type` names of scalar results that a JSON number can't hold exactly. */
 const WIDE_RESULT = /^(?:bigint|numeric)(?:\[\])?$/;
@@ -515,7 +545,7 @@ const DESIGN_RULES: readonly Rule[] = [
     severity: "info",
     title: "Offset pagination or exact counts",
     description:
-      '`pagination: "offset"` on a resource or list reads and discards every row before the page, so late pages get slower as the table grows, and rows written between requests shift the pages. `count: "exact"` counts every matching row on each request. Use `pagination: "cursor"`, and `count: "planned"` or `"estimated"` on large tables. Doctor looks in `tooling.doctor.sources`.',
+      '`pagination: "offset"` on a resource or list reads and discards every row before the page, so late pages get slower as the table grows, and rows written between requests shift the pages. `count: "exact"` and a `.count()` call without a `mode` count every matching row on each request. Use `pagination: "cursor"`, and `count: "planned"` or `"estimated"` on large tables. Doctor looks in `tooling.doctor.sources`.',
     check: (context) =>
       context.sources.flatMap((file): FindingInput[] =>
         lines(file).flatMap(({ line, text }): FindingInput[] => {
@@ -537,6 +567,14 @@ const DESIGN_RULES: readonly Rule[] = [
             found.push({
               message: `${file.path}:${line} uses \`count: "exact"\`, which counts every matching row on each request. Use \`count: "planned"\` or \`"estimated"\` when the table can grow large.`,
               target: `${file.path}:${line}:count`,
+              location: { file: file.path, line },
+            });
+          }
+
+          if (countsWithoutMode(text)) {
+            found.push({
+              message: `${file.path}:${line} calls \`.count()\` without a \`mode\`, which counts every matching row. Pass \`{ mode: "planned" }\` or \`"estimated"\` when the table can grow large.`,
+              target: `${file.path}:${line}:count-mode`,
               location: { file: file.path, line },
             });
           }
@@ -620,4 +658,5 @@ const DESIGN_RULES: readonly Rule[] = [
 export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
   ...DESIGN_RULES,
   ...SCHEMA_COST_RULES,
+  ...SCALE_RULES,
 ];

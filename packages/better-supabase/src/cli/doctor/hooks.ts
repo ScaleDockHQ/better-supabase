@@ -23,6 +23,25 @@ import { lineOf, workflowOf } from "./shared.ts";
 /** Claims past this size make every request carry a large cookie and header. */
 const HOOK_CLAIMS_LIMIT = 2048;
 
+/** `@supabase/ssr` splits the session cookie into chunks of this size. */
+const COOKIE_CHUNK_BYTES = 3180;
+
+/**
+ * What the session cookie carries besides the claims: the signature, the
+ * header, the refresh token and the user object (measured in ADR 0523).
+ */
+const COOKIE_OVERHEAD_BYTES = 1700;
+
+/**
+ * The cookie chunks a token with `claimsBytes` of claims needs, base64
+ * included.
+ */
+function cookieChunks(claimsBytes: number): number {
+  return Math.ceil(
+    ((claimsBytes * 4) / 3 + COOKIE_OVERHEAD_BYTES) / COOKIE_CHUNK_BYTES,
+  );
+}
+
 interface ClaimsLimits {
   readonly token: number;
   /** The provider's hook budget, over `claims`. */
@@ -790,7 +809,7 @@ export const HOOK_RULES: readonly Rule[] = [
 
             if (size.bytes > limits.token) {
               findings.push({
-                message: `${signatureOf(fn)} returns ${size.bytes} bytes of claims for ${context.hookUser} (limit ${limits.token}, memberships ${size.memberships}). Every request carries them twice (cookie and header); keep ids and roles in the token and look up the rest.`,
+                message: `${signatureOf(fn)} returns ${size.bytes} bytes of claims for ${context.hookUser} (limit ${limits.token}, memberships ${size.memberships}), about ${cookieChunks(size.bytes)} cookie chunks of ${COOKIE_CHUNK_BYTES} bytes. Every request carries them twice (cookie and header); keep ids and roles in the token and look up the rest.`,
                 target: `${signatureOf(fn)}:claims`,
                 object,
               });

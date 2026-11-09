@@ -9,6 +9,7 @@ import {
   PRELUDE_FUNCTIONS,
   splitStatements,
 } from "../../sql/index.ts";
+import { overridesIn } from "./overrides.ts";
 import { workflowOf } from "./shared.ts";
 
 /** Schema files, not migrations or data files. */
@@ -248,7 +249,15 @@ export const OWNERSHIP_RULES: readonly Rule[] = [
     description:
       "A table, view, function or type that both a block module file and one of the app's files create is defined twice, so the declarative diff keeps whichever file it reads last. Take the object out of one file: let the app file alter the block's table, or map the block to another name. Reads every schema file.",
     check(context) {
-      return conflicts(buildModel(schemaFiles(context)))
+      const files = schemaFiles(context);
+
+      // A function tagged `@bsb-override-of` replaces the module's on purpose;
+      // BS394 holds it against the module's current text.
+      const overridden = new Set(
+        overridesIn(files).map((each) => `${each.file}\0${each.name}`),
+      );
+
+      return conflicts(buildModel(files))
         .filter(({ declarations }) => {
           const first = declarations[0];
 
@@ -261,7 +270,14 @@ export const OWNERSHIP_RULES: readonly Rule[] = [
         })
         .flatMap(({ declarations }) =>
           declarations
-            .filter((each) => each.owner.kind === "app")
+            .filter(
+              (each) =>
+                each.owner.kind === "app" &&
+                !(
+                  each.kind === "function" &&
+                  overridden.has(`${each.file}\0${plain(bare(each.name))}`)
+                ),
+            )
             .map((each): FindingInput => {
               const module = declarations.find(
                 (other) => other.owner.kind === "module",

@@ -1864,7 +1864,9 @@ uri = "https://example.com/hook"
       expect(big.findings).toMatchObject([
         {
           severity: "warning",
-          message: expect.stringContaining("returns 4096 bytes of claims"),
+          message: expect.stringMatching(
+            /returns 4096 bytes of claims.*about 3 cookie chunks/,
+          ),
         },
       ]);
       expect(big.queries[0]).toBe("begin");

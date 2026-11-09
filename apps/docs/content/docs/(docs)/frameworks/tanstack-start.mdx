@@ -54,6 +54,8 @@ request middleware open (`allow: ["user", "none"]`).
 The bridge makes the request body readable twice, so an entry that reads it
 and the server function both see it.
 
+`better-supabase init` detects TanStack Start from `@tanstack/react-start`, sets `gen.hooks` to `tanstack-start` and writes `lib/supabase/middleware.ts` with the middleware above, unless the file exists. Register it in `createStart` yourself.
+
 ## Session snapshot
 
 The helpers from `createTanStackStart(betterSupabase)` return `snapshot` from

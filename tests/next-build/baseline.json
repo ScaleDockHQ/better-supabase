@@ -325,14 +325,14 @@
     "brotli": 397855
   },
   "/[locale]/(app)/projects/[id]/page": {
-    "raw": 1504579,
-    "gzip": 482865,
-    "brotli": 421672
+    "raw": 1443751,
+    "gzip": 462118,
+    "brotli": 403529
   },
   "/[locale]/(app)/projects/page": {
-    "raw": 1991225,
-    "gzip": 637166,
-    "brotli": 552635
+    "raw": 1923708,
+    "gzip": 614586,
+    "brotli": 532827
   },
   "/[locale]/(app)/qualifications/page": {
     "raw": 1289182,

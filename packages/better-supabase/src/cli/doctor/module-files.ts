@@ -42,6 +42,7 @@ export interface BlockSqlFileState {
 /** The `blocks` files as this release renders them, next to what is on disk. */
 export async function moduleFiles(
   context: DoctorContext,
+  options: { readonly keepUndeclaredColumns?: boolean } = {},
 ): Promise<BlockSqlFileState[]> {
   if (
     context.config.blockNames.length === 0 &&
@@ -63,17 +64,21 @@ export async function moduleFiles(
   let rendered: BlockSqlFile[];
 
   try {
+    const layout = await moduleLayoutFor(context.config, {
+      names: context.config.blockNames,
+      testsDir: context.config.sql.testsDir,
+      readSets: skipped ? [] : readSets,
+      entitlementsProvider: entitlementsModule(context),
+      accessProvider: access.kind === "provider" ? access.access : undefined,
+      permissionCatalog: permissionCatalogKeys(context),
+    });
+
     rendered = await renderBlocksCached(
       context.config,
       context.config.blockNames,
-      await moduleLayoutFor(context.config, {
-        names: context.config.blockNames,
-        testsDir: context.config.sql.testsDir,
-        readSets: skipped ? [] : readSets,
-        entitlementsProvider: entitlementsModule(context),
-        accessProvider: access.kind === "provider" ? access.access : undefined,
-        permissionCatalog: permissionCatalogKeys(context),
-      }),
+      options.keepUndeclaredColumns === true
+        ? { ...layout, keepUndeclaredColumns: true }
+        : layout,
     );
   } catch {
     // A config `upgrade` refuses (such as api-keys scopes "catalog" without

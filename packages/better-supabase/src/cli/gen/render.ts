@@ -38,6 +38,7 @@ import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
 import { NO_PROJECTED_READS, projectedReads } from "./projected-reads.ts";
 import { emitRecords } from "./records.ts";
+import { emitServerBlocks } from "./server-blocks.ts";
 import { withTableTags } from "./table-tags.ts";
 import { emitTableModules, tableModules } from "./tables.ts";
 
@@ -228,6 +229,8 @@ export async function render(
     if (clientBlocks) {
       files.push(clientBlocks);
     }
+
+    files.push(...emitServerBlocks(config, blockOptions));
   }
 
   files.push(...emitRecords(config));

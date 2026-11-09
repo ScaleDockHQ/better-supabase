@@ -91,6 +91,9 @@ export function moduleContext(
         : {}),
       ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
       ...(layout.appColumns ? { appColumns: layout.appColumns } : {}),
+      ...(layout.ownColumns && layout.keepUndeclaredColumns !== true
+        ? { ownColumns: layout.ownColumns }
+        : {}),
       ...(installed ? { installed } : {}),
       ...(layout.instances ? { instances: layout.instances } : {}),
       ...(instance === undefined || instance === name ? {} : { instance }),
@@ -220,11 +223,15 @@ function withProviderSuspension(
     ...(configured.user === undefined && suspension.user
       ? { user: suspension.user }
       : {}),
+    ...(configured.userKey === undefined && suspension.userKey !== undefined
+      ? { userKey: suspension.userKey }
+      : {}),
   };
 
   if (
     disabled.tenant === configured.tenant &&
-    disabled.user === configured.user
+    disabled.user === configured.user &&
+    disabled.userKey === configured.userKey
   ) {
     return modules;
   }

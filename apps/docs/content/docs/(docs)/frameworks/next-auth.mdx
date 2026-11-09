@@ -89,6 +89,48 @@ Supabase guides for
 [server-side auth](https://supabase.com/docs/guides/auth/server-side) and
 [creating a client for Next.js](https://supabase.com/docs/guides/auth/server-side/creating-a-client?framework=nextjs).
 
+## The Next.js authentication guide in better-supabase terms
+
+The [Next.js authentication guide](https://nextjs.org/docs/app/guides/authentication)
+splits auth into authentication, session management and authorization, and
+tells you to write a data access layer (DAL) with a `verifySession()` function
+and data transfer objects (DTOs). `createNext` ships each of those pieces, so
+you call them instead of writing them.
+
+| In the Next.js guide                                     | In better-supabase                                                                                                                                                      |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verifySession()` in the DAL, wrapped in React `cache()` | `bsb.claims()` verifies the token locally once per request and returns an `AuthSession`. Under Cache Components, read it with `bsb.cached()` in `'use cache: private'`. |
+| A DTO that returns only what the caller may see          | `bsb.user()` returns `{ id, email, name, organizationId }` or `null`, and never the token. `AuthSession` carries the claims, not the token.                             |
+| Optimistic checks in the proxy, read from the cookie     | `bsb.proxy` with `protect` answers from the verified claims before rendering. It never queries the database.                                                            |
+| Secure checks next to the data                           | `bsb.require()` in a page, with `allow`, `aal` and `requireTenant`, turns a refusal into `unauthorized()` or `forbidden()`.                                             |
+| Checking inside every Server Action                      | `bsb.action()` takes `permission:` or `authorize` and gives the body `ctx.session`, so an action that is called without its page is still checked.                      |
+| Checking inside every Route Handler                      | `bsb.route()` takes the same options.                                                                                                                                   |
+| Don't check in layouts                                   | The same rule: a layout renders once per segment, so it only passes the session promise to `SessionProvider`.                                                           |
+| Stateless sessions in a cookie                           | `@supabase/ssr` writes the session cookies, and the proxy refreshes them. Server Components never refresh.                                                              |
+
+Three differences from the guide's example code:
+
+- The proxy checks the signature of the JWT against the project's JWKS, which
+  is stronger than the guide's optimistic cookie check and still costs no
+  Auth call. Set `verifySession` on `bsb.proxy` when a revoked session must
+  stop working before its token expires.
+- `bsb.claims()` is memoized per request and shared across scopes
+  (ADR 0095), so you don't wrap it in `cache()` yourself.
+- A page that reads the session stays out of the static shell. Read it in a
+  `'use cache: private'` function behind `<Suspense>`, as described in
+  [Cache Components](/docs/frameworks/next-cache-components).
+
+### What `createNext` already taints
+
+With `experimental.taint: true` in `next.config.ts` (`createNextConfig()` sets
+it), `createNext` marks the access token, the refresh token, the auth state,
+the server context and the `bsb.admin()` context. Passing one of them to a
+Client Component then fails with React's taint error. The Supabase clients a
+context creates are not tainted, so keep them on the server and return data such
+as `bsb.user()` first. Taint is the second layer. Without the flag, or on a
+React build without the API, the calls do nothing. See
+[Taint](/docs/frameworks/next#taint).
+
 ## One URL
 
 The session cookie name comes from the project URL

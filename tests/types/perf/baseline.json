@@ -154,5 +154,10 @@
       "instantiations": 17260,
       "checkTime": 0.0
     }
+  },
+  "runtime": {
+    "promise": 0.09,
+    "asyncResult": 0.32,
+    "ratio": 3.38
   }
 }

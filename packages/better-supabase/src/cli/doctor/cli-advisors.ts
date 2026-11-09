@@ -49,13 +49,33 @@ function isLint(value: unknown): value is Lint {
   );
 }
 
+/** One JSON document, or one lint per line (`--output-format stream-json`). */
+function parseBody(text: string): unknown {
+  try {
+    // SAFETY: JSON.parse returns any, and the caller checks every entry.
+    return JSON.parse(text) as unknown;
+  } catch (cause) {
+    const lines = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+
+    if (lines.length < 2) {
+      throw cause;
+    }
+
+    // SAFETY: JSON.parse returns any, and the caller checks every entry.
+    return lines.map((line) => JSON.parse(line) as unknown);
+  }
+}
+
 /**
  * The lints of `supabase db advisors -o json`: a list, or an object with
  * `lints`.
  */
 export function parseAdvisorOutput(text: string): readonly Lint[] {
   // SAFETY: JSON.parse returns any, and each entry is checked below.
-  const body = JSON.parse(text) as unknown;
+  const body = parseBody(text);
 
   // SAFETY: only `lints` is read, and the result is checked with Array.isArray.
   const wrapped = body as { lints?: unknown } | null;

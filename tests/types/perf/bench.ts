@@ -21,6 +21,10 @@ import {
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
+import type { RuntimeTimes } from "./runtime.ts";
+
+import { benchRuntime, checkRuntime } from "./runtime.ts";
+
 interface Measurement {
   readonly types: number;
   readonly instantiations: number;
@@ -70,6 +74,8 @@ interface Baseline {
   readonly upgrade?: UpgradeTimes;
   /** The config program typed against a provider key union (ADR 0323). */
   readonly config?: Readonly<Record<Compiler, Measurement>>;
+  /** `AsyncResult` against a bare promise chain, at run time (ADR 0581). */
+  readonly runtime?: RuntimeTimes;
 }
 
 /** What one `upgrade` run did. */
@@ -1169,16 +1175,37 @@ console.log(
   `config (300 keys): ${(["ts6", "ts7", "ts71"] as const).map((compiler) => `${compiler} ${String(configNow[compiler].instantiations)} instantiations, ${String(configNow[compiler].types)} types`).join("; ")}`,
 );
 
+const runtimeNow = await benchRuntime();
+
+console.log(
+  `runtime (20000 chains): promise ${runtimeNow.promise.toFixed(2)}us, AsyncResult ${runtimeNow.asyncResult.toFixed(2)}us, ${String(runtimeNow.ratio)}x`,
+);
+
 if (!update) {
   checkUpgrade(upgradeNow, baseline.upgrade);
   checkConfig(configNow, baseline.config);
+
+  for (const failure of checkRuntime(
+    runtimeNow,
+    baseline.runtime,
+    Math.max(1, calibration.ts6 / baseline.calibration.ts6),
+  )) {
+    console.error(failure);
+    process.exitCode = 1;
+  }
 }
 
 if (update && only === undefined) {
   writeFileSync(
     baselinePath,
     `${JSON.stringify(
-      { calibration, profiles: next, upgrade: upgradeNow, config: configNow },
+      {
+        calibration,
+        profiles: next,
+        upgrade: upgradeNow,
+        config: configNow,
+        runtime: runtimeNow,
+      },
       null,
       2,
     )}\n`,

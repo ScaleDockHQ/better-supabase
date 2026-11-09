@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:e3ed60e9984ab4a540b2ead6739df8e185e0ca29b88a23ecfa295a0ee2c4917d
+-- @bsb-hash sha256:0c5dd9fe7e6403c5859a6089d40c2859102002641383fc932947594e464abe12
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -353,6 +353,44 @@ create policy bsb_authz_versions_receive on realtime.messages
   for select to authenticated
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'authz:' || (select auth.uid())::text);
 
+-- blocks['sessions'].options.hook: how much the access token hook reads for
+-- this event, as 'slim' (an OAuth client token: leave out memberships,
+-- permissions, team_ids and authz_ver), 'reuse' (a refresh whose authz_ver is
+-- still current: return the event unchanged, no membership reads) or 'full'.
+-- Call it first in the hook:
+--   plan := better_supabase.hook_plan(event);
+create or replace function better_supabase.hook_plan(event jsonb)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_claims jsonb := coalesce(event -> 'claims', '{}'::jsonb);
+  v_user uuid := nullif(event ->> 'user_id', '')::uuid;
+begin
+  if coalesce(v_claims ->> 'client_id', '') <> '' then
+    return 'slim';
+  end if;
+
+  if event ->> 'authentication_method' = 'token_refresh'
+    and jsonb_typeof(v_claims -> 'authz_ver') = 'number'
+    and jsonb_typeof(v_claims -> 'memberships') = 'array'
+    and coalesce(v_claims ->> 'permissions_truncated', 'false') <> 'true'
+    and coalesce(v_claims ->> 'team_ids_truncated', 'false') <> 'true'
+    and (v_claims ->> 'authz_ver')::bigint = better_supabase.authz_version(v_user)
+  then
+    return 'reuse';
+  end if;
+
+  return 'full';
+end;
+$$;
+
+revoke execute on function better_supabase.hook_plan(jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.hook_plan(jsonb) to supabase_auth_admin, service_role;
+
 -- The caller's own authorization version, null without a signed-in user.
 -- Clients compare it with the token's authz_ver to catch up on a broadcast
 -- they missed.
@@ -481,6 +519,16 @@ set search_path = ''
 as $$ select "better_supabase"."bump_authz_versions"($1) $$;
 revoke execute on function "api"."bump_authz_versions"(uuid[]) from public, anon, authenticated;
 grant execute on function "api"."bump_authz_versions"(uuid[]) to service_role;
+
+create or replace function "api"."hook_plan"(event jsonb)
+returns text
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."hook_plan"($1) $$;
+revoke execute on function "api"."hook_plan"(jsonb) from public, anon, authenticated;
+grant execute on function "api"."hook_plan"(jsonb) to service_role;
 
 create or replace function "api"."caller_authz_version"()
 returns bigint

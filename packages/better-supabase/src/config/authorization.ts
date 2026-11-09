@@ -122,6 +122,39 @@ export interface AuthorizationFunctions {
    * server seeds its authorizer from it. Write it as `schema.function`.
    */
   readonly subject?: string;
+  /**
+   * `subject` for one tenant: an expression of the authorizer subject (jsonb)
+   * of the signed-in user restricted to `{tenant}` (text), as a
+   * `subject_for(user, tenant)` function. The bootstrap call uses it when the
+   * page names a tenant, so the payload never carries the other tenants'
+   * memberships. It must fail closed: `null` for an unknown tenant, a tenant
+   * the user has no membership in, and a null tenant. Without it the bootstrap
+   * call falls back to `subject`.
+   */
+  readonly subjectForTenant?: string;
+  /**
+   * The caller's permissions as one jsonb value in the shape of
+   * `BootstrapPermissionsWire` (`apiVersion: 1`): lists of keys per tenant, or
+   * the compact form (a key index and one bitset per tenant). `{tenant}` is the
+   * page's tenant as a text expression, or `null` for every tenant the caller
+   * belongs to. The sessions bootstrap wrapper calls it, so a page reads its
+   * permissions in the query that checks the session; it never names a provider
+   * function itself. The value must fail closed: an empty tenant list for an
+   * unknown tenant. Without it the wrapper returns no permissions.
+   */
+  readonly bootstrapPermissions?: string;
+  /**
+   * The user ids the caller approves for (out-of-office covers and delegations
+   * included), as a set of uuid: it is used as `select u from <template> as
+   * t(u)`. No placeholders. Without it `isApprover` alone decides.
+   */
+  readonly approverFor?: string;
+  /**
+   * The user ids the caller manages (the manager chain and delegations
+   * included), as a set of uuid: it is used as `select u from <template> as
+   * t(u)`. No placeholders.
+   */
+  readonly managedUsers?: string;
 }
 
 /** One scope the provider decides permissions in, such as `organization`. */
@@ -157,6 +190,12 @@ export interface AuthorizationPermission<Key extends string = string> {
   readonly sqlComplete?: boolean;
   /** The scopes it can be granted at. */
   readonly scopes?: readonly string[];
+  /**
+   * The levels it can be granted at (`own`, `team`, `all`). A level key is
+   * `<permission>@<level>` (`file.read@team`); a key without a level means the
+   * whole tenant. Use `permissionLevelKey` and `splitPermissionLevel`.
+   */
+  readonly levels?: readonly string[];
 }
 
 /**
@@ -181,6 +220,12 @@ export interface AuthorizationMembership {
   /** `schema.table`. */
   readonly table: string;
   readonly userColumn: string;
+  /**
+   * The column of `table` that holds the auth user id, when `userColumn` is
+   * another key (a profile id). The derived `memberIds` and `memberIdsFor`
+   * templates match it against `auth.uid()` instead of `userColumn`.
+   */
+  readonly userKey?: string;
   /** The scope column, or the scope every row is in. */
   readonly scope: { readonly column: string } | { readonly value: string };
   readonly idColumn: string;
@@ -260,6 +305,66 @@ export interface AuthorizationPersona<Key extends string = string> {
   readonly permissions: readonly Key[];
 }
 
+/** A role the provider's fixture seeds, which `personas: 'roles'` signs in as. */
+export interface AuthorizationFixtureRole<Key extends string = string> {
+  /** The role's name; the persona is named after it (lower case, digits, `_`). */
+  readonly name: string;
+  /**
+   * SQL that creates a member with the role; `{user}` and `{tenant}` as in a
+   * persona.
+   */
+  readonly setup: string;
+  readonly permissions: readonly Key[];
+  readonly claims?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The personas the access matrix signs in as: `personas` as listed, or one per
+ * `fixtureRoles` entry for `"roles"`.
+ */
+export function resolvePersonas<Key extends string>(
+  provider: Pick<AuthorizationProvider<Key>, "personas" | "fixtureRoles">,
+): readonly AuthorizationPersona<Key>[] {
+  if (provider.personas === "roles") {
+    return (provider.fixtureRoles ?? []).map((role) => ({
+      name: role.name,
+      setup: role.setup,
+      permissions: role.permissions,
+      ...(role.claims === undefined ? {} : { claims: role.claims }),
+    }));
+  }
+
+  return provider.personas ?? [];
+}
+
+/** The separator of a level key: `file.read@team`. */
+export const PERMISSION_LEVEL_SEPARATOR = "@";
+
+/** `<permission>@<level>`, or the bare key for a null level (the whole tenant). */
+export function permissionLevelKey(
+  permission: string,
+  level: string | null | undefined,
+): string {
+  return level === null || level === undefined || level === ""
+    ? permission
+    : `${permission}${PERMISSION_LEVEL_SEPARATOR}${level}`;
+}
+
+/**
+ * A key split into its permission and level; the level is `null` for a bare
+ * key.
+ */
+export function splitPermissionLevel(key: string): {
+  readonly permission: string;
+  readonly level: string | null;
+} {
+  const at = key.lastIndexOf(PERMISSION_LEVEL_SEPARATOR);
+
+  return at <= 0 || at === key.length - 1
+    ? { permission: key, level: null }
+    : { permission: key.slice(0, at), level: key.slice(at + 1) };
+}
+
 /** The access token hook the provider generates. */
 export interface AuthorizationTokenHook {
   /** `schema.name`. */
@@ -286,6 +391,12 @@ export interface AuthorizationTokenHook {
    * `budget.truncatedClaim`, then `<permissions claim>_truncated`.
    */
   readonly truncatedClaim?: string;
+  /**
+   * The claim it sets to `true` when `team_ids` is not the user's whole list.
+   * Teams have their own slice, so a truncated `permissions` claim says nothing
+   * about them. Defaults to `team_ids_truncated`.
+   */
+  readonly teamIdsTruncatedClaim?: string;
   /**
    * Claims it fills from other functions, such as `features` from
    * `better_supabase.feature_claims`.
@@ -354,12 +465,23 @@ export interface AuthorizationProvider<Key extends string = string> {
   readonly suspension?: {
     readonly user?: DisabledRow;
     readonly tenant?: DisabledRow;
+    /**
+     * The column of the user table that holds the auth user id, for a `user`
+     * given as a column name. Becomes `blocks.permissions.disabled.userKey`
+     * unless the config sets it.
+     */
+    readonly userKey?: string;
   };
   readonly roleSources?: readonly AuthorizationRoleSource[];
   /** Where platform roles are assigned, and who may assign them. */
   readonly platformRoles?: AuthorizationPlatformRoles;
   /** Users the access matrix signs in as, one pgTAP file each. */
-  readonly personas?: readonly AuthorizationPersona<Key>[];
+  readonly personas?: readonly AuthorizationPersona<Key>[] | "roles";
+  /**
+   * The roles the provider's fixture seeds, one persona each when `personas` is
+   * `"roles"`. `setup` is the same SQL a persona carries.
+   */
+  readonly fixtureRoles?: readonly AuthorizationFixtureRole<Key>[];
   /** `schema.table.column` of every column that decides access (BS213). */
   readonly decidingColumns?: readonly string[];
   readonly tokenHook?: AuthorizationTokenHook;

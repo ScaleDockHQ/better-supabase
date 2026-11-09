@@ -718,7 +718,7 @@ export function generatorBlocks(
  * block under its renamed constant (`tasksBlock`) and an alias for each type
  * named after one of its entities (`Task<F>`, `TasksEvents`).
  */
-function renamedBlockLines(
+export function renamedBlockLines(
   entries: Readonly<Record<string, GeneratedBlock>>,
 ): RenamedLines {
   const imports: string[] = [];
@@ -865,7 +865,7 @@ function renamedBlockLines(
  * `defineBlocks(blockConfig, blocks)`. A renamed instance uses its renamed
  * constant; the others import their block.
  */
-function instanceMapLines(
+export function instanceMapLines(
   entries: Readonly<Record<string, GeneratedBlock>>,
   renamed: ReadonlyMap<string, string>,
   synced: ReadonlySet<string> | undefined,
@@ -981,7 +981,7 @@ function renamedTypeLines(
   });
 }
 
-function camelOf(name: string): string {
+export function camelOf(name: string): string {
   return name.replaceAll(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 }
 

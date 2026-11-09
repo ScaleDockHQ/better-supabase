@@ -499,7 +499,7 @@ const sent = await approvals
 
 ## Requests with items
 
-A request can ask for several things at once, such as the invoice, the contract and the email an agent wants to create. Pass `items` to `request`: each item has a `key`, and may carry a `label`, a `payload`, a `permission` that its decider holds, and `dependsOn`, the keys of items listed before it. Items are stored in `approval_items`, and `get` returns them. A request with items takes no extra columns and is not available for a subject type another module decides.
+A request can ask for several things at once, such as the invoice, the contract and the email an agent wants to create. Pass `items` to `request`: each item has a `key`, and may carry a `label`, a `payload`, a `permission` that its decider holds, and `dependsOn`, the keys of items listed before it. Items are stored in `approval_items`, and `get` returns them. Columns you add to `approval_items` with `alter table` in your own schema files are fields of each item: pass them as the item's `fields`, and read them from `fields` on the item. A request with items takes no `fields` of its own, and is not available for a subject type another module decides.
 
 ```ts
 const request = await approvals

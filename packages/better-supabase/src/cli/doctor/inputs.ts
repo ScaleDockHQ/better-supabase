@@ -89,6 +89,35 @@ export const seedFiles = (
   toml: SupabaseToml | undefined,
 ): Promise<TextFile[]> => sqlInFolder(root, `${toml?.dir ?? "supabase"}/seeds`);
 
+/** The TypeScript and JavaScript files of the Edge Functions (BS395). */
+export async function functionFiles(
+  root: string,
+  toml: SupabaseToml | undefined,
+): Promise<TextFile[]> {
+  const folder = `${toml?.dir ?? "supabase"}/functions`;
+
+  if (!existsSync(resolve(root, folder))) {
+    return [];
+  }
+
+  const names = await readdir(resolve(root, folder), { recursive: true });
+
+  const files = await Promise.all(
+    names
+      .filter(
+        (name) =>
+          /\.(?:ts|tsx|js|mjs)$/u.test(name) &&
+          !name.split(/[/\\]/u).includes("node_modules"),
+      )
+      .map(async (name) => ({
+        path: `${folder}/${name.replaceAll("\\", "/")}`,
+        text: await readFile(resolve(root, folder, name), "utf-8"),
+      })),
+  );
+
+  return files.toSorted((a, b) => byCodePoint(a.path, b.path));
+}
+
 /** The block data files, next to the schema folder (BS357, BS358). */
 export const dataFiles = (
   root: string,

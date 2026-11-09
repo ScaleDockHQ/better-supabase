@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCustomer } from "@/features/customers-list/customers-list-queries";
 import { getMembers } from "@/features/organization/organization-queries";
 import { getTeams } from "@/features/teams/teams-queries";
 import { getPermissions } from "@/features/user/permission-snapshot";
@@ -28,7 +29,6 @@ import {
   getSlaClocks,
   getTimeline,
   getVersions,
-  getCustomer,
 } from "../customers-queries";
 import {
   AttachmentsUploader,

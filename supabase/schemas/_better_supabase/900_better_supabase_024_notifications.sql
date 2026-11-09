@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:73fa3844668f1d5c9de179f5674bf6b38c19d229ba51b3a26ff177352036c126
+-- @bsb-hash sha256:a60dc14b2c1f59b1abd2000cefcd0d9aa5577c6e61270f8bb9c9812e12d1d7e3
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -555,7 +555,7 @@ as $$
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
       and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
-      and (list_notifications.types is null or ev."type" = any(list_notifications.types))
+      and ev."type" = any(coalesce(list_notifications.types, array[ev."type"]))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(list_notifications.status, 'all')
@@ -600,7 +600,7 @@ as $$
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
       and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
-      and (notification_page.types is null or ev."type" = any(notification_page.types))
+      and ev."type" = any(coalesce(notification_page.types, array[ev."type"]))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(notification_page.status, 'all')
@@ -700,7 +700,12 @@ as $$
     where rc."user_id" = auth.uid()
       and rc."read_at" is null
       and rc."dismissed_at" is null
-      and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
+      and rc."id" in (
+        select picked from unnest(mark_notifications_read.ids) picked
+        union all
+        select all_rc."id" from "better_supabase"."notification_recipients" all_rc
+        where mark_notifications_read.ids is null and all_rc."user_id" = auth.uid() and all_rc."read_at" is null
+      )
       and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )

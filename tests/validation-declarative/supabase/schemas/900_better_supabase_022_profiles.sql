@@ -1,21 +1,11 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:ba1311147545c1c752443bbae06c6edea3b856d1e3057a5122cf43a34188bbbd
+-- @bsb-hash sha256:0cb41195dc2f457bc5f147b7260a4bb3f9a5be0d78570627738a55ae69f94f3c
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- public.profiles is the app's table: this block adds only the columns it needs.
-alter table "public"."profiles" add column if not exists "email" text;
-alter table "public"."profiles" add column if not exists "username" text;
-alter table "public"."profiles" add column if not exists "full_name" text;
-alter table "public"."profiles" add column if not exists "first_name" text;
-alter table "public"."profiles" add column if not exists "last_name" text;
-alter table "public"."profiles" add column if not exists "avatar_url" text;
-alter table "public"."profiles" add column if not exists "active_organization_id" uuid;
-alter table "public"."profiles" add column if not exists "onboarding" jsonb not null default '{}';
-alter table "public"."profiles" add column if not exists "disabled_at" timestamptz;
-alter table "public"."profiles" add column if not exists "updated_at" timestamptz not null default now();
+-- public.profiles is the app's table, and it has every column this block needs.
 
 create unique index if not exists profiles_username_idx on "public"."profiles" (lower("username"));
 alter table "public"."profiles" enable row level security;
