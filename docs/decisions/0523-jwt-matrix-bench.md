@@ -41,7 +41,7 @@ busy machine and does not repeat.
   32 ms at 500 memberships), so the hook is not the constraint.
 - The `memberships` claim is. It grows 95 bytes per membership, so 150
   memberships already need 9 cookie chunks and 500 need 27. BS405 should
-  report the cookie bytes; the permission claim for one tenant stays near
+  report the cookie bytes (BS405 now names the estimated chunks); the permission claim for one tenant stays near
   0.9 KB whatever the roles.
 - A fast refresh (ADR 0521) makes the hook 5 to 70 times cheaper but does not
   shrink the cookie.
@@ -60,3 +60,11 @@ token claim.
 The bench needs the stack (`pnpm supabase:start`) and is not part of
 `pnpm verify`. A change to the claims or the hook reruns it and updates the
 baseline in the same commit.
+
+## BS405 and cookie bytes
+
+BS405 already warns when the claims pass 2,048 bytes, and 50 memberships
+(4.7 KB) trip it, so the bench thresholds need no new limit. The message now
+adds the estimated cookie chunks (claims times 4/3 plus 1,700 bytes of
+signature, header, refresh token and user, over 3,180), which is the cost the
+bench found, not the claim size.
