@@ -324124,16 +324124,6 @@
             "level": "row",
             "function": "better_supabase.bsb_invoices_entity_numbers",
             "fills": []
-          },
-          {
-            "name": "invoice_open_items_refresh",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update"
-            ],
-            "level": "row",
-            "function": "better_supabase.refresh_open_item"
           }
         ],
         "grants": [
