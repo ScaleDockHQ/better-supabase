@@ -7,6 +7,7 @@ import {
   orderArgsByPosition,
   readGeneratorMetadata,
   restrictSchemas,
+  restrictTables,
   serializeGenerator,
   stabilizeMetadata,
   tsTypeOf,
@@ -328,6 +329,30 @@ describe("restrictSchemas", () => {
 
     expect(only.tables.length).toBeLessThan(generator.tables.length);
     expect(restrictSchemas(generator, []).tables).toEqual([]);
+  });
+
+  it("keeps only the named tables", () => {
+    const [first, second] = generator.tables;
+
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+
+    const only = restrictTables(generator, [`${first!.schema}.${first!.name}`]);
+
+    expect(only.tables.map((table) => table.name)).toEqual([first!.name]);
+    expect(only.columns.every((column) => column.table_id === first!.id)).toBe(
+      true,
+    );
+    expect(
+      only.relationships.every(
+        (relationship) =>
+          relationship.relation === first!.name &&
+          relationship.referenced_relation === first!.name,
+      ),
+    ).toBe(true);
+    expect(only.tables.some((table) => table.name === second!.name)).toBe(
+      false,
+    );
   });
 
   it("filters views, materialized views and foreign tables by schema", () => {

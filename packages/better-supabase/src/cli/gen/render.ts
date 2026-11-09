@@ -133,9 +133,12 @@ export async function render(
 
   const output = resolve(config.root, config.output);
 
+  const tablesOnly = config.gen.types?.tables?.only;
+
   const typegenOptions = {
     schemas: [...config.schemas, ...apiTypeSchemas(config)],
     postgrestVersion: config.postgrestVersion,
+    ...(tablesOnly === undefined ? {} : { tablesOnly }),
   };
 
   const databaseTypes = await cachedDatabaseTypes(

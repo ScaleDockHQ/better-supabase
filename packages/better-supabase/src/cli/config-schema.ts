@@ -1001,6 +1001,13 @@ const ENTRIES = {
       ),
       contentMapper: v.optional(v.boolean()),
       tableModules: v.optional(v.boolean()),
+      types: v.optional(
+        v.strictObject({
+          tables: v.optional(
+            v.strictObject({ only: v.optional(v.array(v.string())) }),
+          ),
+        }),
+      ),
       blockModules: v.optional(v.boolean()),
       clientBlocks: v.optional(v.array(v.string())),
       serverBlocks: v.optional(v.record(v.string(), v.array(v.string()))),

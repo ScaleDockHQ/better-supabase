@@ -451,6 +451,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
       "Serve the schema types through the TypeScript 7.1 content mapper: gen writes a slim generated.ts and schema.bsb instead of the type files.",
     default: false,
   },
+  "gen.types.tables.only": {
+    description:
+      "Table, view and foreign-table names database.types.ts includes. Other relations are omitted.",
+  },
   "gen.tableModules": {
     description:
       "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
