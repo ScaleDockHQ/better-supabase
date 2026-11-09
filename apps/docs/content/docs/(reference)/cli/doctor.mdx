@@ -167,8 +167,10 @@ Where the findings come from depends on what doctor reads:
   shows.
 - **A database on this machine** (the local stack or a loopback URL): `supabase db advisors`
   when the Supabase CLI is 2.81.3 or later. Doctor passes the URL with
-  `--db-url` and reads the JSON output. A missing or older CLI, a remote
-  database or a failed run falls back to splinter.
+  `--db-url`, `--type` and `--level info`, and reads the JSON output (a list, an
+  object with `lints`, or one lint per line). A missing or older CLI, a remote
+  database, a failed run or an output shape it doesn't know falls back to
+  splinter.
 - **Any other database, or the fallback** (`$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`): [splinter](https://github.com/supabase/splinter),
   the SQL behind the advisors. Doctor downloads `splinter.sql` at a pinned
   commit, checks its SHA-256, caches it in
@@ -737,8 +739,9 @@ which asks serverless apps to use the pooler.
 **Info: offset pagination or exact counts.** `pagination: "offset"` on a
 resource or list reads and skips every row before the page, so late pages get
 slower as the table grows, and rows written between requests shift the pages.
-`count: "exact"` counts every matching row on each request. Doctor reports
-each line in `tooling.doctor.sources` that sets either. Use `pagination: "cursor"`
+`count: "exact"` counts every matching row on each request, and so does a
+`.count()` call without a `mode`. Doctor reports each line in
+`tooling.doctor.sources` that sets either. Use `pagination: "cursor"`
 unless the UI needs page numbers, keep `[api] max_rows` set so no request
 reads a whole table, and use `count: "planned"` or `"estimated"` on tables
 that can grow large.
@@ -1737,6 +1740,133 @@ once per statement. Wrap each call in `select`.
 the column needs an index that starts with it. A composite index puts the tenant
 column first. Without one, Postgres reads the whole table. Doctor counts an
 index, a primary key or a unique constraint that starts with the column.
+
+### BS386
+
+**Warning: a policy calls a volatile or PL/pgSQL function per row.** A policy
+that calls a volatile function, or one written in PL/pgSQL, outside
+`(select ...)` runs it once for every row the statement reads, and Postgres
+can't hoist a volatile call. Wrap the call in `(select fn(...))` so it runs once
+per statement, or replace a per-row check with a set helper such as
+`tenant_id in (select tenant_ids_with('key'))`. A helper called inside
+`(select ...)` is accepted even when it is volatile. Policies named `bsb_*`
+belong to a block module and are left to `upgrade`. Doctor reads the policy
+expressions and the functions they call from the catalog.
+
+### BS387
+
+**Info: many row-level triggers on one table.** Every row-level trigger runs
+once per row a statement writes. A table with six or more `bsb_*` row triggers
+(search, audit, events, totals) multiplies the cost of each import or bulk
+update. Use the statement-level form where a block offers one, such as
+`audit.statement`, or skip the triggers an import doesn't need.
+
+### BS388
+
+**Warning: a search trigger on an import target has no import guard.** An import
+writes thousands of rows in one transaction. A search trigger whose function
+doesn't check `better_supabase.import_run() is not null` rebuilds the search
+entry after every row. Run `better-supabase upgrade` so the search module skips
+per-row refreshes while an import runs. Doctor reads the trigger function's
+source in the schema files, so a function it can't find is left alone, and the
+tables are the record types that `blocks.imports.options.targets` names.
+
+### BS389
+
+**Info: the audit log has no scheduled purge.** `better_supabase.audit_events`
+grows with every audited write until something calls
+`better_supabase.purge_audit_log()`. Schedule it nightly with pg_cron or call
+`purgeAuditLog` from the jobs drain route. Doctor accepts a call in the schema
+files, the seeds, the app sources or a pg_cron job (it reads `cron.job` when it
+has a database), and skips projects without an audit table.
+
+### BS390
+
+**Info: a redundant index.** A non-unique btree index whose columns are the
+start of another index on the same table, with the same predicate, answers no
+query the longer index doesn't, and only slows writes. Drop it. Primary keys,
+unique indexes and expression indexes are left out.
+
+### BS391
+
+**Info: a parameter that is null or matched with `any()`.** A function that
+filters with `param is null or col = any(param)` can't use an index on `col`
+once Postgres caches a generic plan, because the plan has to cover both
+branches. Split the statement by whether the parameter is null, or set
+`plan_cache_mode = force_custom_plan` on a PL/pgSQL function so the planner
+folds the null. Doctor reads the functions in the app's schema files, not the
+block modules'.
+
+### BS392
+
+**Info: a searched table has no trigram or sort index.** A table with the search
+option (`@bsb search` or a `search_tsv` column) has a GIN index on the tsvector,
+which only serves full-text queries. A list that matches with `ilike '%text%'`
+needs a GIN trigram index on the searched column, and a newest-first list needs
+a btree index that contains `created_at` or `updated_at`. Add both in the schema
+file.
+
+### BS393
+
+**Warning: import batches run close to the statement timeout.** With `--stats`,
+doctor reads `import_upsert_batch` from `pg_stat_statements` and compares its
+mean time with the `statement_timeout` of the `service_role`, else the
+`authenticator`, else the server. A mean above half of it fails once the table
+grows or another job holds a lock. Send smaller batches, or raise the timeout of
+the role that imports.
+
+### BS394
+
+**Warning: an app override of a block function has drifted.** An app file that
+replaces a block function marks it with `-- @bsb-override-of schema.fn <hash>`
+above its own `create function`. The hash is the first twelve hex digits of the
+SHA-256 of the block's function statement with its whitespace collapsed, and
+doctor prints the current one in its message. When the block module's function
+changes, `upgrade` leaves the override behind and it keeps the old behavior, so
+doctor reports a recorded hash that no longer matches, and a tag whose target no
+module declares. Diff the module's function against your copy, merge what
+changed, then write the new hash. BS369 skips a tagged function. Doctor reads
+every schema file.
+
+### BS395
+
+**Error: verify_jwt is off for a function that expects a user.**
+`[functions.<name>] verify_jwt = false` turns off the gateway's JWT check. A
+function written with `auth: 'user'` relies on that check to refuse requests
+without a token before any code runs. Turn `verify_jwt` back on, or verify the
+token in the function and drop `auth: 'user'`. The `mcp` function is the
+documented exception: it verifies the OAuth token itself, because the gateway
+would reject the MCP client first. Doctor reads `supabase/config.toml` and the
+files under `supabase/functions`.
+
+### BS396
+
+**Info: a seed file inserts one row at a time.** A file under `supabase/seeds`
+with ten or more single-row `insert ... values (...)` statements for one table
+is slow to parse and run, because each statement is planned and sent on its own.
+Write one insert with several value tuples, or `insert ... select` from
+`generate_series`. Files that `db seed --sample` wrote are left out.
+
+### BS397
+
+**Warning: a schema file changes rows a data migration holds.** A schema file in
+the declarative layout holds structure. An `insert`, `update` or `delete` in it
+runs on every sync, and when a migration or block data file writes the same
+table, the rows have two owners. Remove the statement from the schema file and
+keep the rows in the data migration or a seed. Files a block module wrote are
+left out.
+
+### BS398
+
+**Warning: an app trigger replaces the same-tenant check without the tenant.**
+`sameTenant.auto` emits no check for a foreign key column that an app trigger
+(any trigger not named `bsb_*`) reads or writes through `new.<column>` or
+`old.<column>`, because the app is taken to guard it, and BS340 accepts that
+column for the same reason. A trigger that touches the column but never mentions
+the tenant column guards nothing about the tenant, so nothing checks the
+referenced row. Compare the tenant of the referenced row in the trigger, or list
+the reference in `blocks.memberships.options.sameTenant` so the block emits the
+check. Doctor reads the trigger functions in the schema files.
 
 ### BS369
 

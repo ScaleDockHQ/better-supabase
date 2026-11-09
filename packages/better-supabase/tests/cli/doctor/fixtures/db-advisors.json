@@ -1,0 +1,52 @@
+[
+  {
+    "name": "unindexed_foreign_keys",
+    "title": "Unindexed foreign keys",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": ["PERFORMANCE"],
+    "description": "Unindexed foreign keys description",
+    "detail": "Table `public.notes` has a foreign key `notes_owner_fkey` without a covering index.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=unindexed_foreign_keys",
+    "metadata": {
+      "name": "notes",
+      "type": "table",
+      "schema": "public",
+      "fkey_name": "notes_owner_fkey",
+      "fkey_columns": [2]
+    },
+    "cache_key": "unindexed_foreign_keys_public_notes"
+  },
+  {
+    "name": "auth_rls_initplan",
+    "title": "Auth RLS Initialization Plan",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": ["PERFORMANCE"],
+    "description": "Auth RLS Initialization Plan description",
+    "detail": "Table `public.notes` has a row level security policy `read` that re-evaluates current_setting() or auth.<function>() for each row.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=auth_rls_initplan",
+    "metadata": {
+      "name": "notes",
+      "type": "table",
+      "schema": "public"
+    },
+    "cache_key": "auth_rls_initplan_public_notes"
+  },
+  {
+    "name": "rls_disabled_in_public",
+    "title": "RLS Disabled in Public",
+    "level": "ERROR",
+    "facing": "EXTERNAL",
+    "categories": ["SECURITY"],
+    "description": "RLS Disabled in Public description",
+    "detail": "Table `public.scratch` is public, but RLS has not been enabled.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=rls_disabled_in_public",
+    "metadata": {
+      "name": "scratch",
+      "type": "table",
+      "schema": "public"
+    },
+    "cache_key": "rls_disabled_in_public_public_notes"
+  }
+]

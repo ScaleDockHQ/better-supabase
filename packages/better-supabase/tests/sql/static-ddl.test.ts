@@ -27,6 +27,24 @@ interface Counts {
   readonly withExecute: number;
 }
 
+/**
+ * Why a file keeps its `do` blocks. The legal entities module swaps the unique
+ * number keys of the invoice, quote and order tables for keys that include
+ * `coalesce(legal_entity_id, ...)`. Those keys belong to other modules' tables
+ * and their names depend on what the app's own migrations created, so the swap
+ * finds each one in the catalog when it runs; a schema diff can't write it
+ * until those modules render the key themselves (ADR 0400, ADR 0501). The
+ * search module's block is removed by the import guard work and needs no
+ * reason.
+ */
+const KEPT: Readonly<Record<string, string>> = {
+  "supabase/schemas/_better_supabase/900_better_supabase_157_legal_entities.sql":
+    "the number key swap reads the catalog for keys another module created",
+};
+
+const REMOVED_WITH_SEARCH_GUARD =
+  "supabase/schemas/_better_supabase/900_better_supabase_070_search.sql";
+
 const DO_BLOCK = /^do\s+(?:\$|language\b)/i;
 
 /**
@@ -107,5 +125,27 @@ describe("static DDL in the generated schema files", () => {
 
     // A count dropped: run `UPDATE_PRACTICES=1 vitest run tests/sql/static-ddl.test.ts`.
     expect(stale).toEqual([]);
+  });
+
+  it("keeps a reason for every file that still has a block", () => {
+    const unexplained = Object.keys(baseline).filter(
+      (file) => file !== REMOVED_WITH_SEARCH_GUARD && KEPT[file] === undefined,
+    );
+
+    expect(unexplained).toEqual([]);
+  });
+
+  it("keeps a reason only for a file that still has a block", () => {
+    expect(
+      Object.keys(KEPT).filter((file) => baseline[file] === undefined),
+    ).toEqual([]);
+  });
+
+  it("holds the total at three once the search block is gone", () => {
+    const total = Object.entries(baseline)
+      .filter(([file]) => file !== REMOVED_WITH_SEARCH_GUARD)
+      .reduce((sum, [, counts]) => sum + counts.doBlocks, 0);
+
+    expect(total).toBeLessThanOrEqual(3);
   });
 });

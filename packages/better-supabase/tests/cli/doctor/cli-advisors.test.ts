@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdvisorSource, Lint } from "../../../src/cli/doctor/advisors.ts";
@@ -145,5 +146,82 @@ describe("parseAdvisorOutput shape drift", () => {
     expect(() => parseAdvisorOutput('[{"rule":"x"}]')).toThrow(
       "unknown lint shape",
     );
+  });
+});
+
+describe("a saved `supabase db advisors -o json` document", () => {
+  const saved = readFileSync(
+    new URL("fixtures/db-advisors.json", import.meta.url),
+    "utf-8",
+  );
+
+  it("parses every lint with its level, category and metadata", () => {
+    const lints = parseAdvisorOutput(saved);
+
+    expect(lints.map((each) => `${each.level} ${each.name}`)).toEqual([
+      "INFO unindexed_foreign_keys",
+      "WARN auth_rls_initplan",
+      "ERROR rls_disabled_in_public",
+    ]);
+    expect(lints[0]?.metadata).toMatchObject({ name: "notes" });
+  });
+
+  it("reads the same lints wrapped in an object or one per line", () => {
+    const list: unknown = JSON.parse(saved);
+
+    expect(parseAdvisorOutput(JSON.stringify({ lints: list }))).toHaveLength(3);
+
+    const lines = (Array.isArray(list) ? list : [])
+      .map((each: unknown) => JSON.stringify(each))
+      .join("\n");
+
+    expect(parseAdvisorOutput(lines)).toHaveLength(3);
+  });
+
+  it("passes the type and level flags the CLI documents", async () => {
+    const run = vi.fn((args: readonly string[]) =>
+      Promise.resolve(args[0] === "--version" ? ok("2.122.0") : ok(saved)),
+    );
+
+    const source = await cliAdvisors({ run, dbUrl: LOCAL });
+
+    expect(await source?.lints("performance")).toHaveLength(3);
+    expect(run).toHaveBeenLastCalledWith([
+      "db",
+      "advisors",
+      "--db-url",
+      LOCAL,
+      "--type",
+      "performance",
+      "--level",
+      "info",
+      "-o",
+      "json",
+    ]);
+  });
+
+  it("falls back to splinter when a newer CLI prints another shape", async () => {
+    const splinter: AdvisorSource = {
+      describe: "splinter",
+      lints: () => Promise.resolve([lint("splinter")]),
+    };
+
+    const source = withFallback(
+      () =>
+        cliAdvisors({
+          run: (args) =>
+            Promise.resolve(
+              args[0] === "--version"
+                ? ok("3.0.0")
+                : ok('{"advisors":{"performance":[{"rule":"x"}]}}'),
+            ),
+          dbUrl: LOCAL,
+        }),
+      splinter,
+    );
+
+    expect(
+      (await source.lints("performance")).map((each) => each.name),
+    ).toEqual(["splinter"]);
   });
 });
