@@ -351,6 +351,9 @@ describe.skipIf(!live)("employees", () => {
       expect(
         events.filter((row) => row.type === "employee.manager_changed"),
       ).toHaveLength(1);
+      expect(
+        events.find((row) => row.type === "employee.offboarded")?.payload,
+      ).not.toHaveProperty("reason");
     } finally {
       await s.close();
     }

@@ -343,9 +343,8 @@ export interface EmployeeEventData extends SubjectEventData {
   readonly status?: string;
   /** For `employee.updated`: the fields the batch changed, or `contract`. */
   readonly fields?: readonly string[];
-  /** For `employee.offboarded`: the last day and why. */
+  /** For `employee.offboarded`: the last day. */
   readonly endDate?: string;
-  readonly reason?: string | null;
   /** For `employee.manager_changed`. */
   readonly fromManagerId?: string | null;
   readonly toManagerId?: string | null;

@@ -282,16 +282,18 @@ blocks: {
 
 ## Events
 
-| Event                                     | Data                                                                                                                   |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `employee.created`                        | `organizationId`, `employeeId`, `subjectType`, `subjectId`, `name`, `userId`, `managerId`, `status`                    |
-| `employee.updated`, `employee.offboarded` | the same without `managerId` and `status`, with `fields` (the changed fields, or `contract`) or `endDate` and `reason` |
-| `employee.manager_changed`                | the same, with `fromManagerId` and `toManagerId`; offboarding records one for each report that moves                   |
-| `employee.deleted`                        | the same as `employee.updated`, without `fields`                                                                       |
+| Event                                     | Data                                                                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `employee.created`                        | `organizationId`, `employeeId`, `subjectType`, `subjectId`, `name`, `userId`, `managerId`, `status`       |
+| `employee.updated`, `employee.offboarded` | the same without `managerId` and `status`, with `fields` (the changed fields, or `contract`) or `endDate` |
+| `employee.manager_changed`                | the same, with `fromManagerId` and `toManagerId`; offboarding records one for each report that moves      |
+| `employee.deleted`                        | the same as `employee.updated`, without `fields`                                                          |
 
 Every employee event carries `userId`, the employee's user account, or `null`
 for an employee without one. A sink on `employee.offboarded` can use it to
-hand over the user's files or end their sessions.
+hand over the user's files or end their sessions. The offboarding reason stays on the employee
+(`offboard_reason`) and is not in the event, so it never reaches a webhook; a
+consumer that needs it reads the employee.
 
 ## Hooks
 

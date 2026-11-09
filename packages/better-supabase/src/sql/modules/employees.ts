@@ -50,7 +50,7 @@ const EVENTS: BlockSqlEvents<EmployeesEvents> = {
   },
   "employee.offboarded": {
     subject: "employees",
-    payload: [...EMPLOYEE, "endDate", "reason"],
+    payload: [...EMPLOYEE, "endDate"],
   },
   "employee.manager_changed": {
     subject: "employees",
