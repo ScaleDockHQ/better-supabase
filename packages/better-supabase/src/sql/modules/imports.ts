@@ -30,6 +30,7 @@ import {
   importIssuesTable,
 } from "./imports-issues.ts";
 import { importLifecycleSql, rebaseImportSql } from "./imports-lifecycle.ts";
+import { importSourcesSql } from "./imports-sources.ts";
 import {
   assignCase,
   naturalLookupOf,
@@ -525,7 +526,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${ctx.fn("finish_import")}(uuid, text, integer, text)`)}
-${importIssueHelpers(ctx, manage)}${importIntegritySql(ctx)}
+${importIssueHelpers(ctx, manage)}${importIntegritySql(ctx)}${importSourcesSql(ctx)}
 
 -- Writes the items of one entity: an unknown key inserts, an equal hash is
 -- unchanged and writes nothing, a changed hash updates unless the row changed
