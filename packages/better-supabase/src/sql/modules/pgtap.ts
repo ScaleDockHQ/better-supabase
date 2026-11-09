@@ -283,6 +283,87 @@ as $$
   )
 $$;
 
+-- A run in pending, running, stale or canceled, for lifecycle tests.
+create or replace function tests.import_run_fixture(source text, entities jsonb default '{}'::jsonb, state text default 'running')
+returns uuid
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_id uuid := gen_random_uuid();
+  v_status text := case tests.import_run_fixture.state when 'stale' then 'running' else tests.import_run_fixture.state end;
+begin
+  if v_status not in ('pending', 'running', 'canceled', 'failed', 'completed') then
+    raise exception 'state must be pending, running, stale, canceled, failed or completed' using errcode = '22023';
+  end if;
+  insert into better_supabase.import_runs (id, tenant_id, source, status, plan, lease_until, heartbeat_at)
+  values (
+    v_id,
+    gen_random_uuid(),
+    source,
+    v_status,
+    entities,
+    case when tests.import_run_fixture.state = 'stale' then now() - interval '1 minute' else now() + interval '30 seconds' end,
+    case when tests.import_run_fixture.state = 'stale' then now() - interval '1 minute' else now() end
+  );
+  return v_id;
+end;
+$$;
+
+create or replace function tests.age_import_run(run uuid, age interval)
+returns void
+language sql
+set search_path = ''
+as $$
+  update better_supabase.import_runs
+  set lease_until = now() - age, heartbeat_at = now() - age
+  where id = run
+$$;
+
+-- Moves the stored import stamp into the past so a current subject looks edited.
+create or replace function tests.bulk_touch_subjects(entity text, n integer)
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  with touched as (
+    select id from better_supabase.import_records
+    where entity = bulk_touch_subjects.entity
+    limit greatest(n, 0)
+  )
+  update better_supabase.import_records r
+  set subject_imported_updated_at = now() - interval '1 day'
+  from touched
+  where r.id = touched.id;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Fails when a function body is missing a when-arm for an import entity.
+create or replace function tests.assert_override_dispatches_all(signature text)
+returns boolean
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_body text;
+  v_missing text;
+begin
+  select pg_catalog.pg_get_functiondef(signature::regprocedure) into v_body;
+  select string_agg(entity, ', ' order by entity) into v_missing
+  from unnest(better_supabase.import_entities()) entity
+  where position(('when ' || quote_literal(entity) || ' then') in v_body) = 0;
+  if v_missing is not null then
+    raise exception 'missing dispatch arms: %', v_missing using errcode = 'P0001';
+  end if;
+  return true;
+end;
+$$;
+
 grant execute on all functions in schema tests to anon, authenticated, service_role;
 -- create_user writes auth.users as its definer; tests call it as postgres
 -- before switching roles, so no API role can mint users.
