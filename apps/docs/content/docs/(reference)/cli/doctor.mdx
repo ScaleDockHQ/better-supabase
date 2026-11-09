@@ -2635,6 +2635,12 @@ every entity in `blocks.imports.options.targets`. A regenerated migration that
 replaces the whole function from an older body drops targets the schema still
 calls. Sync the migration with the schema file.
 
+### BS627
+
+**Warning: a raise has no stable code.** A `raise exception` in a schema file
+without a `hint` leaves an app matching English message text. The hint is the
+code. `better-supabase codes --json` prints the catalog.
+
 ### BS630
 
 **Warning: foreign keys to one table need two relation names.** Two foreign

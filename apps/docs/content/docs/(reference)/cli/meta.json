@@ -15,6 +15,7 @@
     "spec",
     "powersync",
     "doctor",
+    "codes",
     "codemod",
     "agent-mode",
     "mcp",

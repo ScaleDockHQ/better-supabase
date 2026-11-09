@@ -1,0 +1,12 @@
+---
+title: Codes
+description: The stable codes database functions raise and import warnings report.
+---
+
+`better-supabase codes --json` prints every code the library raises or reports
+as an import warning, with the English message when the call uses a literal.
+The message is for logs. An app translates the code.
+
+The same list is `better-supabase/schemas/error-codes.json`. A `raise exception`
+in a schema file needs a `hint` set to one of these codes. Doctor reports a
+raise that has none (BS627).
