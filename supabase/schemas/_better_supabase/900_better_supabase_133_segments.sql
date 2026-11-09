@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:08d2ed28e22814f692393b8b49df41b4bd7c2ea6e10b82fefda7463598926b89
+-- @bsb-hash sha256:69367bdfbe010084063cae2cbc54692e318d234ef21dd94a07fc4f3d70dbdbe7
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -946,7 +946,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.segments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"segment","event_prefix":"segment"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.segments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"segment","event_prefix":"segment"}');
 
 -- blocks.segments.api: entry points for the Data API.
 create schema if not exists "api";

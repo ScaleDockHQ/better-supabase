@@ -232,7 +232,8 @@ describe("single-row reads", () => {
 
 describe("count and aggregate", () => {
   it.each([
-    [undefined, "exact"],
+    [undefined, "estimated"],
+    ["exact", "exact"],
     ["planned", "planned"],
     ["estimated", "estimated"],
   ] as const)("counts with mode %s", async (mode, expected) => {

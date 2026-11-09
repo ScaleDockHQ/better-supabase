@@ -1569,7 +1569,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "integrates": [
         "attachments",
-        "outbox"
+        "outbox",
+        "search"
       ],
       "modes": [
         "managed",

@@ -1,6 +1,6 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:7a54ce41a33b812ffbf1894b1bbe42c8416ac0aea8eb07474aff7d873ca01fd0
+-- @bsb-hash sha256:c0e5412be934852e122737439e958ab769b66b74188dfee4a258e0ba5b447bea
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -958,7 +958,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.time_rates deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"time_rate","event_prefix":"time_rate"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.time_rates deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"time_rate","event_prefix":"time_rate"}');
 
 -- blocks.billable-time.api: entry points for the Data API.
 create schema if not exists "api";

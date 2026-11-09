@@ -1808,7 +1808,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:b14080b01b99fe73d4fe75afc759e83ead3d400bd6a9b06c9cc59e82e3bb374e
+-- @bsb-hash sha256:a6a4e8e47046028b28195db19ca768917a518cf8c605ec3794a80ababa548720
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3692,8 +3692,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."calendar_working_hou
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.calendar_events deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"calendar_event","event_prefix":"calendar_event"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.calendars deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"calendar","event_prefix":"calendar"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.calendar_events deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"calendar_event","event_prefix":"calendar_event"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.calendars deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"calendar","event_prefix":"calendar"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar

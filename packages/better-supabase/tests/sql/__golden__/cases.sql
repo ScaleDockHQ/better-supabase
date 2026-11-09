@@ -1303,7 +1303,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:de5c44043af049fac6783e41717640172e726e518dc0578463bf8b027efca077
+-- @bsb-hash sha256:201381dac99dd35a9799de5d7aa2d8ba7c4baec9d4e8cc39e6e00ab9ca3c7f02
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2955,9 +2955,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."case_actions" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.cases deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"case","event_prefix":"case"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.case_kinds deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"case_kind","event_prefix":"case_kind"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.case_actions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"case_action","event_prefix":"case_action"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.cases deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"case","event_prefix":"case"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.case_kinds deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"case_kind","event_prefix":"case_kind"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.case_actions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"case_action","event_prefix":"case_action"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_cases.sql
 -- better-supabase module: cases

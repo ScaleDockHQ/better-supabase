@@ -80,6 +80,10 @@ function checkSearchSources(where: string, entry: SubjectConfig): void {
       column(`${at}.via`, watched.via);
     }
 
+    for (const [at2, name] of (watched.columns ?? []).entries()) {
+      column(`${at}.columns[${String(at2)}]`, name);
+    }
+
     for (const [hop, through] of (watched.through ?? []).entries()) {
       const step = `${at}.through[${String(hop)}]`;
       table(`${step}.table`, through.table);

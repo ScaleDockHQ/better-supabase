@@ -415,7 +415,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:07c42adede3b93d003fa1dc24bc2313ca621ef19456ab7e58a50d5bc4d1e888b
+-- @bsb-hash sha256:2ba8fdd829b18cc38145618c8af9978827c9abad43c352e872430267bff2bbe8
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -853,7 +853,7 @@ grant execute on function "better_supabase"."redeem_for"(text, uuid) to service_
 grant execute on function "better_supabase"."redeem_invite_code"(text) to authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.waitlist_entries deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"waitlist_entry","event_prefix":"waitlist_entry"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.waitlist_entries deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"waitlist_entry","event_prefix":"waitlist_entry"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist

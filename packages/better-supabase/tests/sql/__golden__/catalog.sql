@@ -3671,7 +3671,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:54aa568b6332bccd922896c37dd4f6b806185ebf20e4352dc38e993c17588850
+-- @bsb-hash sha256:85830d49842a5ac2d1c5bb4a44dcd6deff7c49324b6e116da5fcff84e4fa729a
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7563,8 +7563,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."discount_rules" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.products deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"product","event_prefix":"product"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.product_variants deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"product_variant","event_prefix":"product_variant"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.products deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"product","event_prefix":"product"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.product_variants deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"product_variant","event_prefix":"product_variant"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog

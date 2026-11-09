@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:b07103f1466872b72c0428a724a5f671f12b0133a80b2b1b056bf1c4b6c06894
+-- @bsb-hash sha256:80f9824d94a2b028d89bcad8b69db38c5ce0fe408a166f82c8fe973cd7e7201f
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -237,7 +237,9 @@ begin
     "url" = excluded."url",
     "tsv" = excluded."tsv",
     "content_hash" = excluded."content_hash",
-    "updated_at" = now();
+    "updated_at" = now()
+  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url")
+    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url");
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_search_document_index"(text, text)');
   begin
@@ -441,6 +443,59 @@ $$;
 revoke execute on function "better_supabase"."search_reindex"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."search_reindex"(text) to service_role;
 
+-- Runs as its caller (the definer trigger functions and import_upsert_batch
+-- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
+-- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
+-- key once in better_supabase.search_dirty (a transaction-local setting, one
+-- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
+  v_dirty text;
+begin
+  if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
+    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
+      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\n', true);
+    end if;
+  else
+    perform "better_supabase"."search_refresh"(search_enqueue.subject_type, search_enqueue.subject_id);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."search_enqueue"(text, text) from public, anon, authenticated;
+
+-- Indexes every record noted by search_enqueue in this transaction, once each.
+-- Returns how many it indexed.
+create or replace function "better_supabase"."search_refresh_dirty"()
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_count integer := 0;
+  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_line text;
+begin
+  perform set_config('better_supabase.search_dirty', '', true);
+  for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
+    if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
+      v_count := v_count + 1;
+    end if;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."search_refresh_dirty"() from public, anon, authenticated;
+grant execute on function "better_supabase"."search_refresh_dirty"() to service_role;
+
 create or replace function "better_supabase"."search_index_row"()
 returns trigger
 language plpgsql
@@ -452,10 +507,10 @@ declare
   v_new text := case when tg_op in ('INSERT', 'UPDATE') then to_jsonb(new) ->> tg_argv[1] end;
 begin
   if v_old is not null and v_old is distinct from v_new then
-    perform "better_supabase"."search_refresh"(tg_argv[0], v_old);
+    perform "better_supabase"."search_enqueue"(tg_argv[0], v_old);
   end if;
   if v_new is not null then
-    perform "better_supabase"."search_refresh"(tg_argv[0], v_new);
+    perform "better_supabase"."search_enqueue"(tg_argv[0], v_new);
   end if;
   return null;
 end;
@@ -487,24 +542,17 @@ declare
   v_id text;
 begin
   if tg_op in ('UPDATE', 'DELETE') and old."node_id" is not null then
-    perform "better_supabase"."search_refresh"('drive_node', old."node_id"::text);
+    perform "better_supabase"."search_enqueue"('drive_node', old."node_id"::text);
   end if;
   if tg_op in ('INSERT', 'UPDATE') and new."node_id" is not null then
-    perform "better_supabase"."search_refresh"('drive_node', new."node_id"::text);
+    perform "better_supabase"."search_enqueue"('drive_node', new."node_id"::text);
   end if;
   return null;
 end;
 $$;
 revoke execute on function "better_supabase"."search_watch_drive_node_0"() from public, anon, authenticated;
-do $watch$
-begin
-  if to_regclass('better_supabase.drive_node_texts') is not null then
-    drop trigger if exists "bsb_search_drive_node_watch_0" on "better_supabase"."drive_node_texts";
-    create trigger "bsb_search_drive_node_watch_0" after insert or update or delete on "better_supabase"."drive_node_texts"
-      for each row execute function "better_supabase"."search_watch_drive_node_0"();
-  end if;
-end;
-$watch$;
+create trigger "bsb_search_drive_node_watch_0" after insert or delete or update on "better_supabase"."drive_node_texts"
+  for each row execute function "better_supabase"."search_watch_drive_node_0"();
 
 -- Full-text and trigram matches (plus nearest embeddings when the query
 -- carries one, fused by reciprocal rank), as the caller: the policy keeps

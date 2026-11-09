@@ -448,6 +448,14 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0482: Use the runtime's Temporal in the browser and load the polyfill only when it is missing.
 - 0483: Load header dialogs on intent, render the side navigation on the server and load the chat panel after paint.
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
+- 0421: Index search records once per import batch.
+- 0422: Check the import summary mode in the audit trigger's when clause.
+- 0423: Import batches do not lock the run, and their size adapts.
+- 0424: Inline the subject check in the attachments policies.
+- 0425: Count defaults to the estimated mode.
+- 0426: Check tenants as a set in block policies.
+- 0427: Scale baseline and the measure-first verdicts.
+- 0428: Expose better_supabase.importing() to app SQL.
 - 0500: Check scale practices in doctor from the catalog and the schema files.
 - 0501: Keep the legal entity number key swaps as `do` blocks until the owning modules render the key.
 - 0540: Count object levels in `renameBlock`, not wrappers, and cap the depth at 4.

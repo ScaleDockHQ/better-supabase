@@ -1,6 +1,6 @@
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:c3adee5183fbbc4664a664f3ab6b52994781169c3fb88b00e5ca7c1088c48a50
+-- @bsb-hash sha256:fd7fcef58a0b28471086ba5410aa109f0a73c69fa85496c843e269220fe3607b
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -836,7 +836,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."promotion_redemption
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.promotions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"promotion","event_prefix":"promotion"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.promotions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"promotion","event_prefix":"promotion"}');
 
 -- blocks.promotions.api: entry points for the Data API.
 create schema if not exists "api";

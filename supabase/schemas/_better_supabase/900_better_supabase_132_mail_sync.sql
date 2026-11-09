@@ -1,6 +1,6 @@
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:3d73db7dffa44574a482c28b8a8e5258bfcbd2a94b5eacc31def97eb4dd28cdd
+-- @bsb-hash sha256:00b7eeba609e926f429798be6a75311db592419bd59c4b0016c116941c2959f7
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1042,9 +1042,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."mail_thread_subjects
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.mail_threads deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"mail_thread","event_prefix":"mail_thread"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.mail_accounts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"mail_account","event_prefix":"mail_account"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.mail_messages deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"mail_message","event_prefix":"mail_message"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.mail_threads deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"mail_thread","event_prefix":"mail_thread"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.mail_accounts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"mail_account","event_prefix":"mail_account"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.mail_messages deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"mail_message","event_prefix":"mail_message"}');
 
 -- blocks.mail-sync.api: entry points for the Data API.
 create schema if not exists "api";

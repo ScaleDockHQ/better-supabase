@@ -1,6 +1,6 @@
 -- better-supabase module: prelude
 -- @bsb-block prelude@1 managed
--- @bsb-hash sha256:790feccb2dfd5d8234f0f2227675ae099a52cfaadf48741e7db548192fea451e
+-- @bsb-hash sha256:0f631d1b010b7856990429d23bfea71dec6887da89e2675078048206ecab78a9
 -- The schema, the blocks table and the helper functions every block calls, each defined once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -165,6 +165,22 @@ as $$
 $$;
 revoke execute on function better_supabase.import_run() from public;
 grant execute on function better_supabase.import_run() to anon, authenticated, service_role;
+
+-- True while the transaction runs in import mode, for an app trigger or
+-- function that skips a side effect during an import: `if not
+-- better_supabase.importing() then ... end if;`. Only the service role can
+-- begin an import session, so a user session always gets false.
+create or replace function better_supabase.importing()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select better_supabase.import_run() is not null;
+$$;
+revoke execute on function better_supabase.importing() from public;
+grant execute on function better_supabase.importing() to anon, authenticated, service_role;
 
 -- Moves every installed module's rows from record drop to record keep of the
 -- subject table subject_table (schema.table): comments, attachments, tags and

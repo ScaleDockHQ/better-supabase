@@ -1,6 +1,6 @@
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:1f90b7ecf9cb92a488fb01cda1946c6d65f166430461eaf6df0ef880176de779
+-- @bsb-hash sha256:a809c03557e025ffb5f037d34b92ce06ff5241c95d2d0d442e5cbaecf34e1300
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -347,7 +347,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_scheduled_tasks deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_scheduled_task","event_prefix":"ai_scheduled_task"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_scheduled_tasks deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_scheduled_task","event_prefix":"ai_scheduled_task"}');
 
 -- blocks.ai-schedules.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:c5a2eb4be33913bb2e4702e55b67474287cd4693facfdb1fea83325e2fa0511c
+-- @bsb-hash sha256:b390a1f22e749a8b2eb0334369c4396e548b47e45095774d6a44bcab1b214551
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,9 @@ begin
     "url" = excluded."url",
     "tsv" = excluded."tsv",
     "content_hash" = excluded."content_hash",
-    "updated_at" = now();
+    "updated_at" = now()
+  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url")
+    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url");
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_search_document_index"(text, text)');
   begin
@@ -149,6 +151,59 @@ $$;
 revoke execute on function "better_supabase"."search_reindex"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."search_reindex"(text) to service_role;
 
+-- Runs as its caller (the definer trigger functions and import_upsert_batch
+-- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
+-- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
+-- key once in better_supabase.search_dirty (a transaction-local setting, one
+-- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
+  v_dirty text;
+begin
+  if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
+    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
+      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\n', true);
+    end if;
+  else
+    perform "better_supabase"."search_refresh"(search_enqueue.subject_type, search_enqueue.subject_id);
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."search_enqueue"(text, text) from public, anon, authenticated;
+
+-- Indexes every record noted by search_enqueue in this transaction, once each.
+-- Returns how many it indexed.
+create or replace function "better_supabase"."search_refresh_dirty"()
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_count integer := 0;
+  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_line text;
+begin
+  perform set_config('better_supabase.search_dirty', '', true);
+  for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
+    if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
+      v_count := v_count + 1;
+    end if;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."search_refresh_dirty"() from public, anon, authenticated;
+grant execute on function "better_supabase"."search_refresh_dirty"() to service_role;
+
 create or replace function "better_supabase"."search_index_row"()
 returns trigger
 language plpgsql
@@ -160,10 +215,10 @@ declare
   v_new text := case when tg_op in ('INSERT', 'UPDATE') then to_jsonb(new) ->> tg_argv[1] end;
 begin
   if v_old is not null and v_old is distinct from v_new then
-    perform "better_supabase"."search_refresh"(tg_argv[0], v_old);
+    perform "better_supabase"."search_enqueue"(tg_argv[0], v_old);
   end if;
   if v_new is not null then
-    perform "better_supabase"."search_refresh"(tg_argv[0], v_new);
+    perform "better_supabase"."search_enqueue"(tg_argv[0], v_new);
   end if;
   return null;
 end;

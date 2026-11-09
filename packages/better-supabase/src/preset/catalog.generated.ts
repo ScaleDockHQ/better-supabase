@@ -2091,7 +2091,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "attachments",
-        "outbox"
+        "outbox",
+        "search"
       ],
       "manifest": "imports",
       "scopes": [

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:9b9ec12ffb931c65bd106431dff17763851f4cd12d8d94fdd35382ef4f3cc84e
+-- @bsb-hash sha256:55f3814a3dd3c2cbcd39c2d87ee0c14a6afd0309d568cdbe3b034f31385b60c3
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -53,7 +53,7 @@ create policy bsb_organization_settings_read on "better_supabase"."organization_
   using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
@@ -262,7 +262,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."organization_setting
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public
@@ -298,7 +298,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:ff9c24e4fbfcbeb4183831ffaeb6b54c35ac54a725e1e40107729fef598ead3b
+-- @bsb-hash sha256:3c6e062e272600efece40c2f3060fedab4889387248451f4dccc07448d775079
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -350,7 +350,7 @@ create policy bsb_organization_settings_read on "better_supabase"."organization_
   using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
@@ -635,7 +635,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."organization_setting
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public
@@ -671,7 +671,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:5fd7177af9410f03b0670f41166226c8dc870670ecfc3d4f239feaebe425e505
+-- @bsb-hash sha256:efd8b9901d9dea92ed581dd70baf58bb7a1689f404e47cb11bc63e56f7601c05
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -728,7 +728,7 @@ create policy bsb_organization_settings_read on "app_private"."organization_sett
   using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_organization_settings_insert on "app_private"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 create policy bsb_organization_settings_update on "app_private"."organization_settings"
   for update to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
@@ -937,7 +937,7 @@ create policy bsb_tenant_scope_insert on "app_private"."organization_settings" a
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 create policy bsb_tenant_scope_update on "app_private"."organization_settings" as restrictive
   for update to public
@@ -973,7 +973,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:0631e84e3b6816d39fb163759930bf8af6be5a2153ae49cba471514327a7d267
+-- @bsb-hash sha256:f26f6627d8f8829879b0d661547543e8e1ca5c0a518a319395d47e09f87ee5c2
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1025,7 +1025,7 @@ create policy bsb_organization_settings_read on "better_supabase"."organization_
   using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
@@ -1234,7 +1234,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."organization_setting
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public
@@ -1368,7 +1368,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:932e74be8c788399cad41dcf62b3180e68ae17c4376978acf888ee664f955e17
+-- @bsb-hash sha256:44e2596b9633e4960051b3354f9cb8e014d0f3bd030c6c121081b5bbe266ee8a
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1416,7 +1416,7 @@ create policy bsb_organization_settings_select on "better_supabase"."organizatio
   using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
@@ -1624,7 +1624,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."organization_setting
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public
@@ -1660,7 +1660,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:cbdf822a800de6db85031f5d5d0102cbdf51d481bc7fb226ff81bcb5843090cb
+-- @bsb-hash sha256:12076f8709c7f439c9c84100d6566faa21257b20a364907192725ee35b7a7ec8
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1712,7 +1712,7 @@ create policy bsb_organization_settings_read on "better_supabase"."organization_
   using ("org_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "org_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+  with check (("org_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
@@ -1921,7 +1921,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."organization_setting
   for insert to public
   with check (
     "org_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "org_id", 'settings.update'), false))
+    or ("org_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public

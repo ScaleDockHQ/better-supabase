@@ -126,6 +126,14 @@ export interface ImportRunEntity {
 export interface RunImportsOptions extends StartImportRunOptions {
   /** Items per `upsertBatch` call. Default 200. */
   readonly batchSize?: number | undefined;
+  /**
+   * Upper bound for the adaptive batch size. A batch that took under half of
+   * `targetBatchMs` doubles the next one up to this size; a batch over
+   * `targetBatchMs` halves it. Without it the size only shrinks.
+   */
+  readonly maxBatchSize?: number | undefined;
+  /** The batch duration the size aims at, in milliseconds. Default 30,000. */
+  readonly targetBatchMs?: number | undefined;
   /** Called after each batch with the entity's running totals. */
   readonly onBatch?:
     | ((progress: {
@@ -143,6 +151,8 @@ export interface ImportRunResult {
   readonly counts: Readonly<Record<string, ImportEntityCounts>>;
   /** Rejected items, by entity, with the batch's hint code. */
   readonly errors: readonly ImportRunError[];
+  /** The batch size to start the next run of this source with. */
+  readonly suggestedBatchSize: number;
   readonly warnings: readonly {
     readonly entity: string;
     readonly key: string | null;
@@ -331,9 +341,20 @@ export function createImports(options: ImportsOptions): Imports {
   });
 
   const client: Imports = {
-    run: ({ organizationId, source, entities, batchSize, onBatch, ...start }) =>
+    run: ({
+      organizationId,
+      source,
+      entities,
+      batchSize,
+      maxBatchSize,
+      targetBatchMs,
+      onBatch,
+      ...start
+    }) =>
       AsyncResult.from(async () => {
-        const size = Math.max(1, batchSize ?? 200);
+        const tuning = { size: Math.max(1, batchSize ?? 200) };
+        const target = Math.max(1, targetBatchMs ?? 30_000);
+        const ceiling = maxBatchSize ?? 0;
 
         const started = await hooked.runs.start({
           organizationId,
@@ -366,15 +387,64 @@ export function createImports(options: ImportsOptions): Imports {
           let sent = 0;
           let rejected = 0;
 
-          const flush = async () => {
+          // A batch that hits the statement timeout (57014) is split in two
+          // and each half is sent again, down to one item.
+          const send = async (
+            part: readonly ImportItem[],
+          ): Promise<Awaited<ReturnType<typeof hooked.upsertBatch>>> => {
             const reply = await hooked.upsertBatch({
               runId: id,
               entity,
-              items: batch,
+              items: part,
             });
+
+            if (reply.ok || reply.error.code !== "57014" || part.length < 2) {
+              return reply;
+            }
+
+            tuning.size = Math.max(1, Math.floor(part.length / 2));
+
+            const middle = Math.ceil(part.length / 2);
+            const first = await send(part.slice(0, middle));
+
+            if (!first.ok) {
+              return first;
+            }
+
+            const second = await send(part.slice(middle));
+
+            if (!second.ok) {
+              return second;
+            }
+
+            return ok({
+              inserted: first.data.inserted + second.data.inserted,
+              updated: first.data.updated + second.data.updated,
+              unchanged: first.data.unchanged + second.data.unchanged,
+              conflicted: first.data.conflicted + second.data.conflicted,
+              errors: [...first.data.errors, ...second.data.errors],
+              warnings: [
+                ...(first.data.warnings ?? []),
+                ...(second.data.warnings ?? []),
+              ],
+              dryRun: first.data.dryRun,
+            });
+          };
+
+          const flush = async () => {
+            const started = performance.now();
+            const reply = await send(batch);
 
             if (!reply.ok) {
               return reply;
+            }
+
+            const took = performance.now() - started;
+
+            if (took > target) {
+              tuning.size = Math.max(1, Math.floor(tuning.size / 2));
+            } else if (took < target / 2 && tuning.size < ceiling) {
+              tuning.size = Math.min(ceiling, tuning.size * 2);
             }
 
             sent += batch.length;
@@ -397,7 +467,7 @@ export function createImports(options: ImportsOptions): Imports {
           for await (const item of items) {
             batch.push(item);
 
-            if (batch.length >= size) {
+            if (batch.length >= tuning.size) {
               const flushed = await flush();
 
               if (!flushed.ok) {
@@ -427,6 +497,7 @@ export function createImports(options: ImportsOptions): Imports {
           counts: finished.data,
           errors,
           warnings,
+          suggestedBatchSize: tuning.size,
         });
       }),
     start: ({ organizationId, source, mapping }) =>

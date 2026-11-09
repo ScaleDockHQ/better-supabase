@@ -1,6 +1,6 @@
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:6274d588b78b942b5e2859c856c402dbfe14dc0d7458bf4f1d832cb18e591f9e
+-- @bsb-hash sha256:b262f9aafd956dfbe20d6c0723918d953938ac9b0ef34c524a64a4ea6d5bf904
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1530,11 +1530,11 @@ create policy bsb_tenant_scope_delete on "better_supabase"."shift_availability" 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.shifts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift","event_prefix":"shift"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.shift_templates deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift_template","event_prefix":"shift_template"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.shift_assignments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift_assignment","event_prefix":"shift_assignment"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.shift_swaps deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift_swap","event_prefix":"shift_swap"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.shift_availability deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift_availability","event_prefix":"shift_availability"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shifts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift","event_prefix":"shift"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shift_templates deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift_template","event_prefix":"shift_template"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shift_assignments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift_assignment","event_prefix":"shift_assignment"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shift_swaps deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift_swap","event_prefix":"shift_swap"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shift_availability deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shift_availability","event_prefix":"shift_availability"}');
 
 -- blocks.shifts.api: entry points for the Data API.
 create schema if not exists "api";

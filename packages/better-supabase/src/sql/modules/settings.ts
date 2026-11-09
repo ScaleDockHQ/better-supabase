@@ -307,9 +307,6 @@ function build(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("settings");
 
-  const can = (tenant: string, action: "read" | "update"): string =>
-    ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
-
   const member = (tenant: string, action: "read" | "update"): string =>
     ctx.scope.check(tenant, ctx.permission(action, permissions[action]));
 
@@ -463,7 +460,7 @@ ${revokeTable(o)}
 grant select, insert, update, delete on ${o} to authenticated;
 grant all on ${o} to service_role;
 ${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_read"), table: o, command: "select", roles: ["authenticated"], using: member(oc("tenant"), "read") }), { target: o })}
-${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_insert"), table: o, command: "insert", roles: ["authenticated"], check: can(oc("tenant"), "update") }), { target: o })}
+${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_insert"), table: o, command: "insert", roles: ["authenticated"], check: member(oc("tenant"), "update") }), { target: o })}
 ${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_update"), table: o, command: "update", roles: ["authenticated"], using: member(oc("tenant"), "update"), check: member(oc("tenant"), "update") }), { target: o })}
 ${renderPolicy(makePolicy({ name: ctx.naming.rename("organization_settings_delete"), table: o, command: "delete", roles: ["authenticated"], using: member(oc("tenant"), "update") }), { target: o })}
 

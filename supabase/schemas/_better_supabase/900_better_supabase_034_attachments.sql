@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:3fa399398f9805cdaca602eefe1744aa83b5b369b6badc509865db1e8a7f3476
+-- @bsb-hash sha256:c7a837b8c04e5ec44459ac18d66f16670c58e47100cb298b56b5d81627e9a000
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -428,12 +428,26 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 create policy bsb_attachments_read on "better_supabase"."attachments"
   for select to authenticated
-  using (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and ("subject_type" is null or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or case "subject_type"
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id") and "tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("subject_id")::uuid and s."tenant_id" = "tenant_id" and ("tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+  end)));
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
     and (coalesce(better_supabase.can('tenant', "tenant_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+    and ("subject_type" is null or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or case "subject_type"
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id") and "tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("subject_id")::uuid and s."tenant_id" = "tenant_id" and ("tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+  end))) and (select better_supabase.actor_may_write()));
 create policy bsb_attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
@@ -1287,7 +1301,14 @@ create policy bsb_tenant_scope_select on "better_supabase"."attachments" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and ("subject_type" is null or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or case "subject_type"
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id") and "tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("subject_id")::uuid and s."tenant_id" = "tenant_id" and ("tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+  end)))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
   for insert to public
@@ -1295,7 +1316,14 @@ create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as rest
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
     and (coalesce(better_supabase.can('tenant', "tenant_id", case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
-    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    and ("subject_type" is null or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or case "subject_type"
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id") and "tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("subject_id")::uuid and s."tenant_id" = "tenant_id" and ("tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("subject_id")::uuid and s."organization_id" = "tenant_id")
+    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+  end)))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive
   for update to public
@@ -1341,7 +1369,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.attachments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"attachment","event_prefix":"attachment"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.attachments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"attachment","event_prefix":"attachment"}');
 
 -- blocks.attachments.api: entry points for the Data API.
 create schema if not exists "api";

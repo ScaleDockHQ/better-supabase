@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:b49c06f41a48fefccb05c0b268e329d0045e54f92b51c56c748da42b846afb74
+-- @bsb-hash sha256:80960d03ab413b618a047d9d94ed03cbca0e08afa1ca12dd2eb61ffafcfd12e3
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -53,7 +53,7 @@ create policy bsb_workspace_settings_read on "better_supabase"."workspace_settin
   using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_workspace_settings_insert on "better_supabase"."workspace_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 create policy bsb_workspace_settings_update on "better_supabase"."workspace_settings"
   for update to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
@@ -262,7 +262,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."workspace_settings" 
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."workspace_settings" as restrictive
   for update to public

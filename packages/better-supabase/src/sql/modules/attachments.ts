@@ -24,6 +24,7 @@ import {
 } from "../subjects.ts";
 import {
   attachmentInsertDefaults,
+  inlineSubjectReadable,
   columnOrNull,
   namedRowJson,
   scanColumns,
@@ -385,6 +386,13 @@ end;`;
     { guest: true },
   );
 
+  const readablePolicySql = inlineSubjectReadable(ctx, layout, subjects, {
+    type: c("subjectType"),
+    id: c("subjectId"),
+    tenant: c("tenant"),
+    fallback: `${ctx.fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
+  });
+
   const cascades = subjectCascades(
     ctx,
     subjects,
@@ -594,7 +602,7 @@ $$;
 revoke execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) from public, anon;
 grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) to authenticated, service_role;
 
-${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_read`), command: "select", roles: ["authenticated"], using: `${memberIn("read")} and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { target: t })}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_read`), command: "select", roles: ["authenticated"], using: `${memberIn("read")} and ${readablePolicySql}` }), { target: t })}
 ${renderPolicy(
   makePolicy({
     table: t,
@@ -603,7 +611,7 @@ ${renderPolicy(
     roles: ["authenticated"],
     check: `${c("uploadedBy")} = (select auth.uid())
     and ${inTenant("", "upload")}
-    and ${fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
+    and ${readablePolicySql}`,
   }),
   { target: t },
 )}
