@@ -29,6 +29,7 @@ import {
   chunkTable,
 } from "./imports-chunks.ts";
 import { HASH_CONTRACT, hashFunctions } from "./imports-hashes.ts";
+import { importLifecycleSql } from "./imports-lifecycle.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** The SQLSTATE a dry run raises to roll its writes back. */
@@ -310,6 +311,15 @@ create table if not exists ${records} (
 );
 create index if not exists ${sqlIdent(`${recordsName}_subject_idx`)} on ${records} (${x("tenant")}, ${x("subjectType")}, ${x("subjectId")});
 ${lockTable(records, { read: true })}
+create table if not exists ${ctx.schema}.import_refs (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" ${ctx.idType} not null,
+  "kind" text not null,
+  "key" text not null,
+  "payload" jsonb not null default '{}'::jsonb,
+  "created_at" timestamptz not null default now(),
+  constraint import_refs_key unique ("tenant_id", "kind", "key")
+);
 ${chunkTable(ctx, runs)}`
     : "";
 
@@ -959,29 +969,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${ctx.fn("finish_import_run")}(uuid)`)}
-
-create or replace function ${ctx.fn("heartbeat_import_run")}(run uuid, seconds integer default 30)
-returns timestamptz
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_until timestamptz;
-begin
-  if not (auth.role() = 'service_role') then
-    ${fail("IMPORT_FORBIDDEN", "only the service role can heartbeat an import")}
-  end if;
-  update ${runs} r set ${r("heartbeatAt")} = now(), ${r("leaseUntil")} = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
-  where r.${r("id")} = heartbeat_import_run.run and r.${r("status")} = 'running'
-  returning r.${r("leaseUntil")} into v_until;
-  if v_until is null then
-    ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
-  end if;
-  return v_until;
-end;
-$$;
-${serviceGrant(`${ctx.fn("heartbeat_import_run")}(uuid, integer)`)}
+${importLifecycleSql(ctx)}
 
 -- Queues one job per chunk of an entity's items, so a worker writes a large
 -- import in batches; the dedupe key makes a retry harmless.
@@ -1050,6 +1038,11 @@ function contract(): readonly BlockSqlContractFunction[] {
       name: "heartbeat_import_run",
       args: ["uuid", "integer"],
       returns: "timestamptz",
+    },
+    {
+      name: "import_ensure_ref",
+      args: ["{id}", "text", "text", "jsonb"],
+      returns: "jsonb",
     },
     {
       name: "enqueue_import_chunks",
