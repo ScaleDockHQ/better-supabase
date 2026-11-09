@@ -712,7 +712,8 @@ security definer
 set search_path = ''
 as $$
   insert into better_supabase.user_authz_versions as v (user_id)
-  select distinct u from unnest(p_users) u where u is not null
+  select distinct u from unnest(p_users) u
+  where u is not null and exists (select 1 from auth.users x where x.id = u)
   on conflict (user_id) do update
     set version = v.version + 1, updated_at = now()
 $$;
