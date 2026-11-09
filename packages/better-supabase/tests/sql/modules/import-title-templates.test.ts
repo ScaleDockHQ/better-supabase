@@ -22,7 +22,7 @@ const sqlOf = (
 describe("import title templates", () => {
   it("keeps the English default titles", () => {
     expect(sqlOf(["invoices", "quotes"], "quotes")).toContain(
-      `replace('Quote {number}', '{number}', v_number)`,
+      `replace('Quote {number}', '{number}', coalesce(v_number, ''))`,
     );
     expect(sqlOf(["invoices"], "invoices")).toContain(
       `replace('Invoice {number}', '{number}', coalesce(v_number, 'draft'))`,
@@ -37,7 +37,9 @@ describe("import title templates", () => {
       sqlOf(["invoices", "quotes"], "quotes", {
         quotes: { titleTemplate: "Offerte {number}" },
       }),
-    ).toContain(`replace('Offerte {number}', '{number}', v_number)`);
+    ).toContain(
+      `replace('Offerte {number}', '{number}', coalesce(v_number, ''))`,
+    );
 
     const invoices = sqlOf(["invoices"], "invoices", {
       invoices: {

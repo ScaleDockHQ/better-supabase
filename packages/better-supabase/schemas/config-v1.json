@@ -5871,6 +5871,14 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "titleTemplate": {
+                "type": "string",
+                "default": "Invoice {number}"
+              },
+              "openingTitleTemplate": {
+                "type": "string",
+                "default": "Opening balance {number}"
+              },
               "company": {
                 "type": "string",
                 "default": "company"
@@ -6492,6 +6500,10 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "titleTemplate": {
+                "type": "string",
+                "default": "Order {number}"
+              },
               "paymentWindowMinutes": {
                 "type": "number",
                 "default": 30
@@ -6906,6 +6918,10 @@
               "prefix": {
                 "type": "string",
                 "default": "Q-"
+              },
+              "titleTemplate": {
+                "type": "string",
+                "default": "Quote {number}"
               },
               "validDays": {
                 "type": "number",

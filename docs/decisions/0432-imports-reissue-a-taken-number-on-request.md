@@ -1,4 +1,4 @@
-# 0430: Re-issue a taken number when the item asks
+# 0432: Re-issue a taken number when the item asks
 
 - Status: accepted
 - Date: 2026-11-09

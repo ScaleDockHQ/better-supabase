@@ -1,4 +1,4 @@
--- onTaken: next_free (ADR 0430): an imported quote or invoice whose number is
+-- onTaken: next_free (ADR 0432): an imported quote or invoice whose number is
 -- already taken gets the next free number and a IMPORT_NUMBER_REASSIGNED
 -- warning, and without it the item is still an error.
 begin;
