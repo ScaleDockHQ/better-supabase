@@ -199,13 +199,16 @@ export const setTaskField = bsb.action(
         ? { dueOn: values.due_on }
         : { assigneeId: values.assignee_id };
 
-    const results = await Promise.all(
-      ids.map((id) => db.tasks.update(id, patch)),
+    // One statement for every id, so a hundred rows cost one round trip.
+    const result = await db.tasks.update(
+      { where: { id: { in: [...ids] } } },
+      patch,
+      { maxAffected: ids.length },
     );
 
     await refreshCaller(auth);
 
-    return ok(results.filter((result) => result.ok).length);
+    return ok(result.ok ? result.data.count : 0);
   },
 );
 
