@@ -332,7 +332,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:2759d8771ed0c7f2d66fae85f8ab002bdf318f5cf10ae7b8bb3dc2051d44a54e
+-- @bsb-hash sha256:6eaafbec1b4950a9c643eeb31fc19117e5d2c138118bb6419d8e684c75d7cd48
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -352,6 +352,22 @@ create table "better_supabase"."status_history" (
   "reason" text,
   "created_at" timestamptz not null default now()
 );
+create or replace function better_supabase.bsb_record_visible(p_table text, p_column text, p_id text)
+returns boolean
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_found boolean;
+begin
+  execute format('select exists (select 1 from %s s where s.%I::text = $1)', p_table::regclass, p_column)
+    into v_found using p_id;
+  return coalesce(v_found, false);
+end;
+$$;
+revoke execute on function better_supabase.bsb_record_visible(text, text, text) from public, anon;
+grant execute on function better_supabase.bsb_record_visible(text, text, text) to authenticated, service_role;
 create index status_history_subject_idx on "better_supabase"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "better_supabase"."status_history" enable row level security;
 revoke all on "better_supabase"."status_history" from public, anon, authenticated;
@@ -360,7 +376,7 @@ grant all on "better_supabase"."status_history" to service_role;
 create policy bsb_status_history_read on "better_supabase"."status_history"
   for select to authenticated
   using (case "better_supabase"."status_history"."subject_type"
-      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."status_history"."subject_id")
       else false
     end);
 create table "better_supabase"."status_stages" (
@@ -382,7 +398,7 @@ grant all on "better_supabase"."status_stages" to service_role;
 create policy bsb_status_stages_read on "better_supabase"."status_stages"
   for select to authenticated
   using (case "better_supabase"."status_stages"."subject_type"
-      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."status_stages"."subject_id")
       else false
     end);
 create table "better_supabase"."subject_lifecycles" (
@@ -408,7 +424,7 @@ grant all on "better_supabase"."subject_lifecycles" to service_role;
 create policy bsb_subject_lifecycles_read on "better_supabase"."subject_lifecycles"
   for select to authenticated
   using (case "better_supabase"."subject_lifecycles"."subject_type"
-      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."subject_lifecycles"."subject_id")
       else false
     end);
 
@@ -716,7 +732,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."status_history" as r
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (case "better_supabase"."status_history"."subject_type"
-      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."status_history"."subject_id")
       else false
     end)
   );
@@ -735,7 +751,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."status_stages" as re
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (case "better_supabase"."status_stages"."subject_type"
-      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = ("better_supabase"."status_stages"."subject_id")::uuid)
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."status_stages"."subject_id")
       else false
     end)
   );
@@ -754,7 +770,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."subject_lifecycles" 
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or (case "better_supabase"."subject_lifecycles"."subject_type"
-      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = ("better_supabase"."subject_lifecycles"."subject_id")::uuid)
+      when 'warranty_claim' then better_supabase.bsb_record_visible('"better_supabase"."warranty_claims"', 'id', "better_supabase"."subject_lifecycles"."subject_id")
       else false
     end)
   );

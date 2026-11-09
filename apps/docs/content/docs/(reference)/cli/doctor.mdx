@@ -2626,6 +2626,13 @@ this release renamed. `codemod naming` rewrites the audit lists. Update a JSON
 key a block function used to return. `organization_id` in your own JSON is
 left alone, and files `upgrade` rewrites are skipped.
 
+### BS628
+
+**Warning: a list cursor has no matching index.** A list function orders or
+continues by `created_at` and `id`, and the same file has no btree index that
+contains both columns. The cursor then sorts the tenant on every page. Add an
+index on `(tenant, created_at, id)` in the same direction as the order.
+
 ### BS629
 
 **Warning: a migration drops import dispatch arms.** The newest migration that
