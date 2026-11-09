@@ -9,6 +9,7 @@ import {
   overAppViews,
   withoutAppTableEdits,
   withoutCoveredIndexes,
+  withoutImpliedUniqueIndexes,
   withoutUnmappedColumns,
   withoutUnmappedTables,
 } from "../over-app-tables.ts";
@@ -99,24 +100,28 @@ export function overApp(
   const appViews = appTableSet(ctx, ctx.appViews);
 
   return withoutAppTablePolicies(
-    withoutCoveredIndexes(
-      withoutUnmappedColumns(
-        withoutUnmappedTables(
-          blockNamesOnAppTables(
-            withoutAppTableEdits(
-              overAppTables(
-                overAppViews(sql, appViews),
+    withoutImpliedUniqueIndexes(
+      withoutCoveredIndexes(
+        withoutUnmappedColumns(
+          withoutUnmappedTables(
+            blockNamesOnAppTables(
+              withoutAppTableEdits(
+                overAppTables(
+                  overAppViews(sql, appViews),
+                  appTables,
+                  layout.ownColumns,
+                ),
                 appTables,
-                layout.ownColumns,
               ),
               appTables,
+              layout.ownUpdatedAtTriggers,
             ),
-            appTables,
-            layout.ownUpdatedAtTriggers,
+            ctx.instance,
           ),
           ctx.instance,
         ),
-        ctx.instance,
+        appTables,
+        layout.ownIndexes,
       ),
       appTables,
       layout.ownIndexes,

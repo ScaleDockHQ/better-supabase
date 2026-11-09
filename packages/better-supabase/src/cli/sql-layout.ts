@@ -526,7 +526,11 @@ async function databaseTables(
             [undefined, "btree"].includes(index.method) &&
             !blockIndexes.has(index.name),
         )
-        .map((index) => ({ name: index.name, columns: index.columns }));
+        .map((index) => ({
+          name: index.name,
+          columns: index.columns,
+          ...(index.unique ? { unique: true } : {}),
+        }));
     }
   }
 

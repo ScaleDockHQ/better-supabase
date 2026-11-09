@@ -55,9 +55,13 @@ Apps keep the check and its cost. The PGlite test in
 deferrable cases. Revisit the default when a batch profile on CentraKit puts the
 same_tenant triggers above the item loop.
 
-Not done in the same change, and left for the next plan: pinning the old default
-names of existing app tables in `codemod naming` (drive `deleted_at`, the actor
-columns of scorecards and status history), renaming block column names in the
-app's own SQL and seeds. The trace diff of the runtime program between 0.57 and
-0.58 (346k to 405k types), the server bench program and the profile of the
-`gen` and `upgrade --check` times are in ADR 0591.
+`codemod naming` pins the old default name of a column that an app's own table
+of a block still carries (drive `deleted_at`, the actor columns of scorecards
+and status history) in `blocks.<name>.columns`, and renames block column names
+in the app's schema files and seeds, in statements that name a `better_supabase`
+table (never in migrations). A block leaves out a unique index over the app's
+unique key (the same columns, or a subset for the invoices number key) and its
+own `updated_at` trigger on a table the app tracks with `track_updated_at()`;
+BS623 and BS624 report only what remains. The trace diff of the runtime program
+between 0.57 and 0.58 (346k to 405k types), the server bench program and the
+profile of the `gen` and `upgrade --check` times are in ADR 0591.

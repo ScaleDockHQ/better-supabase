@@ -1,5 +1,9 @@
 import { withoutComments } from "./audit-registrations.ts";
-import { indexStatements, qualified } from "./schema-scan.ts";
+import {
+  indexStatements,
+  qualified,
+  TRACK_UPDATED_AT_CALL,
+} from "./schema-scan.ts";
 
 /** A block object an app object of the same table already covers. */
 export interface DuplicateObject {
@@ -19,8 +23,6 @@ export interface DuplicateObject {
 
 const TRIGGER_CALL =
   /\bcreate\s+(?:or\s+replace\s+)?trigger\s+("?[\w$]+"?)\s+(?:before|after)\s[^;]*?\bon\s+((?:"?[\w$]+"?\s*\.\s*)?"?[\w$]+"?)[^;]*?\bexecute\s+(?:function|procedure)\s+([\w$."]+)\s*\(/gi;
-
-const TRACK_CALL = /\btrack_updated_at\s*\(\s*'((?:[\w$]+\.)?[\w$]+)'/gi;
 
 const sameSet = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((column) => b.includes(column));
@@ -87,7 +89,7 @@ export function duplicateObjects(
 
   const tracked = new Set(
     app.flatMap((text) =>
-      [...text.matchAll(TRACK_CALL)].map((match) =>
+      [...text.matchAll(TRACK_UPDATED_AT_CALL)].map((match) =>
         qualified(match[1]!.includes(".") ? match[1]! : `public.${match[1]!}`),
       ),
     ),

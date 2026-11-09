@@ -12,6 +12,12 @@ import naming from "../../api/naming.json" with { type: "json" };
 import { bsbPolicyName, readPolicies } from "../sql/index.ts";
 import { renameArguments, renameBlockReferences } from "./codemod-arguments.ts";
 import { renameConfigKeys } from "./codemod-config-keys.ts";
+import {
+  columnPins,
+  renameSqlColumns,
+  withColumnPins,
+} from "./codemod-naming-pins.ts";
+import { ownLayout } from "./sql-layout.ts";
 
 export type RenameKind =
   | "argument"
@@ -358,6 +364,46 @@ export function namingCodemod(
         review: keys.review,
       };
     },
+    files: async (project) => {
+      if (project.configLoaded === false) {
+        return (_path, text) => ({ text, review: [] });
+      }
+
+      let pins: ReturnType<typeof columnPins> = [];
+
+      try {
+        const own = await ownLayout(project.config);
+
+        pins = columnPins(
+          project.config,
+          renames,
+          own.ownTables ?? {},
+          own.ownColumns ?? {},
+        );
+      } catch {
+        // Without the project's tables nothing says which names the app keeps.
+      }
+
+      return (path, text) => {
+        if (pins.length === 0 || path !== project.configFile) {
+          return { text, review: [] };
+        }
+
+        const pinned = withColumnPins(text, pins);
+
+        return {
+          text: pinned.text,
+          review: pinned.missed.map((pin) => ({
+            line: 1,
+            message: `Your table keeps "${pin.name}", which 0.58 names differently. Add \`columns: { ${pin.table}: { ${pin.column}: "${pin.name}" } }\` to blocks.${pin.block}.`,
+          })),
+        };
+      };
+    },
+    sql: (text, context) =>
+      context.configLoaded
+        ? renameSqlColumns(text, renames, context.tenantColumns)
+        : text,
     migration: (sql, context) => {
       const migration = renameMigrationSql(renames, sql, context);
       const review: string[] = [];

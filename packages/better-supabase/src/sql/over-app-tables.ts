@@ -468,3 +468,77 @@ export function withoutCoveredIndexes(
     })
     .join("");
 }
+
+/**
+ * The line before a unique index whose key the app's own stricter key makes
+ * redundant, so `withoutImpliedUniqueIndexes` may leave it out. Only an index
+ * no `on conflict` target or foreign key needs carries it.
+ */
+export const IMPLIED_UNIQUE_MARK = "-- @bsb-implied-unique";
+
+/**
+ * `sql` without the unique indexes it creates on the app's tables in
+ * `appTables` that a unique key of the app's already implies. An index over the
+ * same columns is left out; so is one the module marks with
+ * `IMPLIED_UNIQUE_MARK` when the app's key covers a subset of its columns. The
+ * mark is removed from the rest. An index named like one `sql` creates doesn't
+ * count, since the block made it, and a `nulls not distinct` or partial index
+ * stays.
+ */
+export function withoutImpliedUniqueIndexes(
+  sql: string,
+  appTables: ReadonlySet<string>,
+  ownIndexes: Readonly<Record<string, readonly OwnIndex[]>> = {},
+): string {
+  const unmarked = (text: string): string =>
+    text.replaceAll(new RegExp(`${IMPLIED_UNIQUE_MARK}\\n?`, "g"), "");
+
+  if (
+    !sql.includes(IMPLIED_UNIQUE_MARK) &&
+    Object.keys(ownIndexes).length === 0
+  ) {
+    return sql;
+  }
+
+  const blockIndexes = new Set(
+    indexStatements(maskComments(sql)).map((index) => index.name),
+  );
+
+  return statementSpans(sql)
+    .map(([from, to]) => {
+      const statement = sql.slice(from, to);
+      const masked = maskComments(statement);
+      const [index] = indexStatements(masked);
+
+      if (
+        index === undefined ||
+        !appTables.has(index.table) ||
+        !index.unique ||
+        index.partial ||
+        !index.plain ||
+        index.method !== "btree" ||
+        /\bnulls\s+not\s+distinct\b/i.test(masked)
+      ) {
+        return unmarked(statement);
+      }
+
+      const marked = statement.includes(IMPLIED_UNIQUE_MARK);
+
+      const covering = (ownIndexes[index.table] ?? []).find(
+        (own) =>
+          own.unique === true &&
+          !blockIndexes.has(own.name) &&
+          own.columns.every((column) => index.columns.includes(column)) &&
+          (marked || own.columns.length === index.columns.length),
+      );
+
+      if (covering === undefined) {
+        return unmarked(statement);
+      }
+
+      const start = /\bcreate\b/i.exec(masked)!.index;
+
+      return `${unmarked(statement.slice(0, start))}-- ${index.table} already has a unique key on (${covering.columns.join(", ")}), so this block adds none.`;
+    })
+    .join("");
+}

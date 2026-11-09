@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
+import type { OwnIndex } from "../../src/sql/schema-scan.ts";
 
 import { canBeAppTable } from "../../src/sql/app-owned.ts";
 import { moduleContext } from "../../src/sql/module-context.ts";
@@ -8,7 +9,9 @@ import { runsOverAppTables } from "../../src/sql/module-types.ts";
 import {
   overAppTables,
   withoutAppTableEdits,
+  IMPLIED_UNIQUE_MARK,
   withoutCoveredIndexes,
+  withoutImpliedUniqueIndexes,
   withoutUnmappedColumns,
   withoutUnmappedTables,
 } from "../../src/sql/over-app-tables.ts";
@@ -483,5 +486,70 @@ create index if not exists other_idx on "public"."others" ("organization_id");
     expect(out).toContain(
       "-- public.team_members already has an index on (organization_id, user_id)",
     );
+  });
+});
+
+describe("withoutImpliedUniqueIndexes", () => {
+  const sql = `create unique index if not exists a_key on "public"."t" ("org", "kind", "number");
+create unique index if not exists b_key on "public"."t" ("org", "id");
+${IMPLIED_UNIQUE_MARK}
+create unique index if not exists c_key on "public"."t" ("org", "kind", "code");
+create unique index if not exists d_key on "public"."t" ("x") nulls not distinct;
+`;
+
+  const tables = new Set(["public.t"]);
+
+  it("leaves out an index over the app's unique key, and a marked one it implies", () => {
+    const out = withoutImpliedUniqueIndexes(sql, tables, {
+      "public.t": [
+        { name: "mine", columns: ["org", "number"], unique: true },
+        { name: "ids", columns: ["id", "org"], unique: true },
+        { name: "codes", columns: ["org", "code"], unique: true },
+        { columns: ["x"], unique: true },
+      ],
+    });
+
+    // The weaker key is only left out when the module marks it.
+    expect(out).toContain("create unique index if not exists a_key");
+    expect(out).not.toContain("b_key on");
+    expect(out).toContain(
+      "-- public.t already has a unique key on (org, code), so this block adds none.",
+    );
+
+    expect(out).toContain("d_key");
+    expect(out).not.toContain(IMPLIED_UNIQUE_MARK);
+  });
+
+  it("keeps every index when the app has no unique key over them", () => {
+    const out = withoutImpliedUniqueIndexes(sql, tables, {
+      "public.t": [{ columns: ["org", "number"] }],
+    });
+
+    expect(out).toBe(sql.replace(`${IMPLIED_UNIQUE_MARK}\n`, ""));
+  });
+
+  it("renders invoices without a number key the app's stricter key implies", () => {
+    const render = (ownIndexes: Record<string, OwnIndex[]>): string =>
+      renderBlocks(["invoices"], {
+        ownTables: { "public.invoices": "app.sql" },
+        ownIndexes,
+        modules: { invoices: { tables: { invoices: "public.invoices" } } },
+      })
+        .filter((entry) => entry.module === "invoices")
+        .map((entry) => entry.contents)
+        .join("\n");
+
+    const key = "invoices_tenant_id_direction_kind_identifier_key";
+
+    expect(render({})).toContain(key);
+
+    const stricter = render({
+      "public.invoices": [
+        { name: "mine", columns: ["tenant_id", "identifier"], unique: true },
+      ],
+    });
+
+    expect(stricter).not.toContain(key);
+    expect(stricter).not.toContain(IMPLIED_UNIQUE_MARK);
   });
 });

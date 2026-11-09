@@ -209,6 +209,7 @@ export async function runCodemod(
 
   const projectInput = {
     config,
+    configLoaded: configError === undefined,
     sql: await projectSqlFiles(config.root),
     ...(configFile === undefined
       ? {}
@@ -250,10 +251,27 @@ export async function runCodemod(
     );
   }
 
-  const migration = codemod.migration?.(await projectSql(config.root), {
+  const context = {
     configLoaded: configError === undefined,
     tenantColumns: tenantColumnsOf(config),
-  });
+  };
+
+  if (codemod.sql !== undefined) {
+    for (const file of projectInput.sql) {
+      // A pushed migration is never rewritten.
+      if (/(?:^|[\\/])migrations[\\/]/.test(file.path)) {
+        continue;
+      }
+
+      const text = codemod.sql(file.text, context);
+
+      if (text !== file.text) {
+        edits.push({ path: file.path, contents: text, policy: "edit" });
+      }
+    }
+  }
+
+  const migration = codemod.migration?.(await projectSql(config.root), context);
 
   for (const message of migration?.review ?? []) {
     review.push({ file: "", line: 1, message });

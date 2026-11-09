@@ -27,6 +27,8 @@ export interface CodemodProject {
   /** The config file, when one was found, and its text. */
   readonly configFile?: string;
   readonly configText?: string;
+  /** False when the config did not load and `config` is the default one. */
+  readonly configLoaded?: boolean;
 }
 
 /** What a codemod's migration knows about the project's config. */
@@ -67,6 +69,11 @@ export interface Codemod {
    * rewrite, which runs after `source`.
    */
   readonly files?: (project: CodemodProject) => Promise<FileRewrite>;
+  /**
+   * A rewrite of each of the project's own `.sql` files (schema files, seeds),
+   * except migrations, which are never rewritten, and files the blocks wrote.
+   */
+  readonly sql?: (text: string, context: MigrationContext) => string;
   /**
    * SQL for a hand migration the codemod writes next to the app's own, or
    * `undefined` when nothing needs renaming. `sql` is the text of the project's

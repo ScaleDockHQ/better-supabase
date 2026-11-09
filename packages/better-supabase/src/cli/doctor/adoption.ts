@@ -399,7 +399,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "A block's unique index repeats one of yours",
     description:
-      "A block creates a unique index on a table where your own files already have a unique index over the same columns, or over a subset of them. Yours is the stricter key, so the block's adds write cost and storage and guarantees nothing more. Drop the block's index, or narrow the block's key to the columns your index covers.",
+      "A block creates a unique index on a table where your own files already have a unique index over the same columns, or over a subset of them. Yours is the stricter key, so the block's adds write cost and storage and guarantees nothing more. Blocks already leave out an index over the same columns and the invoices number key your subset implies, so this finding means the index serves an `on conflict` target or a foreign key. Drop the block's index with a hand migration, or narrow the block's key to the columns your index covers.",
     check: (context) => duplicatedBlockObjects(context, "index"),
   },
   {
@@ -407,7 +407,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "A block's trigger repeats one of yours",
     description:
-      "A block creates a trigger that keeps `updated_at` current on a table where your files already call `track_updated_at()`, so both run on every write. Keep one of them.",
+      "A block creates a trigger that keeps `updated_at` current on a table where your files already call `track_updated_at()`, Blocks leave their own trigger out of a table whose files call it, so the finding appears only for a trigger the block still adds, and both then run on every write. Keep one of them.",
     check: (context) => duplicatedBlockObjects(context, "trigger"),
   },
   {
