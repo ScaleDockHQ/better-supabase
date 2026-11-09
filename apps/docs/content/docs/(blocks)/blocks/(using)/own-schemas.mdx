@@ -159,8 +159,8 @@ may be your own enum or domain.
   - `better_supabase.asset_locations`: `id`, `tenant_id`, `parent_id`, `kind`, `name`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.assets`: `id`, `tenant_id`, `location_id`, `kind`, `name`, `status`, `assignee_type`, `assignee_id`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.asset_assignments`: `id`, `tenant_id`, `asset_id`, `assignee_type`, `assignee_id`, `assigned_at`, `released_at`
-  - `better_supabase.asset_meter_readings`: `id`, `tenant_id`, `asset_id`, `unit`, `value`, `read_at`, `created_at`
-  - `better_supabase.asset_due_checks`: `id`, `tenant_id`, `asset_id`, `check_type`, `interval_days`, `updated_at`
+  - `better_supabase.asset_meter_readings`: `id`, `tenant_id`, `asset_id`, `unit`, `value`, `read_at`, `reason`, `created_at`
+  - `better_supabase.asset_due_checks`: `id`, `tenant_id`, `asset_id`, `check_type`, `interval_days`, `last_done_at`, `next_due_at`, `result`, `updated_at`
   - `better_supabase.asset_identifiers`: `id`, `tenant_id`, `asset_id`, `type`, `value`, `updated_at`
   - `better_supabase.asset_depreciations`: `id`, `tenant_id`, `asset_id`, `period_start`, `amount`, `entry_id`, `created_at`
 - `assignment`
