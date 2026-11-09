@@ -626,6 +626,27 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
+      name: "inventory_levels",
+      args: ["{id}", "uuid[]", "uuid"],
+      returns: "jsonb",
+    },
+    { name: "inventory_status_counts", args: ["{id}"], returns: "jsonb" },
+    {
+      name: "list_inventory_movements",
+      args: [
+        "{id}",
+        "uuid",
+        "uuid",
+        "uuid",
+        "uuid",
+        "text",
+        "text",
+        "integer",
+        "integer",
+      ],
+      returns: "jsonb",
+    },
+    {
       name: "save_location",
       args: ["{id}", "uuid", "text", "text", "text", "jsonb"],
       returns: "jsonb",
