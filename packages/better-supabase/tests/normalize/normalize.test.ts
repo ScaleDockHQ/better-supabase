@@ -12,6 +12,7 @@ import {
   normalizePostalCode,
   sanitizeText,
   splitPersonName,
+  classifyParty,
   splitStreet,
   validateIban,
 } from "../../src/normalize/index.ts";
@@ -28,6 +29,29 @@ describe("normalize", () => {
       last: "Berg",
       display: "Jan van der Berg",
     });
+  });
+
+  it("classifies people, families and companies", () => {
+    const rows = ["A. Gerritsen", "A.M. Gerritsen", "H. Gerritsen"].map(
+      (name) => classifyParty(name),
+    );
+
+    expect(rows.map((row) => row.displayName)).toEqual([
+      "A. Gerritsen",
+      "A.M. Gerritsen",
+      "H. Gerritsen",
+    ]);
+    expect(new Set(rows.map((row) => row.initials)).size).toBe(3);
+    expect(classifyParty("Jan van der Berg").given).toBe("Jan");
+    expect(classifyParty("Piet en Marie Jansen").displayName).toContain("Piet");
+    expect(classifyParty("Piet en Marie Jansen").displayName).toContain(
+      "Marie",
+    );
+    expect(classifyParty("Bakkerij Jansen bv")).toMatchObject({
+      kind: "company",
+      legalName: "Bakkerij Jansen bv",
+    });
+    expect(classifyParty("Bakkerij Jansen bv", "person").kind).toBe("person");
   });
 
   it("is idempotent for names, phones and postal codes", () => {

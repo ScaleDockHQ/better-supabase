@@ -163,6 +163,60 @@ export function splitPersonName(value: string): PersonName {
   return { given, initials: initials.join(" "), infix, last, display };
 }
 
+const BUSINESS_MARK =
+  /\b(?:b\.?v\.?|n\.?v\.?|gmbh|ltd\.?|llc|inc\.?|bvba|vof|stichting|holding)\b/iu;
+
+export type PartyKindChoice = "person" | "company" | "auto";
+
+/** A name classified for a contacts import. */
+export interface ClassifiedParty {
+  readonly kind: "person" | "company";
+  readonly displayName: string;
+  readonly legalName: string;
+  readonly given: string;
+  readonly initials: string;
+  readonly infix: string;
+  readonly last: string;
+}
+
+/**
+ * Classify a party name. `auto` treats a legal suffix as a company and keeps
+ * initials on a person, so three Gerritsen rows stay different people.
+ */
+export function classifyParty(
+  value: string,
+  kind: PartyKindChoice = "auto",
+): ClassifiedParty {
+  const name = normalizeName(value);
+  const person = splitPersonName(name);
+  const business = BUSINESS_MARK.test(name);
+  const decided = kind === "auto" ? (business ? "company" : "person") : kind;
+
+  if (decided === "company") {
+    return {
+      kind: "company",
+      displayName: name,
+      legalName: name,
+      given: "",
+      initials: "",
+      infix: "",
+      last: "",
+    };
+  }
+
+  const family = /\s(?:en|\/)\s/iu.test(name);
+
+  return {
+    kind: "person",
+    displayName: family ? name : person.display,
+    legalName: "",
+    given: person.given,
+    initials: person.initials,
+    infix: person.infix,
+    last: person.last,
+  };
+}
+
 /** An E.164-shaped number. A national trunk `0` uses `defaultRegion`. */
 export function normalizePhone(
   value: string,

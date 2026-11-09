@@ -34,4 +34,6 @@ source is built in. `detectMojibake` returns a score from 0 to 1, and
 `looksShouted` is true when most longer words are capitals.
 
 `splitPersonName` keeps initials and never expands them, and puts particles
-such as `van der` in `infix`.
+such as `van der` in `infix`. `classifyParty` uses that split. `auto` treats a
+legal suffix (`bv`, `gmbh`, `ltd`) as a company and stores `legalName`. A
+person keeps initials, so `A. Gerritsen` and `A.M. Gerritsen` stay different.
