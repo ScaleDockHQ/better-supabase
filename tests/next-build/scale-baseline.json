@@ -1,0 +1,15 @@
+{
+  "memberships150": {
+    "beforeBytes": 13201,
+    "adr0523SqlBytes": 14294,
+    "adr0523CookieChunks": 9
+  },
+  "bootstrapPermissions300": {
+    "beforeBytes": 6683,
+    "form": "full",
+    "tenants": 1
+  },
+  "routes": {
+    "note": "HTML, inline Flight and round trips are filled by tests/scale-payload.spec.ts when the production rig runs."
+  }
+}
