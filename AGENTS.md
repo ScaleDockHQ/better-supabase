@@ -448,6 +448,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0482: Use the runtime's Temporal in the browser and load the polyfill only when it is missing.
 - 0483: Load header dialogs on intent, render the side navigation on the server and load the chat panel after paint.
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
+- 0560: Keep `@ai-sdk/react` and the full Supabase browser client.
+- 0561: Load the board view and the task form on use.
 
 ## Pre-release pins
 

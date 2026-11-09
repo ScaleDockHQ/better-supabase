@@ -12684,15 +12684,16 @@ msgctxt "projects.VQ4jYD"
 msgid "{count} more"
 msgstr "{count} more"
 
-#: src/features/projects/components/task-form-dialog.tsx
-msgctxt "projects.991WgJ"
-msgid "Task created"
-msgstr "Task created"
-
+#: src/features/projects/components/task-form-dialog-lazy.tsx
 #: src/features/projects/components/task-form-dialog.tsx
 msgctxt "projects.K4O03z"
 msgid "New task"
 msgstr "New task"
+
+#: src/features/projects/components/task-form-dialog.tsx
+msgctxt "projects.991WgJ"
+msgid "Task created"
+msgstr "Task created"
 
 #: src/features/projects/components/task-form-dialog.tsx
 msgctxt "projects.7ALUeF"

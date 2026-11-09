@@ -25892,7 +25892,7 @@ export async function ProjectPage({ id }: { id: string }) {
             </CardDescription>
             <CardAction className="flex items-center gap-2">
               <TaskImportAction projectId={record.id} />
-              <TaskFormDialog
+              <TaskFormDialogLazy
                 projects={[{ id: record.id, name: record.name }]}
                 members={members.data}
                 defaultProjectId={record.id}

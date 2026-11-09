@@ -8,7 +8,8 @@
     "features/billing/components/billing-overview.tsx": "PlanGrid shows the plan picker with the seeded plans while the managed picker reads the subscription",
     "features/care/components/client-dossier.tsx": "each dossier tab is its own sibling boundary under one tab list",
     "features/crm/components/contact-detail.tsx": "the activity timeline streams beside the loaded contact card",
-    "features/customers/components/customer-detail.tsx": "each side section checks its own permission and streams on its own"
+    "features/customers/components/customer-detail.tsx": "each side section checks its own permission and streams on its own",
+    "features/projects/components/task-board-lazy.tsx": "the kanban code loads only for the board view, and a skeleton of the board's height holds the space"
   },
   "connection": {},
   "findings": []
