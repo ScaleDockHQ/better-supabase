@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:8d00fdb42dc08b19af30aedb7f39ff31497c86fb7503e272b9131397e26a7f04
+-- @bsb-hash sha256:219d1107661ee380c80d0ee874404bee5bdf9f7a58a6b5957ca069ee8d1294d6
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
