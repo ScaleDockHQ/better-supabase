@@ -450,6 +450,9 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
 - 0500: Check scale practices in doctor from the catalog and the schema files.
 - 0501: Keep the legal entity number key swaps as `do` blocks until the owning modules render the key.
+- 0540: Count object levels in `renameBlock`, not wrappers, and cap the depth at 4.
+- 0541: Record what the server layout items measured and why four stay open.
+- 0542: Build a route's server from a named block set, and load the help bot on demand.
 - 0560: Keep `@ai-sdk/react` and the full Supabase browser client.
 - 0561: Load the board view and the task form on use.
 - 0580: Turn a feature off when an owned table lacks its column.

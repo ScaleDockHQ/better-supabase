@@ -23,10 +23,9 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { createCustomer } from "@/features/customers-create/customers-create-actions";
 import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
-
-import { createCustomer } from "../customers-actions";
 
 export function CreateCustomerDialog() {
   const t = useExtracted("customers");

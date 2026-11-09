@@ -967,6 +967,7 @@ const ENTRIES = {
       tableModules: v.optional(v.boolean()),
       blockModules: v.optional(v.boolean()),
       clientBlocks: v.optional(v.array(v.string())),
+      serverBlocks: v.optional(v.record(v.string(), v.array(v.string()))),
       powersync: v.optional(powersyncGenSchema),
       api: v.optional(
         v.strictObject({

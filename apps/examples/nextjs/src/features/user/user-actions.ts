@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { avatars } from "@/lib/buckets";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import { ProfileRow } from "./profile-row";
 

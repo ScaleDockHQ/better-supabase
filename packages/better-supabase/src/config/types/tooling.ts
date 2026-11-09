@@ -122,6 +122,15 @@ export interface GenConfig {
    */
   readonly clientBlocks?: readonly string[];
   /**
+   * Named subsets of the installed instances for the server: `gen` writes
+   * `blocks.<name>.ts` with `<name>Blocks`, a `defineBlocks` set over only
+   * those instances, so a route that builds its server from it
+   * (`createServer(app.blocks(coreBlocks))`) bundles those blocks and not the
+   * rest of `blocks.generated.ts`. `gen` fails when a listed block requires a
+   * port no listed block provides. A renamed instance can't be listed.
+   */
+  readonly serverBlocks?: Readonly<Record<string, readonly string[]>>;
+  /**
    * Writes PowerSync sync streams for these block instances:
    * `sync-streams.yaml` and `schema.ts` in `out`, and a migration that adds
    * their tables to the `powersync` publication. Runs as the `powersync` task,

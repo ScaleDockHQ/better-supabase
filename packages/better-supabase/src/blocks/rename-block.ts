@@ -215,8 +215,9 @@ type Leaf =
 
 type Opaque = "fields" | "metadata";
 
-// The nesting a rename follows: client, method, result, row, nested row.
-type MaxDepth = 6;
+// The object nesting a rename follows: client, row, nested row, change. Methods,
+// promises, results and a list around an object do not count as a level.
+type MaxDepth = 4;
 
 type Deeper<D extends readonly unknown[]> = [...D, unknown];
 
@@ -240,15 +241,19 @@ type RenamedValue<
   : T extends Leaf
     ? T
     : T extends AsyncResult<infer V>
-      ? AsyncResult<RenamedValue<V, R, Deeper<D>>>
+      ? AsyncResult<RenamedValue<V, R, D>>
       : T extends Promise<infer V>
-        ? Promise<RenamedValue<V, R, Deeper<D>>>
+        ? Promise<RenamedValue<V, R, D>>
         : T extends (...args: infer A) => infer Ret
-          ? (
-              ...args: RenamedValue<A, R, Deeper<D>>
-            ) => RenamedValue<Ret, R, Deeper<D>>
+          ? (...args: RenamedValue<A, R, D>) => RenamedValue<Ret, R, D>
           : T extends readonly unknown[]
-            ? { [K in keyof T]: RenamedValue<T[K], R, Deeper<D>> }
+            ? {
+                [K in keyof T]: RenamedValue<
+                  T[K],
+                  R,
+                  T[K] extends readonly unknown[] ? Deeper<D> : D
+                >;
+              }
             : T extends object
               ? {
                   [K in keyof T as RenameKey<K, R>]: RenamedEntry<
@@ -261,9 +266,10 @@ type RenamedValue<
               : T;
 
 /**
- * `T` with every key renamed through `R`, nested up to six levels: rows, inputs
- * and filters. The values under `fields` and `metadata` keep their keys.
- * `RenamedType<Task, R>` has `initiativeId` where `Task` has `projectId`.
+ * `T` with every key renamed through `R`, nested up to four object levels:
+ * rows, inputs and filters. The values under `fields` and `metadata` keep their
+ * keys. `RenamedType<Task, R>` has `initiativeId` where `Task` has
+ * `projectId`.
  */
 export type RenamedType<T, R extends NounRenames> = R extends readonly []
   ? T

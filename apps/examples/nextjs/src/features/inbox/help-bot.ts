@@ -8,7 +8,7 @@ import {
   assistantContext,
 } from "@/features/assistant/assistant-server";
 import { blockConfig } from "@/lib/supabase/blocks.config";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 /** The API schema `gen` wrote for the inbox block. */
 const API_SCHEMA = blockConfig.inbox.api;

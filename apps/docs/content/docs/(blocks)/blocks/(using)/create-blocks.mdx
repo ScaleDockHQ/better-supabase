@@ -174,6 +174,38 @@ notifications topic is a template, which `fillTopic` fills in:
 | `waitlist.codeField`          | `waitlistHook`                             |
 | `webhooks-out.allowHttp`      | `publicUrl`, the webhook URL check         |
 
+## A server set for routes that need few blocks
+
+`betterSupabase.blocks()` over `blocks` loads every installed block into every
+route that imports the server. Name a subset in `gen.serverBlocks` and `gen`
+writes `blocks.<name>.ts` with `<name>Instances` and `<name>Blocks`, a
+`defineBlocks` over only those instances, each imported from its own subpath:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  gen: { serverBlocks: { core: ["permissions"] } },
+});
+```
+
+```ts title="src/lib/supabase/core.ts"
+import { app } from "./app.ts";
+import { coreBlocks } from "./blocks.core.ts";
+
+export const betterSupabaseCore = app.blocks(coreBlocks);
+```
+
+`createNext(betterSupabaseCore, options)` then gives a server whose `db` has the
+app's tables and `db.permissions`. `gen` fails when a listed block requires a
+port (`notifier`, `files`, `attachments`, `workflows`, `mailer`, `recordAccess`)
+that no listed block provides, and `createBlocks` checks the same at runtime.
+Spread `coreInstances` into your own `defineBlocks` to give a block its options,
+as `blocks.generated.ts` allows. A renamed instance can't be listed. Each server
+keeps its own session memo, so a route imports one of them.
+
+On the Next.js example the sign-in page, the customers API and the customers
+page build their server from sets, and their server chunks shrink by 48, 54 and
+50 percent (ADR 0542).
+
 ## Options
 
 | Option        | What it does                                                                                         |

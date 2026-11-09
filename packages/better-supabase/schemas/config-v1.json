@@ -2771,6 +2771,15 @@
             "type": "string"
           }
         },
+        "serverBlocks": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
         "powersync": {
           "type": "object",
           "properties": {

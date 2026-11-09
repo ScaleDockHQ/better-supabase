@@ -2,7 +2,7 @@ import "server-only";
 import { permissionsOf, tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import type { PermissionSet } from "./user-permissions";
 
