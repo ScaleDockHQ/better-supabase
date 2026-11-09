@@ -39,6 +39,7 @@ export function targetsOf(
     const write = entry.get("write");
     const updatedAt = entry.get("updatedAt");
     const ownedHash = entry.get("ownedHash");
+    const naturalKey = entry.get("naturalKey");
     const batch = entry.get("batch");
     const replaces = entry.get("replaces");
     const before = entry.get("before");
@@ -87,6 +88,15 @@ export function targetsOf(
     }
 
     if (
+      naturalKey !== undefined &&
+      (typeof naturalKey !== "string" || !FUNCTION_NAME.test(naturalKey))
+    ) {
+      throw new TypeError(
+        `${where}.${entity}.naturalKey must be a "schema.function" name in lowercase`,
+      );
+    }
+
+    if (
       batch !== undefined &&
       (typeof batch !== "string" || !FUNCTION_NAME.test(batch))
     ) {
@@ -109,6 +119,7 @@ export function targetsOf(
       ...(batch === undefined ? {} : { batch }),
       ...(updatedAt === undefined ? {} : { updatedAt }),
       ...(ownedHash === undefined ? {} : { ownedHash }),
+      ...(naturalKey === undefined ? {} : { naturalKey }),
       ...(replaces === true ? { replaces: true } : {}),
       ...(beforeName === undefined ? {} : { before: beforeName }),
       ...(afterName === undefined ? {} : { after: afterName }),
@@ -130,4 +141,80 @@ export function targetsOf(
     ],
     (target) => target.entity,
   );
+}
+
+/**
+ * A plpgsql `case` that assigns one reader, or `null;` when no target declares
+ * it.
+ */
+export function assignCase(
+  targets: readonly ImportTargetContribution[],
+  pick: (target: ImportTargetContribution) => string | undefined,
+  variable: string,
+  text: (value: string) => string,
+  quote: (name: string) => string,
+  argument: string,
+): string {
+  const arms = targets.flatMap((target) => {
+    const reader = pick(target);
+
+    return reader === undefined
+      ? []
+      : [
+          `        when ${text(target.entity)} then
+          ${variable} := ${quote(reader)}(${argument});`,
+        ];
+  });
+
+  return arms.length === 0
+    ? "null;"
+    : `case v_entity
+${arms.join("\n")}
+          else null;
+        end case;`;
+}
+
+/** The `case` that adopts a subject when no import record exists. */
+export function naturalLookupOf(
+  targets: readonly ImportTargetContribution[],
+  text: (value: string) => string,
+  quote: (name: string) => string,
+  tenant: string,
+): string {
+  const arms = targets
+    .filter((target) => target.naturalKey !== undefined)
+    .map(
+      (target) => `        when ${text(target.entity)} then
+          v_natural := ${quote(target.naturalKey ?? "")}(${tenant}, v_item);`,
+    )
+    .join("\n");
+
+  return arms === ""
+    ? "null;"
+    : `case v_entity
+${arms}
+          else null;
+        end case;`;
+}
+
+/** A `case` of per-entity readers, or `null` when none declare one. */
+export function readerCaseOf(
+  targets: readonly ImportTargetContribution[],
+  pick: (target: ImportTargetContribution) => string | undefined,
+  text: (value: string) => string,
+  quote: (name: string) => string,
+  subject: string,
+  entity: string,
+): string {
+  const arms = targets.flatMap((target) => {
+    const reader = pick(target);
+
+    return reader === undefined
+      ? []
+      : [`when ${text(target.entity)} then ${quote(reader)}(${subject})`];
+  });
+
+  return arms.length === 0
+    ? "null"
+    : `case ${entity} ${arms.join(" ")} else null end`;
 }

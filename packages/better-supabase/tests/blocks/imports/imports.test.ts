@@ -416,6 +416,30 @@ describe("imports SQL", () => {
     expect(sql).toContain("content_hash");
   });
 
+  it("adopts a row a natural key already finds", () => {
+    const sql = renderBlocks(["imports"], {
+      modules: {
+        imports: {
+          options: {
+            targets: {
+              product_identifier: {
+                subjectType: "product_identifier",
+                write: "public.import_product_identifier",
+                naturalKey: "public.product_identifier_id",
+              },
+            },
+          },
+        },
+      },
+    })
+      .filter((file) => file.module === "imports")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain('"public"."product_identifier_id"');
+    expect(sql).toContain("v_natural");
+  });
+
   it("refuses a target that is not a qualified function", () => {
     expect(() =>
       renderBlocks(["imports"], {

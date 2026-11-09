@@ -28,7 +28,12 @@ import {
 } from "./imports-chunks.ts";
 import { HASH_CONTRACT, hashFunctions } from "./imports-hashes.ts";
 import { importLifecycleSql, rebaseImportSql } from "./imports-lifecycle.ts";
-import { targetsOf } from "./imports-targets.ts";
+import {
+  assignCase,
+  naturalLookupOf,
+  readerCaseOf,
+  targetsOf,
+} from "./imports-targets.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** The SQLSTATE a dry run raises to roll its writes back. */
@@ -267,13 +272,23 @@ ${before}        v_out := ${quotedTable(target.write)}(v_run_id, v_call, v_subje
     })
     .join("\n");
 
-  const updatedArms = targets
-    .filter((target) => target.updatedAt !== undefined)
-    .map(
-      (target) => `        when ${sqlString(target.entity)} then
-          v_current := ${quotedTable(target.updatedAt ?? "")}(v_rec.${x("subjectId")});`,
-    )
-    .join("\n");
+  const currentOwned = assignCase(
+    targets,
+    (target) => target.ownedHash,
+    "v_owned",
+    sqlString,
+    quotedTable,
+    `v_rec.${x("subjectId")}`,
+  );
+
+  const currentUpdated = assignCase(
+    targets,
+    (target) => target.updatedAt,
+    "v_current",
+    sqlString,
+    quotedTable,
+    `v_rec.${x("subjectId")}`,
+  );
 
   const dispatch =
     targets.length === 0
@@ -297,47 +312,12 @@ ${writeArms}
     r,
   });
 
-  const ownedArms = targets
-    .filter((target) => target.ownedHash !== undefined)
-    .map(
-      (target) => `        when ${sqlString(target.entity)} then
-          v_owned := ${quotedTable(target.ownedHash ?? "")}(v_rec.${x("subjectId")});`,
-    )
-    .join("\n");
-
-  const currentOwned =
-    ownedArms === ""
-      ? "null;"
-      : `case v_entity
-${ownedArms}
-          else null;
-        end case;`;
-
-  const currentUpdated =
-    updatedArms === ""
-      ? "null;"
-      : `case v_entity
-${updatedArms}
-          else null;
-        end case;`;
-
-  const readerCase = (
-    pick: (target: (typeof targets)[number]) => string | undefined,
-  ): string => {
-    const arms = targets.flatMap((target) => {
-      const reader = pick(target);
-
-      return reader === undefined
-        ? []
-        : [
-            `when ${sqlString(target.entity)} then ${quotedTable(reader)}(x.${x("subjectId")})`,
-          ];
-    });
-
-    return arms.length === 0
-      ? "null"
-      : `case x.${x("entity")} ${arms.join(" ")} else null end`;
-  };
+  const naturalLookup = naturalLookupOf(
+    targets,
+    sqlString,
+    quotedTable,
+    `v_run.${r("tenant")}`,
+  );
 
   const queue = ctx.enqueue(
     "imports",
@@ -581,6 +561,7 @@ declare
   v_subject_type text;
   v_current timestamptz;
   v_owned text;
+  v_natural text;
   v_out jsonb;
   v_subjects jsonb;
   v_subject jsonb;
@@ -631,6 +612,16 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
       where x.${x("tenant")} = v_run.${r("tenant")} and x.${x("source")} = v_run.${r("source")} and x.${x("scope")} = v_scope
         and x.${x("entity")} = v_entity and x.${x("externalKey")} = v_key and x.${x("role")} = 'primary';
       v_found := found;
+
+      if not v_found then
+        v_natural := null;
+        ${naturalLookup}
+        if v_natural is not null then
+          v_found := true;
+          v_rec.${x("subjectId")} := v_natural;
+          v_rec.${x("contentHash")} := '';
+        end if;
+      end if;
 
       if not v_found then
         -- A cloned administration reuses the subjects of the scope it aliases
@@ -954,8 +945,22 @@ ${importLifecycleSql(
 )}
 ${rebaseImportSql(
   ctx,
-  readerCase((target) => target.updatedAt),
-  readerCase((target) => target.ownedHash),
+  readerCaseOf(
+    targets,
+    (target) => target.updatedAt,
+    sqlString,
+    quotedTable,
+    `x.${x("subjectId")}`,
+    `x.${x("entity")}`,
+  ),
+  readerCaseOf(
+    targets,
+    (target) => target.ownedHash,
+    sqlString,
+    quotedTable,
+    `x.${x("subjectId")}`,
+    `x.${x("entity")}`,
+  ),
 )}
 
 -- Queues one job per chunk of an entity's items, so a worker writes a large

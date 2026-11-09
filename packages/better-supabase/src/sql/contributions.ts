@@ -228,6 +228,11 @@ export interface ImportTargetContribution {
   /** `(subject_id text) returns text` over the columns the importer writes. */
   readonly ownedHash?: string;
   /**
+   * `(tenant, item jsonb) returns text`. The subject to adopt when no import
+   * record exists.
+   */
+  readonly naturalKey?: string;
+  /**
    * When true, this target replaces a block contribution of the same entity
    * instead of being refused as a duplicate.
    */

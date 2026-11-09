@@ -19,6 +19,7 @@ describe("import order and open items today", () => {
     expect(sql).toContain("owned_hash");
     expect(sql).toContain("is distinct from");
     expect(sql).toContain("rebase_import_records");
+    expect(sql).toContain("v_natural");
     expect(sql).toContain("IMPORT_REF_CREATED");
     expect(sql).toContain("'incomplete'");
   });
