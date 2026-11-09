@@ -127,7 +127,10 @@ export async function loadBookingSetup(): Promise<BookingSetup | null> {
       })
       .orThrow(),
     shareLinks
-      .list({ subject: { type: BOOKING_SERVICE_SUBJECT, id: page.serviceId } })
+      .list({
+        subject: { type: BOOKING_SERVICE_SUBJECT, id: page.serviceId },
+        limit: 50,
+      })
       .orThrow(),
   ]);
 

@@ -45,7 +45,9 @@ async function loadBoard(): Promise<CaseBoardData | null> {
   const [page, kinds, pipelines] = await Promise.all([
     db.cases.list({ status: "open", limit: 200 }).orThrow(),
     db.cases.kinds().orThrow(),
-    db.pipelines.list({ organizationId, subjectType: "case" }).orThrow(),
+    db.pipelines
+      .list({ organizationId, subjectType: "case", limit: 50 })
+      .orThrow(),
   ]);
 
   const kindNames = new Map(kinds.map((kind) => [kind.id, kind.name]));

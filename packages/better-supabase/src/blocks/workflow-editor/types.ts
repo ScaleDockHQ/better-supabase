@@ -490,6 +490,7 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      */
     list(input?: {
       tenant?: string | undefined;
+      limit?: number;
       filter?: { readonly subjectType?: string } | undefined;
     }): AsyncResult<readonly WorkflowDefinition<F>[]>;
     get(id: string): AsyncResult<WorkflowDefinition<F> | undefined>;
@@ -561,7 +562,10 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
     publish(
       input: { version: string } & PublishOptions,
     ): AsyncResult<WorkflowVersion>;
-    list(definition: string): AsyncResult<readonly WorkflowVersion[]>;
+    list(
+      definition: string,
+      options?: { readonly limit?: number },
+    ): AsyncResult<readonly WorkflowVersion[]>;
     get(version: string): AsyncResult<WorkflowVersion | undefined>;
     diff(input: { from: string; to: string }): AsyncResult<WorkflowGraphDiff>;
     /**
@@ -593,7 +597,10 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
   test(input: TestRunInput): AsyncResult<string>;
   readonly triggers: {
     upsert(input: TriggerInput): AsyncResult<WorkflowTrigger>;
-    list(definition: string): AsyncResult<readonly WorkflowTrigger[]>;
+    list(
+      definition: string,
+      options?: { readonly limit?: number },
+    ): AsyncResult<readonly WorkflowTrigger[]>;
     remove(id: string): AsyncResult<boolean>;
     /** A new token for a webhook trigger; the old one stops working. Shown once. */
     rotateToken(id: string): AsyncResult<string>;
@@ -618,7 +625,10 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
     starter(fallback?: WorkflowStarter): WorkflowStarter;
   };
   readonly credentials: {
-    list(tenant?: string): AsyncResult<readonly WorkflowCredential[]>;
+    list(
+      tenant?: string,
+      options?: { readonly limit?: number },
+    ): AsyncResult<readonly WorkflowCredential[]>;
     create(input: CredentialInput): AsyncResult<WorkflowCredential>;
     /** The URL that connects the account, for providers that authorize. */
     authorize(input: {
@@ -636,7 +646,9 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
   readonly steps: {
     /** Replaces the library with `steps` (service role). */
     sync(steps?: readonly WorkflowStepInfo[]): AsyncResult<number>;
-    list(): AsyncResult<readonly WorkflowStepInfo[]>;
+    list(options?: {
+      readonly limit?: number;
+    }): AsyncResult<readonly WorkflowStepInfo[]>;
   };
   /** The registry of the app's own node kinds (`defineNodeKind`). */
   readonly nodeKinds: {

@@ -110,7 +110,10 @@ export interface Teams<F extends object = Record<never, never>> {
   addMember(input: TeamMemberInput): AsyncResult<boolean>;
   /** Removes a user or an employee; a row with both goes as a whole. */
   removeMember(input: TeamMemberInput): AsyncResult<boolean>;
-  list(organizationId: string): AsyncResult<readonly Team<F>[]>;
+  list(
+    organizationId: string,
+    options?: { readonly limit?: number },
+  ): AsyncResult<readonly Team<F>[]>;
   /**
    * Makes `userIds` the team's user members and `employeeIds` its employee
    * members: it adds the missing ones and removes the others, and returns what
@@ -238,10 +241,14 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
       call("add_team_member", memberArgs(input), (value) => value === true),
     removeMember: (input) =>
       call("remove_team_member", memberArgs(input), (value) => value === true),
-    list: (organizationId) =>
-      call("list_teams", { tenant: organizationId }, (value) =>
-        recordsOf(value, "list_teams").map(teamOf),
-      ).andThen(fields.rows),
+    list: (organizationId, options) =>
+      call("list_teams", { tenant: organizationId }, (value) => {
+        const rows = recordsOf(value, "list_teams").map(teamOf);
+
+        return options?.limit === undefined
+          ? rows
+          : rows.slice(0, options.limit);
+      }).andThen(fields.rows),
     setMembers: ({ organizationId, teamId, userIds, employeeIds }) =>
       AsyncResult.from(async () => {
         const current = async (key: "memberIds" | "memberEmployeeIds") => {

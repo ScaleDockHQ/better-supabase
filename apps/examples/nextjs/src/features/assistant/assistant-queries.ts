@@ -130,11 +130,13 @@ export async function getActivity(): Promise<{
       startedAt: run.startedAt.toString(),
       steps:
         run.engine === "workflow"
-          ? (await runs.steps.list(run.id).orThrow()).map((step) => ({
-              key: step.key,
-              label: step.label,
-              status: step.status,
-            }))
+          ? (await runs.steps.list(run.id, { limit: 50 }).orThrow()).map(
+              (step) => ({
+                key: step.key,
+                label: step.label,
+                status: step.status,
+              }),
+            )
           : [],
     })),
   );

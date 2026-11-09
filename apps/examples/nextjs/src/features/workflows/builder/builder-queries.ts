@@ -62,7 +62,7 @@ export async function getDefinitions(): Promise<readonly DefinitionRow[]> {
   }
 
   const definitions = await builderFor(supabase)
-    .definitions.list({ tenant })
+    .definitions.list({ tenant, limit: 100 })
     .orThrow();
 
   return definitions.map((definition) => ({
@@ -98,10 +98,10 @@ export async function getBuilderDetail(
   }
 
   const [versions, steps, triggers, credentials] = await Promise.all([
-    builder.versions.list(id).orThrow(),
-    builder.steps.list().orThrow(),
-    builder.triggers.list(id).orThrow(),
-    builder.credentials.list(tenant).orThrow(),
+    builder.versions.list(id, { limit: 50 }).orThrow(),
+    builder.steps.list({ limit: 200 }).orThrow(),
+    builder.triggers.list(id, { limit: 50 }).orThrow(),
+    builder.credentials.list(tenant, { limit: 100 }).orThrow(),
   ]);
 
   const draftId = versions.find((version) => version.status === "draft")?.id;

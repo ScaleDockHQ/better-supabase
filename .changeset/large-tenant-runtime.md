@@ -6,4 +6,4 @@ Client sessions can omit JWT claims (`toSession(auth, { claims: false })`). `Per
 
 The verified-token memo is shared on `globalThis` and keyed by the raw token. A stale JWKS is served while it refreshes. Role-default and platform-role changes bump authorization versions in one statement, and `hook_plan` returns `full` when the active tenant changed. The browser client refreshes on `visibilitychange` inside the leeway.
 
-Cursor pages count `estimated` unless `count` says otherwise. `defineInfiniteListHook` pages with the cursor. `OfflineBoundary` and `nativePermissions` cover React Native. A PowerSync reconnect refreshes server-backed reads only.
+Cursor pages count `estimated` unless `count` says otherwise. `defineInfiniteListHook` pages with the cursor. Block list methods take an optional `limit` and return only that many rows. `OfflineBoundary` and `nativePermissions` cover React Native. A PowerSync reconnect refreshes server-backed reads only.

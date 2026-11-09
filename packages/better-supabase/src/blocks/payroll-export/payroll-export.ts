@@ -104,7 +104,9 @@ export interface PayrollExport {
   refresh(runId: string): AsyncResult<PayrollRun>;
   get(runId: string): AsyncResult<PayrollRun | undefined>;
   /** The organization's runs, newest period first, without their lines. */
-  list(): AsyncResult<readonly PayrollRunSummary[]>;
+  list(options?: {
+    readonly limit?: number;
+  }): AsyncResult<readonly PayrollRunSummary[]>;
   /**
    * Renders the run with `format`, keeps the SHA-256 of the file on the run and
    * locks it. Exporting a locked run with the same file returns it again; a
@@ -219,13 +221,17 @@ export function createPayrollExport(
         runOf(value, "refresh_payroll_run"),
       ),
     get,
-    list: () =>
+    list: (options = {}) =>
       tenant().andThen((organizationId) =>
-        call("list_payroll_runs", { tenant: organizationId }, (value) =>
-          recordsOf(value, "list_payroll_runs").map((row) =>
+        call("list_payroll_runs", { tenant: organizationId }, (value) => {
+          const rows = recordsOf(value, "list_payroll_runs").map((row) =>
             summaryOf(row, "list_payroll_runs"),
-          ),
-        ),
+          );
+
+          return options.limit === undefined
+            ? rows
+            : rows.slice(0, options.limit);
+        }),
       ),
     exportRun: ({ runId, format }) =>
       AsyncResult.from(async () => {

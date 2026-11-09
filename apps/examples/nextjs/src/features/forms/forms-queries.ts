@@ -77,7 +77,9 @@ async function loadForms(): Promise<readonly FormSummary[] | null> {
     return null;
   }
 
-  const forms = await db.forms.list({ organizationId: tenant }).orThrow();
+  const forms = await db.forms
+    .list({ organizationId: tenant, limit: 100 })
+    .orThrow();
 
   return forms.map((form) => ({
     id: form.id,

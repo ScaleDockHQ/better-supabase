@@ -153,7 +153,10 @@ export interface AiKeysOptions extends BlockTemporalOptions {
 
 export interface AiKeys {
   readonly keys: {
-    list(organizationId: string): AsyncResult<readonly AiProviderKey[]>;
+    list(
+      organizationId: string,
+      options?: { readonly limit?: number },
+    ): AsyncResult<readonly AiProviderKey[]>;
     /**
      * Adds or replaces a key (`ai_keys.manage`), and revokes the credential it
      * replaced.

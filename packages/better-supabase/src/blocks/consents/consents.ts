@@ -231,7 +231,10 @@ export interface Consents {
   }): AsyncResult<boolean>;
   /** The latest decision per purpose, or every decision with `includeHistory`. */
   list(
-    input: { subject: RecordRef } & { readonly includeHistory?: boolean },
+    input: { subject: RecordRef } & {
+      readonly includeHistory?: boolean;
+      readonly limit?: number;
+    },
   ): AsyncResult<readonly Consent[]>;
   /** Expires the grants past `validUntil`; service role only. Returns how many. */
   expire(): AsyncResult<number>;
@@ -483,7 +486,7 @@ export function createConsents(options: ConsentsOptions): Consents {
         },
         (value) => value === true,
       ),
-    list: ({ subject, ...filter }) =>
+    list: ({ subject, limit, ...filter }) =>
       call(
         "list_consents",
         {
@@ -491,8 +494,13 @@ export function createConsents(options: ConsentsOptions): Consents {
           subject_id: subject.id,
           include_history: filter.includeHistory ?? false,
         },
-        (value) =>
-          recordsOf(value, "list_consents").map(consent("list_consents")),
+        (value) => {
+          const rows = recordsOf(value, "list_consents").map(
+            consent("list_consents"),
+          );
+
+          return limit === undefined ? rows : rows.slice(0, limit);
+        },
       ),
     expire: () => call("expire_consents", {}, (value) => Number(value ?? 0)),
     require: ({ subject, purposeKey }) =>

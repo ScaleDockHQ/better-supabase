@@ -267,7 +267,7 @@ export async function getTaskViews(): Promise<
   }
 
   const views = await db.$blocks.savedViews
-    .list({ organizationId: tenant, list: TASK_LIST })
+    .list({ organizationId: tenant, list: TASK_LIST, limit: 50 })
     .orThrow();
 
   return views.map((view) => {

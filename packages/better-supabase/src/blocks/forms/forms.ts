@@ -233,7 +233,9 @@ export interface Forms<F extends object = Record<never, never>> {
   get(id: string): AsyncResult<FormDetail<F>>;
   getVersion(versionId: string): AsyncResult<FormVersion>;
   list(
-    input: { organizationId: string } & { readonly status?: FormStatus },
+    input: { organizationId: string; readonly limit?: number } & {
+      readonly status?: FormStatus;
+    },
   ): AsyncResult<readonly Form<F>[]>;
   /** Submits answers to the form's current version; Postgres validates them. */
   submit(
@@ -488,14 +490,17 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
       call("get_form_version", { version_id: versionId }, (value) =>
         versionOf(value, "get_form_version"),
       ),
-    list: ({ organizationId, ...list }) =>
+    list: ({ organizationId, limit, ...list }) =>
       call(
         "list_forms",
         { tenant: organizationId, status: list.status ?? null },
-        (value) =>
-          recordsOf(value, "list_forms").map((row) =>
+        (value) => {
+          const rows = recordsOf(value, "list_forms").map((row) =>
             formOf(row, "list_forms"),
-          ),
+          );
+
+          return limit === undefined ? rows : rows.slice(0, limit);
+        },
       ).andThen((forms) =>
         AsyncResult.from(async () => {
           const out: Form<F>[] = [];

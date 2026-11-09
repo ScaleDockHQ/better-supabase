@@ -121,7 +121,9 @@ export async function loadUpcomingReminders(): Promise<UpcomingReminders | null>
       title: occurrence.event.title,
       startsAt: occurrence.start.toString(),
       allDay: occurrence.allDay,
-      reminders: await reminders.list({ type: EVENT_SUBJECT, id }).orThrow(),
+      reminders: await reminders
+        .list({ type: EVENT_SUBJECT, id }, { limit: 20 })
+        .orThrow(),
     })),
   );
 

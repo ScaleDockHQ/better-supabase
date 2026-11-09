@@ -60,9 +60,11 @@ export function toOrganizationSummaries(
 }
 
 /**
- * The caller's organizations, most recently used first, from
- * `public.my_organizations()`
- * (supabase/schemas/public/functions/my_organizations.sql).
+ * One page of the caller's organizations, most recently used first.
+ * `public.my_organizations` takes `page_size` and a cursor of
+ * `after_last_used_at`, `after_name` and `after_id`. The generated argument
+ * type stays empty until `db gen` sees the new signature, so the page is passed
+ * through a cast. The SQL default is the same page of 50.
  */
 export async function getMyOrganizations(): Promise<
   readonly OrganizationSummary[]
@@ -74,7 +76,12 @@ export async function getMyOrganizations(): Promise<
     return [];
   }
 
-  return toOrganizationSummaries(await db.$rpc("my_organizations").orThrow());
+  // SAFETY: the function arguments are page_size, after_last_used_at,
+  // after_name and after_id. Generated Args are still empty.
+  const page = { page_size: 50 } as never;
+  const rows = await db.$rpc("my_organizations", page).orThrow();
+
+  return toOrganizationSummaries(rows);
 }
 
 interface MemberRow {

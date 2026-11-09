@@ -211,7 +211,10 @@ export interface ShareLinks<F extends object = Record<never, never>> {
    * `options.fullRows`).
    */
   list(
-    input: { subject: RecordRef } & { readonly includeRevoked?: boolean },
+    input: { subject: RecordRef } & {
+      readonly includeRevoked?: boolean;
+      readonly limit?: number;
+    },
   ): AsyncResult<readonly ShareLink<F>[]>;
   /**
    * With `options.tokenHash`: a link for a token the caller made, given as its
@@ -387,7 +390,7 @@ export function createShareLinks<
           (value) => value === true,
         ),
       ),
-    list: ({ subject, ...filter }) =>
+    list: ({ subject, limit, ...filter }) =>
       call(
         "list_share_links",
         {
@@ -420,7 +423,9 @@ export function createShareLinks<
               fields: fieldsOf(row),
             };
           }),
-      ).andThen(fields.rows),
+      )
+        .map((rows) => (limit === undefined ? rows : rows.slice(0, limit)))
+        .andThen(fields.rows),
     setState: ({ subject, starred }) =>
       call(
         "set_user_state",

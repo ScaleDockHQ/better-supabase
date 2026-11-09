@@ -240,7 +240,13 @@ export interface Templates<F extends object = Record<never, never>> {
    */
   list(input: {
     organizationId: string | null;
-    filter?: { readonly type?: string; readonly language?: string } | undefined;
+    filter?:
+      | {
+          readonly type?: string;
+          readonly language?: string;
+          readonly limit?: number;
+        }
+      | undefined;
   }): AsyncResult<readonly Template<F>[]>;
   /**
    * With its newest published version and its draft; `undefined` when the
@@ -680,7 +686,13 @@ export function createTemplates<
           type: filter.type ?? null,
           language: filter.language ?? null,
         },
-        (value) => recordsOf(value, "templates_list").map(templateOf),
+        (value) => {
+          const rows = recordsOf(value, "templates_list").map(templateOf);
+
+          return filter.limit === undefined
+            ? rows
+            : rows.slice(0, filter.limit);
+        },
       ).andThen(fields.rows),
     get,
     remove: (id) =>

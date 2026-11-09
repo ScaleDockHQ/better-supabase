@@ -155,6 +155,7 @@ export interface ServiceAccounts<F extends object = Record<never, never>> {
   /** The organization's principals, through the read policy. */
   readonly list: (
     organizationId: string,
+    options?: { readonly limit?: number },
   ) => AsyncResult<readonly ServicePrincipal<F>[]>;
 }
 
@@ -256,9 +257,9 @@ export function createServiceAccounts<
       call("default_service_principal", { tenant: organizationId }, (value) =>
         nullableText(value),
       ),
-    list: (organizationId) =>
-      call("service_principals_list", { tenant: organizationId }, (value) =>
-        recordsOf(value, "service_principals_list").map((row) => ({
+    list: (organizationId, options) =>
+      call("service_principals_list", { tenant: organizationId }, (value) => {
+        const rows = recordsOf(value, "service_principals_list").map((row) => ({
           id: textOf(row["id"]),
           name: textOf(row["name"]),
           role: textOf(row["role"]),
@@ -267,8 +268,12 @@ export function createServiceAccounts<
           createdAt: requiredInstant(row["createdAt"], "createdAt"),
           disabledAt: nullableInstant(row["disabledAt"]),
           fields: rowFields(row["fields"]),
-        })),
-      ).andThen((principals) => readAllFields(fields, principals)),
+        }));
+
+        return options?.limit === undefined
+          ? rows
+          : rows.slice(0, options.limit);
+      }).andThen((principals) => readAllFields(fields, principals)),
   };
 
   return withBlockHooks(client, options.hooks, {

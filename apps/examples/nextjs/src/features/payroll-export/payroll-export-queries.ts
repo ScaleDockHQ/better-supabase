@@ -30,7 +30,7 @@ async function loadRuns(): Promise<readonly PayrollRunRow[] | null> {
     return null;
   }
 
-  const runs = await db.payrollExport.list().orThrow();
+  const runs = await db.payrollExport.list({ limit: 100 }).orThrow();
 
   return runs.map((run): PayrollRunRow => ({
     id: run.id,

@@ -301,7 +301,10 @@ export interface Workflows<F extends object = Record<never, never>> {
      * in its tenant.
      */
     create(input: WorkflowScheduleInput): AsyncResult<WorkflowSchedule>;
-    list(tenant?: string): AsyncResult<readonly WorkflowSchedule[]>;
+    list(
+      tenant?: string,
+      options?: { readonly limit?: number },
+    ): AsyncResult<readonly WorkflowSchedule[]>;
     pause(input: {
       id: string;
       paused?: boolean | undefined;
@@ -623,10 +626,16 @@ export function createWorkflows<
           (value) => scheduleOf(recordOf(value, "create_workflow_schedule")),
         );
       },
-      list: (tenant) =>
-        call("workflow_schedules_list", { tenant }, (value) =>
-          recordsOf(value, "workflow_schedules_list").map(scheduleOf),
-        ),
+      list: (tenant, options) =>
+        call("workflow_schedules_list", { tenant }, (value) => {
+          const rows = recordsOf(value, "workflow_schedules_list").map(
+            scheduleOf,
+          );
+
+          return options?.limit === undefined
+            ? rows
+            : rows.slice(0, options.limit);
+        }),
       pause: ({ id, paused = true }) =>
         call(
           "pause_workflow_schedule",

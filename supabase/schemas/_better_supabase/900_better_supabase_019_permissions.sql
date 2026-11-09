@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:99a84e7774a9bf5746e1c3d355b003bb6873b845648690652463f24597744c2f
+-- @bsb-hash sha256:77d203a9741ae809f84d35b99637b90b234adf9d4d1f0ec5f33a9fafee5fac8b
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -856,7 +856,78 @@ as $$
       where better_supabase.cap_allows(p)
     ), '{}'::text[])
   end
+$$;-- Compact permissions for the caller: keys once, then a bitset per tenant.
+create or replace function better_supabase.permission_bitset(all_keys text[], held text[])
+returns text
+language plpgsql
+immutable
+as $$
+declare
+  width integer := ceil(coalesce(cardinality(all_keys), 0) / 8.0);
+  bytes bytea;
+  i integer;
+  slot integer;
+  value integer;
+begin
+  if width < 1 then
+    return '';
+  end if;
+  bytes := decode(repeat('00', width), 'hex');
+  if held is null then
+    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  end if;
+  for i in 1 .. coalesce(cardinality(all_keys), 0) loop
+    if all_keys[i] = any (held) then
+      slot := (i - 1) / 8;
+      value := get_byte(bytes, slot) | (1 << ((i - 1) % 8));
+      bytes := set_byte(bytes, slot, value);
+    end if;
+  end loop;
+  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+end;
 $$;
+
+revoke execute on function better_supabase.permission_bitset(text[], text[]) from public, anon, authenticated;
+
+create or replace function better_supabase.bootstrap_permissions()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with keys as (
+    select coalesce(array_agg(distinct key order by key), '{}'::text[]) as keys
+    from better_supabase.member_organization_ids(null) as tenant(id),
+      lateral unnest(better_supabase.member_permissions(auth.uid(), tenant.id)) as key
+    where auth.uid() is not null
+  )
+  select case
+    when auth.uid() is null then jsonb_build_object(
+      'apiVersion', 1, 'form', 'compact', 'keys', '[]'::jsonb, 'tenants', '{}'::jsonb
+    )
+    else jsonb_build_object(
+      'apiVersion', 1,
+      'form', 'compact',
+      'keys', to_jsonb(keys.keys),
+      'tenants', coalesce((
+        select jsonb_object_agg(
+          tenant.id::text,
+          better_supabase.permission_bitset(
+            keys.keys,
+            better_supabase.member_permissions(auth.uid(), tenant.id)
+          )
+        )
+        from better_supabase.member_organization_ids(null) as tenant(id)
+      ), '{}'::jsonb)
+    )
+  end
+  from keys
+$$;
+
+revoke execute on function better_supabase.bootstrap_permissions() from public, anon;
+grant execute on function better_supabase.bootstrap_permissions() to authenticated;
+
 -- The tenant roles of the catalog with their keys in one tenant: the role's
 -- defaults, the keys after this tenant's overrides, the overrides and how many
 -- members hold the role.
@@ -1069,6 +1140,16 @@ set search_path = ''
 as $$ select "better_supabase"."platform_can_assign"($1, $2) $$;
 revoke execute on function "api"."platform_can_assign"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."platform_can_assign"(uuid, text) to service_role;
+
+create or replace function "api"."bootstrap_permissions"()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."bootstrap_permissions"() $$;
+revoke execute on function "api"."bootstrap_permissions"() from public, anon, service_role;
+grant execute on function "api"."bootstrap_permissions"() to authenticated;
 
 create or replace function "api"."list_roles"(tenant uuid)
 returns jsonb

@@ -28,7 +28,7 @@ export async function loadServicePrincipals(): Promise<
     return null;
   }
 
-  const listed = await db.serviceAccounts.list(tenant);
+  const listed = await db.serviceAccounts.list(tenant, { limit: 100 });
 
   if (!listed.ok) {
     throw new Error(listed.error.message);

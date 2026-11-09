@@ -101,7 +101,7 @@ async function loadConsents(id: string): Promise<readonly ConsentRow[] | null> {
   }
 
   const consents = await db.consents
-    .list({ subject: { type: "customer", id } })
+    .list({ subject: { type: "customer", id }, limit: 100 })
     .orThrow();
 
   return consents.map((consent) => ({
@@ -145,7 +145,7 @@ async function loadAccessLog(id: string): Promise<readonly AccessRow[] | null> {
   }
 
   const reads = await db.subjects.reads
-    .list({ subject: { type: "customer", id } })
+    .list({ subject: { type: "customer", id }, limit: 100 })
     .orThrow();
 
   return reads.map((read) => ({

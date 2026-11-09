@@ -24,7 +24,7 @@ async function loadLegalEntities(): Promise<readonly LegalEntityRow[] | null> {
   }
 
   const entities = await db.legalEntities
-    .list({ includeArchived: true })
+    .list({ includeArchived: true, limit: 100 })
     .orThrow();
 
   return entities.map((entity) => ({

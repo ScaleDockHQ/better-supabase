@@ -57,6 +57,7 @@ async function loadBoard(): Promise<{ board: BoardView | null } | null> {
     .list({
       boardId: board.id,
       sort: board.kind === "feedback" ? "top" : "active",
+      limit: 50,
     })
     .orThrow();
 

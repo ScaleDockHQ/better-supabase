@@ -311,7 +311,7 @@ export async function loadDealBoard(): Promise<DealBoardData | null> {
   const { pipelines, deals } = db;
 
   const all = await pipelines
-    .list({ organizationId: tenant, subjectType: "deal" })
+    .list({ organizationId: tenant, subjectType: "deal", limit: 50 })
     .orThrow();
 
   const pipeline = all.find((item) => item.isDefault) ?? all[0];

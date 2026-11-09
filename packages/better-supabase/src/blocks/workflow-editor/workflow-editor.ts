@@ -261,13 +261,15 @@ export function createWorkflowEditor<
                 definitionOf(recordOf(value, "save_workflow_definition")),
             ).andThen(fields.row),
           ),
-      list: ({ tenant, filter = {} } = {}) =>
+      list: ({ tenant, limit, filter = {} } = {}) =>
         call(
           "workflow_definitions_list",
           { tenant, subject_type: filter.subjectType },
           (value) =>
             recordsOf(value, "workflow_definitions_list").map(definitionOf),
-        ).andThen(fields.rows),
+        )
+          .map((rows) => (limit === undefined ? rows : rows.slice(0, limit)))
+          .andThen(fields.rows),
       get: (id) =>
         call(
           "workflow_definition_get",
@@ -416,10 +418,16 @@ export function createWorkflowEditor<
 
           return publish(serviceCall, compiled);
         }),
-      list: (definition) =>
-        call("workflow_versions_list", { definition }, (value) =>
-          recordsOf(value, "workflow_versions_list").map(versionOf),
-        ),
+      list: (definition, options?: { readonly limit?: number }) =>
+        call("workflow_versions_list", { definition }, (value) => {
+          const rows = recordsOf(value, "workflow_versions_list").map(
+            versionOf,
+          );
+
+          return options?.limit === undefined
+            ? rows
+            : rows.slice(0, options.limit);
+        }),
       get: getVersion,
       runAs: ({ version, tenant }) =>
         runAsPublisher(
@@ -518,10 +526,16 @@ export function createWorkflowEditor<
           },
           (value) => triggerOf(recordOf(value, "save_workflow_trigger")),
         ),
-      list: (definition) =>
-        call("workflow_triggers_list", { definition }, (value) =>
-          recordsOf(value, "workflow_triggers_list").map(triggerOf),
-        ),
+      list: (definition, options?: { readonly limit?: number }) =>
+        call("workflow_triggers_list", { definition }, (value) => {
+          const rows = recordsOf(value, "workflow_triggers_list").map(
+            triggerOf,
+          );
+
+          return options?.limit === undefined
+            ? rows
+            : rows.slice(0, options.limit);
+        }),
       remove: (id) =>
         call(
           "remove_workflow_trigger",
@@ -647,10 +661,16 @@ export function createWorkflowEditor<
       },
     },
     credentials: {
-      list: (tenant) =>
-        call("workflow_credentials_list", { tenant }, (value) =>
-          recordsOf(value, "workflow_credentials_list").map(credentialOf),
-        ),
+      list: (tenant, options?: { readonly limit?: number }) =>
+        call("workflow_credentials_list", { tenant }, (value) => {
+          const rows = recordsOf(value, "workflow_credentials_list").map(
+            credentialOf,
+          );
+
+          return options?.limit === undefined
+            ? rows
+            : rows.slice(0, options.limit);
+        }),
       create: (input) => {
         const save = () =>
           call(
@@ -799,10 +819,14 @@ export function createWorkflowEditor<
           },
           Number,
         ),
-      list: () =>
-        call("workflow_steps_list", {}, (value) =>
-          recordsOf(value, "workflow_steps_list").map(stepOf),
-        ),
+      list: (options?: { readonly limit?: number }) =>
+        call("workflow_steps_list", {}, (value) => {
+          const rows = recordsOf(value, "workflow_steps_list").map(stepOf);
+
+          return options?.limit === undefined
+            ? rows
+            : rows.slice(0, options.limit);
+        }),
     },
     nodeKinds: {
       sync: (kinds = options.nodes ?? []) =>
