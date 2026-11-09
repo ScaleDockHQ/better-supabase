@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:a60e5a96d72159936e07503d2c889639f68d16c7e30edc451a4dd2a38098c596
+-- @bsb-hash sha256:17dd8c236a881b6863988d0b2ad42034894ddf5fbd5a981b1c84bba6279f5d8b
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -361,17 +361,17 @@ grant execute on function "better_supabase"."attachment_subject_readable"(text, 
 
 create policy bsb_attachments_read on "better_supabase"."attachments"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and ("subject_type" is null or case "subject_type"
-    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "subject_id" and s."organization_id" = "tenant_id")
-    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and ("better_supabase"."attachments"."subject_type" is null or case "better_supabase"."attachments"."subject_type"
+    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "better_supabase"."attachments"."subject_id" and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    else "better_supabase"."attachment_subject_readable"("better_supabase"."attachments"."subject_type", "better_supabase"."attachments"."subject_id", "better_supabase"."attachments"."tenant_id")
   end));
 create policy bsb_attachments_insert on "better_supabase"."attachments"
   for insert to authenticated
   with check (("uploaded_by" = (select auth.uid())
     and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
-    and ("subject_type" is null or case "subject_type"
-    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "subject_id" and s."organization_id" = "tenant_id")
-    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+    and ("better_supabase"."attachments"."subject_type" is null or case "better_supabase"."attachments"."subject_type"
+    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "better_supabase"."attachments"."subject_id" and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    else "better_supabase"."attachment_subject_readable"("better_supabase"."attachments"."subject_type", "better_supabase"."attachments"."subject_id", "better_supabase"."attachments"."tenant_id")
   end)) and (select better_supabase.actor_may_write()));
 create policy bsb_attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
@@ -1085,9 +1085,9 @@ create policy bsb_tenant_scope_select on "better_supabase"."attachments" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and ("subject_type" is null or case "subject_type"
-    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "subject_id" and s."organization_id" = "tenant_id")
-    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('attachments.read')) and ("better_supabase"."attachments"."subject_type" is null or case "better_supabase"."attachments"."subject_type"
+    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "better_supabase"."attachments"."subject_id" and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    else "better_supabase"."attachment_subject_readable"("better_supabase"."attachments"."subject_type", "better_supabase"."attachments"."subject_id", "better_supabase"."attachments"."tenant_id")
   end))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as restrictive
@@ -1096,9 +1096,9 @@ create policy bsb_tenant_scope_insert on "better_supabase"."attachments" as rest
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("uploaded_by" = (select auth.uid())
     and "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload'))
-    and ("subject_type" is null or case "subject_type"
-    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "subject_id" and s."organization_id" = "tenant_id")
-    else "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "tenant_id")
+    and ("better_supabase"."attachments"."subject_type" is null or case "better_supabase"."attachments"."subject_type"
+    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = "better_supabase"."attachments"."subject_id" and s."organization_id" = "better_supabase"."attachments"."tenant_id")
+    else "better_supabase"."attachment_subject_readable"("better_supabase"."attachments"."subject_type", "better_supabase"."attachments"."subject_id", "better_supabase"."attachments"."tenant_id")
   end))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."attachments" as restrictive

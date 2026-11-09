@@ -17,6 +17,26 @@ const sqlOf = (
     .join("\n");
 
 describe("attachments module", () => {
+  it("qualifies the row's columns in the subject policy so a tenant column can't compare with itself", () => {
+    const sql = renderBlocks(["attachments"], {
+      subjects: {
+        contract: {
+          table: "contracts",
+          tenant: "tenant_id",
+          permissions: { read: "contracts.read" },
+        },
+      },
+    })
+      .filter((file) => file.module === "attachments")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).not.toMatch(/s\."tenant_id" = "tenant_id"/);
+    expect(sql).toContain(
+      `s."tenant_id" = "better_supabase"."attachments"."tenant_id"`,
+    );
+  });
+
   it("derives {ext} from the name in the generated path", () => {
     const sql = sqlOf(["attachments"], {
       path: "{organization_id}/attachments/{id}.{ext}",

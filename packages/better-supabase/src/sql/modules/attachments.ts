@@ -386,11 +386,15 @@ end;`;
     { guest: true },
   );
 
+  // Qualified with the table: inside a subject's `exists` subquery an unqualified
+  // `tenant_id` binds to the subject table's own column (`s.tenant_id = s.tenant_id`).
+  const q = (logical: string): string => `${t}.${c(logical)}`;
+
   const readablePolicySql = inlineSubjectReadable(ctx, layout, subjects, {
-    type: c("subjectType"),
-    id: c("subjectId"),
-    tenant: c("tenant"),
-    fallback: `${ctx.fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
+    type: q("subjectType"),
+    id: q("subjectId"),
+    tenant: q("tenant"),
+    fallback: `${ctx.fn("attachment_subject_readable")}(${q("subjectType")}, ${q("subjectId")}, ${q("tenant")})`,
   });
 
   const cascades = subjectCascades(
