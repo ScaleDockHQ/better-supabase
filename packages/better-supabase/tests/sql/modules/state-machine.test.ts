@@ -35,6 +35,12 @@ describe("state machine", () => {
     expect(sql).toContain("status_stages");
     expect(sql).toContain("cleared_at");
     expect(sql).toContain("STATE_TRANSITION_INVALID");
+    const update = sql.slice(sql.indexOf("is not distinct from"));
+    const guard = update.indexOf("import_run() is not null");
+    const refused = update.indexOf("STATE_TRANSITION_INVALID");
+
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(refused);
   });
 
   it("names the missing initial status", () => {

@@ -496,6 +496,11 @@ ${declare}begin
   if new.${sqlIdent(item.column)} is not distinct from old.${sqlIdent(item.column)} then${lifecycleOps(ctx, item)}
     return new;
   end if;
+  -- An import may set a status the state machine would refuse. The import
+  -- already checked the row.
+  if ${ctx.importing()} then
+    return new;
+  end if;
   ${check}${approvalGate(ctx, item)}${pauseGate(ctx, item)}
   ${write}
   ${stageWrite(ctx, item, "advance")}
