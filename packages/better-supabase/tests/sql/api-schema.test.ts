@@ -394,7 +394,8 @@ grant execute on function "api"."${name}"(${types}) to service_role;`,
     });
 
     expect(missing).toEqual([]);
-  });
+    // Renders every module twice; a shared CI runner needs about 20 s.
+  }, 120_000);
 
   it("wraps only the used functions under gen.api.expose: used, and the client's", () => {
     const render = (apiUsed: readonly string[]) =>
