@@ -145,6 +145,52 @@ end;
 $$;
 ${serviceGrant(`${store.fn("rebuild_open_items")}(${ctx.idType})`)}
 ${userGrant(`${store.fn("rebuild_open_items")}(${ctx.idType})`)}
+
+-- One page of today's open items, with a total that stops at count_cap.
+create or replace function ${store.fn("open_items_page")}(
+  tenant ${ctx.idType},
+  side text default null,
+  party_id text default null,
+  "limit" integer default 50,
+  "offset" integer default 0,
+  count_cap integer default 10000
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_total integer;
+  v_rows jsonb;
+begin
+  if (select auth.role()) is distinct from 'service_role' and not ${ctx.scope.can("open_items_page.tenant", store.read)} then
+    ${fail("INVOICE_FORBIDDEN", "not allowed to read this organization's invoices", "42501")}
+  end if;
+  select count(*) into v_total from ${table} e
+  where e.${o("tenant")} = open_items_page.tenant
+    and e.${o("balance")} <> 0
+    and (open_items_page.party_id is null or e.${o("party")} = open_items_page.party_id)
+    and (open_items_page.side is null or e.${o("side")} = open_items_page.side);
+  select coalesce(jsonb_agg(row_to_json(p)), '[]'::jsonb) into v_rows from (
+    select e.${o("side")} as side, e.${o("party")} as "partyId", e.${o("documentType")} as "documentType",
+      e.${o("document")} as "documentId", e.${o("currency")} as currency, e.${o("dueOn")} as "dueOn",
+      e.${o("issuedOn")} as "issuedOn", e.${o("gross")}::text as amount, e.${o("balance")}::text as balance
+    from ${table} e
+    where e.${o("tenant")} = open_items_page.tenant
+      and e.${o("balance")} <> 0
+      and (open_items_page.party_id is null or e.${o("party")} = open_items_page.party_id)
+      and (open_items_page.side is null or e.${o("side")} = open_items_page.side)
+    order by e.${o("dueOn")} nulls last, e.${o("document")}
+    limit least(greatest(coalesce(open_items_page."limit", 50), 1), 200)
+    offset greatest(coalesce(open_items_page."offset", 0), 0)
+  ) p;
+  return jsonb_build_object('rows', v_rows, 'total', least(v_total, coalesce(open_items_page.count_cap, 10000)));
+end;
+$$;
+${serviceGrant(`${store.fn("open_items_page")}(${ctx.idType}, text, text, integer, integer, integer)`)}
+${userGrant(`${store.fn("open_items_page")}(${ctx.idType}, text, text, integer, integer, integer)`)}
 `;
 }
 

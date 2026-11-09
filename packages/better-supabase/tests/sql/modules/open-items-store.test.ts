@@ -25,6 +25,20 @@ describe("maintained open items", () => {
     expect(replay).toContain("as_of");
   });
 
+  it("pages the stored table and caps the total", () => {
+    const body = sql.slice(
+      sql.indexOf('"open_items_page"'),
+      sql.indexOf('"open_items_for_party"'),
+    );
+
+    expect(body).toContain("limit least(");
+    expect(body).toContain("offset greatest(");
+    expect(body).toContain(
+      "least(v_total, coalesce(open_items_page.count_cap, 10000))",
+    );
+    expect(body).not.toContain("effective_at");
+  });
+
   it("rebuilds the same today balance the replay uses", () => {
     const rebuild = sql.slice(sql.indexOf('"rebuild_open_items"'));
 

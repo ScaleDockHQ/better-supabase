@@ -826,6 +826,11 @@ export function openItemContract(
   return [
     { name: "rebuild_open_items", args: ["{id}"], returns: "integer" },
     {
+      name: "open_items_page",
+      args: ["{id}", "text", "text", "integer", "integer", "integer"],
+      returns: "jsonb",
+    },
+    {
       name: "open_items_for_party",
       args: ["{id}", "text", "date", "text"],
       returns: "jsonb",
