@@ -60,4 +60,21 @@ describe("codemod generators", () => {
       "relativeImport",
     );
   });
+
+  it("does not flag apiVersion 1 in another contract", () => {
+    const source = [
+      `export const hooks = defineAuthorizationHooks({`,
+      `  apiVersion: 1,`,
+      `  evict: () => {},`,
+      `});`,
+      `export const g = {`,
+      `  apiVersion: 1,`,
+      `  generate: () => [],`,
+      `};`,
+    ].join("\n");
+
+    const { review } = applyCodemod(generatorsCodemod(), source);
+
+    expect(review.map((line) => line.line)).toEqual([6]);
+  });
 });

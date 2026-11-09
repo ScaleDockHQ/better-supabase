@@ -1,5 +1,7 @@
 import type { NamingRename } from "./codemod-naming.ts";
 
+import { isSorted, sortObjectBody } from "./codemod-sort-keys.ts";
+
 interface ReviewLine {
   readonly line: number;
   readonly message: string;
@@ -20,6 +22,14 @@ function parts(path: string): {
     : { parent: path.slice(0, at), key: path.slice(at + 1) };
 }
 
+/** The keys of one object literal, before and after the renames. */
+interface Frame {
+  readonly start: number;
+  readonly before: string[];
+  readonly after: string[];
+  renamed: boolean;
+}
+
 /**
  * Renames the config keys in `rows` (kind `configKey`) in the text of a file
  * that calls `defineConfig`. A scanner follows the nesting of object literals,
@@ -34,6 +44,7 @@ function scanSegment(
 ): { readonly text: string; readonly review: readonly ReviewLine[] } {
   const review: ReviewLine[] = [];
   const stack: string[] = [];
+  const frames: (Frame | undefined)[] = [];
   let pending = "";
   let last = "";
   let out = "";
@@ -52,6 +63,16 @@ function scanSegment(
     const full = parent === "" ? key : `${parent}.${key}`;
 
     return wanted.find((row) => row.from === full);
+  };
+
+  const noteKey = (before: string, after: string): void => {
+    const frame = frames.at(-1);
+
+    if (frame !== undefined) {
+      frame.before.push(before);
+      frame.after.push(after);
+      frame.renamed ||= before !== after;
+    }
   };
 
   while (index < text.length) {
@@ -97,14 +118,18 @@ function scanSegment(
         const key = literal.slice(1, -1);
         pending = key;
         const row = rowFor(key);
+        let renamedTo = key;
 
         if (row !== undefined) {
           const target = parts(row.to);
 
           if (target.parent === parts(row.from).parent) {
             written = `${char}${target.key}${char}`;
+            renamedTo = target.key;
           }
         }
+
+        noteKey(key, renamedTo);
       }
 
       out += written;
@@ -135,6 +160,7 @@ function scanSegment(
             out += /^[A-Za-z_$][\w$]*$/.test(target.key)
               ? target.key
               : JSON.stringify(target.key);
+            noteKey(word, target.key);
             last = "a";
             index = stop;
             continue;
@@ -147,6 +173,10 @@ function scanSegment(
         }
       }
 
+      if (isKey && keyPosition && stack.length > 0) {
+        noteKey(word, word);
+      }
+
       out += word;
       last = "a";
       index = stop;
@@ -155,12 +185,31 @@ function scanSegment(
 
     if (char === "{") {
       stack.push(pending === "" ? String(stack.length) : pending);
+      frames.push({
+        start: out.length + 1,
+        before: [],
+        after: [],
+        renamed: false,
+      });
       pending = "";
     } else if (char === "[") {
       stack.push(pending === "" ? "" : pending);
+      frames.push(undefined);
       pending = "";
     } else if (char === "}" || char === "]") {
       stack.pop();
+      const frame = frames.pop();
+
+      // A rename can break the order a config's keys were in; keep it.
+      if (
+        frame?.renamed === true &&
+        isSorted(frame.before) &&
+        !isSorted(frame.after)
+      ) {
+        out =
+          out.slice(0, frame.start) + sortObjectBody(out.slice(frame.start));
+      }
+
       pending = "";
     } else if (char === ",") {
       pending = "";

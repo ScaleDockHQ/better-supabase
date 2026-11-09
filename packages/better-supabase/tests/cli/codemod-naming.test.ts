@@ -325,3 +325,34 @@ describe("BS260", () => {
     });
   });
 });
+
+describe("argument renames", () => {
+  const codemod = namingCodemod();
+
+  it("renames the keys, members and shorthand of the tasks verb arguments", () => {
+    const { text } = applyCodemod(
+      codemod,
+      [
+        'import { workItemId } from "./x";',
+        "await tasks.assign({ workItemId: id, userId });",
+        "await tasks.move({ workItemId });",
+        "const { workItemId } = event.data;",
+        "log(event.data.workItemId);",
+        'const note = "workItemId";',
+        "",
+      ].join("\n"),
+    );
+
+    expect(text).toBe(
+      [
+        'import { workItemId } from "./x";',
+        "await tasks.assign({ taskId: id, userId });",
+        "await tasks.move({ taskId: workItemId });",
+        "const { taskId: workItemId } = event.data;",
+        "log(event.data.taskId);",
+        'const note = "workItemId";',
+        "",
+      ].join("\n"),
+    );
+  });
+});

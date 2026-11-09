@@ -1,27 +1,23 @@
+import naming from "../../api/naming.json" with { type: "json" };
+
+const PERMISSION_KEY = /^blocks\.([^.]+)\.permissions\.([^.]+)$/;
+
 /**
  * The keys under `blocks.<name>.permissions` that ADR 0130 renamed when the
  * action verbs became `read`, `write` and `manage`, as `<block>.<old action>`
- * and the new action. A config that still has one is refused, and `codemod
- * naming` renames it.
+ * and the new action. They are the `configKey` rows of `api/naming.json` for
+ * those paths, so `codemod naming` renames what this check refuses.
  */
-export const FORMER_PERMISSION_KEYS: Readonly<Record<string, string>> =
-  Object.freeze({
-    "ai-chat.admin": "manage",
-    "audit.view": "read",
-    "audit.viewAll": "readAll",
-    "automations.admin": "manage",
-    "automations.edit": "write",
-    "billing.viewAll": "readAll",
-    "employees.viewSensitive": "readSensitive",
-    "impersonation.view": "read",
-    "invitations.view": "read",
-    "segments.edit": "write",
-    "webhooks-in.view": "read",
-    "webhooks-out.view": "read",
-    "workflow-editor.admin": "manage",
-    "workflow-editor.edit": "write",
-    "workflows.admin": "manage",
-  });
+const FORMER_PERMISSION_KEYS: ReadonlyMap<string, string> = new Map(
+  naming.renames.flatMap((rename) => {
+    const from = PERMISSION_KEY.exec(rename.from);
+    const to = PERMISSION_KEY.exec(rename.to);
+
+    return rename.kind === "configKey" && from !== null && to !== null
+      ? [[`${from[1]}.${from[2]}`, to[2]!] as const]
+      : [];
+  }),
+);
 
 /** Throws for a key of `permissions` that is a former action name of `block`. */
 export function checkFormerPermissionKeys(
@@ -30,7 +26,7 @@ export function checkFormerPermissionKeys(
   permissions: Readonly<Record<string, unknown>>,
 ): void {
   for (const key of Object.keys(permissions)) {
-    const renamed = FORMER_PERMISSION_KEYS[`${block}.${key}`];
+    const renamed = FORMER_PERMISSION_KEYS.get(`${block}.${key}`);
 
     if (renamed !== undefined) {
       throw new TypeError(

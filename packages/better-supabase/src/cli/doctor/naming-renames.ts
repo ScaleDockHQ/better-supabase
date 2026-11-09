@@ -8,6 +8,7 @@ const escaped = (text: string): string =>
 
 /** The kinds that name something in source code; SQL object renames don't. */
 const SOURCE_KINDS: ReadonlySet<string> = new Set([
+  "argument",
   "env",
   "event",
   "function",

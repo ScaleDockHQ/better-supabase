@@ -1882,6 +1882,108 @@
       "to": "blocks.bulk-actions",
       "kind": "configKey",
       "since": "0.54"
+    },
+    {
+      "from": "blocks.ai-chat.permissions.admin",
+      "to": "blocks.ai-chat.permissions.manage",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.audit.permissions.view",
+      "to": "blocks.audit.permissions.read",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.audit.permissions.viewAll",
+      "to": "blocks.audit.permissions.readAll",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.automations.permissions.admin",
+      "to": "blocks.automations.permissions.manage",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.automations.permissions.edit",
+      "to": "blocks.automations.permissions.write",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.billing.permissions.viewAll",
+      "to": "blocks.billing.permissions.readAll",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.employees.permissions.viewSensitive",
+      "to": "blocks.employees.permissions.readSensitive",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.impersonation.permissions.view",
+      "to": "blocks.impersonation.permissions.read",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.invitations.permissions.view",
+      "to": "blocks.invitations.permissions.read",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.segments.permissions.edit",
+      "to": "blocks.segments.permissions.write",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.webhooks-in.permissions.view",
+      "to": "blocks.webhooks-in.permissions.read",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.webhooks-out.permissions.view",
+      "to": "blocks.webhooks-out.permissions.read",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.workflow-editor.permissions.admin",
+      "to": "blocks.workflow-editor.permissions.manage",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.workflow-editor.permissions.edit",
+      "to": "blocks.workflow-editor.permissions.write",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "blocks.workflows.permissions.admin",
+      "to": "blocks.workflows.permissions.manage",
+      "kind": "configKey",
+      "since": "0.48"
+    },
+    {
+      "from": "workItemId",
+      "to": "taskId",
+      "kind": "argument",
+      "since": "0.58"
+    },
+    {
+      "from": "workItemIds",
+      "to": "taskIds",
+      "kind": "argument",
+      "since": "0.58"
     }
   ],
   "allowlist": {

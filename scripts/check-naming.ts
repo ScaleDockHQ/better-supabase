@@ -13,6 +13,7 @@ interface Rename {
   readonly from: string;
   readonly to: string;
   readonly kind:
+    | "argument"
     | "column"
     | "configKey"
     | "constraint"
@@ -145,6 +146,7 @@ const escaped = (text: string): string =>
 const renameChecks = naming.renames
   .filter(
     (rename) =>
+      rename.kind !== "argument" &&
       rename.kind !== "column" &&
       rename.kind !== "configKey" &&
       rename.kind !== "policy",

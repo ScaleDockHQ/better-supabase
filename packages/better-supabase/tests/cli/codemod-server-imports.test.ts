@@ -34,6 +34,21 @@ describe("codemod server-imports", () => {
     );
   });
 
+  it("splits a re-export the same way", () => {
+    const result = moveServerImports(
+      'export { createServer, toCsv } from "better-supabase/server";\nexport type { RateLimitState } from "better-supabase/server";\n',
+    );
+
+    expect(result.text).toBe(
+      [
+        'export { createServer } from "better-supabase/server";',
+        'export { toCsv } from "better-supabase/server/csv";',
+        'export type { RateLimitState } from "better-supabase/server/rate-limit";',
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("leaves an import that moved nothing alone", () => {
     const text = 'import { createServer } from "better-supabase/server";\n';
 

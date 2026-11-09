@@ -36,7 +36,7 @@ const MOVED: Readonly<Record<string, string>> = {
 };
 
 const IMPORT =
-  /^([ \t]*)import(\s+type)?\s*\{([^}]*)\}\s*from\s*(["'])better-supabase\/server\4;?/gm;
+  /^([ \t]*)(import|export)(\s+type)?\s*\{([^}]*)\}\s*from\s*(["'])better-supabase\/server\5;?/gm;
 
 function entryName(entry: string): string {
   return entry
@@ -46,9 +46,10 @@ function entryName(entry: string): string {
 }
 
 /**
- * Splits each `import { ... } from "better-supabase/server"` so the names that
- * moved to `server/accounts`, `server/csv` and `server/rate-limit` import from
- * their new subpath. The names that stayed keep their import.
+ * Splits each `import` and `export { ... } from "better-supabase/server"` so
+ * the names that moved to `server/accounts`, `server/csv` and
+ * `server/rate-limit` import from their new subpath. The names that stayed keep
+ * their import.
  */
 export function moveServerImports(text: string): {
   readonly text: string;
@@ -61,6 +62,7 @@ export function moveServerImports(text: string): {
     (
       whole: string,
       indent: string,
+      keyword: string,
       typeOnly: string | undefined,
       list: string,
       quote: string,
@@ -86,7 +88,7 @@ export function moveServerImports(text: string): {
         return whole;
       }
 
-      const head = `${indent}import${typeOnly ?? ""}`;
+      const head = `${indent}${keyword}${typeOnly ?? ""}`;
       const lines: string[] = [];
 
       for (const [target, names] of groups) {

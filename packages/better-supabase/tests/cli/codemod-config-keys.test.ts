@@ -46,7 +46,7 @@ export default defineConfig({
     expect(next).toContain(
       'blocks: { tasks: { subjects: {}, output: "kept" } }',
     );
-    expect(next).toContain('{ format: "openapi", file: "o.json" }');
+    expect(next).toContain('{ file: "o.json", format: "openapi" }');
     expect(next).toContain("// subjects: { in a comment }");
     expect(next).toContain('/* output: "in a block comment" */');
   });
@@ -70,6 +70,61 @@ export default defineConfig({
 
     expect(text).toBe(
       `const recipes = [{ name: "a", config: defineConfig({ recordTypes: {} }) }, { subjects: 1, config: defineConfig({ gen: { file: "x" } }) }];`,
+    );
+  });
+
+  it("keeps the keys of an object sorted when they were", () => {
+    const { text } = renameConfigKeys(
+      `export default defineConfig({
+  blocks: {
+    audit: { permissions: { admin: "a.admin", edit: "a.edit", view: "a.view" } },
+    tasks: {},
+  },
+});
+`,
+      [
+        row("blocks.audit.permissions.view", "blocks.audit.permissions.read"),
+        row("blocks.audit.permissions.edit", "blocks.audit.permissions.write"),
+        row(
+          "blocks.audit.permissions.admin",
+          "blocks.audit.permissions.manage",
+        ),
+      ],
+    );
+
+    expect(text).toContain(
+      'permissions: { manage: "a.admin", read: "a.view", write: "a.edit" }',
+    );
+  });
+
+  it("sorts multi-line entries with their comments and leaves an unsorted object alone", () => {
+    const rowsSorted = [row("blocks.bulk", "blocks.bulk-actions")];
+
+    const sorted = renameConfigKeys(
+      `export default defineConfig({
+  blocks: {
+    bulk: { a: 1 },
+    // tasks stay
+    tasks: {
+      x: 1,
+    },
+  },
+});
+`,
+      rowsSorted,
+    );
+
+    expect(sorted.text).toContain(`    "bulk-actions": { a: 1 },
+    // tasks stay
+    tasks: {`);
+
+    const unsorted = renameConfigKeys(
+      `export default defineConfig({ blocks: { tasks: {}, bulk: {} } });`,
+      rowsSorted,
+    );
+
+    expect(unsorted.text).toBe(
+      `export default defineConfig({ blocks: { tasks: {}, "bulk-actions": {} } });`,
     );
   });
 
