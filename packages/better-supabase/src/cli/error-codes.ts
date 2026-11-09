@@ -11,9 +11,6 @@ export interface ErrorCodeEntry {
 
 export { ERROR_CODES };
 
-/** A code from the catalog. */
-export type ErrorCode = (typeof ERROR_CODES)[number]["code"];
-
 const PATTERNS = [
   /fail\(\s*["']([A-Z][A-Z0-9_]+)["']\s*,\s*["']([^"']*)["']/gu,
   /hint = '([A-Z][A-Z0-9_]+)'/gu,

@@ -4,13 +4,17 @@ const RAISE = /raise\s+exception\b/iu;
 
 /** A raise in schema SQL that does not name a stable hint code. */
 export function raisesWithoutCode(file: TextFile): readonly FindingInput[] {
-  return file.text.split("\n").flatMap((line, index): FindingInput[] => {
+  const lines = file.text.split("\n");
+
+  return lines.flatMap((line, index): FindingInput[] => {
     const trimmed = line.trim();
+    // The hint often sits on the following `using` line.
+    const window = lines.slice(index, index + 3).join(" ");
 
     if (
       trimmed.startsWith("--") ||
       !RAISE.test(line) ||
-      /hint\s*=/iu.test(line)
+      /hint\s*=/iu.test(window)
     ) {
       return [];
     }

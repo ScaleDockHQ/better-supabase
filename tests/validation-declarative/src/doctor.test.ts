@@ -86,10 +86,12 @@ describe("doctor on the declarative fixture", () => {
       const result = await run([
         "doctor",
         "--json",
-        // BS303 compares generated client code, which this app has none of; the
-        // other two report the host's shared memory.
+        // BS303 compares generated client code, which this app has none of.
+        // BS700 and BS701 report the host's shared memory. BS630 reports
+        // memberships.user_id and memberships.invited_by, both keys to
+        // auth.users.
         "--ignore",
-        "BS303,BS700,BS701",
+        "BS303,BS630,BS700,BS701",
         "--fail-on",
         "warning",
         "--snapshot",

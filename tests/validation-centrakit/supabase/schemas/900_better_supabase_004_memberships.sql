@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:131cfd707e6028dee8560464470bccac9853f4d4548f38b7724c8d6e91b41fa2
+-- @bsb-hash sha256:072bbf7e0672ab8d47136eb66e1557aa66820fd0be65ba40384e8d17935dd05d
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,21 +59,30 @@ as $$
 declare
   matched boolean;
   extra text := '';
-  i integer := 6;
+  shared boolean := tg_nargs > 5 and tg_argv[5] = 'shared';
+  where_at integer := case when shared then 6 else 5 end;
+  i integer;
+  tenant_test text;
 begin
   if pg_catalog.to_jsonb(new) -> tg_argv[0] = 'null'::jsonb then
     return new;
   end if;
-  if tg_nargs > 5 and tg_argv[5] <> '' then
-    extra := ' and (' || tg_argv[5] || ')';
+  if tg_nargs > where_at and tg_argv[where_at] <> '' then
+    extra := ' and (' || tg_argv[where_at] || ')';
   end if;
+  i := where_at + 1;
   while i + 1 < tg_nargs loop
     extra := extra || pg_catalog.format(' and p.%I is not distinct from ($1).%I', tg_argv[i + 1], tg_argv[i]);
     i := i + 2;
   end loop;
+  if shared then
+    tenant_test := pg_catalog.format('p.%I is null or p.%I is not distinct from ($1).%I', tg_argv[4], tg_argv[4], tg_argv[1]);
+  else
+    tenant_test := pg_catalog.format('p.%I is not distinct from ($1).%I', tg_argv[4], tg_argv[1]);
+  end if;
   execute pg_catalog.format(
-    'select exists (select 1 from %s p where p.%I = ($1).%I and (p.%I is null or p.%I is not distinct from ($1).%I)%s)',
-    tg_argv[2], tg_argv[3], tg_argv[0], tg_argv[4], tg_argv[4], tg_argv[1], extra
+    'select exists (select 1 from %s p where p.%I = ($1).%I and (%s)%s)',
+    tg_argv[2], tg_argv[3], tg_argv[0], tenant_test, extra
   ) into matched using new;
   if not matched then
     raise exception '%.% must reference a row of % in the same tenant', tg_table_name, tg_argv[0], tg_argv[2]
@@ -217,7 +226,8 @@ grant execute on function better_supabase.has_organization_role(uuid, text[]) to
 grant execute on function better_supabase.organization_member_role(uuid, uuid) to service_role;
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
--- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }. When an
+-- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }; `'summary'`
+-- is { form, roles, tenants } with a role index per tenant. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',

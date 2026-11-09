@@ -1,25 +1,12 @@
 import type { DbOf, AsyncResult } from "better-supabase";
 
-import { defineDataHooks, defineInfiniteListHook } from "better-supabase/react";
+import { defineInfiniteListHook } from "better-supabase/react";
 
 import type { betterSupabase } from "./supabase";
 
-import { customerColumns, customerCursor, customerList } from "../lists";
+import { customerColumns, customerCursor } from "../lists";
 
 type AppDb = DbOf<typeof betterSupabase>;
-
-/**
- * A page of `customerList` with its total, on the provider's engine. The
- * PowerSync engine reads it again when `customers` changes on the device
- * (`tables: { "customer-pages": ["customers"] }`).
- */
-export const { useList: useCustomerPage } = defineDataHooks(
-  "customer-pages",
-  (db: AppDb) => ({
-    list: (query: typeof customerList.defaults) =>
-      customerList.run(db, query, { select: customerColumns }),
-  }),
-);
 
 interface CustomerRow {
   readonly id: string;

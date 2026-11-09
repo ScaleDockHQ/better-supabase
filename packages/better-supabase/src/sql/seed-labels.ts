@@ -19,7 +19,7 @@ export const LETTERHEADS: SeedLabel = {
 };
 
 /** English names for the shared tax keys. Country packs add their own codes. */
-export const TAX_LABELS: readonly SeedLabel[] = [
+const TAX_LABELS: readonly SeedLabel[] = [
   {
     key: "STD",
     locales: { en: "Standard VAT", nl: "Standaard btw", de: "Regelsteuersatz" },

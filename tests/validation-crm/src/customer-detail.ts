@@ -55,7 +55,7 @@ export function customerDetail(
             },
           },
         },
-        customerLocationsByCustomer: {
+        customerLocations: {
           select: LOCATION_COLUMNS,
           orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
         },

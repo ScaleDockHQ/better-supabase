@@ -34,7 +34,14 @@ const doctor = async (
     "doctor",
     "--json",
     ...(only === undefined
-      ? ["--ignore", "BS303,BS700,BS701"]
+      ? [
+          "--ignore",
+          // BS303 compares generated client code. BS700 and BS701 report the
+          // host's shared memory. BS628 looks for a cursor index in the same
+          // file as list_attachments and list_teams, which live in the base
+          // migration this fixture does not rewrite.
+          "BS303,BS628,BS700,BS701",
+        ]
       : ["--only", only]),
     "--fail-on",
     "warning",

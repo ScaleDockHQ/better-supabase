@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:219d1107661ee380c80d0ee874404bee5bdf9f7a58a6b5957ca069ee8d1294d6
+-- @bsb-hash sha256:1ca1fc2d8d38ba6805730123672a2947f93ef8c803c93a57d12070d827443c61
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,7 +17,7 @@ grant all on "centrakit"."notification_events" to service_role;
 -- centrakit.notification_recipients is the app's table, and it has every column this block needs.
 alter table "centrakit"."notification_events" add column if not exists "actions" jsonb;
 alter table "centrakit"."notification_recipients" add column if not exists "resolution" jsonb;
-create index if not exists notification_recipients_inbox_idx on "centrakit"."notification_recipients" ("recipient_user_id", "created_at" desc) where "dismissed_at" is null;
+create index if not exists notification_recipients_inbox_idx on "centrakit"."notification_recipients" ("recipient_user_id", "created_at" desc, "id" desc) where "dismissed_at" is null;
 create index if not exists notification_recipients_unread_idx on "centrakit"."notification_recipients" ("recipient_user_id") where "read_at" is null and "dismissed_at" is null;
 create index if not exists notification_recipients_user_idx on "centrakit"."notification_recipients" ("recipient_user_id");
 alter table "centrakit"."notification_recipients" enable row level security;

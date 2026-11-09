@@ -71,15 +71,11 @@ function listWhere(
   }
 
   const assigned = filter.assigneeIds?.length
-    ? {
-        customerAssigneesByCustomer: {
-          some: { userId: { in: filter.assigneeIds } },
-        },
-      }
+    ? { customerAssignees: { some: { userId: { in: filter.assigneeIds } } } }
     : undefined;
 
   if (filter.unassigned) {
-    const unassigned = { customerAssigneesByCustomer: { none: {} } };
+    const unassigned = { customerAssignees: { none: {} } };
     where.push(assigned ? { OR: [assigned, unassigned] } : unassigned);
   } else if (assigned) {
     where.push(assigned);
@@ -139,7 +135,7 @@ export function createCustomersService(db: CrmDb) {
         size: filter.size ?? 25,
         count: "estimated",
         include: {
-          customerAssigneesByCustomer: { select: ["userId"] },
+          customerAssignees: { select: ["userId"] },
           customerTags: {
             select: ["tagId"],
             include: { tag: { select: ["id", "name", "color"] } },
@@ -154,7 +150,7 @@ export function createCustomersService(db: CrmDb) {
               },
             },
           },
-          customerLocationsByCustomer: {
+          customerLocations: {
             select: ["id", "name", "addressCity"],
             where: { isPrimary: true },
             limit: 1,
@@ -172,7 +168,7 @@ export function createCustomersService(db: CrmDb) {
               orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
               include: { contactProfile: true },
             },
-            customerLocationsByCustomer: {
+            customerLocations: {
               orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
             },
             customerTags: { include: { tag: true } },

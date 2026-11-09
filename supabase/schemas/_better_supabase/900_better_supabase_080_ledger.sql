@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:94988fa4dffefbee3c01e1288892104050e26c0d3240f01ae6540d093696d01d
+-- @bsb-hash sha256:752687206789c10077b08c0d6261da120db45fc79c1c63f1d06a5b125f14da6b
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -62,10 +62,12 @@ create table "better_supabase"."ledger_entries" (
   -- Signed, in the account's unit: the entries of a transaction sum to zero per unit.
   "amount" bigint not null constraint bsb_ledger_entries_amount_check check ("amount" <> 0),
   "unit" text not null,
+  "effective_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now()
 );
 create index "ledger_entries_account_idx" on "better_supabase"."ledger_entries" ("account_id", "created_at" desc);
 create index "ledger_entries_transaction_idx" on "better_supabase"."ledger_entries" ("transaction_id");
+create index "ledger_entries_tenant_idx" on "better_supabase"."ledger_entries" ("tenant_id", "effective_at" desc);
 
 create table "better_supabase"."ledger_balances" (
   "account_id" uuid primary key references "better_supabase"."ledger_accounts" ("id") on delete cascade,
@@ -328,8 +330,8 @@ begin
   values (ledger_post.tenant, ledger_post.kind, ledger_post.reference_type, ledger_post.reference_id, nullif(trim(ledger_post.memo), ''),
     ledger_post.idempotency_key, ledger_post.reverses, coalesce(ledger_post.metadata, '{}'::jsonb), coalesce(ledger_post.effective_at, now()), auth.uid())
   returning * into v_row;
-  insert into "better_supabase"."ledger_entries" ("tenant_id", "transaction_id", "account_id", "amount", "unit")
-  select ledger_post.tenant, v_row."id", x."id", (l.value ->> 'amount')::bigint, x."unit"
+  insert into "better_supabase"."ledger_entries" ("tenant_id", "transaction_id", "account_id", "amount", "unit", "effective_at")
+  select ledger_post.tenant, v_row."id", x."id", (l.value ->> 'amount')::bigint, x."unit", v_row."effective_at"
   from jsonb_array_elements(ledger_post.lines) with ordinality as l(value, n)
   join "better_supabase"."ledger_accounts" x on x."id" = (l.value ->> 'account')::uuid
   order by l.n;
@@ -346,6 +348,28 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_post"(uuid, text, jsonb, text, text, text, text, timestamptz, jsonb, uuid) from public, anon, authenticated;
+
+-- The entries of this organization whose ids are in the list.
+create or replace function "better_supabase"."get_many"(tenant uuid, ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', e."id",
+    'transactionId', e."transaction_id",
+    'accountId', e."account_id",
+    'amount', e."amount"::text,
+    'unit', e."unit",
+    'effectiveAt', e."effective_at"
+  ) order by e."effective_at", e."id"), '[]'::jsonb)
+  from "better_supabase"."ledger_entries" e
+  where e."tenant_id" = get_many.tenant and e."id" = any (get_many.ids)
+$$;
+revoke execute on function "better_supabase"."get_many"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_many"(uuid, uuid[]) to authenticated, service_role;
 
 -- Opens an account for the app's own use (credits, loyalty points, gift
 -- cards, trust balances). code is unique per organization.

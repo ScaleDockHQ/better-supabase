@@ -1,6 +1,6 @@
 -- better-supabase module: prelude
 -- @bsb-block prelude@1 managed
--- @bsb-hash sha256:0f631d1b010b7856990429d23bfea71dec6887da89e2675078048206ecab78a9
+-- @bsb-hash sha256:40867f1d9c061c0e4599d9471b1c82c45e98af8f0b6b2f57cdcc28278f821850
 -- The schema, the blocks table and the helper functions every block calls, each defined once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

@@ -1,6 +1,6 @@
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
--- @bsb-hash sha256:2a33256f6db8abbed08a5e7f3056d28b829bf206b7467c6ac2a4e9761e1573ce
+-- @bsb-hash sha256:0668a86e2fdc76128bfaf342f589cf2fa16cd2ca03dbe708e021327e29873fd9
 -- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,6 +78,7 @@ volatile
 set search_path = ''
 as $$
   select case when field_seal.value is null then null
+    when left(field_seal.value, 5) = 'bsf1:' then field_seal.value
     else 'bsf1:' || translate(encode(extensions.pgp_sym_encrypt(field_seal.value, field_seal.key, 'cipher-algo=aes256, s2k-mode=1'), 'base64'), E'\n', '')
   end
 $$;

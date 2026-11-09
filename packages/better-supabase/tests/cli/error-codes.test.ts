@@ -31,5 +31,11 @@ describe("error codes", () => {
         text: "raise exception 'nope' using errcode = '22023', hint = 'APP_NOPE';\n",
       }),
     ).toEqual([]);
+    expect(
+      raisesWithoutCode({
+        path: "supabase/schemas/app.sql",
+        text: "raise exception 'nope'\n  using errcode = '22023', hint = 'APP_NOPE';\n",
+      }),
+    ).toEqual([]);
   });
 });

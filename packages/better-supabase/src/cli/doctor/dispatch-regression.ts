@@ -8,14 +8,14 @@ const FUNCTION_NAME =
   /^create\s+(?:or\s+replace\s+)?function\s+((?:"[^"]+"|[\w$]+)(?:\s*\.\s*(?:"[^"]+"|[\w$]+))?)/iu;
 
 /** The `when '<entity>' then` arms of one statement, in source order. */
-export function dispatchArms(sql: string): readonly string[] {
+function dispatchArms(sql: string): readonly string[] {
   return [...sql.matchAll(ARM)].flatMap((match) =>
     match[1] === undefined ? [] : [match[1]],
   );
 }
 
 /** The unqualified function name a `create function` statement declares. */
-export function createdFunction(sql: string): string | undefined {
+function createdFunction(sql: string): string | undefined {
   const declared = FUNCTION_NAME.exec(sql.replaceAll(/\s+/g, " ").trim())?.[1];
 
   if (declared === undefined) {
@@ -59,9 +59,7 @@ const schemaFiles = (files: readonly TextFile[]): readonly TextFile[] =>
  * Configured import target names, when `blocks.imports.options.targets` is a
  * map.
  */
-export function configuredImportEntities(
-  context: DoctorContext,
-): readonly string[] {
+function configuredImportEntities(context: DoctorContext): readonly string[] {
   const imports = context.config.blocks["imports"];
   const targets = imports?.options?.["targets"];
 

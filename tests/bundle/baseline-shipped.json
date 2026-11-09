@@ -1,9 +1,9 @@
 {
-  "next + client": 93763,
-  "next proxy": 66512,
-  "hono": 72148,
-  "react + query": 41935,
-  "saas client with blocks": 62212,
+  "next + client": 93877,
+  "next proxy": 66631,
+  "hono": 72250,
+  "react + query": 42030,
+  "saas client with blocks": 62320,
   "one block controller": 1466,
-  "client/native + react/native + powersync": 45805
+  "client/native + react/native + powersync": 45904
 }
