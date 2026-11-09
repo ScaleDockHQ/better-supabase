@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:b579553e3cb24537ed81dbe8e8ba2b1c149a790e569078a1580a96dd0ce1a8a4
+-- @bsb-hash sha256:3bf102f5dc1962d4fc79d5ac6ee2ba0f65f6a98b46a2777a74109be91ba2fe7e
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -43,10 +43,7 @@ revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public,
 grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
--- centrakit.field_definitions is the app's table: this block adds only the columns it needs.
-alter table "centrakit"."field_definitions" add column if not exists "encrypted" boolean not null default false;
-alter table "centrakit"."field_definitions" add column if not exists "pack" text;
-alter table "centrakit"."field_definitions" add column if not exists "pack_version" integer;
+-- centrakit.field_definitions is the app's table, and it has every column this block needs.
 alter table "centrakit"."field_definitions" enable row level security;
 grant select on "centrakit"."field_definitions" to authenticated;
 grant all on "centrakit"."field_definitions" to service_role;

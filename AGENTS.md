@@ -452,6 +452,15 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0501: Keep the legal entity number key swaps as `do` blocks until the owning modules render the key.
 - 0560: Keep `@ai-sdk/react` and the full Supabase browser client.
 - 0561: Load the board view and the task form on use.
+- 0580: Turn a feature off when an owned table lacks its column.
+- 0581: Time AsyncResult against a promise chain in the type bench.
+- 0582: Detect SvelteKit, TanStack Start and React Router with their own bindings, and pin adapterBase use.
+- 0583: Build each example app that has a bundler in its own CI job.
+- 0584: Hold the Lienlink projection shape with a pgTAP file.
+- 0585: Give approval items the app's columns, and leave hiring as it is.
+- 0586: Keep the drive grants mode and block client reads through views deferred.
+- 0587: Record the status of the ADR 0393 and 0420 leftovers.
+- 0588: Defer tenantless notifications and audit.
 
 ## Pre-release pins
 

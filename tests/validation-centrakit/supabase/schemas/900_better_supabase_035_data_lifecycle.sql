@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:9bd7c4f0c558ddea6dea026b59d241f01f139e20f277231047a1b912e4da33a8
+-- @bsb-hash sha256:424066e37860fc23488bfe37b57a0455e7c786fe9e6f94238a3296ac8233c5a5
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -834,7 +834,7 @@ as $$
     ('organization', 'centrakit.notification_subscriptions', '"centrakit"."notification_subscriptions"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.notification_preferences', '"centrakit"."notification_preferences"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_digests', '"better_supabase"."notification_digests"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'centrakit.webhook_destinations', '"centrakit"."webhook_destinations"', 'organization_id', true, array['credential_ref']::text[], true),
+    ('organization', 'centrakit.webhook_destinations', '"centrakit"."webhook_destinations"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.webhook_destination_secrets', '"centrakit"."webhook_destination_secrets"', 'organization_id', true, '{}'::text[], false),
     ('organization', 'centrakit.webhook_deliveries', '"centrakit"."webhook_deliveries"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.inbound_webhooks', '"centrakit"."inbound_webhooks"', 'organization_id', true, array['token_digest', 'vault_secret_id']::text[], true),
@@ -911,9 +911,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select * from (values
-    ('centrakit.webhook_destinations', '"centrakit"."webhook_destinations"', 'credential_ref', null::text)
-  ) as c(name, tbl, col, user_col)
+  select null::text, null::text, null::text, null::text where false
 $$;
 
 -- The credential_refs in the rows a due purge deletes (service role), for

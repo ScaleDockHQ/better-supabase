@@ -12,6 +12,12 @@ The tests hold it to the same promises as `validation-declarative`: an empty
 second `upgrade`, every app object kept by a second `upgrade`, and doctor
 failing on seeded patterns.
 
+`supabase/tests/projections.test.sql` is a pgTAP file for the projection shape:
+the views and their `security_invoker` option, the `instead of` insert trigger,
+the stored generated column, the composite foreign key and the app's triggers
+beside the blocks'. `better-supabase upgrade` leaves it alone. Start the
+fixture's stack with `supabase start` in this folder, then run `supabase test db`.
+
 ```sh
 pnpm test
 pnpm sql:check

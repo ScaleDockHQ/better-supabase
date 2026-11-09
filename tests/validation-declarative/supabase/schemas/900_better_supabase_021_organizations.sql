@@ -1,14 +1,11 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:7cc3590cc060d2f149da0e478f671033d4ff38675d08430690acc8503323a865
+-- @bsb-hash sha256:9f1a0c0eb3a85838df89ed513f613240921f48b2062d63a60a2be7168b351303
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- public.organizations is the app's table: this block adds only the columns it needs.
-alter table "public"."organizations" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
-alter table "public"."organizations" add column if not exists "disabled_at" timestamptz;
-alter table "public"."organizations" add column if not exists "deleted_at" timestamptz;
+-- public.organizations is the app's table, and it has every column this block needs.
 create unique index if not exists organizations_slug_idx on "public"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists organizations_created_by_idx on "public"."organizations" ("created_by");
 alter table "public"."organizations" add column if not exists "updated_at" timestamptz not null default now();

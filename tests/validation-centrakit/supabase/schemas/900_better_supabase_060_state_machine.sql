@@ -1,15 +1,11 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:a9cc1cc6dbfb327b2510a299d4bcc15e37937a633e7e69b4ba34686e25b823c1
+-- @bsb-hash sha256:cbd24c3ad965a3d1a4c9bf524bbbe07a8438cb865af20ec7864b48b6505f4170
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- centrakit.status_history is the app's table: this block adds only the columns it needs.
-alter table "centrakit"."status_history" add column if not exists "actor_name" text;
-alter table "centrakit"."status_history" add column if not exists "actor_email" text;
-alter table "centrakit"."status_history" add column if not exists "ip_address" inet;
-alter table "centrakit"."status_history" add column if not exists "user_agent" text;
+-- centrakit.status_history is the app's table, and it has every column this block needs.
 create index if not exists status_history_subject_idx on "centrakit"."status_history" ("subject_type", "subject_id", "created_at" desc);
 alter table "centrakit"."status_history" enable row level security;
 grant select on "centrakit"."status_history" to authenticated;

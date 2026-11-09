@@ -91,6 +91,9 @@ export function moduleContext(
         : {}),
       ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
       ...(layout.appColumns ? { appColumns: layout.appColumns } : {}),
+      ...(layout.ownColumns && layout.keepUndeclaredColumns !== true
+        ? { ownColumns: layout.ownColumns }
+        : {}),
       ...(installed ? { installed } : {}),
       ...(layout.instances ? { instances: layout.instances } : {}),
       ...(instance === undefined || instance === name ? {} : { instance }),

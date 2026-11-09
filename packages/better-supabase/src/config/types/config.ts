@@ -43,7 +43,14 @@ import type {
 } from "./tooling.ts";
 
 /** The frameworks `gen.hooks` writes data hooks for without registration. */
-export type DataHooksFramework = "react" | "vue" | "svelte" | "solid";
+export type DataHooksFramework =
+  | "react"
+  | "vue"
+  | "svelte"
+  | "solid"
+  | "sveltekit"
+  | "tanstack-start"
+  | "react-router";
 
 /**
  * A built-in framework, or the name of a binding registered with `frameworks`.

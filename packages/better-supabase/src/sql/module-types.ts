@@ -364,6 +364,12 @@ export interface BlockSqlLayout {
   readonly appColumns?: Readonly<
     Record<string, readonly { readonly name: string; readonly type: string }[]>
   >;
+  /**
+   * Render the columns a block adds to a table in `ownTables` even when the
+   * app's files don't declare them (the behavior before ADR 0580). Only
+   * `codemod owned-columns` and doctor BS622 set it, to find those columns.
+   */
+  readonly keepUndeclaredColumns?: boolean;
   /** The columns of the tables in `ownTables`, where they are known. */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
   /**

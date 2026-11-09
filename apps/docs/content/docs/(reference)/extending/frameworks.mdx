@@ -5,9 +5,11 @@ description: Register a framework binding with defineFramework so gen writes its
 
 A framework binding tells better-supabase everything it needs to know about a
 front-end framework in one place: which packages identify it, which module holds
-its data hooks and what `gen` writes at the top of `hooks.ts`. The four built-in
-bindings (`react`, `svelte`, `vue` and `solid`) are defined the same way, so a
-package you publish gets the same treatment.
+its data hooks and what `gen` writes at the top of `hooks.ts`. The seven built-in
+bindings (`sveltekit`, `tanstack-start`, `react-router`, `react`, `svelte`, `vue`
+and `solid`) are defined the same way, so a package you publish gets the same
+treatment. The first three come before the libraries they build on, because
+`init` takes the first binding whose package it finds.
 
 ## Define a binding
 

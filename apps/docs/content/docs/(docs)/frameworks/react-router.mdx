@@ -52,6 +52,8 @@ A guard refusal returns the 401 or 403 Problem Details instead of calling
 signed-in user. The bridge makes the request body readable twice, so an entry
 and an action both see it.
 
+`better-supabase init` detects React Router framework mode from `@react-router/dev`, sets `gen.hooks` to `react-router` and writes `lib/supabase/middleware.server.ts`, unless the file exists. Turn on `future.v8_middleware` and export `middleware` from `app/root.tsx` yourself.
+
 ## Session snapshot
 
 The helpers from `createReactRouter(betterSupabase)` hand every loader

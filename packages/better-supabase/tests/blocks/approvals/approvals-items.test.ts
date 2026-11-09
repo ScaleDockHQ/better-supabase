@@ -54,6 +54,35 @@ const REQUEST = {
 const SUBJECT = { type: "chat", id: "c1" };
 
 describe("approval items", () => {
+  it("passes an item's fields through and reads them back on get", async () => {
+    const fake = transport({
+      request_approval_items: REQUEST,
+      get_approval: {
+        ...REQUEST,
+        canDecide: true,
+        decisions: [],
+        items: [{ ...ITEM, fields: { cost_center: "ops" } }],
+      },
+    });
+
+    const approvals = createApprovals({ transport: fake, tenant: "o" });
+
+    await approvals.request({
+      subject: SUBJECT,
+      input: {
+        action: "run",
+        items: [{ key: "invoice", fields: { cost_center: "ops" } }],
+      },
+    });
+
+    const got = await approvals.get("r1");
+
+    expect(fake.calls[0]?.[1]["items"]).toEqual([
+      expect.objectContaining({ fields: { cost_center: "ops" } }),
+    ]);
+    expect(got.ok && got.data.items[0]?.fields).toEqual({ cost_center: "ops" });
+  });
+
   it("files a request with items through request_approval_items", async () => {
     const fake = transport({ request_approval_items: REQUEST });
     const approvals = createApprovals({ transport: fake, tenant: "o" });

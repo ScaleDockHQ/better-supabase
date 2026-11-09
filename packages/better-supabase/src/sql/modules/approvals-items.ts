@@ -3,7 +3,14 @@ import type { ApprovalSqlKit } from "./approvals-steps.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, SERVICE_CALLER, serviceGrant, userGrant } from "../shared.ts";
+import {
+  extraFieldsJson,
+  fail,
+  insertExtraColumns,
+  SERVICE_CALLER,
+  serviceGrant,
+  userGrant,
+} from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
 
 /** The most items one request carries. */
@@ -33,6 +40,23 @@ export const ITEM_TABLES = {
     },
   },
 } as const;
+
+/** The keys an item read returns next to the extra columns. */
+const ITEM_KEYS: readonly string[] = [
+  "id",
+  "key",
+  "label",
+  "payload",
+  "permission",
+  "dependsOn",
+  "status",
+  "createdType",
+  "createdId",
+  "decidedBy",
+  "decidedAt",
+  "createdAt",
+  "fields",
+];
 
 /** The item functions the module exposes. */
 export function approvalItemsContract(): readonly BlockSqlContractFunction[] {
@@ -84,7 +108,7 @@ export interface ApprovalItemsSql {
 function itemJson(ctx: BlockSqlContext, row: string): string {
   const i = (column: string): string => `${row}.${ctx.col("items", column)}`;
 
-  return `jsonb_build_object('id', ${i("id")}, 'key', ${i("key")}, 'label', ${i("label")}, 'payload', ${i("payload")}, 'permission', ${i("permission")}, 'dependsOn', to_jsonb(${i("dependsOn")}), 'status', ${i("status")}, 'createdType', ${i("createdType")}, 'createdId', ${i("createdId")}, 'decidedBy', ${i("decidedBy")}, 'decidedAt', ${i("decidedAt")}, 'createdAt', ${i("createdAt")})`;
+  return `jsonb_build_object('id', ${i("id")}, 'key', ${i("key")}, 'label', ${i("label")}, 'payload', ${i("payload")}, 'permission', ${i("permission")}, 'dependsOn', to_jsonb(${i("dependsOn")}), 'status', ${i("status")}, 'createdType', ${i("createdType")}, 'createdId', ${i("createdId")}, 'decidedBy', ${i("decidedBy")}, 'decidedAt', ${i("decidedAt")}, 'createdAt', ${i("createdAt")}${extraFieldsJson(row, ctx.extraColumns("items", ITEM_KEYS))})`;
 }
 
 /** The request's items as a jsonb array, in the order they were filed. */
@@ -144,6 +168,10 @@ export function itemsSql(
   const { record, json, decided, notFound, also, alsoValue } = k;
   const items = ctx.table("items");
   const i = (column: string): string => ctx.col("items", column);
+  const extras = ctx.extraColumns("items", ITEM_KEYS);
+
+  const fieldsOf = `(case when jsonb_typeof(e.value -> 'fields') = 'object' then e.value -> 'fields' end)`;
+  const written = insertExtraColumns(items, extras, fieldsOf);
 
   const can = (tenant: string, permission: string): string =>
     sql.tenantless
@@ -216,11 +244,11 @@ begin
     policy => request_approval_items.policy,
     requested_by => request_approval_items.requested_by
   );
-  insert into ${items} (${i("request")}, ${i("tenant")}, ${i("key")}, ${i("label")}, ${i("payload")}, ${i("permission")}, ${i("dependsOn")})
+  insert into ${items} (${i("request")}, ${i("tenant")}, ${i("key")}, ${i("label")}, ${i("payload")}, ${i("permission")}, ${i("dependsOn")}${written.columns})
   select (v_result ->> 'id')::uuid, request_approval_items.tenant, e.value ->> 'key', e.value ->> 'label',
     case when jsonb_typeof(e.value -> 'payload') = 'object' then e.value -> 'payload' else '{}'::jsonb end,
     nullif(e.value ->> 'permission', ''),
-    array(select jsonb_array_elements_text(coalesce(e.value -> 'dependsOn', '[]'::jsonb)))
+    array(select jsonb_array_elements_text(coalesce(e.value -> 'dependsOn', '[]'::jsonb)))${written.values}
   from jsonb_array_elements(request_approval_items.items) with ordinality e(value, position)
   order by e.position;
   return v_result || jsonb_build_object('items', ${itemsOf(ctx, "(v_result ->> 'id')::uuid")});

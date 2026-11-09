@@ -5,8 +5,7 @@
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- centrakit.notification_events is the app's table: this block adds only the columns it needs.
-alter table "centrakit"."notification_events" add column if not exists "actions" jsonb;
+-- centrakit.notification_events is the app's table, and it has every column this block needs.
 create index if not exists notification_events_subject_idx on "centrakit"."notification_events" ("subject_type", "subject_id");
 create index if not exists notification_events_actor_idx on "centrakit"."notification_events" ("actor_user_id");
 create index if not exists notification_events_created_by_idx on "centrakit"."notification_events" ("created_by");
@@ -15,8 +14,7 @@ alter table "centrakit"."notification_events" enable row level security;
 grant select on "centrakit"."notification_events" to authenticated;
 grant all on "centrakit"."notification_events" to service_role;
 
--- centrakit.notification_recipients is the app's table: this block adds only the columns it needs.
-alter table "centrakit"."notification_recipients" add column if not exists "resolution" jsonb;
+-- centrakit.notification_recipients is the app's table, and it has every column this block needs.
 alter table "centrakit"."notification_events" add column if not exists "actions" jsonb;
 alter table "centrakit"."notification_recipients" add column if not exists "resolution" jsonb;
 create index if not exists notification_recipients_inbox_idx on "centrakit"."notification_recipients" ("recipient_user_id", "created_at" desc) where "dismissed_at" is null;
@@ -79,8 +77,7 @@ create policy "bsb_notification_subscriptions_own_delete" on "centrakit"."notifi
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select centrakit.authz_actor_may_write()));
 
--- centrakit.notification_preferences is the app's table: this block adds only the columns it needs.
-alter table "centrakit"."notification_preferences" add column if not exists "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off'));
+-- centrakit.notification_preferences is the app's table, and it has every column this block needs.
 alter table "centrakit"."notification_preferences" enable row level security;
 grant select, insert, update, delete on "centrakit"."notification_preferences" to authenticated;
 grant all on "centrakit"."notification_preferences" to service_role;

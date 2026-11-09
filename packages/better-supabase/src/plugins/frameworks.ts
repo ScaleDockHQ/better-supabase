@@ -114,10 +114,7 @@ export function frameworkProblem(binding: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * Declares a framework binding. Register it with `frameworks: [binding]` in the
- * config; `gen.hooks` then takes its name, and `init` detects it.
- */
+/** Declares a binding; register it with `gen.frameworks`. */
 export function defineFramework(
   definition: FrameworkDefinition,
 ): FrameworkBinding {
@@ -135,8 +132,29 @@ export function defineFramework(
   return binding;
 }
 
-/** The frameworks `gen.hooks` supports without registration. */
+const meta = (
+  name: string,
+  detect: string,
+  hooksSubpath: string,
+): FrameworkBinding =>
+  defineFramework({
+    name,
+    tier: "supported",
+    detect: [detect],
+    hooksSubpath,
+    serverSubpath: name,
+    ...(hooksSubpath === "react" ? { hooksDirective: '"use client";' } : {}),
+  });
+
+/**
+ * The frameworks `gen.hooks` supports without registration. A meta-framework
+ * comes before the library it builds on, since `detect` returns the first match
+ * (ADR 0582).
+ */
 export const BUILT_IN_FRAMEWORKS: readonly FrameworkBinding[] = [
+  meta("sveltekit", "@sveltejs/kit", "svelte"),
+  meta("tanstack-start", "@tanstack/react-start", "react"),
+  meta("react-router", "@react-router/dev", "react"),
   defineFramework({
     name: "react",
     tier: "supported",
@@ -164,11 +182,7 @@ export interface FrameworkRegistry {
   ): FrameworkBinding | undefined;
 }
 
-/**
- * The built-in bindings plus `extra`, which may list a built-in binding itself
- * (`ResolvedConfig.frameworks` does). A name that is registered twice, or that
- * reuses a built-in name with another binding, is an error.
- */
+/** The built-in bindings plus `extra`; a duplicate name is an error. */
 export function frameworkRegistry(
   extra: readonly FrameworkBinding[] = [],
 ): FrameworkRegistry {
@@ -210,7 +224,7 @@ export function frameworkRegistry(
   };
 }
 
-/** The runtime subpath `hooks.ts` imports `defineListHook` from. */
+/** The subpath `hooks.ts` imports `defineListHook` from. */
 export const hooksSubpathOf = (binding: FrameworkBinding): string =>
   binding.hooksSubpath ?? binding.name;
 
@@ -222,7 +236,7 @@ export const serverImportOf = (
     ? undefined
     : `better-supabase/${binding.serverSubpath}`;
 
-/** The files `init` writes for a binding, relative to the project root. */
+/** The files `init` writes for a binding. */
 export const frameworkFiles = (
   binding: FrameworkBinding,
   context: Omit<FrameworkTemplateContext, "serverImport">,
