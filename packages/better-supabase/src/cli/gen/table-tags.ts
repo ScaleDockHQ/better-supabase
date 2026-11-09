@@ -113,6 +113,11 @@ export function withTableTags(
   const vectorSearch = [...config.vectorSearch];
   const json: Record<string, JsonTypeConfig> = { ...config.json };
   const appTables: Record<string, AppTableConfig> = { ...config.appTables };
+
+  const tableOptions: Record<string, (typeof config.tables)[string]> = {
+    ...config.tables,
+  };
+
   const fromTags = new Set<string>();
   const eventTables = new Set<string>();
 
@@ -340,6 +345,23 @@ export function withTableTags(
           tag: tag.name,
           args: tag.args,
         });
+      } else if (tag.name === "filled-by-trigger") {
+        const columns = Object.keys(tag.args).filter(
+          (key) => tag.args[key] === true,
+        );
+
+        const key = [short, qualified].find((each) => each in tableOptions);
+        const own = tableOptions[key ?? short];
+        const known = new Set(own?.insertOptional);
+        const added = columns.filter((column) => !known.has(column));
+
+        if (added.length > 0) {
+          tableOptions[key ?? short] = {
+            ...own,
+            insertOptional: [...known, ...added],
+          };
+          changed = true;
+        }
       } else if (
         tag.name === "vector-search" &&
         !vectorSearch.some((each) => names.has(each.table))
@@ -426,6 +448,7 @@ export function withTableTags(
         vectorSearch,
         json,
         appTables,
+        tables: tableOptions,
         realtime: {
           ...config.realtime,
           tables: realtimeTables,

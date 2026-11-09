@@ -464,6 +464,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0435: Keep the row trigger as the audit default for import targets.
 - 0436: Import targets may write a batch in set-based statements.
 - 0437: Store import chunks in the library and process them from the queue.
+- 0438: Name trigger-filled columns with a table tag.
 - 0500: Check scale practices in doctor from the catalog and the schema files.
 - 0501: Keep the legal entity number key swaps as `do` blocks until the owning modules render the key.
 - 0520: Accept the 0.26 provider fields as optional additions.
