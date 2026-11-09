@@ -89,8 +89,12 @@ overwrites. `ownedHash` is `(subject_id text) returns text` over the columns
 the importer writes. A newer `updated_at` is a conflict only when that hash
 changed. When only the stamp moved, the library realigns it and applies the
 row. `naturalKey` is `(tenant, item jsonb) returns text`. When no import record
-exists and it returns a subject, the write updates that row.
-`rebase_import_records(tenant, source, entities, keys)` copies the
+exists and it returns a subject, the write updates that row. A conflict, an
+error and a warning are stored on `import_run_issues`. A later run that
+applies the key sets `resolved_at`. `list_import_issues` pages them with a
+total capped at 10,000. `resolve_import_conflict` takes `keep` (the database
+value becomes the baseline) or `overwrite` (the next batch may write the
+source). `rebase_import_records(tenant, source, entities, keys)` copies the
 current stamp and hash onto the stored row. An entity without a target fails
 the batch with `IMPORT_TARGET_UNKNOWN`.
 

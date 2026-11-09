@@ -1,7 +1,6 @@
 import type { ImportsEvents } from "../../blocks/imports/events.ts";
 import type {
   BlockSqlContext,
-  BlockSqlContractFunction,
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
@@ -20,13 +19,14 @@ import {
   userGrant,
 } from "../shared.ts";
 import { batchSql } from "./imports-batch.ts";
+import { CHUNK_TABLE, chunkFunctions, chunkTable } from "./imports-chunks.ts";
+import { importContract as contract } from "./imports-contract.ts";
+import { hashFunctions } from "./imports-hashes.ts";
 import {
-  CHUNK_CONTRACT,
-  CHUNK_TABLE,
-  chunkFunctions,
-  chunkTable,
-} from "./imports-chunks.ts";
-import { HASH_CONTRACT, hashFunctions } from "./imports-hashes.ts";
+  importIssueCounts,
+  importIssueHelpers,
+  importIssuesTable,
+} from "./imports-issues.ts";
 import { importLifecycleSql, rebaseImportSql } from "./imports-lifecycle.ts";
 import {
   assignCase,
@@ -184,7 +184,7 @@ function build(ctx: BlockSqlContext): string {
   const unique = `(${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")})`;
 
   const runJson = (alias: string): string =>
-    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'source', ${alias}.${r("source")}, 'status', ${alias}.${r("status")}, 'outcome', ${alias}.${r("outcome")}, 'plan', ${alias}.${r("plan")}, 'mapping', ${alias}.${r("mapping")}, 'counts', ${alias}.${r("counts")}, 'errors', ${alias}.${r("errors")}, 'dryRun', ${alias}.${r("dryRun")}, 'full', ${alias}.${r("full")}, 'inputChecksum', ${alias}.${r("inputChecksum")}, 'correlationId', ${alias}.${r("correlationId")}, 'mapperVersion', ${alias}.${r("mapperVersion")}, 'scopeAliases', ${alias}.${r("scopeAliases")}, 'leaseUntil', ${alias}.${r("leaseUntil")}, 'heartbeatAt', ${alias}.${r("heartbeatAt")}, 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'startedAt', ${alias}.${r("startedAt")}, 'finishedAt', ${alias}.${r("finishedAt")})`;
+    `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'source', ${alias}.${r("source")}, 'status', ${alias}.${r("status")}, 'outcome', ${alias}.${r("outcome")}, 'plan', ${alias}.${r("plan")}, 'mapping', ${alias}.${r("mapping")}, 'counts', ${alias}.${r("counts")}, 'errors', ${alias}.${r("errors")}, 'dryRun', ${alias}.${r("dryRun")}, 'full', ${alias}.${r("full")}, 'inputChecksum', ${alias}.${r("inputChecksum")}, 'correlationId', ${alias}.${r("correlationId")}, 'mapperVersion', ${alias}.${r("mapperVersion")}, 'scopeAliases', ${alias}.${r("scopeAliases")}, 'leaseUntil', ${alias}.${r("leaseUntil")}, 'heartbeatAt', ${alias}.${r("heartbeatAt")}, 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'startedAt', ${alias}.${r("startedAt")}, 'finishedAt', ${alias}.${r("finishedAt")}, 'issues', ${importIssueCounts(ctx, `${alias}.${r("id")}`)})`;
 
   const status = `${r("status")} in ('pending', 'running', 'completed', 'failed', 'canceled')`;
 
@@ -249,7 +249,8 @@ create table if not exists ${ctx.schema}.import_refs (
   "created_at" timestamptz not null default now(),
   constraint import_refs_key unique ("tenant_id", "kind", "key")
 );
-${chunkTable(ctx, runs)}`
+${chunkTable(ctx, runs)}
+${importIssuesTable(ctx)}`
     : "";
 
   const known = `array[${targets.map((target) => sqlString(target.entity)).join(", ")}]::text[]`;
@@ -531,6 +532,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${ctx.fn("finish_import")}(uuid, text, integer, text)`)}
+${importIssueHelpers(ctx, manage)}
 
 -- Writes the items of one entity: an unknown key inserts, an equal hash is
 -- unchanged and writes nothing, a changed hash updates unless the row changed
@@ -571,6 +573,7 @@ declare
   v_conflicted integer := 0;
   v_errors jsonb := '[]'::jsonb;
   v_warnings jsonb := '[]'::jsonb;
+  v_issue text;
   v_message text;
   v_hint text;
 ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] := '{}';\n  v_pending_keys text[] := '{}';\n  v_raw jsonb;\n  v_results jsonb[];\n  v_p jsonb;\n  v_i integer;\n"}begin
@@ -586,12 +589,14 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
     select e.value from jsonb_array_elements(v_items) e
     order by e.value #>> '{data,orderBy}', e.value #>> '{data,readAt}', e.value ->> 'key'
   loop
+    v_issue := null;
     v_key := v_item ->> 'key';
     v_scope := coalesce(v_item ->> 'scope', '');
     v_data := v_item -> 'data';
 
     if v_key is null or v_key = '' or jsonb_typeof(v_data) is distinct from 'object' then
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', 'IMPORT_ITEM_INVALID', 'message', 'an item needs a key and a data object'));
+      perform ${ctx.fn("import_note_issue")}(v_run_id, v_entity, coalesce(v_key, ''), 'error', 'IMPORT_ITEM_INVALID', 'an item needs a key and a data object');
       continue;
     end if;
 
@@ -664,6 +669,7 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
           update ${records} x set ${x("lastRun")} = v_run_id, ${x("missingSince")} = null
           where x.${x("id")} = v_rec.${x("id")};
           v_conflicted := v_conflicted + 1;
+          v_issue := 'conflict';
           v_done := true;
         elsif v_owned is not null and v_current is not null and v_rec.${x("subjectUpdatedAt")} is not null and v_current > v_rec.${x("subjectUpdatedAt")} then
           update ${records} x set ${x("lastRun")} = v_run_id, ${x("subjectUpdatedAt")} = v_current, ${x("ownedHash")} = v_owned
@@ -672,8 +678,15 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
           update ${records} x set ${x("lastRun")} = v_run_id, ${x("missingSince")} = null
           where x.${x("id")} = v_rec.${x("id")};
           v_conflicted := v_conflicted + 1;
+          v_issue := 'conflict';
           v_done := true;
         end if;
+      end if;
+
+      if v_issue = 'conflict' then
+        perform ${ctx.fn("import_note_issue")}(v_run_id, v_entity, v_key, 'conflict', 'IMPORT_CONFLICT', 'the subject changed after the last import');
+      else
+        perform ${ctx.fn("import_clear_issues")}(v_run_id, v_entity, v_key);
       end if;
 
       if not v_done then
@@ -684,10 +697,13 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
     exception when others then
       get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint;
       v_errors := v_errors || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'code', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), 'message', v_message));
+      perform ${ctx.fn("import_note_issue")}(v_run_id, v_entity, coalesce(v_key, ''), 'error', coalesce(nullif(v_hint, ''), 'IMPORT_ITEM_INVALID'), v_message);
     end;
   end loop;
 
   ${flushPending}
+
+  perform ${ctx.fn("import_note_warnings")}(v_run_id, v_entity, v_warnings);
 
   return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
@@ -991,65 +1007,6 @@ end;
 $$;
 ${serviceGrant(`${ctx.fn("enqueue_import_chunks")}(uuid, text, integer)`)}
 ${chunkFunctions(ctx, runs)}${hashFunctions(ctx, runs)}`;
-}
-
-function contract(): readonly BlockSqlContractFunction[] {
-  return [
-    { name: "start_import", args: ["{id}", "text", "jsonb"], returns: "jsonb" },
-    {
-      name: "start_import_run",
-      args: ["{id}", "text", "jsonb"],
-      returns: "jsonb",
-    },
-    { name: "get_import_run", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "list_import_runs",
-      args: ["{id}", "text", "text", "integer"],
-      returns: "setof jsonb",
-    },
-    { name: "cancel_import_run", args: ["uuid"], returns: "boolean" },
-    { name: "mark_import_running", args: ["uuid"], returns: "boolean" },
-    {
-      name: "finish_import",
-      args: ["uuid", "text", "integer", "text"],
-      returns: "boolean",
-    },
-    { name: "begin_import_session", args: ["uuid"], returns: "uuid" },
-    {
-      name: "import_upsert_batch",
-      args: ["uuid", "text", "jsonb"],
-      returns: "jsonb",
-    },
-    {
-      name: "import_resolve",
-      args: ["uuid", "text", "jsonb"],
-      returns: "jsonb",
-    },
-    { name: "finish_import_run", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "heartbeat_import_run",
-      args: ["uuid", "integer"],
-      returns: "timestamptz",
-    },
-    {
-      name: "import_ensure_ref",
-      args: ["{id}", "text", "text", "jsonb"],
-      returns: "jsonb",
-    },
-    { name: "import_entities", args: [], returns: "text[]" },
-    {
-      name: "rebase_import_records",
-      args: ["{id}", "text", "text[]", "text[]"],
-      returns: "integer",
-    },
-    {
-      name: "enqueue_import_chunks",
-      args: ["uuid", "text", "integer"],
-      returns: "integer",
-    },
-    ...CHUNK_CONTRACT,
-    ...HASH_CONTRACT,
-  ];
 }
 
 export const IMPORTS: BlockSqlDefinition = {

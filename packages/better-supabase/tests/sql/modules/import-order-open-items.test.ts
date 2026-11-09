@@ -20,6 +20,11 @@ describe("import order and open items today", () => {
     expect(sql).toContain("is distinct from");
     expect(sql).toContain("rebase_import_records");
     expect(sql).toContain("v_natural");
+    expect(sql).toContain("import_run_issues");
+    expect(sql).toContain("list_import_issues");
+    expect(sql).toContain("resolve_import_conflict");
+    expect(sql).toContain("IMPORT_CONFLICT");
+    expect(sql).toContain("'issues'");
     expect(sql).toContain("IMPORT_REF_CREATED");
     expect(sql).toContain("'incomplete'");
   });
