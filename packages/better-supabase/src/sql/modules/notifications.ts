@@ -848,6 +848,17 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   ].join("\n");
 }
 
+/**
+ * A space-separated argument list, with `timestamptz` spelled as the catalog
+ * does.
+ */
+const argTypes = (list: string): string[] =>
+  list
+    .split(" ")
+    .map((type) =>
+      type === "timestamptz" ? "timestamp with time zone" : type,
+    );
+
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const fns: BlockSqlContractFunction[] = [
     { name: "notify", args: ["jsonb"], returns: "uuid" },
@@ -861,38 +872,23 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     {
       name: "list_notifications",
-      args: [
-        "{id}",
-        "text",
-        "text[]",
-        "timestamp with time zone",
-        "integer",
-        "uuid",
-        "text[]",
-        "text",
-        "boolean",
-        "boolean",
-        "boolean",
-      ],
+      args: argTypes(
+        "{id} text text[] timestamptz integer uuid text[] text boolean boolean boolean",
+      ),
       returns: "jsonb",
     },
     {
       name: "notification_page",
-      args: [
-        "{id}",
-        "text",
-        "text[]",
-        "text[]",
-        "text",
-        "integer",
-        "integer",
-        "boolean",
-        "boolean",
-        "boolean",
-      ],
+      args: argTypes(
+        "{id} text text[] text[] text integer integer boolean boolean boolean timestamptz uuid integer",
+      ),
       returns: "jsonb",
     },
-    { name: "notification_counts", args: ["{id}", "text[]"], returns: "jsonb" },
+    {
+      name: "notification_counts",
+      args: ["{id}", "text[]", "integer"],
+      returns: "jsonb",
+    },
     {
       name: "mark_notifications_read",
       args: ["uuid[]", "{id}"],

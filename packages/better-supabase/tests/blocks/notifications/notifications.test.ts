@@ -523,6 +523,8 @@ describe("createNotifications reads and writes", () => {
         read: null,
         resolved: null,
         dismissed: false,
+        before: null,
+        before_id: null,
       },
     });
     const empty = fakeTransport({ notification_page: () => null });
@@ -530,7 +532,7 @@ describe("createNotifications reads and writes", () => {
       await createNotifications({ transport: empty.transport, types })
         .page()
         .orThrow(),
-    ).toEqual({ items: [], total: 0 });
+    ).toEqual({ items: [], total: 0, totalCapped: false, hasMore: false });
     expect(empty.calls[0]!.args).toMatchObject({ max_items: 50, skip: 0 });
   });
 

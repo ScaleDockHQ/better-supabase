@@ -352,7 +352,17 @@ ${
   ctx.has("log", "table") && ctx.has("log", "record")
     ? `create index if not exists audit_events_record_idx on ${log} (${c("table")}, ${c("record")}, ${c("occurredAt")} desc);\n`
     : ""
-}create index if not exists ${ctx.naming.rename("audit_events_organization_idx")} on ${log} (${c("tenant")}, ${c("occurredAt")} desc);
+}create index if not exists ${ctx.naming.rename("audit_events_organization_idx")} on ${log} (${c("tenant")}, ${c("occurredAt")} desc, ${c("id")} desc);${
+    ctx.has("log", "actor")
+      ? `
+create index if not exists audit_events_actor_idx on ${log} (${c("tenant")}, ${c("actor")}, ${c("occurredAt")} desc, ${c("id")} desc);`
+      : ""
+  }${
+    ctx.has("log", "eventType")
+      ? `
+create index if not exists audit_events_event_type_idx on ${log} (${c("tenant")}, ${c("eventType")}, ${c("occurredAt")} desc, ${c("id")} desc);`
+      : ""
+  }
 create index if not exists audit_events_occurred_at_idx on ${log} (${c("occurredAt")});${
     ctx.has("log", "correlationId")
       ? `

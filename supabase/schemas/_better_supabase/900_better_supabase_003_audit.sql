@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:91c40005d973b1dab831ab125475c162c1a91d93b6fb89545796837e1508d7a5
+-- @bsb-hash sha256:d40437b0f53fcffa20cd667da0aaaa5f19957d88c36c424a4866a8c9c695839c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -111,7 +111,9 @@ alter table "better_supabase"."audit_events" add column "request_id" text;
 alter table "better_supabase"."audit_events" add column "correlation_id" text;
 alter table "better_supabase"."audit_events" add column "scope" text;
 create index audit_events_record_idx on "better_supabase"."audit_events" ("table_name", "record_id", "occurred_at" desc);
-create index audit_events_organization_idx on "better_supabase"."audit_events" ("tenant_id", "occurred_at" desc);
+create index audit_events_organization_idx on "better_supabase"."audit_events" ("tenant_id", "occurred_at" desc, "id" desc);
+create index audit_events_actor_idx on "better_supabase"."audit_events" ("tenant_id", "actor_id", "occurred_at" desc, "id" desc);
+create index audit_events_event_type_idx on "better_supabase"."audit_events" ("tenant_id", "event_type", "occurred_at" desc, "id" desc);
 create index audit_events_occurred_at_idx on "better_supabase"."audit_events" ("occurred_at");
 create index audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
 create unique index audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
@@ -1641,7 +1643,8 @@ create or replace function "better_supabase"."list_audit_events"(
   cursor_id text default null,
   max_items integer default 50,
   ascending boolean default false,
-  skip integer default 0
+  skip integer default 0,
+  entry_fields text default 'full'
 )
 returns jsonb
 language plpgsql
@@ -1653,8 +1656,16 @@ declare
   v_where text := 'true';
   v_order text := case when ascending then 'asc' else 'desc' end;
   v_skip text := '';
+  v_entry text;
   result jsonb;
 begin
+  -- 'summary' leaves out the old and new record, the changed columns and the
+  -- metadata, so a page of a busy log stays small. get_audit_event returns the
+  -- full entry.
+  v_entry := case when entry_fields = 'summary'
+    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
+    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
+  end;
   if cardinality(for_tenants) > 0 then
     v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
@@ -1706,7 +1717,7 @@ begin
   -- "is null or" branches and can use the (tenant, occurred_at) index.
   execute $q$select coalesce(jsonb_agg(x.entry order by x.occurred_at $q$ || v_order || $q$, x.id $q$ || v_order || $q$), '[]')
   from (
-    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
+    select $q$ || v_entry || $q$ as entry, l."occurred_at" as occurred_at, l."id" as id
     from "better_supabase"."audit_events" l
     where $q$ || v_where || $q$
     order by l."occurred_at" $q$ || v_order || $q$, l."id" $q$ || v_order || $q$
@@ -1717,9 +1728,8 @@ begin
   return result;
 end;
 $$;
-revoke execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from public, anon;
-grant execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) to authenticated, service_role;
-
+revoke execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer, text) to authenticated, service_role;
 create or replace function "better_supabase"."count_audit_events"(
   for_tenants uuid[] default null,
   for_event_types text[] default null,
@@ -1733,7 +1743,8 @@ create or replace function "better_supabase"."count_audit_events"(
   for_actor_kinds text[] default null,
   for_correlation_ids text[] default null,
   since timestamptz default null,
-  until timestamptz default null
+  until timestamptz default null,
+  cap integer default null
 )
 returns bigint
 language plpgsql
@@ -1784,14 +1795,76 @@ begin
   if until is not null then
     v_where := v_where || $q$ and l."occurred_at" < $13$q$;
   end if;
-  execute $q$select count(*) from "better_supabase"."audit_events" l where $q$ || v_where
+  -- With cap the count stops there: a result equal to cap means "cap or more",
+  -- and a filtered view over a large log never counts every match (ADR 0425).
+  execute $q$select count(*) from (select 1 from "better_supabase"."audit_events" l where $q$ || v_where
+    || case when cap is null then '' else format(' limit %s', greatest(cap, 1)) end || $q$) x$q$
   into result
   using for_tenants, for_event_types, for_actors, for_target_types, for_records, for_categories, for_outcomes, search, for_sources, for_actor_kinds, for_correlation_ids, since, until;
   return result;
 end;
 $$;
-revoke execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from public, anon;
-grant execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, integer) to authenticated, service_role;
+
+-- One full entry by id, as list_audit_events returns it with entry_fields
+-- 'full'. The read policy decides, so an entry the caller can't read is null.
+create or replace function "better_supabase"."get_audit_event"(entry_id text)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  result jsonb;
+begin
+  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "better_supabase"."audit_events" l where l."id" = $1$q$
+  into result
+  using entry_id::bigint;
+  return result;
+end;
+$$;
+revoke execute on function "better_supabase"."get_audit_event"(text) from public, anon;
+grant execute on function "better_supabase"."get_audit_event"(text) to authenticated, service_role;
+
+-- The distinct event types the caller can read, found by skipping through the
+-- event type index (a recursive loose scan) instead of reading every row.
+create or replace function "better_supabase"."audit_event_types"(for_tenants uuid[] default null)
+returns text[]
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_types text[] := '{}';
+  v_next text;
+begin
+  -- One loose index scan per tenant: min() over the (tenant, event type) index
+  -- reads one entry, where "tenant = any(...)" would read every row. Without
+  -- for_tenants the scan has no tenant to lead with, so pass the tenants.
+  loop
+    if cardinality(for_tenants) > 0 then
+      execute $q$select min(x.m) from unnest($1) t(scope_id)
+        cross join lateral (select min(l."event_type") as m from "better_supabase"."audit_events" l
+          where l."tenant_id" = t.scope_id and l."event_type" > $2) x$q$
+      into v_next
+      using for_tenants, coalesce(v_types[cardinality(v_types)], '');
+    else
+      execute $q$select min(l."event_type") from "better_supabase"."audit_events" l where l."event_type" > $1$q$
+      into v_next
+      using coalesce(v_types[cardinality(v_types)], '');
+    end if;
+    exit when v_next is null;
+    v_types := v_types || v_next;
+    exit when cardinality(v_types) >= 500;
+  end loop;
+  return v_types;
+end;
+$$;
+revoke execute on function "better_supabase"."audit_event_types"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."audit_event_types"(uuid[]) to authenticated, service_role;
 
 -- The row changes the caller may revert, newest first, with their snapshots
 -- and the target's key columns.
@@ -2094,25 +2167,45 @@ as $$ select * from "better_supabase"."audit_events_tenants"($1) $$;
 revoke execute on function "api"."audit_events_tenants"(interval) from public, anon, authenticated;
 grant execute on function "api"."audit_events_tenants"(interval) to service_role;
 
-create or replace function "api"."list_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null, cursor_at timestamptz default null, cursor_id text default null, max_items integer default 50, ascending boolean default false, skip integer default 0)
+create or replace function "api"."list_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null, cursor_at timestamptz default null, cursor_id text default null, max_items integer default 50, ascending boolean default false, skip integer default 0, entry_fields text default 'full')
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) $$;
-revoke execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) from public, anon;
-grant execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) $$;
+revoke execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer, text) from public, anon;
+grant execute on function "api"."list_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, timestamptz, text, integer, boolean, integer, text) to authenticated, service_role;
 
-create or replace function "api"."count_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null)
+create or replace function "api"."count_audit_events"(for_tenants uuid[] default null, for_event_types text[] default null, for_actors uuid[] default null, for_target_types text[] default null, for_records text[] default null, for_categories text[] default null, for_outcomes text[] default null, search text default null, for_sources text[] default null, for_actor_kinds text[] default null, for_correlation_ids text[] default null, since timestamptz default null, until timestamptz default null, cap integer default null)
 returns bigint
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."count_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) $$;
-revoke execute on function "api"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) from public, anon;
-grant execute on function "api"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz) to authenticated, service_role;
+as $$ select "better_supabase"."count_audit_events"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) $$;
+revoke execute on function "api"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, integer) from public, anon;
+grant execute on function "api"."count_audit_events"(uuid[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz, integer) to authenticated, service_role;
+
+create or replace function "api"."get_audit_event"(entry_id text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_audit_event"($1) $$;
+revoke execute on function "api"."get_audit_event"(text) from public, anon;
+grant execute on function "api"."get_audit_event"(text) to authenticated, service_role;
+
+create or replace function "api"."audit_event_types"(for_tenants uuid[] default null)
+returns text[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."audit_event_types"($1) $$;
+revoke execute on function "api"."audit_event_types"(uuid[]) from public, anon;
+grant execute on function "api"."audit_event_types"(uuid[]) to authenticated, service_role;
 
 create or replace function "api"."audit_revert_source"(entries text[])
 returns jsonb

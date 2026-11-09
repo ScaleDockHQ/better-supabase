@@ -513,46 +513,86 @@ function inbox(ctx: BlockSqlContext, n: NotifyNames): string {
     .filter((logical) => n.has("events", logical))
     .map((logical) => `ev.${e(logical)}`);
 
-  const where = (fn: string) => {
-    const like = `'%' || replace(replace(replace(btrim(${fn}.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%'`;
+  // The inbox reads build their where clause from the filters that are passed,
+  // so the planner sees `user = $1 and dismissed_at is null` and can use the
+  // partial inbox index. A static "$1 is null or" form is planned once for all
+  // values and sorts the whole inbox. Positions in the `using` list: 1 user,
+  // 2 tenant, 3 types, 4 subject types, 5 search pattern, 6 read, 7 resolved,
+  // 8 dismissed, 9 before, 10 before id.
+  const dynamicWhere = (fn: string, cursor: boolean) => {
+    const hasTenant = n.has("recipients", "tenant");
 
-    return `rc.${r("user")} = auth.uid()
-      and case when coalesce(${fn}.status, 'all') = 'settled' then ${settled} when ${fn}.dismissed is null then true else (rc.${r("dismissedAt")} is not null) = ${fn}.dismissed end
-      and (${fn}.read is null or (rc.${r("readAt")} is not null) = ${fn}.read)
-      and (${fn}.resolved is null or ${resolved ? `(rc.${r("resolvedAt")} is not null) = ${fn}.resolved` : `not ${fn}.resolved`})
-      ${tenantFilter(fn)}
-      and ev.${e("type")} = any(coalesce(${fn}.types, array[ev.${e("type")}]))
-      and (${fn}.subject_types is null${subjectType ? ` or ev.${e("subjectType")} = any(${fn}.subject_types)` : ""})
-      and (${fn}.search is null or btrim(${fn}.search) = '' or concat_ws(' ', ${[...haystack, `ev.${e("type")}`].join(", ")}) ilike ${like})
-      and case coalesce(${fn}.status, 'all')
-        when 'unread' then rc.${r("readAt")} is null
-        when 'read' then rc.${r("readAt")} is not null${
-          resolved
-            ? `
-        when 'unresolved' then rc.${r("resolvedAt")} is null`
-            : ""
-        }
-        else true
-      end`;
+    const haystackSql = [...haystack, `ev.${e("type")}`].join(", ");
+
+    return `  v_where := $q$rc.${r("user")} = $1$q$;
+  if coalesce(${fn}.status, 'all') = 'settled' then
+    v_where := v_where || $q$ and ${settled}$q$;
+  elsif ${fn}.dismissed is not null then
+    v_where := v_where || case when ${fn}.dismissed
+      then $q$ and rc.${r("dismissedAt")} is not null$q$
+      else $q$ and rc.${r("dismissedAt")} is null$q$ end;
+  end if;
+  if ${fn}.read is not null then
+    v_where := v_where || case when ${fn}.read
+      then $q$ and rc.${r("readAt")} is not null$q$
+      else $q$ and rc.${r("readAt")} is null$q$ end;
+  end if;
+  if ${fn}.resolved is not null then
+    v_where := v_where || ${
+      resolved
+        ? `case when ${fn}.resolved
+      then $q$ and rc.${r("resolvedAt")} is not null$q$
+      else $q$ and rc.${r("resolvedAt")} is null$q$ end`
+        : `case when ${fn}.resolved then $q$ and false$q$ else '' end`
+    };
+  end if;${
+    hasTenant
+      ? `
+  if ${fn}.tenant is not null then
+    v_where := v_where || $q$ and rc.${r("tenant")} = $2$q$;
+  end if;`
+      : ""
+  }
+  if ${fn}.types is not null then
+    v_where := v_where || $q$ and ev.${e("type")} = any($3)$q$;
+  end if;${
+    subjectType
+      ? `
+  if ${fn}.subject_types is not null then
+    v_where := v_where || $q$ and ev.${e("subjectType")} = any($4)$q$;
+  end if;`
+      : ""
+  }
+  if btrim(coalesce(${fn}.search, '')) <> '' then
+    v_where := v_where || $q$ and concat_ws(' ', ${haystackSql}) ilike $5$q$;
+  end if;
+  case coalesce(${fn}.status, 'all')
+    when 'unread' then v_where := v_where || $q$ and rc.${r("readAt")} is null$q$;
+    when 'read' then v_where := v_where || $q$ and rc.${r("readAt")} is not null$q$;${
+      resolved
+        ? `
+    when 'unresolved' then v_where := v_where || $q$ and rc.${r("resolvedAt")} is null$q$;`
+        : ""
+    }
+    else null;
+  end case;${
+    cursor
+      ? `
+  if ${fn}.before is not null then
+    v_where := v_where || $q$ and (rc.${r("createdAt")}, rc.${r("id")}) < ($9, $10)$q$;
+  end if;`
+      : ""
+  }`;
   };
 
-  const isActionable = `${resolved ? `rc.${r("resolvedAt")} is null and ` : ""}ev.${e("type")} = any(coalesce(notification_counts.actionable, '{}'))`;
+  const searchPattern = (fn: string) =>
+    `case when btrim(coalesce(${fn}.search, '')) = '' then null else '%' || replace(replace(replace(btrim(${fn}.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end`;
 
-  const actionable = resolved
-    ? `count(*) filter (
-      where ${isActionable}
-    )`
-    : "0";
+  const isActionable = `${resolved ? `rc.${r("resolvedAt")} is null and ` : ""}ev.${e("type")} = any(coalesce(notification_counts.actionable, '{}'))`;
 
   const subjectKey = subjects
     ? `case when ev.${e("subjectType")} is not null and ev.${e("subjectId")} is not null then jsonb_build_array(${n.has("events", "tenant") ? `ev.${e("tenant")}, ` : ""}ev.${e("subjectType")}, ev.${e("subjectId")})::text else rc.${r("id")}::text end`
     : `rc.${r("id")}::text`;
-
-  const actionableSubjects = resolved
-    ? `count(distinct ${subjectKey}) filter (
-      where ${isActionable}
-    )`
-    : "0";
 
   const parts = [
     `
@@ -560,6 +600,8 @@ drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], tim
 drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer, uuid);
 drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer, uuid, text[], text);
 drop function if exists ${ctx.fn("notification_page")}(${id}, text, text[], text[], text, integer, integer);
+drop function if exists ${ctx.fn("notification_page")}(${id}, text, text[], text[], text, integer, integer, boolean, boolean, boolean);
+drop function if exists ${ctx.fn("notification_counts")}(${id}, text[]);
 ${integerMutations(ctx)}
 -- The signed-in user's notifications, newest first, without dismissed ones.
 -- status: all, unread, read${resolved ? " or unresolved" : ""}. Page with the last item's
@@ -578,24 +620,32 @@ create or replace function ${ctx.fn("list_notifications")}(
   dismissed boolean default false
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
+declare
+  v_where text;
+  result jsonb;
+begin
+${dynamicWhere("list_notifications", true)}
+  execute $q$select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
   from (
     select ${itemJson(n)} as item, rc.${r("createdAt")} as created_at, rc.${r("id")} as id
     from ${n.table("recipients")} rc
     join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
-    where ${where("list_notifications")}
-      and (
-        list_notifications.before is null
-        or (rc.${r("createdAt")}, rc.${r("id")}) < (list_notifications.before, coalesce(list_notifications.before_id, '00000000-0000-0000-0000-000000000000'::uuid))
-      )
+    where $q$ || v_where || $q$
     order by rc.${r("createdAt")} desc, rc.${r("id")} desc
-    limit least(coalesce(list_notifications.max_items, 50), 200)
-  ) x
+    limit $11
+  ) x$q$
+  into result
+  using auth.uid(), list_notifications.tenant, list_notifications.types, list_notifications.subject_types,
+    ${searchPattern("list_notifications")}, list_notifications.read, list_notifications.resolved, list_notifications.dismissed,
+    list_notifications.before, coalesce(list_notifications.before_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    least(coalesce(list_notifications.max_items, 50), 200);
+  return result;
+end;
 $$;
 
 create or replace function ${ctx.fn("notification_page")}(
@@ -608,36 +658,66 @@ create or replace function ${ctx.fn("notification_page")}(
   skip integer default 0,
   read boolean default null,
   resolved boolean default null,
-  dismissed boolean default false
+  dismissed boolean default false,
+  before timestamptz default null,
+  before_id uuid default null,
+  total_cap integer default 10000
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  with matched as (
+declare
+  v_where text;
+  v_limit integer := ${pageSize("notification_page.max_items", 50, 200)};
+  v_items jsonb;
+  v_total bigint;
+  v_args_cap integer := notification_page.total_cap;
+begin
+${dynamicWhere("notification_page", true)}
+  -- One row more than the page says whether an older page exists, and the
+  -- total stops counting at total_cap (null counts every row), so a large
+  -- inbox never counts all of it. Pass before and before_id to page by key
+  -- instead of skip.
+  execute $q$select coalesce(jsonb_agg(p.item order by p.created_at desc, p.id desc), '[]')
+  from (
     select ${itemJson(n)} as item, rc.${r("createdAt")} as created_at, rc.${r("id")} as id
     from ${n.table("recipients")} rc
     join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
-    where ${where("notification_page")}
-  )
-  select jsonb_build_object(
-    'items', coalesce((
-      select jsonb_agg(p.item order by p.created_at desc, p.id desc)
-      from (
-        select m.item, m.created_at, m.id from matched m
-        order by m.created_at desc, m.id desc
-        offset greatest(coalesce(notification_page.skip, 0), 0)
-        limit ${pageSize("notification_page.max_items", 50, 200)}
-      ) p
-    ), '[]'),
-    'total', (select count(*) from matched)
-  )
+    where $q$ || v_where || $q$
+    order by rc.${r("createdAt")} desc, rc.${r("id")} desc
+    offset $11
+    limit $12 + 1
+  ) p$q$
+  into v_items
+  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,
+    ${searchPattern("notification_page")}, notification_page.read, notification_page.resolved, notification_page.dismissed,
+    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    greatest(coalesce(notification_page.skip, 0), 0), v_limit;
+  execute $q$select count(*) from (
+    select 1 from ${n.table("recipients")} rc
+    join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
+    where $q$ || v_where || case when v_args_cap is null then '' else format(' limit %s', greatest(v_args_cap, 1)) end || $q$
+  ) c$q$
+  into v_total
+  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,
+    ${searchPattern("notification_page")}, notification_page.read, notification_page.resolved, notification_page.dismissed,
+    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid);
+  return jsonb_build_object(
+    'items', coalesce((select jsonb_agg(x.value order by x.ordinality) from jsonb_array_elements(v_items) with ordinality x(value, ordinality) where x.ordinality <= v_limit), '[]'),
+    'hasMore', jsonb_array_length(v_items) > v_limit,
+    'total', v_total,
+    'totalCapped', v_args_cap is not null and v_total >= v_args_cap
+  );
+end;
 $$;
 
--- Unread and, for the types in actionable, unresolved counts.
-create or replace function ${ctx.fn("notification_counts")}(tenant ${id} default null, actionable text[] default null)
+-- Unread and, for the types in actionable, unresolved counts. Each count stops
+-- at cap (default 100, null counts every row), so a badge reads at most cap
+-- rows through the unread index however large the inbox is.
+create or replace function ${ctx.fn("notification_counts")}(tenant ${id} default null, actionable text[] default null, cap integer default 100)
 returns jsonb
 language sql
 stable
@@ -645,15 +725,38 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object(
-    'unread', count(*) filter (where rc.${r("readAt")} is null),
-    'actionable', ${actionable},
-    'actionable_subjects', ${actionableSubjects}
+    'unread', (
+      select count(*) from (
+        select 1 from ${n.table("recipients")} rc
+        where rc.${r("user")} = auth.uid()
+          and rc.${r("readAt")} is null
+          and rc.${r("dismissedAt")} is null
+          ${tenantFilter("notification_counts")}
+        limit notification_counts.cap
+      ) u
+    ),
+    'actionable', ${resolved ? "coalesce(act.rows, 0)" : "0"},
+    'actionable_subjects', ${resolved ? "coalesce(act.subjects, 0)" : "0"}
   )
-  from ${n.table("recipients")} rc
-  join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
-  where rc.${r("user")} = auth.uid()
-    and rc.${r("dismissedAt")} is null
-    ${tenantFilter("notification_counts")}
+  from (select 1) one${
+    resolved
+      ? `
+  left join lateral (
+    select count(*) as rows, count(distinct a.subject_key) as subjects
+    from (
+      select ${subjectKey} as subject_key
+      from ${n.table("recipients")} rc
+      join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
+      where cardinality(coalesce(notification_counts.actionable, '{}')) > 0
+        and rc.${r("user")} = auth.uid()
+        and rc.${r("dismissedAt")} is null
+        and ${isActionable}
+        ${tenantFilter("notification_counts")}
+      limit notification_counts.cap
+    ) a
+  ) act on true`
+      : ""
+  }
 $$;
 
 create or replace function ${ctx.fn("get_notification")}(id uuid)
@@ -731,8 +834,8 @@ $$;`,
 
   const grants = [
     `list_notifications(${id}, text, text[], timestamptz, integer, uuid, text[], text, boolean, boolean, boolean)`,
-    `notification_page(${id}, text, text[], text[], text, integer, integer, boolean, boolean, boolean)`,
-    `notification_counts(${id}, text[])`,
+    `notification_page(${id}, text, text[], text[], text, integer, integer, boolean, boolean, boolean, timestamptz, uuid, integer)`,
+    `notification_counts(${id}, text[], integer)`,
     `mark_notifications_unread(uuid[], ${id})`,
     `mark_notifications_read(uuid[], ${id})`,
     "dismiss_notifications(uuid[])",

@@ -491,6 +491,8 @@ describe("notification sparse answers", () => {
     expect(await notifications.page().orThrow()).toEqual({
       items: [],
       total: 0,
+      totalCapped: false,
+      hasMore: false,
     });
     expect(await notifications.suppressions({ limit: 5 }).orThrow()).toEqual(
       [],

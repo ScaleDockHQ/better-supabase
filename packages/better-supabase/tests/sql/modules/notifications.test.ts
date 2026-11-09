@@ -318,27 +318,27 @@ describe("notifications module", () => {
     expect(sql).toContain(
       'create or replace function "better_supabase"."notification_page"(',
     );
-    expect(sql).toContain("'total', (select count(*) from matched)");
+    // Only the filters that are passed reach the query, so the partial inbox index applies.
+    expect(sql).toContain(`else $q$ and rc."dismissed_at" is null$q$ end`);
+    expect(sql).toContain("'hasMore', jsonb_array_length(v_items) > v_limit");
+    expect(sql).toContain("total_cap integer default 10000");
+    expect(sql).toContain("offset $11");
     expect(sql).toContain(
-      "offset greatest(coalesce(notification_page.skip, 0), 0)",
+      `v_where := v_where || $q$ and ev."type" = any($3)$q$`,
     );
     expect(sql).toContain(
-      `case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when list_notifications.dismissed is null then true else (rc."dismissed_at" is not null) = list_notifications.dismissed end`,
+      `v_where := v_where || $q$ and ev."subject_type" = any($4)$q$`,
     );
     expect(sql).toContain(
-      `and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)`,
+      `concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike $5`,
     );
     expect(sql).toContain(
-      `and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)`,
+      `'%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92))`,
     );
+    expect(sql).toContain("limit notification_counts.cap");
+    expect(sql).toContain(`count(distinct a.subject_key) as subjects`);
     expect(sql).toContain(
-      `or ev."subject_type" = any(list_notifications.subject_types)`,
-    );
-    expect(sql).toContain(
-      `concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92))`,
-    );
-    expect(sql).toContain(
-      `'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."tenant_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end)`,
+      `jsonb_build_array(ev."tenant_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end as subject_key`,
     );
     expect(sql).toContain(`set "read_at" = null`);
 
@@ -362,13 +362,13 @@ describe("notifications module", () => {
 
     expect(bare).not.toContain("list_notification_subscriptions");
     expect(bare).not.toContain("list_notification_preferences");
-    expect(bare).toContain("(list_notifications.subject_types is null)");
+    expect(bare).not.toContain("list_notifications.subject_types is not null");
     expect(bare).toContain(`'actionable_subjects', 0`);
     expect(bare).toContain(
-      `then rc."dismissed_at" is not null when list_notifications.dismissed is null then true`,
+      `v_where := v_where || $q$ and rc."dismissed_at" is not null$q$;`,
     );
     expect(bare).toContain(
-      "and (list_notifications.resolved is null or not list_notifications.resolved)",
+      "case when list_notifications.resolved then $q$ and false$q$ else '' end",
     );
   });
 
