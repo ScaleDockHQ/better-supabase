@@ -209,6 +209,8 @@ const NO_FIELDS: readonly string[] = [
   // Waves, pick lists, lines and plans are fixed records; app data goes on
   // the documents and variants they point at.
   "warehouse",
+  // A claim is a fixed record; app data goes on the asset and the attachments.
+  "warranty",
   // The app writes and reads endpoints over its own Data API; the client only handles deliveries.
   "webhooks",
   // Engines write the run registry; per-run data goes in `attributes`.

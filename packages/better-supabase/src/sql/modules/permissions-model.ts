@@ -142,6 +142,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "tax.*",
     "funding.*",
     "payroll_export.*",
+    "warranty.*",
   ],
   member: [
     "organization.read",
@@ -280,6 +281,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "tax.read",
     "funding.read",
     "funding.register",
+    "warranty.read",
+    "warranty.write",
   ],
   viewer: ["organization.read"],
 };
@@ -713,6 +716,9 @@ export const OPERATIONS = {
   "tax.manage": "tax.manage",
   "payroll-export.read": "payroll_export.read",
   "payroll-export.export": "payroll_export.export",
+  "warranty.read": "warranty.read",
+  "warranty.write": "warranty.write",
+  "warranty.decide": "warranty.decide",
 } as const;
 
 /** An operation name, `<module>.<action>`. */

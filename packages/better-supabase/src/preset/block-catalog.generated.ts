@@ -4699,6 +4699,39 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/maintenance"
     },
     {
+      "name": "warranty",
+      "title": "Warranty",
+      "category": "Work management",
+      "description": "Warranty claims for an asset: the supplier or manufacturer, the covered amount, a status, a decision and attachments on the claim.",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "state-machine",
+        "approvals",
+        "attachments"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "approvals",
+        "state-machine"
+      ],
+      "modes": [
+        "managed",
+        "custom"
+      ],
+      "events": [
+        "warranty_claim.closed",
+        "warranty_claim.created",
+        "warranty_claim.decided",
+        "warranty_claim.submitted"
+      ],
+      "subpath": "better-supabase/blocks/warranty",
+      "react": null,
+      "docs": "/docs/blocks/warranty"
+    },
+    {
       "name": "dam",
       "title": "Digital asset management",
       "category": "Content & files",
@@ -7568,6 +7601,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "funding",
         "payroll-export",
         "maintenance",
+        "warranty",
         "dam",
         "tax",
         "document-templates",

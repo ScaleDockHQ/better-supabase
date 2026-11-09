@@ -11610,6 +11610,35 @@
       "WarehouseOptions"
     ]
   },
+  "./blocks/warranty": {
+    "values": [
+      "createWarranty",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "warrantyBlock",
+      "warrantyEvents",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "RpcClient",
+      "Warranty",
+      "WarrantyClaim",
+      "WarrantyClaimDecidedEventData",
+      "WarrantyClaimEventData",
+      "WarrantyClaimInput",
+      "WarrantyClaimListOptions",
+      "WarrantyDecision",
+      "WarrantyEvents",
+      "WarrantyOptions",
+      "WarrantyStatus"
+    ]
+  },
   "./blocks/manufacturing": {
     "values": [
       "bomInputSchema",

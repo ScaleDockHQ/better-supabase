@@ -157,6 +157,7 @@ const entries = [
   "blocks/maintenance/index",
   "blocks/appraisals/index",
   "blocks/warehouse/index",
+  "blocks/warranty/index",
   "blocks/manufacturing/index",
   "blocks/banking/index",
   "blocks/tax/index",

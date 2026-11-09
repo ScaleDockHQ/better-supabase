@@ -304,6 +304,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "delete_version get_version label_version list_versions restore_version snapshot_version",
   waitlist:
     "create_invite_code decide_waitlist_entry join_waitlist list_invite_codes list_waitlist redeem_invite_code revoke_invite_code waitlist_admit",
+  warranty:
+    "create_warranty_claim decide_warranty_claim list_warranty_claims submit_warranty_claim",
   "webhook-inbox":
     "checkpoint_webhook claim_webhooks complete_webhook extend_webhook fail_webhook list_webhooks purge_webhooks receive_webhook",
   "webhooks-in":

@@ -1,0 +1,68 @@
+---
+title: Warranty
+description: Warranty claims for an asset, with the supplier or manufacturer, the covered amount, a status, a decision and attachments.
+---
+
+`warranty` keeps a claim against a supplier or a manufacturer for one asset.
+The claim records the covered amount, moves through a status machine and stores
+the decision. Files go on the claim through [attachments](/docs/blocks/attachments).
+
+```bash
+better-supabase add warranty
+```
+
+```ts
+import { createWarranty } from "better-supabase/blocks/warranty";
+
+const warranty = createWarranty({ transport, tenant });
+
+const claim = await warranty
+  .createClaim({
+    title: "Compressor fails to start",
+    assetId,
+    supplierId,
+    amount: 15000n,
+    currency: "EUR",
+  })
+  .orThrow();
+
+await warranty.submit(claim.id).orThrow();
+await warranty
+  .decide(claim.id, "approved", "Covered by the 24 month term")
+  .orThrow();
+```
+
+The module requires `memberships`, `permissions`, `subjects`,
+[state machine](/docs/blocks/state-machine),
+[approvals](/docs/blocks/approvals) and
+[attachments](/docs/blocks/attachments). With `outbox` it records the events,
+and with `audit` every change is audited.
+
+## Tables
+
+| Table             | Holds                                                                |
+| ----------------- | -------------------------------------------------------------------- |
+| `warranty_claims` | The claim: supplier or manufacturer, asset, amount, status, decision |
+
+A claim is a subject of type `warranty_claim`, so attachments hang off it.
+Members with `warranty.read` read the table. Writes go through the functions
+below.
+
+| Permission        | Allows                         | Default roles |
+| ----------------- | ------------------------------ | ------------- |
+| `warranty.read`   | Read claims                    | member, admin |
+| `warranty.write`  | File a claim and submit it     | member, admin |
+| `warranty.decide` | Approve, deny or close a claim | admin         |
+
+## Status
+
+A claim starts as `draft`. `submit` moves it to `submitted`. `decide` moves
+`submitted` to `approved` or `denied`, and either of those to `closed`.
+Approving or denying stores the decision text. The state machine allows the
+same transitions, and an approval of subject `warranty_claim` calls `decide`
+when it is approved or rejected.
+
+## Amount
+
+`amount` is the covered amount in the currency's minor units, stored as
+`bigint` and sent as text. `currency` is an ISO 4217 code.

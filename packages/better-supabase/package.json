@@ -1403,6 +1403,11 @@
       "types": "./dist/blocks/warehouse/index.d.ts",
       "default": "./dist/blocks/warehouse/index.js"
     },
+    "./blocks/warranty": {
+      "@better-supabase/source": "./src/blocks/warranty/index.ts",
+      "types": "./dist/blocks/warranty/index.d.ts",
+      "default": "./dist/blocks/warranty/index.js"
+    },
     "./blocks/manufacturing": {
       "@better-supabase/source": "./src/blocks/manufacturing/index.ts",
       "types": "./dist/blocks/manufacturing/index.d.ts",
@@ -2590,6 +2595,10 @@
       "./blocks/warehouse": {
         "types": "./dist/blocks/warehouse/index.d.ts",
         "default": "./dist/blocks/warehouse/index.js"
+      },
+      "./blocks/warranty": {
+        "types": "./dist/blocks/warranty/index.d.ts",
+        "default": "./dist/blocks/warranty/index.js"
       },
       "./blocks/manufacturing": {
         "types": "./dist/blocks/manufacturing/index.d.ts",

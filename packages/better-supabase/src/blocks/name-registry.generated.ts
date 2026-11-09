@@ -2579,6 +2579,18 @@ export interface BlockNameRegistry {
     };
     readonly primary: "pick_list";
   };
+  readonly "warranty": {
+    readonly tables: {
+      readonly "claims": "id" | "tenant" | "title" | "supplier" | "manufacturer" | "asset" | "amount" | "currency" | "status" | "decision" | "decidedAt" | "decidedBy" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "create_warranty_claim" | "decide_warranty_claim" | "list_warranty_claims" | "submit_warranty_claim";
+    readonly actions: "read" | "write" | "decide";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "warranty_claim": "id" | "tenant_id" | "title" | "supplier_id" | "manufacturer" | "asset_id" | "amount" | "currency" | "status" | "decision" | "decided_at" | "decided_by" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "warranty_claim";
+  };
   readonly "webhook-inbox": {
     readonly tables: {
       readonly "messages": "id" | "source" | "messageId" | "eventType" | "payload" | "headers" | "status" | "attempts" | "maxAttempts" | "availableAt" | "lockedBy" | "lockedUntil" | "lastError" | "receivedAt" | "processedAt" | "tenant" | "checkpoint";

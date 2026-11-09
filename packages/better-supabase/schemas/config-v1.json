@@ -2021,6 +2021,7 @@
               "versions",
               "waitlist",
               "warehouse",
+              "warranty",
               "webhook-inbox",
               "webhooks-in",
               "webhooks-out",
@@ -2217,6 +2218,7 @@
                   "versions",
                   "waitlist",
                   "warehouse",
+                  "warranty",
                   "webhook-inbox",
                   "webhooks-in",
                   "webhooks-out",
@@ -2762,6 +2764,9 @@
             "warehouse": {
               "$ref": "#/$defs/blocks/warehouse"
             },
+            "warranty": {
+              "$ref": "#/$defs/blocks/warranty"
+            },
             "webhook-inbox": {
               "$ref": "#/$defs/blocks/webhook-inbox"
             },
@@ -2826,6 +2831,25 @@
           "type": "boolean",
           "description": "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
           "default": true
+        },
+        "types": {
+          "type": "object",
+          "properties": {
+            "tables": {
+              "type": "object",
+              "properties": {
+                "only": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Table, view and foreign-table names database.types.ts includes. Other relations are omitted."
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         },
         "blockModules": {
           "type": "boolean",
@@ -7964,6 +7988,17 @@
         }
       },
       "warehouse": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "warranty": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

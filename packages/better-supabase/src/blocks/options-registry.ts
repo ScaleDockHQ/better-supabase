@@ -363,6 +363,7 @@ export interface BlockOptionsRegistry {
   readonly lims: LimsSqlOptions;
   readonly appraisals: Record<never, never>;
   readonly warehouse: Record<never, never>;
+  readonly warranty: Record<never, never>;
   readonly rfqs: Record<never, never>;
   readonly tills: Record<never, never>;
   readonly periods: Record<never, never>;
@@ -569,6 +570,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   lims: limsSqlOptions,
   appraisals: NO_OPTIONS,
   warehouse: NO_OPTIONS,
+  warranty: NO_OPTIONS,
   rfqs: NO_OPTIONS,
   tills: NO_OPTIONS,
   periods: NO_OPTIONS,

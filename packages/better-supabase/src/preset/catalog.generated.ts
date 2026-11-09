@@ -10344,6 +10344,84 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "warranty",
+      "title": "Warranty",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "state-machine",
+        "approvals",
+        "attachments"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "approvals",
+        "state-machine"
+      ],
+      "manifest": "warranty",
+      "scopes": [
+        "tenant"
+      ],
+      "contributes": [
+        "approvals",
+        "state-machine"
+      ],
+      "entities": {
+        "specs": {
+          "warranty_claim": {
+            "table": "claims",
+            "singular": "warranty_claim",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write",
+                "upload": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "manufacturer",
+                  "decision"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "claims": {
+            "name": "warranty_claims",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "supplier": "supplier_id",
+              "manufacturer": "manufacturer",
+              "asset": "asset_id",
+              "amount": "amount",
+              "currency": "currency",
+              "status": "status",
+              "decision": "decision",
+              "decidedAt": "decided_at",
+              "decidedBy": "decided_by",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "warranty.read",
+          "write": "warranty.write",
+          "decide": "warranty.decide"
+        }
+      }
+    },
+    {
       "name": "dam",
       "title": "Digital asset management",
       "category": "content",
@@ -24439,6 +24517,45 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pick_list.picked",
           "count_plan.created",
           "count_plan.executed"
+        ]
+      }
+    },
+    {
+      "name": "warranty",
+      "sql": [
+        "warranty"
+      ],
+      "category": "work",
+      "client": {
+        "export": "warrantyBlock",
+        "subpath": "better-supabase/blocks/warranty"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "WarrantyClaim"
+        },
+        {
+          "name": "WarrantyClaimDecidedEventData"
+        },
+        {
+          "name": "WarrantyClaimEventData"
+        },
+        {
+          "name": "WarrantyClaimInput"
+        },
+        {
+          "name": "WarrantyClaimListOptions"
+        }
+      ],
+      "events": {
+        "type": "WarrantyEvents",
+        "types": [
+          "warranty_claim.created",
+          "warranty_claim.submitted",
+          "warranty_claim.decided",
+          "warranty_claim.closed"
         ]
       }
     },

@@ -1,7 +1,15 @@
 [
-  { "code": "ACCESS_CALLER_ONLY" },
-  { "code": "ACCESS_DURATION_INVALID", "message": "duration must be positive" },
-  { "code": "ACCESS_NOT_GRANTED", "message": "this access isn" },
+  {
+    "code": "ACCESS_CALLER_ONLY"
+  },
+  {
+    "code": "ACCESS_DURATION_INVALID",
+    "message": "duration must be positive"
+  },
+  {
+    "code": "ACCESS_NOT_GRANTED",
+    "message": "this access isn"
+  },
   {
     "code": "ACCESS_REQUEST_FORBIDDEN",
     "message": "not allowed to request access here"
@@ -26,9 +34,18 @@
     "code": "ACCESS_REQUEST_REVIEW_INVALID",
     "message": "verdict must be justified or unjustified"
   },
-  { "code": "ACCESS_ROLE_HELD", "message": "you already hold this role" },
-  { "code": "ACCESS_ROLE_INVALID", "message": "this role can" },
-  { "code": "ACCESS_SIGN_IN", "message": "sign in to request access" },
+  {
+    "code": "ACCESS_ROLE_HELD",
+    "message": "you already hold this role"
+  },
+  {
+    "code": "ACCESS_ROLE_INVALID",
+    "message": "this role can"
+  },
+  {
+    "code": "ACCESS_SIGN_IN",
+    "message": "sign in to request access"
+  },
   {
     "code": "ACCOUNTING_ACCOUNT_IN_USE",
     "message": "the account has posted lines, so its type and currency stay"
@@ -49,7 +66,10 @@
     "code": "ACCOUNTING_ENTRY_DUPLICATE",
     "message": "the source already has an entry; reverse it first"
   },
-  { "code": "ACCOUNTING_ENTRY_POSTED", "message": "a posted entry can" },
+  {
+    "code": "ACCOUNTING_ENTRY_POSTED",
+    "message": "a posted entry can"
+  },
   {
     "code": "ACCOUNTING_ENTRY_REVERSED",
     "message": "the entry is already reversed"
@@ -90,7 +110,10 @@
     "code": "ACCOUNTING_ROLE_UNMAPPED",
     "message": "no account plays the role a document line needs, and no account plays suspense"
   },
-  { "code": "ACCOUNTING_SETTING_NOT_FOUND", "message": "accounting isn" },
+  {
+    "code": "ACCOUNTING_SETTING_NOT_FOUND",
+    "message": "accounting isn"
+  },
   {
     "code": "ACCOUNTING_SOURCE_INVALID",
     "message": "no installed block books this source type"
@@ -107,7 +130,10 @@
     "code": "ACKNOWLEDGEMENT_NO_VERSION",
     "message": "the record has no version to acknowledge"
   },
-  { "code": "ACKNOWLEDGEMENT_NOT_ASSIGNED", "message": "you aren" },
+  {
+    "code": "ACKNOWLEDGEMENT_NOT_ASSIGNED",
+    "message": "you aren"
+  },
   {
     "code": "ACKNOWLEDGEMENT_SIGNATURE_INVALID",
     "message": "acknowledging with a signature needs the signatures module"
@@ -124,7 +150,10 @@
     "code": "ACTIVITY_AUDIENCE_INVALID",
     "message": "restrictedRoles must be a list of record team roles"
   },
-  { "code": "ACTIVITY_BODY_REQUIRED", "message": "an addendum needs a body" },
+  {
+    "code": "ACTIVITY_BODY_REQUIRED",
+    "message": "an addendum needs a body"
+  },
   {
     "code": "ACTIVITY_FORBIDDEN",
     "message": "not allowed to amend activities"
@@ -133,7 +162,10 @@
     "code": "ACTIVITY_LOCKED",
     "message": "the activity is locked: add an addendum with amend_activity instead"
   },
-  { "code": "ACTIVITY_NOT_FOUND", "message": "no such activity you can read" },
+  {
+    "code": "ACTIVITY_NOT_FOUND",
+    "message": "no such activity you can read"
+  },
   {
     "code": "ACTIVITY_NOTES_INVALID",
     "message": "actionItems need the tasks block: install it, or save notes without action items"
@@ -158,16 +190,33 @@
     "code": "ACTIVITY_SUBJECTS_INVALID",
     "message": "subjects must be a list of { type, id }"
   },
-  { "code": "ACTIVITY_TITLE_REQUIRED", "message": "a title is required" },
-  { "code": "ACTIVITY_TRANSCRIPT_INVALID" },
-  { "code": "ACTIVITY_TYPE_INVALID", "message": "unknown activity type" },
-  { "code": "ACTOR_READ_ONLY", "message": "This session is read-only" },
+  {
+    "code": "ACTIVITY_TITLE_REQUIRED",
+    "message": "a title is required"
+  },
+  {
+    "code": "ACTIVITY_TRANSCRIPT_INVALID"
+  },
+  {
+    "code": "ACTIVITY_TYPE_INVALID",
+    "message": "unknown activity type"
+  },
+  {
+    "code": "ACTOR_READ_ONLY",
+    "message": "This session is read-only"
+  },
   {
     "code": "ADVISORY_EMPTY",
     "message": "an advisory needs at least one vulnerability before it is published"
   },
-  { "code": "ADVISORY_FINAL", "message": "a final advisory can" },
-  { "code": "AGENT_MANDATE_EXPIRED", "message": "the mandate expired" },
+  {
+    "code": "ADVISORY_FINAL",
+    "message": "a final advisory can"
+  },
+  {
+    "code": "AGENT_MANDATE_EXPIRED",
+    "message": "the mandate expired"
+  },
   {
     "code": "AGENT_MANDATE_FORBIDDEN",
     "message": "not allowed to store mandates"
@@ -176,28 +225,46 @@
     "code": "AGENT_MANDATE_INVALID",
     "message": "vct is mandate.checkout.open.1 or mandate.checkout.1"
   },
-  { "code": "AGENT_MANDATE_NOT_FOUND", "message": "no such mandate" },
+  {
+    "code": "AGENT_MANDATE_NOT_FOUND",
+    "message": "no such mandate"
+  },
   {
     "code": "AGENT_MANDATE_USED",
     "message": "the mandate was already used or revoked"
   },
-  { "code": "AI_CHAT_NOT_FOUND", "message": "no chat" },
+  {
+    "code": "AI_CHAT_NOT_FOUND",
+    "message": "no chat"
+  },
   {
     "code": "AI_FILE_NOT_FOUND",
     "message": "no such ready file in this organization"
   },
-  { "code": "ANNOUNCEMENT_FORBIDDEN", "message": "Sign in first" },
+  {
+    "code": "ANNOUNCEMENT_FORBIDDEN",
+    "message": "Sign in first"
+  },
   {
     "code": "ANNOUNCEMENT_NOT_DISMISSIBLE",
     "message": "This announcement can"
   },
-  { "code": "API_KEY_EXPIRED", "message": "expires_at is in the past" },
+  {
+    "code": "API_KEY_EXPIRED",
+    "message": "expires_at is in the past"
+  },
   {
     "code": "API_KEY_FORBIDDEN",
     "message": "Not allowed to manage API keys in this tenant"
   },
-  { "code": "API_KEY_GRACE", "message": "grace must be zero or more" },
-  { "code": "API_KEY_NOT_FOUND", "message": "API key not found" },
+  {
+    "code": "API_KEY_GRACE",
+    "message": "grace must be zero or more"
+  },
+  {
+    "code": "API_KEY_NOT_FOUND",
+    "message": "API key not found"
+  },
   {
     "code": "API_KEY_REVOKED",
     "message": "A revoked API key cannot be rotated"
@@ -230,9 +297,18 @@
     "code": "APP_TABLE_SET_SUBJECT",
     "message": "not an app table subject type"
   },
-  { "code": "APPRAISALS_CYCLE_NOT_FOUND", "message": "no such review cycle" },
-  { "code": "APPRAISALS_NOT_FOUND", "message": "no such appraisal" },
-  { "code": "APPRAISALS_REVIEW_NOT_FOUND", "message": "no such review" },
+  {
+    "code": "APPRAISALS_CYCLE_NOT_FOUND",
+    "message": "no such review cycle"
+  },
+  {
+    "code": "APPRAISALS_NOT_FOUND",
+    "message": "no such appraisal"
+  },
+  {
+    "code": "APPRAISALS_REVIEW_NOT_FOUND",
+    "message": "no such review"
+  },
   {
     "code": "APPROVAL_ALL_UNSUPPORTED",
     "message": "required all needs an access model that lists permission holders"
@@ -241,7 +317,10 @@
     "code": "APPROVAL_APPROVERS_EMPTY",
     "message": "nobody holds the permission a step asks every holder of"
   },
-  { "code": "APPROVAL_CLOSED", "message": "this request is no longer pending" },
+  {
+    "code": "APPROVAL_CLOSED",
+    "message": "this request is no longer pending"
+  },
   {
     "code": "APPROVAL_CONDITIONS_INVALID",
     "message": "conditions must be a filter tree of groups and rules with a path and a known operator"
@@ -254,7 +333,10 @@
     "code": "APPROVAL_CONSUME_UNSUPPORTED",
     "message": "this approval requests table has no consumed_at column"
   },
-  { "code": "APPROVAL_CONSUMED", "message": "this approval was already used" },
+  {
+    "code": "APPROVAL_CONSUMED",
+    "message": "this approval was already used"
+  },
   {
     "code": "APPROVAL_DECISION_INVALID",
     "message": "decisions must be a non-empty array"
@@ -271,7 +353,10 @@
     "code": "APPROVAL_EFFECT_UNSUPPORTED",
     "message": "this approval policies table has no effect column"
   },
-  { "code": "APPROVAL_EXPIRED", "message": "this request has expired" },
+  {
+    "code": "APPROVAL_EXPIRED",
+    "message": "this request has expired"
+  },
   {
     "code": "APPROVAL_FIELDS_MISSING",
     "message": "no rule fields for this subject type; sync them first"
@@ -328,7 +413,10 @@
     "code": "APPROVAL_NOT_APPROVED",
     "message": "this request is not approved"
   },
-  { "code": "APPROVAL_NOT_FOUND", "message": "approval request not found" },
+  {
+    "code": "APPROVAL_NOT_FOUND",
+    "message": "approval request not found"
+  },
   {
     "code": "APPROVAL_NOT_REQUIRED",
     "message": "no approval is required for this request"
@@ -337,7 +425,10 @@
     "code": "APPROVAL_PENDING",
     "message": "this record already has a pending request for that action"
   },
-  { "code": "APPROVAL_POLICY_INVALID", "message": "policy must be an object" },
+  {
+    "code": "APPROVAL_POLICY_INVALID",
+    "message": "policy must be an object"
+  },
   {
     "code": "APPROVAL_POLICY_NOT_FOUND",
     "message": "approval policy not found"
@@ -354,7 +445,9 @@
     "code": "APPROVAL_TENANT_REQUIRED",
     "message": "a request for this subject type needs an organization"
   },
-  { "code": "ASSET_METER_DECREASE_REASON" },
+  {
+    "code": "ASSET_METER_DECREASE_REASON"
+  },
   {
     "code": "ASSETS_CODE_TAKEN",
     "message": "a location with this code already exists"
@@ -383,18 +476,30 @@
     "code": "ASSETS_LINK_TARGET_NOT_FOUND",
     "message": "the record to link doesn"
   },
-  { "code": "ASSETS_LOCATION_CYCLE", "message": "a location can" },
+  {
+    "code": "ASSETS_LOCATION_CYCLE",
+    "message": "a location can"
+  },
   {
     "code": "ASSETS_LOCATION_IN_USE",
     "message": "move or archive the sublocations and assets of this location first"
   },
-  { "code": "ASSETS_LOCATION_NOT_FOUND", "message": "location not found" },
-  { "code": "ASSETS_NOT_FOUND", "message": "asset not found" },
+  {
+    "code": "ASSETS_LOCATION_NOT_FOUND",
+    "message": "location not found"
+  },
+  {
+    "code": "ASSETS_NOT_FOUND",
+    "message": "asset not found"
+  },
   {
     "code": "ASSETS_POSTGIS_REQUIRED",
     "message": "areas need blocks.assets.options.postgis"
   },
-  { "code": "ASSETS_RETIRED", "message": "a retired asset can" },
+  {
+    "code": "ASSETS_RETIRED",
+    "message": "a retired asset can"
+  },
   {
     "code": "ASSETS_TAG_TAKEN",
     "message": "an asset with this tag already exists"
@@ -411,7 +516,10 @@
     "code": "ASSIGNMENT_FORBIDDEN",
     "message": "You need assignment.manage to change assignment queues"
   },
-  { "code": "ASSIGNMENT_INVALID", "message": "queue must be an object" },
+  {
+    "code": "ASSIGNMENT_INVALID",
+    "message": "queue must be an object"
+  },
   {
     "code": "ASSIGNMENT_MEMBER_INVALID",
     "message": "Every member must be a member of the queue"
@@ -448,7 +556,10 @@
     "code": "ATTACHMENT_NOT_CLAIMABLE",
     "message": "the file is already stored"
   },
-  { "code": "ATTACHMENT_NOT_FOUND", "message": "No attachment has this id" },
+  {
+    "code": "ATTACHMENT_NOT_FOUND",
+    "message": "No attachment has this id"
+  },
   {
     "code": "ATTACHMENT_NOT_UPLOADED",
     "message": "The file was not uploaded yet"
@@ -497,7 +608,10 @@
     "code": "AUTOMATION_DEFAULT",
     "message": "A block ships this automation; turn it off instead of removing it"
   },
-  { "code": "AUTOMATION_FIELDS_INVALID", "message": "fields must be an array" },
+  {
+    "code": "AUTOMATION_FIELDS_INVALID",
+    "message": "fields must be an array"
+  },
   {
     "code": "AUTOMATION_FORBIDDEN",
     "message": "Only the service role syncs rule fields"
@@ -506,7 +620,10 @@
     "code": "AUTOMATION_INVALID",
     "message": "Every condition and group needs an id"
   },
-  { "code": "AUTOMATION_NOT_DEFAULT", "message": "No block ships this rule" },
+  {
+    "code": "AUTOMATION_NOT_DEFAULT",
+    "message": "No block ships this rule"
+  },
   {
     "code": "AUTOMATION_NOT_FOUND",
     "message": "No rule you can read has this id"
@@ -515,13 +632,21 @@
     "code": "AUTOMATION_RANK_INVALID",
     "message": "rank must be a key from rankBetween"
   },
-  { "code": "BANK_ACCOUNT_NOT_FOUND", "message": "no such bank account" },
-  { "code": "BANK_RULE_NOT_FOUND", "message": "no such bank rule" },
+  {
+    "code": "BANK_ACCOUNT_NOT_FOUND",
+    "message": "no such bank account"
+  },
+  {
+    "code": "BANK_RULE_NOT_FOUND",
+    "message": "no such bank rule"
+  },
   {
     "code": "BANK_TRANSACTION_NOT_FOUND",
     "message": "no such bank transaction"
   },
-  { "code": "BANK_TRANSACTION_STATUS_INVALID" },
+  {
+    "code": "BANK_TRANSACTION_STATUS_INVALID"
+  },
   {
     "code": "BILLABLE_TIME_CURRENCIES",
     "message": "the entries are billed in several currencies; name one"
@@ -546,12 +671,18 @@
     "code": "BILLING_FORBIDDEN",
     "message": "Not allowed to read every tenant"
   },
-  { "code": "BOM_CYCLE", "message": "a variant can" },
+  {
+    "code": "BOM_CYCLE",
+    "message": "a variant can"
+  },
   {
     "code": "BOM_NOT_ACTIVE",
     "message": "the variant has no active bill of materials"
   },
-  { "code": "BOM_NOT_FOUND", "message": "no such bill of materials" },
+  {
+    "code": "BOM_NOT_FOUND",
+    "message": "no such bill of materials"
+  },
   {
     "code": "BOOKING_CUSTOMER_INVALID",
     "message": "a guest booking needs a name and an email"
@@ -568,45 +699,88 @@
     "code": "BOOKING_LINK_INVALID",
     "message": "unknown or expired booking link"
   },
-  { "code": "BOOKING_NOT_FOUND", "message": "booking not found" },
+  {
+    "code": "BOOKING_NOT_FOUND",
+    "message": "booking not found"
+  },
   {
     "code": "BOOKING_RANGE_INVALID",
     "message": "ask for at most 62 days of slots"
   },
-  { "code": "BOOKING_RATE_LIMITED" },
-  { "code": "BOOKING_RESOURCE_NOT_FOUND", "message": "resource not found" },
-  { "code": "BOOKING_RULE_INVALID", "message": "rule.freq is daily or weekly" },
-  { "code": "BOOKING_SCOPE_INVALID", "message": "scope is one or following" },
+  {
+    "code": "BOOKING_RATE_LIMITED"
+  },
+  {
+    "code": "BOOKING_RESOURCE_NOT_FOUND",
+    "message": "resource not found"
+  },
+  {
+    "code": "BOOKING_RULE_INVALID",
+    "message": "rule.freq is daily or weekly"
+  },
+  {
+    "code": "BOOKING_SCOPE_INVALID",
+    "message": "scope is one or following"
+  },
   {
     "code": "BOOKING_SERIES_CONFLICT",
     "message": "an occurrence is not an open slot"
   },
-  { "code": "BOOKING_SERVICE_NOT_FOUND", "message": "service not found" },
+  {
+    "code": "BOOKING_SERVICE_NOT_FOUND",
+    "message": "service not found"
+  },
   {
     "code": "BOOKING_SLOT_UNAVAILABLE",
     "message": "that time is not an open slot"
   },
-  { "code": "BOOKING_STATUS_INVALID", "message": "a cancelled booking can" },
-  { "code": "BOOKING_TZ_INVALID", "message": "tz must be an IANA time zone" },
-  { "code": "BS429" },
-  { "code": "BULK_ACTION_UNKNOWN", "message": "unknown bulk action" },
-  { "code": "BULK_FORBIDDEN", "message": "not allowed to run bulk actions" },
+  {
+    "code": "BOOKING_STATUS_INVALID",
+    "message": "a cancelled booking can"
+  },
+  {
+    "code": "BOOKING_TZ_INVALID",
+    "message": "tz must be an IANA time zone"
+  },
+  {
+    "code": "BS429"
+  },
+  {
+    "code": "BULK_ACTION_UNKNOWN",
+    "message": "unknown bulk action"
+  },
+  {
+    "code": "BULK_FORBIDDEN",
+    "message": "not allowed to run bulk actions"
+  },
   {
     "code": "BULK_NO_JOBS",
     "message": "background bulk runs need the queue block"
   },
-  { "code": "BULK_RUN_NOT_FOUND", "message": "bulk run not found" },
+  {
+    "code": "BULK_RUN_NOT_FOUND",
+    "message": "bulk run not found"
+  },
   {
     "code": "CALENDAR_ATTENDEE_INVALID",
     "message": "an attendee needs a userId, an email or a subjectType and subjectId"
   },
-  { "code": "CALENDAR_ATTENDEE_NOT_FOUND", "message": "attendee not found" },
+  {
+    "code": "CALENDAR_ATTENDEE_NOT_FOUND",
+    "message": "attendee not found"
+  },
   {
     "code": "CALENDAR_EVENT_INVALID",
     "message": "status must be confirmed, tentative or cancelled"
   },
-  { "code": "CALENDAR_EVENT_NOT_FOUND", "message": "event not found" },
-  { "code": "CALENDAR_EVENT_READ_ONLY", "message": "this event is read-only" },
+  {
+    "code": "CALENDAR_EVENT_NOT_FOUND",
+    "message": "event not found"
+  },
+  {
+    "code": "CALENDAR_EVENT_READ_ONLY",
+    "message": "this event is read-only"
+  },
   {
     "code": "CALENDAR_FORBIDDEN",
     "message": "not allowed to change this calendar"
@@ -623,7 +797,10 @@
     "code": "CALENDAR_INVALID",
     "message": "a private calendar needs an owner"
   },
-  { "code": "CALENDAR_NOT_FOUND", "message": "calendar not found" },
+  {
+    "code": "CALENDAR_NOT_FOUND",
+    "message": "calendar not found"
+  },
   {
     "code": "CALENDAR_RESPONSE_INVALID",
     "message": "response must be needs-action, accepted, declined or tentative"
@@ -636,13 +813,22 @@
     "code": "CALENDAR_SPLIT_INVALID",
     "message": "split at a later occurrence, with the rule that ends the series before it"
   },
-  { "code": "CALENDAR_TZ_INVALID", "message": "tz must be an IANA time zone" },
-  { "code": "CARE_ALERT_NOT_FOUND", "message": "no such alert" },
+  {
+    "code": "CALENDAR_TZ_INVALID",
+    "message": "tz must be an IANA time zone"
+  },
+  {
+    "code": "CARE_ALERT_NOT_FOUND",
+    "message": "no such alert"
+  },
   {
     "code": "CARE_ALERT_STATUS",
     "message": "this alert has already been decided or resolved"
   },
-  { "code": "CARE_PLAN_ARCHIVED", "message": "the care plan is archived" },
+  {
+    "code": "CARE_PLAN_ARCHIVED",
+    "message": "the care plan is archived"
+  },
   {
     "code": "CARE_PLAN_CODE_SYSTEM_UNKNOWN",
     "message": "the code system is not one of options.codeSystems"
@@ -659,21 +845,42 @@
     "code": "CARE_PLAN_NOT_DRAFT",
     "message": "only a draft care plan changes this way"
   },
-  { "code": "CARE_PLAN_NOT_FOUND", "message": "no such action on a care plan" },
-  { "code": "CARE_RULE_NOT_FOUND", "message": "no such rule" },
-  { "code": "CASE_ACTION_NOT_FOUND", "message": "no such case action" },
-  { "code": "CASE_CLOSED", "message": "the case is closed or canceled" },
+  {
+    "code": "CARE_PLAN_NOT_FOUND",
+    "message": "no such action on a care plan"
+  },
+  {
+    "code": "CARE_RULE_NOT_FOUND",
+    "message": "no such rule"
+  },
+  {
+    "code": "CASE_ACTION_NOT_FOUND",
+    "message": "no such case action"
+  },
+  {
+    "code": "CASE_CLOSED",
+    "message": "the case is closed or canceled"
+  },
   {
     "code": "CASE_FORMS_NOT_INSTALLED",
     "message": "install the forms block to open cases from submissions"
   },
-  { "code": "CASE_INVALID", "message": "no such form submission" },
-  { "code": "CASE_KIND_ARCHIVED", "message": "the case kind is archived" },
+  {
+    "code": "CASE_INVALID",
+    "message": "no such form submission"
+  },
+  {
+    "code": "CASE_KIND_ARCHIVED",
+    "message": "the case kind is archived"
+  },
   {
     "code": "CASE_KIND_NOT_FOUND",
     "message": "no such case kind in this organization"
   },
-  { "code": "CASE_NOT_FOUND", "message": "no such case" },
+  {
+    "code": "CASE_NOT_FOUND",
+    "message": "no such case"
+  },
   {
     "code": "CASE_SEVERITY_UNKNOWN",
     "message": "the severity is not one of options.severities"
@@ -690,17 +897,26 @@
     "code": "CATALOG_AMOUNT_INVALID",
     "message": "the amount must be a whole number of minor units"
   },
-  { "code": "CATALOG_CATEGORY_CYCLE", "message": "a category can" },
+  {
+    "code": "CATALOG_CATEGORY_CYCLE",
+    "message": "a category can"
+  },
   {
     "code": "CATALOG_CATEGORY_HAS_CHILDREN",
     "message": "move or delete the subcategories first"
   },
-  { "code": "CATALOG_CATEGORY_NOT_FOUND", "message": "category not found" },
+  {
+    "code": "CATALOG_CATEGORY_NOT_FOUND",
+    "message": "category not found"
+  },
   {
     "code": "CATALOG_CHANNEL_KEY_INVALID",
     "message": "the channel key must be lower-case letters, digits and hyphens"
   },
-  { "code": "CATALOG_CHANNEL_NOT_FOUND", "message": "channel not found" },
+  {
+    "code": "CATALOG_CHANNEL_NOT_FOUND",
+    "message": "channel not found"
+  },
   {
     "code": "CATALOG_CHANNEL_TAKEN",
     "message": "another channel has this key"
@@ -709,7 +925,10 @@
     "code": "CATALOG_COLLECTION_KIND",
     "message": "the kind must be manual or rule"
   },
-  { "code": "CATALOG_COLLECTION_NOT_FOUND", "message": "collection not found" },
+  {
+    "code": "CATALOG_COLLECTION_NOT_FOUND",
+    "message": "collection not found"
+  },
   {
     "code": "CATALOG_COLLECTION_RULE",
     "message": "a rule collection picks its products from its rule"
@@ -758,7 +977,10 @@
     "code": "CATALOG_IDENTIFIER_INVALID",
     "message": "the value must be 1 to 100 characters"
   },
-  { "code": "CATALOG_LOCALE_DEFAULT", "message": "the default locale" },
+  {
+    "code": "CATALOG_LOCALE_DEFAULT",
+    "message": "the default locale"
+  },
   {
     "code": "CATALOG_LOCALE_INVALID",
     "message": "the locale is not one of blocks.catalog.options.locales"
@@ -771,7 +993,10 @@
     "code": "CATALOG_MEDIA_ATTACHMENT_NOT_FOUND",
     "message": "attach the file to the product or one of its variants first"
   },
-  { "code": "CATALOG_MEDIA_NOT_FOUND", "message": "media item not found" },
+  {
+    "code": "CATALOG_MEDIA_NOT_FOUND",
+    "message": "media item not found"
+  },
   {
     "code": "CATALOG_MEDIA_ORDER_INVALID",
     "message": "list every media item of the product once"
@@ -792,7 +1017,10 @@
     "code": "CATALOG_OPTION_HAS_VARIANTS",
     "message": "add options before the product has variants"
   },
-  { "code": "CATALOG_OPTION_NOT_FOUND", "message": "option not found" },
+  {
+    "code": "CATALOG_OPTION_NOT_FOUND",
+    "message": "option not found"
+  },
   {
     "code": "CATALOG_OPTION_ORDER_INVALID",
     "message": "the list must name each option of the product once"
@@ -809,7 +1037,10 @@
     "code": "CATALOG_OPTIONS_INVALID",
     "message": "options is a list of { name, values } with text values"
   },
-  { "code": "CATALOG_PRICE_LIST_NOT_FOUND", "message": "price list not found" },
+  {
+    "code": "CATALOG_PRICE_LIST_NOT_FOUND",
+    "message": "price list not found"
+  },
   {
     "code": "CATALOG_PRICE_LIST_TAKEN",
     "message": "another price list has this name"
@@ -818,23 +1049,38 @@
     "code": "CATALOG_PRICE_OVERLAP",
     "message": "another price of this variant, currency and list covers part of this window"
   },
-  { "code": "CATALOG_PRODUCT_NOT_FOUND", "message": "product not found" },
-  { "code": "CATALOG_RANK_INVALID", "message": "not a rank key" },
+  {
+    "code": "CATALOG_PRODUCT_NOT_FOUND",
+    "message": "product not found"
+  },
+  {
+    "code": "CATALOG_RANK_INVALID",
+    "message": "not a rank key"
+  },
   {
     "code": "CATALOG_RELATION_CYCLE",
     "message": "the replacement already points back at this variant"
   },
-  { "code": "CATALOG_RELATION_INVALID", "message": "a variant can" },
+  {
+    "code": "CATALOG_RELATION_INVALID",
+    "message": "a variant can"
+  },
   {
     "code": "CATALOG_SKU_INVALID",
     "message": "the SKU must be 1 to 100 characters"
   },
-  { "code": "CATALOG_SKU_TAKEN", "message": "another variant has this SKU" },
+  {
+    "code": "CATALOG_SKU_TAKEN",
+    "message": "another variant has this SKU"
+  },
   {
     "code": "CATALOG_SLUG_INVALID",
     "message": "the slug must be lower-case letters, digits and hyphens"
   },
-  { "code": "CATALOG_SLUG_TAKEN", "message": "another product has this slug" },
+  {
+    "code": "CATALOG_SLUG_TAKEN",
+    "message": "another product has this slug"
+  },
   {
     "code": "CATALOG_STATUS_INVALID",
     "message": "the status must be draft, active or archived"
@@ -879,8 +1125,14 @@
     "code": "CATALOG_TRADE_CODE_INVALID",
     "message": "a trade code has 4 to 10 digits"
   },
-  { "code": "CATALOG_TRANSITION_INVALID", "message": "the product can" },
-  { "code": "CATALOG_TRANSLATION_INVALID", "message": "this catalog" },
+  {
+    "code": "CATALOG_TRANSITION_INVALID",
+    "message": "the product can"
+  },
+  {
+    "code": "CATALOG_TRANSLATION_INVALID",
+    "message": "this catalog"
+  },
   {
     "code": "CATALOG_VALIDITY_INVALID",
     "message": "this catalog has no validity windows"
@@ -889,7 +1141,10 @@
     "code": "CATALOG_VARIANT_DUPLICATE",
     "message": "another variant has these option values"
   },
-  { "code": "CATALOG_VARIANT_NOT_FOUND", "message": "variant not found" },
+  {
+    "code": "CATALOG_VARIANT_NOT_FOUND",
+    "message": "variant not found"
+  },
   {
     "code": "CATALOG_VARIANT_OPTIONS",
     "message": "a variant needs exactly one value of each product option"
@@ -898,8 +1153,12 @@
     "code": "CATALOG_VARIANT_STATUS_UNSUPPORTED",
     "message": "this variants table has no status column"
   },
-  { "code": "CHAIN_COLUMNS" },
-  { "code": "CHAIN_FORBIDDEN" },
+  {
+    "code": "CHAIN_COLUMNS"
+  },
+  {
+    "code": "CHAIN_FORBIDDEN"
+  },
   {
     "code": "CHANNELS_FORBIDDEN",
     "message": "not allowed to create channels here"
@@ -916,7 +1175,10 @@
     "code": "CHANNELS_NAME_TAKEN",
     "message": "a channel with this name exists"
   },
-  { "code": "CHANNELS_NOT_FOUND", "message": "no such record you can read" },
+  {
+    "code": "CHANNELS_NOT_FOUND",
+    "message": "no such record you can read"
+  },
   {
     "code": "CHANNELS_SUBJECT_INVALID",
     "message": "a linked record needs subjectType and subjectId"
@@ -925,7 +1187,10 @@
     "code": "CHANNELS_VISIBILITY_INVALID",
     "message": "a channel is public or private"
   },
-  { "code": "CHECKOUT_CART_NOT_FOUND", "message": "no such cart" },
+  {
+    "code": "CHECKOUT_CART_NOT_FOUND",
+    "message": "no such cart"
+  },
   {
     "code": "CHECKOUT_FORBIDDEN",
     "message": "not allowed to start checkout sessions"
@@ -938,7 +1203,10 @@
     "code": "CHECKOUT_IDEMPOTENCY_KEY_REQUIRED",
     "message": "a checkout session needs an idempotency key"
   },
-  { "code": "CHECKOUT_SESSION_EXPIRED", "message": "the session expired" },
+  {
+    "code": "CHECKOUT_SESSION_EXPIRED",
+    "message": "the session expired"
+  },
   {
     "code": "CHECKOUT_SESSION_FINAL",
     "message": "the session is completed or canceled"
@@ -947,8 +1215,13 @@
     "code": "CHECKOUT_SESSION_NOT_FOUND",
     "message": "no such checkout session"
   },
-  { "code": "CHECKPOINT_MISMATCH" },
-  { "code": "COLLECTION_ARCHIVED", "message": "the collection is archived" },
+  {
+    "code": "CHECKPOINT_MISMATCH"
+  },
+  {
+    "code": "COLLECTION_ARCHIVED",
+    "message": "the collection is archived"
+  },
   {
     "code": "COLLECTION_FORBIDDEN",
     "message": "not allowed to change this collection"
@@ -957,9 +1230,18 @@
     "code": "COLLECTION_INVALID",
     "message": "scope must be user, team or tenant"
   },
-  { "code": "COLLECTION_NAME_REQUIRED", "message": "a name is required" },
-  { "code": "COLLECTION_NOT_FOUND", "message": "collection not found" },
-  { "code": "COLLECTION_RANK_INVALID", "message": "not a rank key" },
+  {
+    "code": "COLLECTION_NAME_REQUIRED",
+    "message": "a name is required"
+  },
+  {
+    "code": "COLLECTION_NOT_FOUND",
+    "message": "collection not found"
+  },
+  {
+    "code": "COLLECTION_RANK_INVALID",
+    "message": "not a rank key"
+  },
   {
     "code": "COLLECTION_SUBJECT_FORBIDDEN",
     "message": "a record is unknown or not readable in this organization"
@@ -988,8 +1270,14 @@
     "code": "COMMISSION_INVALID",
     "message": "a statement needs a seller, a currency code and a range that ends on or after it starts"
   },
-  { "code": "COMMISSION_NOT_FOUND", "message": "no such commission" },
-  { "code": "COMMISSION_PLAN_NOT_FOUND", "message": "no such commission plan" },
+  {
+    "code": "COMMISSION_NOT_FOUND",
+    "message": "no such commission"
+  },
+  {
+    "code": "COMMISSION_PLAN_NOT_FOUND",
+    "message": "no such commission plan"
+  },
   {
     "code": "COMMISSION_STATEMENT_LOCKED",
     "message": "the commission is on a statement that is no longer open"
@@ -1002,34 +1290,58 @@
     "code": "COMMISSION_STATEMENT_OPEN",
     "message": "finalize the statement before paying it"
   },
-  { "code": "COMPLIANCE_POLICY_ARCHIVED", "message": "an archived policy can" },
+  {
+    "code": "COMPLIANCE_POLICY_ARCHIVED",
+    "message": "an archived policy can"
+  },
   {
     "code": "COMPLIANCE_POLICY_INVALID",
     "message": "the owner must be a member of the organization"
   },
-  { "code": "COMPLIANCE_POLICY_NOT_FOUND", "message": "policy not found" },
+  {
+    "code": "COMPLIANCE_POLICY_NOT_FOUND",
+    "message": "policy not found"
+  },
   {
     "code": "CONSENT_ALREADY_WITHDRAWN",
     "message": "the consent is already withdrawn"
   },
-  { "code": "CONSENT_NOT_FOUND", "message": "no such consent" },
+  {
+    "code": "CONSENT_NOT_FOUND",
+    "message": "no such consent"
+  },
   {
     "code": "CONSENT_PURPOSE_ARCHIVED",
     "message": "the consent purpose is archived"
   },
-  { "code": "CONSENT_PURPOSE_NOT_FOUND", "message": "no such consent purpose" },
-  { "code": "CONSENT_SIGNAL_INVALID", "message": "kind is gpc, tcf or gpp" },
+  {
+    "code": "CONSENT_PURPOSE_NOT_FOUND",
+    "message": "no such consent purpose"
+  },
+  {
+    "code": "CONSENT_SIGNAL_INVALID",
+    "message": "kind is gpc, tcf or gpp"
+  },
   {
     "code": "CONSENT_SIGNATURE_REQUIRED",
     "message": "this purpose needs a signature to grant consent"
   },
-  { "code": "CONTACT_NOT_FOUND", "message": "contact not found" },
-  { "code": "CONTACT_REQUIRED", "message": "input.contact is required" },
+  {
+    "code": "CONTACT_NOT_FOUND",
+    "message": "contact not found"
+  },
+  {
+    "code": "CONTACT_REQUIRED",
+    "message": "input.contact is required"
+  },
   {
     "code": "CONTENT_MEDIA_UNSUPPORTED",
     "message": "a cover image needs the attachments block"
   },
-  { "code": "CONTENT_NOT_FOUND", "message": "no such content entry" },
+  {
+    "code": "CONTENT_NOT_FOUND",
+    "message": "no such content entry"
+  },
   {
     "code": "CONTENT_SLUG_TAKEN",
     "message": "another entry of this type and locale has this slug"
@@ -1046,16 +1358,34 @@
     "code": "CONTRACT_LOCKED",
     "message": "this contract can no longer change"
   },
-  { "code": "CONTRACT_NOT_FOUND", "message": "contract not found" },
+  {
+    "code": "CONTRACT_NOT_FOUND",
+    "message": "contract not found"
+  },
   {
     "code": "CONTRACT_OBLIGATION_NOT_FOUND",
     "message": "obligation not found"
   },
-  { "code": "CONTRACT_TRANSITION_INVALID", "message": "the contract can" },
-  { "code": "CONTROL_EVIDENCE_NOT_FOUND", "message": "evidence not found" },
-  { "code": "CONTROL_FORBIDDEN", "message": "not allowed to manage controls" },
-  { "code": "CONTROL_FRAMEWORK_NOT_FOUND", "message": "framework not found" },
-  { "code": "CONTROL_NOT_FOUND", "message": "control not found" },
+  {
+    "code": "CONTRACT_TRANSITION_INVALID",
+    "message": "the contract can"
+  },
+  {
+    "code": "CONTROL_EVIDENCE_NOT_FOUND",
+    "message": "evidence not found"
+  },
+  {
+    "code": "CONTROL_FORBIDDEN",
+    "message": "not allowed to manage controls"
+  },
+  {
+    "code": "CONTROL_FRAMEWORK_NOT_FOUND",
+    "message": "framework not found"
+  },
+  {
+    "code": "CONTROL_NOT_FOUND",
+    "message": "control not found"
+  },
   {
     "code": "COURSE_CERTIFICATE_NOT_FOUND",
     "message": "course certificate not found"
@@ -1068,13 +1398,22 @@
     "code": "COURSE_INVALID",
     "message": "formId: pass a form of this organization"
   },
-  { "code": "COURSE_LESSON_NOT_FOUND", "message": "course lesson not found" },
-  { "code": "COURSE_MODULE_NOT_FOUND", "message": "course module not found" },
+  {
+    "code": "COURSE_LESSON_NOT_FOUND",
+    "message": "course lesson not found"
+  },
+  {
+    "code": "COURSE_MODULE_NOT_FOUND",
+    "message": "course module not found"
+  },
   {
     "code": "COURSE_NOT_ENROLLED",
     "message": "you are not enrolled in this course"
   },
-  { "code": "COURSE_NOT_FOUND", "message": "course not found" },
+  {
+    "code": "COURSE_NOT_FOUND",
+    "message": "course not found"
+  },
   {
     "code": "COURSE_NOT_PUBLISHED",
     "message": "only a published course takes enrollments"
@@ -1083,17 +1422,34 @@
     "code": "COURSE_QUIZ_UNAVAILABLE",
     "message": "quiz lessons need the forms block"
   },
-  { "code": "CREDENTIAL_EMPTY" },
-  { "code": "CREDENTIAL_NAME_INVALID" },
-  { "code": "CREDENTIAL_REF_FOREIGN" },
-  { "code": "CREDENTIALS_FORBIDDEN" },
-  { "code": "DAM_USAGE_RIGHT_NOT_FOUND", "message": "no such usage right" },
+  {
+    "code": "CREDENTIAL_EMPTY"
+  },
+  {
+    "code": "CREDENTIAL_NAME_INVALID"
+  },
+  {
+    "code": "CREDENTIAL_REF_FOREIGN"
+  },
+  {
+    "code": "CREDENTIALS_FORBIDDEN"
+  },
+  {
+    "code": "DAM_USAGE_RIGHT_NOT_FOUND",
+    "message": "no such usage right"
+  },
   {
     "code": "DATA_ANONYMIZE_FORBIDDEN",
     "message": "Only the service role anonymizes rows"
   },
-  { "code": "DATA_EXPORT_FORBIDDEN", "message": "Sign in to export data" },
-  { "code": "DATA_EXPORT_FORMAT", "message": "format must be ndjson or csv" },
+  {
+    "code": "DATA_EXPORT_FORBIDDEN",
+    "message": "Sign in to export data"
+  },
+  {
+    "code": "DATA_EXPORT_FORMAT",
+    "message": "format must be ndjson or csv"
+  },
   {
     "code": "DATA_EXPORT_NOT_FOUND",
     "message": "No running export has this id"
@@ -1122,7 +1478,10 @@
     "code": "DEADLINE_INVALID",
     "message": "a deadline needs a subject type, a subject id, facts as an object and a date"
   },
-  { "code": "DEADLINE_NOT_FOUND", "message": "no such deadline" },
+  {
+    "code": "DEADLINE_NOT_FOUND",
+    "message": "no such deadline"
+  },
   {
     "code": "DEADLINE_RULE_NOT_FOUND",
     "message": "the rule set has no group with this key"
@@ -1135,7 +1494,10 @@
     "code": "DEADLINE_RULES_INVALID",
     "message": "a rule set has a lower case jurisdiction and kind"
   },
-  { "code": "DEADLINE_RULES_NOT_FOUND", "message": "no such rule set version" },
+  {
+    "code": "DEADLINE_RULES_NOT_FOUND",
+    "message": "no such rule set version"
+  },
   {
     "code": "DEAL_ATTRS_INVALID",
     "message": "a deal needs a name and a close date"
@@ -1160,8 +1522,14 @@
     "code": "DEAL_CURRENCY_MISMATCH",
     "message": "an amount must be in the deal"
   },
-  { "code": "DEAL_FIELD_UNKNOWN", "message": "that field can" },
-  { "code": "DEAL_FORBIDDEN", "message": "not allowed to change deals" },
+  {
+    "code": "DEAL_FIELD_UNKNOWN",
+    "message": "that field can"
+  },
+  {
+    "code": "DEAL_FORBIDDEN",
+    "message": "not allowed to change deals"
+  },
   {
     "code": "DEAL_FORECAST_CLOSED",
     "message": "a closed deal is called by its stage, not a forecast"
@@ -1174,11 +1542,26 @@
     "code": "DEAL_MEMBERS_INVALID",
     "message": "members must be a list of { userId, role }"
   },
-  { "code": "DEAL_MOTION_INVALID", "message": "unknown motion" },
-  { "code": "DEAL_NOT_FOUND", "message": "no such deal you can edit" },
-  { "code": "DEAL_OPENED_ON_FIXED", "message": "the open date never moves" },
-  { "code": "DEAL_OUTCOME_INVALID", "message": "close a deal as won or lost" },
-  { "code": "DEAL_PRIORITY_INVALID", "message": "unknown priority" },
+  {
+    "code": "DEAL_MOTION_INVALID",
+    "message": "unknown motion"
+  },
+  {
+    "code": "DEAL_NOT_FOUND",
+    "message": "no such deal you can edit"
+  },
+  {
+    "code": "DEAL_OPENED_ON_FIXED",
+    "message": "the open date never moves"
+  },
+  {
+    "code": "DEAL_OUTCOME_INVALID",
+    "message": "close a deal as won or lost"
+  },
+  {
+    "code": "DEAL_PRIORITY_INVALID",
+    "message": "unknown priority"
+  },
   {
     "code": "DEAL_STAGE_MISSING",
     "message": "the pipeline has no stage for that outcome"
@@ -1211,7 +1594,10 @@
     "code": "DISPATCH_LOCATION_NOT_FOUND",
     "message": "the location does not exist in this organization"
   },
-  { "code": "DISPATCH_NOT_FOUND", "message": "work order not found" },
+  {
+    "code": "DISPATCH_NOT_FOUND",
+    "message": "work order not found"
+  },
   {
     "code": "DISPATCH_PART_INVALID",
     "message": "a part needs a name of 1 to 200 characters and a positive quantity"
@@ -1220,7 +1606,10 @@
     "code": "DISPATCH_ROUTE_INVALID",
     "message": "a route lists up to 100 different work orders for a day"
   },
-  { "code": "DISPATCH_SLOT_INVALID", "message": "a slot ends after it starts" },
+  {
+    "code": "DISPATCH_SLOT_INVALID",
+    "message": "a slot ends after it starts"
+  },
   {
     "code": "DISPATCH_SLOT_TAKEN",
     "message": "the technician already has a work order in that slot"
@@ -1245,7 +1634,10 @@
     "code": "DISPATCH_TECHNICIAN_REQUIRED",
     "message": "a scheduled work order needs a technician"
   },
-  { "code": "DISPATCH_TRANSITION_INVALID", "message": "a work order can" },
+  {
+    "code": "DISPATCH_TRANSITION_INVALID",
+    "message": "a work order can"
+  },
   {
     "code": "DISPATCH_VARIANT_NOT_FOUND",
     "message": "the product variant does not exist in this organization"
@@ -1258,7 +1650,10 @@
     "code": "DOCUMENT_FORBIDDEN",
     "message": "not allowed to edit this document"
   },
-  { "code": "DOCUMENT_NOT_FOUND", "message": "document not found" },
+  {
+    "code": "DOCUMENT_NOT_FOUND",
+    "message": "document not found"
+  },
   {
     "code": "DOCUMENT_SNAPSHOT_IMMUTABLE",
     "message": "a frozen document never changes"
@@ -1287,21 +1682,41 @@
     "code": "DOCUMENT_TEMPLATE_SYNTAX",
     "message": "a brace pair is not closed or not opened"
   },
-  { "code": "DOCUMENT_TEMPLATE_UNKNOWN_FILTER", "message": "unknown filter " },
-  { "code": "DOCUMENT_TEMPLATE_UNKNOWN_VARIABLE" },
-  { "code": "DOCUMENT_TYPE_INVALID", "message": "unknown document type" },
-  { "code": "DOCUMENT_UPDATE_INVALID", "message": "the update must be base64" },
+  {
+    "code": "DOCUMENT_TEMPLATE_UNKNOWN_FILTER",
+    "message": "unknown filter "
+  },
+  {
+    "code": "DOCUMENT_TEMPLATE_UNKNOWN_VARIABLE"
+  },
+  {
+    "code": "DOCUMENT_TYPE_INVALID",
+    "message": "unknown document type"
+  },
+  {
+    "code": "DOCUMENT_UPDATE_INVALID",
+    "message": "the update must be base64"
+  },
   {
     "code": "DOCUMENT_VERSION_FROZEN",
     "message": "a frozen version keeps its name"
   },
-  { "code": "DOCUMENT_VERSION_NOT_FOUND", "message": "version not found" },
+  {
+    "code": "DOCUMENT_VERSION_NOT_FOUND",
+    "message": "version not found"
+  },
   {
     "code": "DONATION_FUND_NOT_FOUND",
     "message": "no such fund you can manage"
   },
-  { "code": "DONATION_NOT_FOUND", "message": "no such gift you can read" },
-  { "code": "DONATION_PLEDGE_ENDED", "message": "an ended pledge can" },
+  {
+    "code": "DONATION_NOT_FOUND",
+    "message": "no such gift you can read"
+  },
+  {
+    "code": "DONATION_PLEDGE_ENDED",
+    "message": "an ended pledge can"
+  },
   {
     "code": "DONATION_PLEDGE_NOT_FOUND",
     "message": "no such pledge you can manage"
@@ -1322,7 +1737,10 @@
     "code": "DRIVE_CONNECTION_EXISTS",
     "message": "this account is already connected"
   },
-  { "code": "DRIVE_CONNECTION_NOT_FOUND", "message": "connection not found" },
+  {
+    "code": "DRIVE_CONNECTION_NOT_FOUND",
+    "message": "connection not found"
+  },
   {
     "code": "DRIVE_CURSOR_INVALID",
     "message": "the changes cursor is not valid"
@@ -1347,7 +1765,10 @@
     "code": "DRIVE_FORBIDDEN",
     "message": "only an approved release request releases a document"
   },
-  { "code": "DRIVE_HELD", "message": "this item is under a legal hold" },
+  {
+    "code": "DRIVE_HELD",
+    "message": "this item is under a legal hold"
+  },
   {
     "code": "DRIVE_HOLD_INVALID",
     "message": "a legal hold needs an end in the future"
@@ -1356,7 +1777,9 @@
     "code": "DRIVE_LINK_NOT_FOUND",
     "message": "this link does not exist or has expired"
   },
-  { "code": "DRIVE_LINK_RATE_LIMITED" },
+  {
+    "code": "DRIVE_LINK_RATE_LIMITED"
+  },
   {
     "code": "DRIVE_LINK_ROLE_INVALID",
     "message": "only an upload link takes files"
@@ -1365,8 +1788,13 @@
     "code": "DRIVE_LOCK_INVALID",
     "message": "a lock ends in the future and within 30 days"
   },
-  { "code": "DRIVE_LOCKED" },
-  { "code": "DRIVE_MOVE_CYCLE", "message": "a folder can" },
+  {
+    "code": "DRIVE_LOCKED"
+  },
+  {
+    "code": "DRIVE_MOVE_CYCLE",
+    "message": "a folder can"
+  },
   {
     "code": "DRIVE_NAME_CONFLICT",
     "message": "another item in this folder has this name"
@@ -1375,17 +1803,26 @@
     "code": "DRIVE_NAME_INVALID",
     "message": "a name needs 1 to 255 characters without / or control characters"
   },
-  { "code": "DRIVE_NOT_A_FILE", "message": "a folder has no previews" },
+  {
+    "code": "DRIVE_NOT_A_FILE",
+    "message": "a folder has no previews"
+  },
   {
     "code": "DRIVE_NOT_CONNECTED",
     "message": "drive is not a connected drive"
   },
-  { "code": "DRIVE_NOT_FOUND", "message": "drive not found" },
+  {
+    "code": "DRIVE_NOT_FOUND",
+    "message": "drive not found"
+  },
   {
     "code": "DRIVE_OWNER_NOT_MEMBER",
     "message": "the owner is not an active member of this organization"
   },
-  { "code": "DRIVE_PARENT_NOT_FOLDER", "message": "a file can" },
+  {
+    "code": "DRIVE_PARENT_NOT_FOLDER",
+    "message": "a file can"
+  },
   {
     "code": "DRIVE_PARENT_NOT_FOUND",
     "message": "the parent folder does not exist in this organization"
@@ -1394,7 +1831,10 @@
     "code": "DRIVE_PARENT_TRASHED",
     "message": "restore the folder this item was in first"
   },
-  { "code": "DRIVE_PREVIEWS_INVALID", "message": "pages must be zero or more" },
+  {
+    "code": "DRIVE_PREVIEWS_INVALID",
+    "message": "pages must be zero or more"
+  },
   {
     "code": "DRIVE_PRINCIPAL_INVALID",
     "message": "principal_type must be user, team or role"
@@ -1403,7 +1843,9 @@
     "code": "DRIVE_PRINCIPAL_NOT_FOUND",
     "message": "no member or team of this organization has that id"
   },
-  { "code": "DRIVE_QUOTA_EXCEEDED" },
+  {
+    "code": "DRIVE_QUOTA_EXCEEDED"
+  },
   {
     "code": "DRIVE_RANK_INVALID",
     "message": "rank must be a key from rankBetween"
@@ -1412,8 +1854,14 @@
     "code": "DRIVE_READ_ONLY",
     "message": "this drive mirrors an external account and is read-only"
   },
-  { "code": "DRIVE_REQUIRED", "message": "a top-level item needs a drive" },
-  { "code": "DRIVE_REVISION_NOT_FOUND", "message": "revision not found" },
+  {
+    "code": "DRIVE_REQUIRED",
+    "message": "a top-level item needs a drive"
+  },
+  {
+    "code": "DRIVE_REVISION_NOT_FOUND",
+    "message": "revision not found"
+  },
   {
     "code": "DRIVE_ROLE_UNKNOWN",
     "message": "action must be read, comment or write"
@@ -1450,8 +1898,14 @@
     "code": "DSAR_INVALID",
     "message": "kind must be access, erasure, rectification or portability"
   },
-  { "code": "DSAR_NOT_FOUND", "message": "request not found" },
-  { "code": "DSAR_UNVERIFIED", "message": "verify the requester" },
+  {
+    "code": "DSAR_NOT_FOUND",
+    "message": "request not found"
+  },
+  {
+    "code": "DSAR_UNVERIFIED",
+    "message": "verify the requester"
+  },
   {
     "code": "E_INVOICE_DELIVERY_INVALID",
     "message": "direction is outbound or inbound"
@@ -1472,7 +1926,10 @@
     "code": "EMPLOYEE_APPLICATION_NOT_HIRED",
     "message": "only a hired application becomes an employee"
   },
-  { "code": "EMPLOYEE_ATTRS_INVALID", "message": "an employee needs a name" },
+  {
+    "code": "EMPLOYEE_ATTRS_INVALID",
+    "message": "an employee needs a name"
+  },
   {
     "code": "EMPLOYEE_CHANGES_INVALID",
     "message": "the employees table has no updated_at to compare"
@@ -1489,7 +1946,10 @@
     "code": "EMPLOYEE_CONTRACT_OVERLAP",
     "message": "a new contract starts after the latest one"
   },
-  { "code": "EMPLOYEE_FIELD_UNKNOWN", "message": "that field can" },
+  {
+    "code": "EMPLOYEE_FIELD_UNKNOWN",
+    "message": "that field can"
+  },
   {
     "code": "EMPLOYEE_FORBIDDEN",
     "message": "not allowed to change employees"
@@ -1498,17 +1958,26 @@
     "code": "EMPLOYEE_IN_USE",
     "message": "other records still refer to this employee"
   },
-  { "code": "EMPLOYEE_MANAGER_CYCLE", "message": "an employee can" },
+  {
+    "code": "EMPLOYEE_MANAGER_CYCLE",
+    "message": "an employee can"
+  },
   {
     "code": "EMPLOYEE_MANAGER_NOT_FOUND",
     "message": "the manager is not an employee of this organization"
   },
-  { "code": "EMPLOYEE_NOT_FOUND", "message": "no such employee you can edit" },
+  {
+    "code": "EMPLOYEE_NOT_FOUND",
+    "message": "no such employee you can edit"
+  },
   {
     "code": "EMPLOYEE_ORIGIN_NOT_FOUND",
     "message": "no such application you can turn into an employee"
   },
-  { "code": "EMPLOYEE_PRIVATE_INVALID", "message": "attrs must be an object" },
+  {
+    "code": "EMPLOYEE_PRIVATE_INVALID",
+    "message": "attrs must be an object"
+  },
   {
     "code": "EMPLOYEE_STALE",
     "message": "the employee changed since it was read"
@@ -1517,7 +1986,10 @@
     "code": "EMPLOYEE_STATUS_INVALID",
     "message": "create the employee, then offboard them"
   },
-  { "code": "EMPLOYEE_TYPE_INVALID", "message": "unknown employment type" },
+  {
+    "code": "EMPLOYEE_TYPE_INVALID",
+    "message": "unknown employment type"
+  },
   {
     "code": "EMPLOYEE_USER_NOT_MEMBER",
     "message": "the user is not a member of this organization"
@@ -1526,7 +1998,10 @@
     "code": "EMPLOYEE_USER_TAKEN",
     "message": "that user is already an employee of this organization"
   },
-  { "code": "ENRICHMENT_INVALID", "message": "result must be an object" },
+  {
+    "code": "ENRICHMENT_INVALID",
+    "message": "result must be an object"
+  },
   {
     "code": "ENRICHMENT_NOT_FOUND",
     "message": "No company or person you can enrich has this id"
@@ -1539,7 +2014,10 @@
     "code": "ENROLLMENTS_FORBIDDEN",
     "message": "not allowed to change this enrollment"
   },
-  { "code": "ENROLLMENTS_NOT_FOUND", "message": "enrollment not found" },
+  {
+    "code": "ENROLLMENTS_NOT_FOUND",
+    "message": "enrollment not found"
+  },
   {
     "code": "ENROLLMENTS_PROGRAM_CONFLICT",
     "message": "the program changed since you read it"
@@ -1552,8 +2030,13 @@
     "code": "ENROLLMENTS_PROGRAM_NOT_FOUND",
     "message": "enrollment program not found"
   },
-  { "code": "EU_SALES_VAT_INVALID" },
-  { "code": "EVIDENCE_TASK_NOT_FOUND", "message": "the evidence task isn" },
+  {
+    "code": "EU_SALES_VAT_INVALID"
+  },
+  {
+    "code": "EVIDENCE_TASK_NOT_FOUND",
+    "message": "the evidence task isn"
+  },
   {
     "code": "EXPENSE_CATEGORY_INVALID",
     "message": "the category is unknown, archived or not in this organization"
@@ -1570,12 +2053,18 @@
     "code": "EXPENSE_IN_APPROVAL",
     "message": "this expense is decided through its approval request"
   },
-  { "code": "EXPENSE_LINE_NOT_FOUND", "message": "no such expense line" },
+  {
+    "code": "EXPENSE_LINE_NOT_FOUND",
+    "message": "no such expense line"
+  },
   {
     "code": "EXPENSE_LOCKED",
     "message": "only a draft or rejected expense can change"
   },
-  { "code": "EXPENSE_NOT_FOUND", "message": "no such expense" },
+  {
+    "code": "EXPENSE_NOT_FOUND",
+    "message": "no such expense"
+  },
   {
     "code": "EXPENSE_REJECTION_UNSUPPORTED",
     "message": "this expense reports table has no rejected_at column"
@@ -1584,10 +2073,22 @@
     "code": "EXPENSE_REPORT_LOCKED",
     "message": "only a submitted report is decided"
   },
-  { "code": "EXPENSE_REPORT_NOT_FOUND", "message": "no such expense report" },
-  { "code": "FAVORITE_FORBIDDEN", "message": "not allowed to star records" },
-  { "code": "FAVORITE_INVALID", "message": "a star needs a signed-in user" },
-  { "code": "FAVORITE_RANK_INVALID", "message": "not a rank key" },
+  {
+    "code": "EXPENSE_REPORT_NOT_FOUND",
+    "message": "no such expense report"
+  },
+  {
+    "code": "FAVORITE_FORBIDDEN",
+    "message": "not allowed to star records"
+  },
+  {
+    "code": "FAVORITE_INVALID",
+    "message": "a star needs a signed-in user"
+  },
+  {
+    "code": "FAVORITE_RANK_INVALID",
+    "message": "not a rank key"
+  },
   {
     "code": "FAVORITE_SUBJECT_FORBIDDEN",
     "message": "the record is unknown or not readable in this organization"
@@ -1596,9 +2097,18 @@
     "code": "FIELD_ENTITY_UNKNOWN",
     "message": "the entity is not a registered subject type"
   },
-  { "code": "FIELD_EXISTS", "message": "the record already has this field" },
-  { "code": "FIELD_FORBIDDEN", "message": "not allowed to set custom fields" },
-  { "code": "FIELD_INLINE", "message": "inline fields have no definition row" },
+  {
+    "code": "FIELD_EXISTS",
+    "message": "the record already has this field"
+  },
+  {
+    "code": "FIELD_FORBIDDEN",
+    "message": "not allowed to set custom fields"
+  },
+  {
+    "code": "FIELD_INLINE",
+    "message": "inline fields have no definition row"
+  },
   {
     "code": "FIELD_INVALID",
     "message": "a field needs a key, a label and a known type"
@@ -1607,12 +2117,18 @@
     "code": "FIELD_KEY_FORBIDDEN",
     "message": "only the service role drops field keys"
   },
-  { "code": "FIELD_KEY_OWNER", "message": "a field key needs an owner" },
+  {
+    "code": "FIELD_KEY_OWNER",
+    "message": "a field key needs an owner"
+  },
   {
     "code": "FIELD_NOT_ENCRYPTABLE",
     "message": "only text fields can be encrypted"
   },
-  { "code": "FIELD_NOT_FOUND", "message": "field not found" },
+  {
+    "code": "FIELD_NOT_FOUND",
+    "message": "field not found"
+  },
   {
     "code": "FIELD_PACK_CONFLICT",
     "message": "the field already exists and doesn"
@@ -1621,13 +2137,22 @@
     "code": "FIELD_PACK_INVALID",
     "message": "a field pack is an object with apiVersion 1"
   },
-  { "code": "FIELD_RANK_INVALID", "message": "not a rank key" },
+  {
+    "code": "FIELD_RANK_INVALID",
+    "message": "not a rank key"
+  },
   {
     "code": "FIELD_SUBJECT_FORBIDDEN",
     "message": "not allowed to set fields on this record"
   },
-  { "code": "FIELD_VALUE_INVALID", "message": "the value doesn" },
-  { "code": "FIELD_VALUE_NOT_FOUND", "message": "field value not found" },
+  {
+    "code": "FIELD_VALUE_INVALID",
+    "message": "the value doesn"
+  },
+  {
+    "code": "FIELD_VALUE_NOT_FOUND",
+    "message": "field value not found"
+  },
   {
     "code": "FLAGS_FORBIDDEN",
     "message": "Not allowed to manage feature flags"
@@ -1660,22 +2185,45 @@
     "code": "FORECAST_TARGET_UNSUPPORTED",
     "message": "this forecast snapshots table has no target column"
   },
-  { "code": "FORM_ANSWERS_INVALID", "message": "answers must be an object" },
-  { "code": "FORM_CLOSED", "message": "this form isn" },
-  { "code": "FORM_DEFINITION_INVALID" },
-  { "code": "FORM_FORBIDDEN", "message": "not allowed to read this form" },
+  {
+    "code": "FORM_ANSWERS_INVALID",
+    "message": "answers must be an object"
+  },
+  {
+    "code": "FORM_CLOSED",
+    "message": "this form isn"
+  },
+  {
+    "code": "FORM_DEFINITION_INVALID"
+  },
+  {
+    "code": "FORM_FORBIDDEN",
+    "message": "not allowed to read this form"
+  },
   {
     "code": "FORM_KEY_INVALID",
     "message": "a form key is lowercase letters, digits, - and _, starting with a letter"
   },
-  { "code": "FORM_KEY_TAKEN", "message": "a form with this key exists" },
-  { "code": "FORM_LINK_INVALID", "message": "this form link isn" },
-  { "code": "FORM_NOT_FOUND", "message": "form not found" },
+  {
+    "code": "FORM_KEY_TAKEN",
+    "message": "a form with this key exists"
+  },
+  {
+    "code": "FORM_LINK_INVALID",
+    "message": "this form link isn"
+  },
+  {
+    "code": "FORM_NOT_FOUND",
+    "message": "form not found"
+  },
   {
     "code": "FORM_NOT_PUBLISHED",
     "message": "publish a version before opening the form"
   },
-  { "code": "FORM_NPS_FIELD_MISSING", "message": "the form has no nps field" },
+  {
+    "code": "FORM_NPS_FIELD_MISSING",
+    "message": "the form has no nps field"
+  },
   {
     "code": "FORM_SCORING_UNAVAILABLE",
     "message": "scoring needs the form_answer_keys table and the score columns on form_submissions"
@@ -1688,23 +2236,38 @@
     "code": "FORM_SUBJECT_INVALID",
     "message": "pass both subject_type and subject_id, or neither"
   },
-  { "code": "FORM_SUBMISSION_DRAFT", "message": "a draft isn" },
+  {
+    "code": "FORM_SUBMISSION_DRAFT",
+    "message": "a draft isn"
+  },
   {
     "code": "FORM_SUBMISSION_LOCKED",
     "message": "only a draft submission can change"
   },
-  { "code": "FORM_SUBMISSION_NOT_FOUND", "message": "submission not found" },
-  { "code": "FORM_VERSION_NOT_FOUND", "message": "form version not found" },
+  {
+    "code": "FORM_SUBMISSION_NOT_FOUND",
+    "message": "submission not found"
+  },
+  {
+    "code": "FORM_VERSION_NOT_FOUND",
+    "message": "form version not found"
+  },
   {
     "code": "FUNDING_AWARD_INACTIVE",
     "message": "the funding award has ended"
   },
-  { "code": "FUNDING_AWARD_NOT_FOUND", "message": "funding award not found" },
+  {
+    "code": "FUNDING_AWARD_NOT_FOUND",
+    "message": "funding award not found"
+  },
   {
     "code": "FUNDING_CLAIM_EMPTY",
     "message": "no approved deliveries of this funder in the period"
   },
-  { "code": "FUNDING_CLAIM_NOT_FOUND", "message": "funding claim not found" },
+  {
+    "code": "FUNDING_CLAIM_NOT_FOUND",
+    "message": "funding claim not found"
+  },
   {
     "code": "FUNDING_CLAIM_STATUS_INVALID",
     "message": "the funding claim was sent already"
@@ -1717,8 +2280,14 @@
     "code": "FUNDING_DELIVERY_NOT_FOUND",
     "message": "funding delivery not found"
   },
-  { "code": "FUNDING_FORBIDDEN", "message": "not allowed to claim funding" },
-  { "code": "FUNDING_FORMAT_UNKNOWN", "message": "the claim format isn" },
+  {
+    "code": "FUNDING_FORBIDDEN",
+    "message": "not allowed to claim funding"
+  },
+  {
+    "code": "FUNDING_FORMAT_UNKNOWN",
+    "message": "the claim format isn"
+  },
   {
     "code": "FUNDING_FUNDER_INVALID",
     "message": "the funder is a company or person in this organization"
@@ -1731,12 +2300,18 @@
     "code": "FUNDING_PRODUCT_NOT_FOUND",
     "message": "funding product not found"
   },
-  { "code": "GOAL_FORBIDDEN", "message": "not allowed to manage targets" },
+  {
+    "code": "GOAL_FORBIDDEN",
+    "message": "not allowed to manage targets"
+  },
   {
     "code": "GOAL_INVALID",
     "message": "a target needs a name, a metric, a period and a positive goal"
   },
-  { "code": "GOAL_NOT_FOUND", "message": "target not found" },
+  {
+    "code": "GOAL_NOT_FOUND",
+    "message": "target not found"
+  },
   {
     "code": "GUEST_ACTION_INVALID",
     "message": "actions are read, comment and upload"
@@ -1757,7 +2332,10 @@
     "code": "GUEST_INVITE_INVALID",
     "message": "this invite is not valid or has expired"
   },
-  { "code": "GUEST_NOT_FOUND", "message": "guest not found" },
+  {
+    "code": "GUEST_NOT_FOUND",
+    "message": "guest not found"
+  },
   {
     "code": "GUEST_PARTY_INVALID",
     "message": "pass party_type and party_id together"
@@ -1786,7 +2364,10 @@
     "code": "HIRING_CANDIDATE_FORBIDDEN",
     "message": "the candidate is unknown or not readable in this organization"
   },
-  { "code": "HIRING_FORBIDDEN", "message": "not allowed to manage jobs" },
+  {
+    "code": "HIRING_FORBIDDEN",
+    "message": "not allowed to manage jobs"
+  },
   {
     "code": "HIRING_HIRING_MANAGER_INVALID",
     "message": "the hiring manager is no employee of this organization"
@@ -1815,7 +2396,10 @@
     "code": "HIRING_STAGE_INVALID",
     "message": "the stage is not an active stage of this application"
   },
-  { "code": "HIRING_STAGE_MISSING", "message": "the job" },
+  {
+    "code": "HIRING_STAGE_MISSING",
+    "message": "the job"
+  },
   {
     "code": "HOSTNAME_FORBIDDEN",
     "message": "You may not manage this organization"
@@ -1824,9 +2408,18 @@
     "code": "HOSTNAME_NOT_FOUND",
     "message": "No hostname you manage has this id"
   },
-  { "code": "HOSTNAME_NOT_VERIFIED", "message": "Verify the hostname first" },
-  { "code": "HOSTNAME_RESERVED", "message": "The platform" },
-  { "code": "IDENTITY_KIND", "message": "kind must be email or chat" },
+  {
+    "code": "HOSTNAME_NOT_VERIFIED",
+    "message": "Verify the hostname first"
+  },
+  {
+    "code": "HOSTNAME_RESERVED",
+    "message": "The platform"
+  },
+  {
+    "code": "IDENTITY_KIND",
+    "message": "kind must be email or chat"
+  },
   {
     "code": "IDENTITY_LINK_INVALID",
     "message": "invalid or expired link code"
@@ -1851,21 +2444,41 @@
     "code": "IMPORT_DOCUMENT_CHANGED",
     "message": "the source document changed after it was imported; an imported document is kept as imported, so void or credit it and import the correction as a new document"
   },
-  { "code": "IMPORT_FORBIDDEN", "message": "not allowed to check this import" },
-  { "code": "IMPORT_ITEM_INVALID", "message": "the lines don" },
+  {
+    "code": "IMPORT_FORBIDDEN",
+    "message": "not allowed to check this import"
+  },
+  {
+    "code": "IMPORT_ITEM_INVALID",
+    "message": "the lines don"
+  },
   {
     "code": "IMPORT_NAME_FALLBACK",
     "message": "the party name came from a fallback"
   },
-  { "code": "IMPORT_NOT_FOUND", "message": "import not found" },
-  { "code": "IMPORT_NUMBER_REASSIGNED", "message": "number " },
-  { "code": "IMPORT_REF_CREATED" },
-  { "code": "IMPORT_REF_MISSING", "message": "missing ref " },
+  {
+    "code": "IMPORT_NOT_FOUND",
+    "message": "import not found"
+  },
+  {
+    "code": "IMPORT_NUMBER_REASSIGNED",
+    "message": "number "
+  },
+  {
+    "code": "IMPORT_REF_CREATED"
+  },
+  {
+    "code": "IMPORT_REF_MISSING",
+    "message": "missing ref "
+  },
   {
     "code": "IMPORT_RUN_ACTIVE",
     "message": "an import of this source is already pending or running"
   },
-  { "code": "IMPORT_RUN_NOT_RUNNING", "message": "the import is not running" },
+  {
+    "code": "IMPORT_RUN_NOT_RUNNING",
+    "message": "the import is not running"
+  },
   {
     "code": "IMPORT_SERIES_DECREASE",
     "message": "the reading is below the previous one and was stored with reason import"
@@ -1894,7 +2507,9 @@
     "code": "IMPORT_VAT_PREFIX",
     "message": "a VAT number that is only a country prefix was skipped"
   },
-  { "code": "IMPORT_WARNING" },
+  {
+    "code": "IMPORT_WARNING"
+  },
   {
     "code": "INBOX_ASSIGNEE_INVALID",
     "message": "the assignee cannot read this inbox"
@@ -1903,9 +2518,18 @@
     "code": "INBOX_ATTACHMENT_INVALID",
     "message": "attachments must be your uploads to this conversation"
   },
-  { "code": "INBOX_DRAFT_METADATA", "message": "metadata must be an object" },
-  { "code": "INBOX_KIND_INVALID", "message": "kind is message or note" },
-  { "code": "INBOX_MEMBER_INVALID", "message": "user cannot read this inbox" },
+  {
+    "code": "INBOX_DRAFT_METADATA",
+    "message": "metadata must be an object"
+  },
+  {
+    "code": "INBOX_KIND_INVALID",
+    "message": "kind is message or note"
+  },
+  {
+    "code": "INBOX_MEMBER_INVALID",
+    "message": "user cannot read this inbox"
+  },
   {
     "code": "INBOX_MESSAGE_EMPTY",
     "message": "a message needs a body or an attachment"
@@ -1934,8 +2558,14 @@
     "code": "INBOX_STREAM_UNSUPPORTED",
     "message": "the conversations table has no active_stream_id column"
   },
-  { "code": "INCIDENT_NOT_FOUND", "message": "incident not found" },
-  { "code": "INCIDENT_NOT_RESOLVED", "message": "only a resolved incident" },
+  {
+    "code": "INCIDENT_NOT_FOUND",
+    "message": "incident not found"
+  },
+  {
+    "code": "INCIDENT_NOT_RESOLVED",
+    "message": "only a resolved incident"
+  },
   {
     "code": "INCIDENT_POSTMORTEM_ACTION_NOT_FOUND",
     "message": "postmortem action not found"
@@ -1964,17 +2594,25 @@
     "code": "INSPECTION_FINDING_HAS_CASE",
     "message": "a finding with a case can"
   },
-  { "code": "INSPECTION_FINDING_NOT_FOUND", "message": "no such finding" },
+  {
+    "code": "INSPECTION_FINDING_NOT_FOUND",
+    "message": "no such finding"
+  },
   {
     "code": "INSPECTION_FINDING_TYPE_UNKNOWN",
     "message": "the type is not one of options.findingTypes"
   },
-  { "code": "INSPECTION_FINDINGS_OPEN" },
+  {
+    "code": "INSPECTION_FINDINGS_OPEN"
+  },
   {
     "code": "INSPECTION_KIND_UNKNOWN",
     "message": "the kind is not one of options.kinds"
   },
-  { "code": "INSPECTION_NOT_FOUND", "message": "no such inspection" },
+  {
+    "code": "INSPECTION_NOT_FOUND",
+    "message": "no such inspection"
+  },
   {
     "code": "INSPECTION_PROGRAM_NOT_FOUND",
     "message": "no such audit programme in this organization"
@@ -2003,7 +2641,10 @@
     "code": "INVENTORY_BIN_CODE_TAKEN",
     "message": "another bin at this location has this code"
   },
-  { "code": "INVENTORY_BIN_NOT_FOUND", "message": "the bin isn" },
+  {
+    "code": "INVENTORY_BIN_NOT_FOUND",
+    "message": "the bin isn"
+  },
   {
     "code": "INVENTORY_COST_CURRENCY_MISMATCH",
     "message": "the unit cost is in another currency than the variant"
@@ -2016,12 +2657,18 @@
     "code": "INVENTORY_COUNT_INVALID",
     "message": "variantIds is a list of uuids"
   },
-  { "code": "INVENTORY_COUNT_NOT_FOUND", "message": "stock count not found" },
+  {
+    "code": "INVENTORY_COUNT_NOT_FOUND",
+    "message": "stock count not found"
+  },
   {
     "code": "INVENTORY_CURRENCY_INVALID",
     "message": "the currency must be an ISO 4217 code"
   },
-  { "code": "INVENTORY_DETAIL_INVALID", "message": "detail must be an object" },
+  {
+    "code": "INVENTORY_DETAIL_INVALID",
+    "message": "detail must be an object"
+  },
   {
     "code": "INVENTORY_DOCUMENT_INVALID",
     "message": "an allocation names its document type and id"
@@ -2038,12 +2685,18 @@
     "code": "INVENTORY_FORBIDDEN",
     "message": "not allowed to read this inventory"
   },
-  { "code": "INVENTORY_INSUFFICIENT", "message": "not enough stock available" },
+  {
+    "code": "INVENTORY_INSUFFICIENT",
+    "message": "not enough stock available"
+  },
   {
     "code": "INVENTORY_ITEM_LOCKED",
     "message": "the variant has stock history; its unit, scale, tracking and costing are fixed"
   },
-  { "code": "INVENTORY_LINE_NOT_FOUND", "message": "a line isn" },
+  {
+    "code": "INVENTORY_LINE_NOT_FOUND",
+    "message": "a line isn"
+  },
   {
     "code": "INVENTORY_LOCATION_CODE_INVALID",
     "message": "the code must be 1 to 40 letters, digits, dots, dashes or underscores"
@@ -2064,13 +2717,22 @@
     "code": "INVENTORY_LOCATION_KIND_INVALID",
     "message": "the kind must be warehouse, store or virtual"
   },
-  { "code": "INVENTORY_LOCATION_NOT_FOUND", "message": "location not found" },
-  { "code": "INVENTORY_LOT_EXPIRED", "message": "the lot has expired" },
+  {
+    "code": "INVENTORY_LOCATION_NOT_FOUND",
+    "message": "location not found"
+  },
+  {
+    "code": "INVENTORY_LOT_EXPIRED",
+    "message": "the lot has expired"
+  },
   {
     "code": "INVENTORY_LOT_INVALID",
     "message": "a lot code is 1 to 100 characters"
   },
-  { "code": "INVENTORY_LOT_NOT_FOUND", "message": "the lot isn" },
+  {
+    "code": "INVENTORY_LOT_NOT_FOUND",
+    "message": "the lot isn"
+  },
   {
     "code": "INVENTORY_LOT_REQUIRED",
     "message": "a lot-tracked variant receives stock into a lot"
@@ -2139,22 +2801,34 @@
     "code": "INVENTORY_SERIAL_IN_STOCK",
     "message": "a serial number is already in stock"
   },
-  { "code": "INVENTORY_SERIAL_NOT_IN_STOCK", "message": "a serial number isn" },
+  {
+    "code": "INVENTORY_SERIAL_NOT_IN_STOCK",
+    "message": "a serial number isn"
+  },
   {
     "code": "INVENTORY_SERIALS_REQUIRED",
     "message": "a serial-tracked variant needs one distinct serial number per unit"
   },
-  { "code": "INVENTORY_SERIALS_UNTRACKED", "message": "the variant doesn" },
+  {
+    "code": "INVENTORY_SERIALS_UNTRACKED",
+    "message": "the variant doesn"
+  },
   {
     "code": "INVENTORY_SUPPLIER_INVALID",
     "message": "supplier_type and supplier_id go together"
   },
-  { "code": "INVENTORY_TRANSFER_NOT_FOUND", "message": "transfer not found" },
+  {
+    "code": "INVENTORY_TRANSFER_NOT_FOUND",
+    "message": "transfer not found"
+  },
   {
     "code": "INVENTORY_TRANSFER_SAME_LOCATION",
     "message": "a transfer needs two different locations"
   },
-  { "code": "INVENTORY_TRANSFER_STATUS", "message": "the transfer can" },
+  {
+    "code": "INVENTORY_TRANSFER_STATUS",
+    "message": "the transfer can"
+  },
   {
     "code": "INVENTORY_UNIT_INVALID",
     "message": "the unit must be 1 to 32 lowercase letters, digits or underscores"
@@ -2163,7 +2837,10 @@
     "code": "INVENTORY_VARIANT_NOT_FOUND",
     "message": "variant not found in this organization"
   },
-  { "code": "INVITATION_ALREADY_MEMBER", "message": "% is already a member" },
+  {
+    "code": "INVITATION_ALREADY_MEMBER",
+    "message": "% is already a member"
+  },
   {
     "code": "INVITATION_EMAIL_MISMATCH",
     "message": "The invitation is for another email address"
@@ -2180,7 +2857,10 @@
     "code": "INVITATION_FORBIDDEN",
     "message": "Not allowed to invite platform users"
   },
-  { "code": "INVITATION_INVALID", "message": "The email address is empty" },
+  {
+    "code": "INVITATION_INVALID",
+    "message": "The email address is empty"
+  },
   {
     "code": "INVITATION_INVITER_REVOKED",
     "message": "The person who invited you can no longer assign that role"
@@ -2189,7 +2869,10 @@
     "code": "INVITATION_ROLE_FORBIDDEN",
     "message": "That role is above your own"
   },
-  { "code": "INVITATION_ROLE_UNKNOWN", "message": "Unknown platform role %" },
+  {
+    "code": "INVITATION_ROLE_UNKNOWN",
+    "message": "Unknown platform role %"
+  },
   {
     "code": "INVITATION_SCOPE_UNSUPPORTED",
     "message": "Platform invitations need platform roles: blocks.permissions.model "
@@ -2262,7 +2945,10 @@
     "code": "INVOICE_CHARGE_NOT_FOUND",
     "message": "no such charge on an invoice you can edit"
   },
-  { "code": "INVOICE_CREDIT_INSUFFICIENT", "message": "the party doesn" },
+  {
+    "code": "INVOICE_CREDIT_INSUFFICIENT",
+    "message": "the party doesn"
+  },
   {
     "code": "INVOICE_CREDIT_TOO_LARGE",
     "message": "the amount is more than the invoice"
@@ -2299,7 +2985,10 @@
     "code": "INVOICE_DUNNING_PAUSE_INVALID",
     "message": "a pause lasts until today or later"
   },
-  { "code": "INVOICE_DUNNING_RUN_NOT_FOUND", "message": "no such dunning run" },
+  {
+    "code": "INVOICE_DUNNING_RUN_NOT_FOUND",
+    "message": "no such dunning run"
+  },
   {
     "code": "INVOICE_EMPTY",
     "message": "an invoice needs a line before it is issued"
@@ -2312,7 +3001,10 @@
     "code": "INVOICE_HAND_OVER_INVALID",
     "message": "hand over 1 to 500 invoices to an agency party, with a note of at most 2000 characters"
   },
-  { "code": "INVOICE_MATCH_FAILED", "message": "the bill doesn" },
+  {
+    "code": "INVOICE_MATCH_FAILED",
+    "message": "the bill doesn"
+  },
   {
     "code": "INVOICE_NOT_APPROVABLE",
     "message": "only an open purchase bill is approved"
@@ -2325,8 +3017,14 @@
     "code": "INVOICE_NOT_CREDITABLE",
     "message": "only an issued invoice is credited"
   },
-  { "code": "INVOICE_NOT_DRAFT", "message": "only a draft changes" },
-  { "code": "INVOICE_NOT_FOUND", "message": "no such invoice you can read" },
+  {
+    "code": "INVOICE_NOT_DRAFT",
+    "message": "only a draft changes"
+  },
+  {
+    "code": "INVOICE_NOT_FOUND",
+    "message": "no such invoice you can read"
+  },
   {
     "code": "INVOICE_NOT_OPEN",
     "message": "only an open invoice you can manage is written off"
@@ -2359,7 +3057,10 @@
     "code": "INVOICE_PARTY_INVALID",
     "message": "a party id is a non-empty text of at most 150 characters"
   },
-  { "code": "INVOICE_PARTY_MISMATCH", "message": "the invoice isn" },
+  {
+    "code": "INVOICE_PARTY_MISMATCH",
+    "message": "the invoice isn"
+  },
   {
     "code": "INVOICE_PAYMENT_INVALID",
     "message": "a party payment has a positive amount"
@@ -2368,7 +3069,10 @@
     "code": "INVOICE_PAYMENT_NOT_FOUND",
     "message": "no such payment on an invoice you can manage"
   },
-  { "code": "INVOICE_PAYMENT_PROVIDER", "message": "a payment provider" },
+  {
+    "code": "INVOICE_PAYMENT_PROVIDER",
+    "message": "a payment provider"
+  },
   {
     "code": "INVOICE_PAYMENT_REFERENCE_REQUIRED",
     "message": "a party payment needs a reference, such as the bank transaction id"
@@ -2397,7 +3101,10 @@
     "code": "INVOICE_QUOTE_NOT_ACCEPTED",
     "message": "only an accepted quote is invoiced"
   },
-  { "code": "INVOICE_REFUND_TOO_LARGE", "message": "a refund can" },
+  {
+    "code": "INVOICE_REFUND_TOO_LARGE",
+    "message": "a refund can"
+  },
   {
     "code": "INVOICE_SOURCE_INVALID",
     "message": "each source is an object with a type of order, shipment or time"
@@ -2434,13 +3141,33 @@
     "code": "JOB_OPENING_INVALID",
     "message": "a job needs a title and a status of draft, open or closed"
   },
-  { "code": "JOB_OPENING_NOT_FOUND", "message": "job not found" },
-  { "code": "JOB_OPENING_NOT_OPEN", "message": "the job isn" },
-  { "code": "JSON_SCHEMA_INVALID" },
-  { "code": "LEAD_SCORING_FORBIDDEN", "message": "not allowed to score leads" },
-  { "code": "LEAD_SCORING_NOT_FOUND", "message": "no such record" },
-  { "code": "LEAD_SCORING_SUBJECT", "message": "lead scoring doesn" },
-  { "code": "LEASE_NOT_FOUND", "message": "no such lease you can read" },
+  {
+    "code": "JOB_OPENING_NOT_FOUND",
+    "message": "job not found"
+  },
+  {
+    "code": "JOB_OPENING_NOT_OPEN",
+    "message": "the job isn"
+  },
+  {
+    "code": "JSON_SCHEMA_INVALID"
+  },
+  {
+    "code": "LEAD_SCORING_FORBIDDEN",
+    "message": "not allowed to score leads"
+  },
+  {
+    "code": "LEAD_SCORING_NOT_FOUND",
+    "message": "no such record"
+  },
+  {
+    "code": "LEAD_SCORING_SUBJECT",
+    "message": "lead scoring doesn"
+  },
+  {
+    "code": "LEASE_NOT_FOUND",
+    "message": "no such lease you can read"
+  },
   {
     "code": "LEASE_OVERLAP",
     "message": "another active lease of this unit overlaps these dates"
@@ -2477,7 +3204,10 @@
     "code": "LEAVE_NOTE_UNSUPPORTED",
     "message": "this leave balances table has no note column"
   },
-  { "code": "LEAVE_OVERLAP", "message": "this overlaps another leave request" },
+  {
+    "code": "LEAVE_OVERLAP",
+    "message": "this overlaps another leave request"
+  },
   {
     "code": "LEAVE_PARTIAL_UNSUPPORTED",
     "message": "this leave requests table has no partial column, so a request takes whole days"
@@ -2494,8 +3224,14 @@
     "code": "LEAVE_REQUEST_CLOSED",
     "message": "this leave request was already decided or cancelled"
   },
-  { "code": "LEAVE_REQUEST_NOT_FOUND", "message": "leave request not found" },
-  { "code": "LEAVE_TYPE_NOT_FOUND", "message": "leave type not found" },
+  {
+    "code": "LEAVE_REQUEST_NOT_FOUND",
+    "message": "leave request not found"
+  },
+  {
+    "code": "LEAVE_TYPE_NOT_FOUND",
+    "message": "leave type not found"
+  },
   {
     "code": "LEDGER_ACCOUNT_CODE_TAKEN",
     "message": "an account with this code already exists"
@@ -2520,9 +3256,18 @@
     "code": "LEDGER_APPEND_ONLY",
     "message": "ledger entries and transactions can"
   },
-  { "code": "LEDGER_HOLD_CLOSED", "message": "this hold is no longer active" },
-  { "code": "LEDGER_HOLD_NOT_FOUND", "message": "ledger hold not found" },
-  { "code": "LEDGER_INSUFFICIENT", "message": "the account doesn" },
+  {
+    "code": "LEDGER_HOLD_CLOSED",
+    "message": "this hold is no longer active"
+  },
+  {
+    "code": "LEDGER_HOLD_NOT_FOUND",
+    "message": "ledger hold not found"
+  },
+  {
+    "code": "LEDGER_INSUFFICIENT",
+    "message": "the account doesn"
+  },
   {
     "code": "LEDGER_TRANSACTION_NOT_FOUND",
     "message": "ledger transaction not found"
@@ -2531,7 +3276,9 @@
     "code": "LEDGER_UNBALANCED",
     "message": "the lines of a ledger transaction must sum to zero per unit"
   },
-  { "code": "LEGAL_ENTITIES_DISABLE_COLLISION" },
+  {
+    "code": "LEGAL_ENTITIES_DISABLE_COLLISION"
+  },
   {
     "code": "LEGAL_ENTITY_ARCHIVED",
     "message": "an archived legal entity can"
@@ -2544,33 +3291,63 @@
     "code": "LEGAL_ENTITY_DEFAULT",
     "message": "make another legal entity the default before archiving this one"
   },
-  { "code": "LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT" },
+  {
+    "code": "LEGAL_ENTITY_DEFAULT_NUMBER_CONFLICT"
+  },
   {
     "code": "LEGAL_ENTITY_FORBIDDEN",
     "message": "not allowed to manage legal entities"
   },
-  { "code": "LEGAL_ENTITY_NOT_FOUND", "message": "legal entity not found" },
-  { "code": "LEGAL_ENTITY_NUMBER_DUPLICATE" },
-  { "code": "LEGAL_ENTITY_NUMBER_TAKEN" },
+  {
+    "code": "LEGAL_ENTITY_NOT_FOUND",
+    "message": "legal entity not found"
+  },
+  {
+    "code": "LEGAL_ENTITY_NUMBER_DUPLICATE"
+  },
+  {
+    "code": "LEGAL_ENTITY_NUMBER_TAKEN"
+  },
   {
     "code": "LEGAL_HOLD_FORBIDDEN",
     "message": "Only the service role places legal holds"
   },
-  { "code": "LIMS_METHOD_NOT_FOUND", "message": "no such test method" },
-  { "code": "LIMS_SAMPLE_NOT_FOUND", "message": "no such sample" },
-  { "code": "LINES_CURRENCY", "message": "every line must be in the record" },
-  { "code": "LINES_INVALID", "message": "lines must be a list" },
+  {
+    "code": "LIMS_METHOD_NOT_FOUND",
+    "message": "no such test method"
+  },
+  {
+    "code": "LIMS_SAMPLE_NOT_FOUND",
+    "message": "no such sample"
+  },
+  {
+    "code": "LINES_CURRENCY",
+    "message": "every line must be in the record"
+  },
+  {
+    "code": "LINES_INVALID",
+    "message": "lines must be a list"
+  },
   {
     "code": "LINES_RECORD_INVALID",
     "message": "no such record, or its lines are locked"
   },
-  { "code": "MAIL_ACCOUNT_NOT_FOUND", "message": "no such mailbox of yours" },
-  { "code": "MAIL_ADDRESS_INVALID", "message": "address is an email address" },
+  {
+    "code": "MAIL_ACCOUNT_NOT_FOUND",
+    "message": "no such mailbox of yours"
+  },
+  {
+    "code": "MAIL_ADDRESS_INVALID",
+    "message": "address is an email address"
+  },
   {
     "code": "MAIL_CREDENTIAL_INVALID",
     "message": "credential_ref is a credential reference"
   },
-  { "code": "MAIL_FORBIDDEN", "message": "not allowed to connect a mailbox" },
+  {
+    "code": "MAIL_FORBIDDEN",
+    "message": "not allowed to connect a mailbox"
+  },
   {
     "code": "MAIL_MESSAGE_INVALID",
     "message": "a message needs an externalId and a sentAt"
@@ -2579,7 +3356,10 @@
     "code": "MAIL_PROVIDER_INVALID",
     "message": "provider is a lowercase name"
   },
-  { "code": "MAIL_SHARE_INVALID", "message": "share is records or private" },
+  {
+    "code": "MAIL_SHARE_INVALID",
+    "message": "share is records or private"
+  },
   {
     "code": "MAIL_STATUS_INVALID",
     "message": "status is active, paused or error"
@@ -2596,17 +3376,26 @@
     "code": "MAIL_THREAD_NOT_FOUND",
     "message": "no such thread in your mailbox"
   },
-  { "code": "MAIL_TRACKING_INVALID", "message": "kind is open or click" },
+  {
+    "code": "MAIL_TRACKING_INVALID",
+    "message": "kind is open or click"
+  },
   {
     "code": "MAINTENANCE_INVALID",
     "message": "required qualifications need the qualifications block"
   },
-  { "code": "MAINTENANCE_METER_NOT_FOUND", "message": "no such meter" },
+  {
+    "code": "MAINTENANCE_METER_NOT_FOUND",
+    "message": "no such meter"
+  },
   {
     "code": "MAINTENANCE_PLAN_NOT_FOUND",
     "message": "no such maintenance plan"
   },
-  { "code": "MAINTENANCE_UNQUALIFIED", "message": "the person doesn" },
+  {
+    "code": "MAINTENANCE_UNQUALIFIED",
+    "message": "the person doesn"
+  },
   {
     "code": "MARKETPLACE_FORBIDDEN",
     "message": "only the service role manages Marketplace installations"
@@ -2635,7 +3424,10 @@
     "code": "MEDICATION_MAX_DOSE_EXCEEDED",
     "message": "this dose goes over the most the order allows in 24 hours"
   },
-  { "code": "MEDICATION_NOT_FOUND", "message": "medication not found" },
+  {
+    "code": "MEDICATION_NOT_FOUND",
+    "message": "medication not found"
+  },
   {
     "code": "MEDICATION_ORDER_INACTIVE",
     "message": "the medication order isn"
@@ -2656,21 +3448,40 @@
     "code": "MEDICATION_SIGNATURE_INVALID",
     "message": "approving an order needs a signature"
   },
-  { "code": "MEETING_AGENDA_ITEM_NOT_FOUND", "message": "no such agenda item" },
+  {
+    "code": "MEETING_AGENDA_ITEM_NOT_FOUND",
+    "message": "no such agenda item"
+  },
   {
     "code": "MEETING_ATTENDEE_NOT_FOUND",
     "message": "that user is not an attendee"
   },
-  { "code": "MEETING_DECISION_NOT_FOUND", "message": "no such decision" },
+  {
+    "code": "MEETING_DECISION_NOT_FOUND",
+    "message": "no such decision"
+  },
   {
     "code": "MEETING_KIND_UNKNOWN",
     "message": "the kind is not one of options.kinds"
   },
-  { "code": "MEETING_NOT_FOUND", "message": "no such meeting" },
-  { "code": "MEETING_STATUS_INVALID" },
-  { "code": "MEMBERSHIP_ROLE_SCOPE" },
-  { "code": "MESSAGE_DELETED", "message": "message is deleted" },
-  { "code": "MESSAGING_ACCESS_INVALID", "message": "a channel" },
+  {
+    "code": "MEETING_NOT_FOUND",
+    "message": "no such meeting"
+  },
+  {
+    "code": "MEETING_STATUS_INVALID"
+  },
+  {
+    "code": "MEMBERSHIP_ROLE_SCOPE"
+  },
+  {
+    "code": "MESSAGE_DELETED",
+    "message": "message is deleted"
+  },
+  {
+    "code": "MESSAGING_ACCESS_INVALID",
+    "message": "a channel"
+  },
   {
     "code": "MESSAGING_ANCHOR_INVALID",
     "message": "anchor the message to a file on this record or in this conversation"
@@ -2723,7 +3534,10 @@
     "code": "MESSAGING_MEMBER_INVALID",
     "message": "every member must be able to read messages in the organization"
   },
-  { "code": "MESSAGING_MEMBERS_FIXED", "message": "this conversation" },
+  {
+    "code": "MESSAGING_MEMBERS_FIXED",
+    "message": "this conversation"
+  },
   {
     "code": "MESSAGING_MESSAGE_INVALID",
     "message": "a message field has an invalid value"
@@ -2776,8 +3590,14 @@
     "code": "METRIC_RANGE_INVALID",
     "message": "the range needs a start before its end"
   },
-  { "code": "METRIC_UNKNOWN", "message": "no metric has this key" },
-  { "code": "MODERATION_BAN_NOT_FOUND", "message": "ban not found" },
+  {
+    "code": "METRIC_UNKNOWN",
+    "message": "no metric has this key"
+  },
+  {
+    "code": "MODERATION_BAN_NOT_FOUND",
+    "message": "ban not found"
+  },
   {
     "code": "MODERATION_BANNED",
     "message": "you are banned in this organization"
@@ -2846,7 +3666,10 @@
     "code": "NOTIFICATION_TYPE_REQUIRED",
     "message": "A notification needs a type"
   },
-  { "code": "NUMBER_ENTITY_UNKNOWN", "message": "unknown number sequence" },
+  {
+    "code": "NUMBER_ENTITY_UNKNOWN",
+    "message": "unknown number sequence"
+  },
   {
     "code": "NUMBER_FIXED_FORBIDDEN",
     "message": "a fixed number is only accepted during an import"
@@ -2859,15 +3682,29 @@
     "code": "NUMBER_FORBIDDEN",
     "message": "not allowed to number documents in this tenant"
   },
-  { "code": "NUMBER_FORMAT_INVALID", "message": "the tenant" },
-  { "code": "NUMBER_FORMAT_MISMATCH" },
-  { "code": "NUMBER_IMMUTABLE", "message": "a number cannot change" },
+  {
+    "code": "NUMBER_FORMAT_INVALID",
+    "message": "the tenant"
+  },
+  {
+    "code": "NUMBER_FORMAT_MISMATCH"
+  },
+  {
+    "code": "NUMBER_IMMUTABLE",
+    "message": "a number cannot change"
+  },
   {
     "code": "NUMBER_MANUAL",
     "message": "a number is assigned by the sequence, not set by hand"
   },
-  { "code": "NUMBER_PERIOD_INVALID", "message": "the tenant" },
-  { "code": "OAUTH_CLIENT_INVALID", "message": "the client is unknown, can" },
+  {
+    "code": "NUMBER_PERIOD_INVALID",
+    "message": "the tenant"
+  },
+  {
+    "code": "OAUTH_CLIENT_INVALID",
+    "message": "the client is unknown, can"
+  },
   {
     "code": "OAUTH_SERVER_FORBIDDEN",
     "message": "only the service role calls the oauth-server functions"
@@ -2880,8 +3717,14 @@
     "code": "OBSERVATION_DEFINITION_NOT_FOUND",
     "message": "observation definition not found"
   },
-  { "code": "OBSERVATION_NOT_FOUND", "message": "observation not found" },
-  { "code": "ONBOARDING_FORBIDDEN", "message": "Sign in first" },
+  {
+    "code": "OBSERVATION_NOT_FOUND",
+    "message": "observation not found"
+  },
+  {
+    "code": "ONBOARDING_FORBIDDEN",
+    "message": "Sign in first"
+  },
   {
     "code": "OPTION_SET_FIELD_UNKNOWN",
     "message": "this field has no option set binding"
@@ -2898,7 +3741,10 @@
     "code": "OPTION_SET_ITEM_KEY_TAKEN",
     "message": "another item of this set has this key"
   },
-  { "code": "OPTION_SET_ITEM_NOT_FOUND", "message": "item not found" },
+  {
+    "code": "OPTION_SET_ITEM_NOT_FOUND",
+    "message": "item not found"
+  },
   {
     "code": "OPTION_SET_KEY_TAKEN",
     "message": "another option set of this field has this key"
@@ -2911,8 +3757,14 @@
     "code": "OPTION_SET_LEVEL_INVALID",
     "message": "the level is outside the bounds of this field"
   },
-  { "code": "OPTION_SET_NOT_FOUND", "message": "option set not found" },
-  { "code": "OPTION_SET_RANK_INVALID", "message": "not a rank key" },
+  {
+    "code": "OPTION_SET_NOT_FOUND",
+    "message": "option set not found"
+  },
+  {
+    "code": "OPTION_SET_RANK_INVALID",
+    "message": "not a rank key"
+  },
   {
     "code": "OPTION_SET_REPLACEMENT_INVALID",
     "message": "the replacement must be another active item of the same set"
@@ -2921,7 +3773,10 @@
     "code": "OPTION_SET_UNAVAILABLE",
     "message": "the default option set of this field is archived"
   },
-  { "code": "ORDER_NOT_FOUND", "message": "no such order" },
+  {
+    "code": "ORDER_NOT_FOUND",
+    "message": "no such order"
+  },
   {
     "code": "ORDER_VARIANT_INVALID",
     "message": "group with the first order of a group, and not an order that has variants itself"
@@ -2942,10 +3797,21 @@
     "code": "ORDERS_BILLING_ADDRESS_UNSUPPORTED",
     "message": "this cart table has no billing address column"
   },
-  { "code": "ORDERS_CART_CLOSED", "message": "the cart is no longer open" },
-  { "code": "ORDERS_CART_EMPTY", "message": "the cart has no lines to order" },
-  { "code": "ORDERS_CART_INVALID" },
-  { "code": "ORDERS_CART_NOT_FOUND", "message": "cart not found" },
+  {
+    "code": "ORDERS_CART_CLOSED",
+    "message": "the cart is no longer open"
+  },
+  {
+    "code": "ORDERS_CART_EMPTY",
+    "message": "the cart has no lines to order"
+  },
+  {
+    "code": "ORDERS_CART_INVALID"
+  },
+  {
+    "code": "ORDERS_CART_NOT_FOUND",
+    "message": "cart not found"
+  },
   {
     "code": "ORDERS_CURRENCY_INVALID",
     "message": "the currency is not an ISO 4217 code"
@@ -2962,12 +3828,18 @@
     "code": "ORDERS_EMAIL_UNSUPPORTED",
     "message": "this cart table has no email column"
   },
-  { "code": "ORDERS_FORBIDDEN", "message": "not allowed to return this order" },
+  {
+    "code": "ORDERS_FORBIDDEN",
+    "message": "not allowed to return this order"
+  },
   {
     "code": "ORDERS_FREE_OVER_UNSUPPORTED",
     "message": "this shipping rate table has no free-over column"
   },
-  { "code": "ORDERS_FULFILLMENT_INVALID", "message": "a line isn" },
+  {
+    "code": "ORDERS_FULFILLMENT_INVALID",
+    "message": "a line isn"
+  },
   {
     "code": "ORDERS_FULFILLMENT_NOT_FOUND",
     "message": "fulfillment not found"
@@ -2992,7 +3864,10 @@
     "code": "ORDERS_LINE_UNPRICED",
     "message": "a line has no unitAmount and its variant no price in this currency"
   },
-  { "code": "ORDERS_LINES_INVALID", "message": "lines is a non-empty list" },
+  {
+    "code": "ORDERS_LINES_INVALID",
+    "message": "lines is a non-empty list"
+  },
   {
     "code": "ORDERS_NOT_PAID",
     "message": "only a paid or confirmed order can be fulfilled"
@@ -3001,12 +3876,18 @@
     "code": "ORDERS_NOTHING_TO_FULFILL",
     "message": "no lines left to fulfill"
   },
-  { "code": "ORDERS_ORDER_NOT_FOUND", "message": "order not found" },
+  {
+    "code": "ORDERS_ORDER_NOT_FOUND",
+    "message": "order not found"
+  },
   {
     "code": "ORDERS_ORIGIN_UNSUPPORTED",
     "message": "this orders table has no origin columns, so a document can"
   },
-  { "code": "ORDERS_OUT_OF_STOCK", "message": "a line is out of stock" },
+  {
+    "code": "ORDERS_OUT_OF_STOCK",
+    "message": "a line is out of stock"
+  },
   {
     "code": "ORDERS_PAYMENT_CONFLICT",
     "message": "this payment reference belongs to another order"
@@ -3023,8 +3904,14 @@
     "code": "ORDERS_PREPARATION_STATE_INVALID",
     "message": "state must be queued, preparing, ready or served"
   },
-  { "code": "ORDERS_PRICE_CHANGED", "message": "the cart" },
-  { "code": "ORDERS_PRICE_LIST_NOT_FOUND", "message": "price list not found" },
+  {
+    "code": "ORDERS_PRICE_CHANGED",
+    "message": "the cart"
+  },
+  {
+    "code": "ORDERS_PRICE_LIST_NOT_FOUND",
+    "message": "price list not found"
+  },
   {
     "code": "ORDERS_QUANTITY_INVALID",
     "message": "each quantity is a whole number above zero"
@@ -3041,13 +3928,22 @@
     "code": "ORDERS_QUOTES_MISSING",
     "message": "install the quotes block to order a quote"
   },
-  { "code": "ORDERS_RATE_INVALID", "message": "the rate is an object" },
-  { "code": "ORDERS_RATE_NOT_FOUND", "message": "shipping rate not found" },
+  {
+    "code": "ORDERS_RATE_INVALID",
+    "message": "the rate is an object"
+  },
+  {
+    "code": "ORDERS_RATE_NOT_FOUND",
+    "message": "shipping rate not found"
+  },
   {
     "code": "ORDERS_REFUND_INVALID",
     "message": "the amount is above zero and at most what was paid and not refunded yet"
   },
-  { "code": "ORDERS_REFUND_NOT_FOUND", "message": "refund not found" },
+  {
+    "code": "ORDERS_REFUND_NOT_FOUND",
+    "message": "refund not found"
+  },
   {
     "code": "ORDERS_REFUND_STATUS_INVALID",
     "message": "status is pending, succeeded or failed"
@@ -3056,12 +3952,18 @@
     "code": "ORDERS_RETURN_INVALID",
     "message": "lines is a non-empty array of {lineId, quantity}"
   },
-  { "code": "ORDERS_RETURN_NOT_FOUND", "message": "return not found" },
+  {
+    "code": "ORDERS_RETURN_NOT_FOUND",
+    "message": "return not found"
+  },
   {
     "code": "ORDERS_SIGN_IN_REQUIRED",
     "message": "sign in (anonymously is enough) to keep a cart"
   },
-  { "code": "ORDERS_TAX_INVALID", "message": "tax is a quote in the cart" },
+  {
+    "code": "ORDERS_TAX_INVALID",
+    "message": "tax is a quote in the cart"
+  },
   {
     "code": "ORDERS_TAX_TRANSACTION_UNSUPPORTED",
     "message": "this order table has no tax transaction column"
@@ -3070,7 +3972,10 @@
     "code": "ORDERS_TRANSITION_INVALID",
     "message": "only a pending fulfillment can ship"
   },
-  { "code": "ORDERS_VARIANT_NOT_FOUND", "message": "a line" },
+  {
+    "code": "ORDERS_VARIANT_NOT_FOUND",
+    "message": "a line"
+  },
   {
     "code": "ORDERS_VARIANT_UNAVAILABLE",
     "message": "this variant is not for sale"
@@ -3103,28 +4008,45 @@
     "code": "ORGANIZATION_MEMBER_SUSPENDED",
     "message": "The new owner is suspended"
   },
-  { "code": "ORGANIZATION_NOT_MEMBER", "message": "Not a member" },
+  {
+    "code": "ORGANIZATION_NOT_MEMBER",
+    "message": "Not a member"
+  },
   {
     "code": "ORGANIZATION_OWNER_REQUIRED",
     "message": "An organization needs an owner"
   },
-  { "code": "ORGANIZATION_PURGE_BLOCKED" },
+  {
+    "code": "ORGANIZATION_PURGE_BLOCKED"
+  },
   {
     "code": "ORGANIZATION_PURGED",
     "message": "The organization was already purged"
   },
-  { "code": "ORGANIZATION_ROLE_CEILING", "message": "That member" },
+  {
+    "code": "ORGANIZATION_ROLE_CEILING",
+    "message": "That member"
+  },
   {
     "code": "ORGANIZATION_ROLE_LAST",
     "message": "A member keeps at least one role; remove the member instead"
   },
-  { "code": "ORGANIZATION_SELF", "message": "Leave the organization instead" },
+  {
+    "code": "ORGANIZATION_SELF",
+    "message": "Leave the organization instead"
+  },
   {
     "code": "ORGANIZATION_SELF_ROLE",
     "message": "You cannot change your own role"
   },
-  { "code": "OUTBOX_TYPE_REQUIRED", "message": "An event needs a type" },
-  { "code": "PARTY_ATTRS_INVALID", "message": "attrs must be an object" },
+  {
+    "code": "OUTBOX_TYPE_REQUIRED",
+    "message": "An event needs a type"
+  },
+  {
+    "code": "PARTY_ATTRS_INVALID",
+    "message": "attrs must be an object"
+  },
   {
     "code": "PARTY_FORBIDDEN",
     "message": "not allowed to change companies and people"
@@ -3137,14 +4059,26 @@
     "code": "PARTY_IDENTITY_TAKEN",
     "message": "another person has this address"
   },
-  { "code": "PARTY_LIFECYCLE_INVALID", "message": "unknown lifecycle stage" },
-  { "code": "PARTY_MODE_INVALID", "message": "a person is external or tenant" },
-  { "code": "PARTY_NAME_REQUIRED", "message": "a name is required" },
+  {
+    "code": "PARTY_LIFECYCLE_INVALID",
+    "message": "unknown lifecycle stage"
+  },
+  {
+    "code": "PARTY_MODE_INVALID",
+    "message": "a person is external or tenant"
+  },
+  {
+    "code": "PARTY_NAME_REQUIRED",
+    "message": "a name is required"
+  },
   {
     "code": "PARTY_NOT_FOUND",
     "message": "company or person not found in one organization"
   },
-  { "code": "PARTY_ROLES_INVALID", "message": "unknown party role" },
+  {
+    "code": "PARTY_ROLES_INVALID",
+    "message": "unknown party role"
+  },
   {
     "code": "PARTY_SUPPLIER_STATUS_INVALID",
     "message": "a supplier status is approved, conditional or blocked"
@@ -3153,7 +4087,10 @@
     "code": "PARTY_TERMS_INVALID",
     "message": "a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR"
   },
-  { "code": "PASS_BOOKING_CANCELLED", "message": "the booking is cancelled" },
+  {
+    "code": "PASS_BOOKING_CANCELLED",
+    "message": "the booking is cancelled"
+  },
   {
     "code": "PASS_BOOKING_NOT_FOUND",
     "message": "the service does not exist in the pass"
@@ -3162,15 +4099,30 @@
     "code": "PASS_BOOKINGS_MISSING",
     "message": "install the bookings block to tie passes to bookings or resources"
   },
-  { "code": "PASS_CREDITS_USED_UP", "message": "the pass has no credits left" },
-  { "code": "PASS_FORBIDDEN", "message": "not allowed to issue passes" },
-  { "code": "PASS_HOLDER_NOT_FOUND", "message": "the holder does not exist" },
-  { "code": "PASS_METHOD_INVALID", "message": "method is qr, nfc or manual" },
+  {
+    "code": "PASS_CREDITS_USED_UP",
+    "message": "the pass has no credits left"
+  },
+  {
+    "code": "PASS_FORBIDDEN",
+    "message": "not allowed to issue passes"
+  },
+  {
+    "code": "PASS_HOLDER_NOT_FOUND",
+    "message": "the holder does not exist"
+  },
+  {
+    "code": "PASS_METHOD_INVALID",
+    "message": "method is qr, nfc or manual"
+  },
   {
     "code": "PASS_NOT_CREDITS",
     "message": "only a pass with a number of uses and no booking of its own pays for bookings"
   },
-  { "code": "PASS_NOT_FOUND", "message": "pass not found" },
+  {
+    "code": "PASS_NOT_FOUND",
+    "message": "pass not found"
+  },
   {
     "code": "PASS_NOT_VALID",
     "message": "the pass is not valid when the class starts"
@@ -3183,7 +4135,10 @@
     "code": "PASS_RESOURCE_NOT_FOUND",
     "message": "the resource does not exist in this organization"
   },
-  { "code": "PASS_REVOKED", "message": "the pass is revoked" },
+  {
+    "code": "PASS_REVOKED",
+    "message": "the pass is revoked"
+  },
   {
     "code": "PASS_SUBJECT_INVALID",
     "message": "pass both subject_type and subject_id, or neither"
@@ -3200,13 +4155,27 @@
     "code": "PASS_WRONG_RESOURCE",
     "message": "the pass is for another resource"
   },
-  { "code": "PAYMENT_BATCH_APPROVAL_REQUIRED" },
-  { "code": "PAYMENT_BATCH_CREDITOR_INVALID" },
-  { "code": "PAYMENT_BATCH_CREDITOR_MISSING" },
-  { "code": "PAYMENT_BATCH_EMPTY" },
-  { "code": "PAYMENT_BATCH_INVALID" },
-  { "code": "PAYMENT_BATCH_NOT_FOUND" },
-  { "code": "PAYMENT_BATCH_STATUS_INVALID" },
+  {
+    "code": "PAYMENT_BATCH_APPROVAL_REQUIRED"
+  },
+  {
+    "code": "PAYMENT_BATCH_CREDITOR_INVALID"
+  },
+  {
+    "code": "PAYMENT_BATCH_CREDITOR_MISSING"
+  },
+  {
+    "code": "PAYMENT_BATCH_EMPTY"
+  },
+  {
+    "code": "PAYMENT_BATCH_INVALID"
+  },
+  {
+    "code": "PAYMENT_BATCH_NOT_FOUND"
+  },
+  {
+    "code": "PAYMENT_BATCH_STATUS_INVALID"
+  },
   {
     "code": "PAYMENT_TERM_CODE_TAKEN",
     "message": "another payment terms row has this code"
@@ -3215,7 +4184,10 @@
     "code": "PAYMENT_TERM_INVALID",
     "message": "payment terms need a code and a name; days are 0 to 3650, the discount and the credit restriction are 0 to 10000 basis points, discountDays 0 to 3650"
   },
-  { "code": "PAYMENT_TERM_NOT_FOUND", "message": "payment terms not found" },
+  {
+    "code": "PAYMENT_TERM_NOT_FOUND",
+    "message": "payment terms not found"
+  },
   {
     "code": "PAYROLL_FORBIDDEN",
     "message": "not allowed to do this with payroll runs"
@@ -3224,33 +4196,53 @@
     "code": "PAYROLL_PERIOD_EXPORTED",
     "message": "an exported payroll run already covers part of this period"
   },
-  { "code": "PAYROLL_RUN_NOT_FOUND", "message": "no such payroll run" },
-  { "code": "PERIOD_CLOSE_BLOCKED" },
+  {
+    "code": "PAYROLL_RUN_NOT_FOUND",
+    "message": "no such payroll run"
+  },
+  {
+    "code": "PERIOD_CLOSE_BLOCKED"
+  },
   {
     "code": "PERIOD_CLOSED",
     "message": "the fiscal year is already closed; reverse its closing entry to close it again"
   },
-  { "code": "PERIOD_FORBIDDEN", "message": "not allowed to create periods" },
+  {
+    "code": "PERIOD_FORBIDDEN",
+    "message": "not allowed to create periods"
+  },
   {
     "code": "PERIOD_INVALID",
     "message": "a period needs a lower case kind and a range that ends on or after it starts"
   },
-  { "code": "PERIOD_NOT_FOUND", "message": "no such period" },
+  {
+    "code": "PERIOD_NOT_FOUND",
+    "message": "no such period"
+  },
   {
     "code": "PERIOD_OVERLAP",
     "message": "the range overlaps a period of this kind"
   },
-  { "code": "PERMISSIONS_FORBIDDEN", "message": "Not allowed to read roles" },
+  {
+    "code": "PERMISSIONS_FORBIDDEN",
+    "message": "Not allowed to read roles"
+  },
   {
     "code": "PERMISSIONS_KEY_CEILING",
     "message": "You can only change keys you hold"
   },
-  { "code": "PERMISSIONS_KEY_UNKNOWN", "message": "Unknown permission" },
+  {
+    "code": "PERMISSIONS_KEY_UNKNOWN",
+    "message": "Unknown permission"
+  },
   {
     "code": "PERMISSIONS_ROLE_CEILING",
     "message": "That role is above your own"
   },
-  { "code": "PERMISSIONS_ROLE_UNKNOWN", "message": "Unknown role" },
+  {
+    "code": "PERMISSIONS_ROLE_UNKNOWN",
+    "message": "Unknown role"
+  },
   {
     "code": "PERMISSIONS_SELF_LOCKOUT",
     "message": "You cannot take this key from your own role"
@@ -3275,8 +4267,14 @@
     "code": "PIPELINE_LAST_OPEN_STAGE",
     "message": "a pipeline keeps at least one open stage"
   },
-  { "code": "PIPELINE_NOT_FOUND", "message": "pipeline not found" },
-  { "code": "PIPELINE_RANK_INVALID", "message": "not a rank key" },
+  {
+    "code": "PIPELINE_NOT_FOUND",
+    "message": "pipeline not found"
+  },
+  {
+    "code": "PIPELINE_RANK_INVALID",
+    "message": "not a rank key"
+  },
   {
     "code": "PIPELINE_STAGE_IN_USE",
     "message": "records are in this stage; its outcome can"
@@ -3289,7 +4287,10 @@
     "code": "PIPELINE_STAGE_KEY_TAKEN",
     "message": "another stage of this pipeline has this key"
   },
-  { "code": "PIPELINE_STAGE_NOT_FOUND", "message": "stage not found" },
+  {
+    "code": "PIPELINE_STAGE_NOT_FOUND",
+    "message": "stage not found"
+  },
   {
     "code": "PIPELINE_STAGE_REPLACEMENT_INVALID",
     "message": "move_to must be another active stage of the same pipeline"
@@ -3306,10 +4307,21 @@
     "code": "PIPELINE_TRANSITIONS_INVALID",
     "message": "pairs must be a list of { from, to } stage ids"
   },
-  { "code": "PLATFORM_ROLE_SCOPE" },
-  { "code": "POST_BOARD_NOT_FOUND", "message": "no such board" },
-  { "code": "POST_NOT_FOUND", "message": "no such post" },
-  { "code": "PRESCRIPTION_NOT_FOUND", "message": "no such prescription" },
+  {
+    "code": "PLATFORM_ROLE_SCOPE"
+  },
+  {
+    "code": "POST_BOARD_NOT_FOUND",
+    "message": "no such board"
+  },
+  {
+    "code": "POST_NOT_FOUND",
+    "message": "no such post"
+  },
+  {
+    "code": "PRESCRIPTION_NOT_FOUND",
+    "message": "no such prescription"
+  },
   {
     "code": "PRODUCTION_OPERATION_NOT_FOUND",
     "message": "no such production order operation"
@@ -3318,8 +4330,12 @@
     "code": "PRODUCTION_ORDER_NOT_FOUND",
     "message": "no such production order"
   },
-  { "code": "PRODUCTION_ORDER_SHORTAGE" },
-  { "code": "PRODUCTION_ORDER_STATUS_INVALID" },
+  {
+    "code": "PRODUCTION_ORDER_SHORTAGE"
+  },
+  {
+    "code": "PRODUCTION_ORDER_STATUS_INVALID"
+  },
   {
     "code": "PROFILE_COLUMN_READONLY",
     "message": "These profile columns are managed by the service"
@@ -3332,7 +4348,10 @@
     "code": "PROMOTIONS_CODE_INVALID",
     "message": "this code is unknown or no longer valid"
   },
-  { "code": "PROMOTIONS_CODE_SPACE", "message": "couldn" },
+  {
+    "code": "PROMOTIONS_CODE_SPACE",
+    "message": "couldn"
+  },
   {
     "code": "PROMOTIONS_CODE_TAKEN",
     "message": "another promotion uses this code"
@@ -3345,9 +4364,18 @@
     "code": "PROMOTIONS_IN_USE",
     "message": "the promotion was redeemed; deactivate it instead"
   },
-  { "code": "PROMOTIONS_INVALID", "message": "data is an object" },
-  { "code": "PROMOTIONS_LIMIT_REACHED", "message": "this code was used up" },
-  { "code": "PROMOTIONS_NOT_FOUND", "message": "promotion not found" },
+  {
+    "code": "PROMOTIONS_INVALID",
+    "message": "data is an object"
+  },
+  {
+    "code": "PROMOTIONS_LIMIT_REACHED",
+    "message": "this code was used up"
+  },
+  {
+    "code": "PROMOTIONS_NOT_FOUND",
+    "message": "promotion not found"
+  },
   {
     "code": "PURCHASE_ORDER_SUPPLIER_BLOCKED",
     "message": "the supplier is blocked and can"
@@ -3356,8 +4384,14 @@
     "code": "PUSH_FORBIDDEN",
     "message": "only the service role reads push tickets"
   },
-  { "code": "PUSH_TOKEN", "message": "A push token is 1 to 4096 characters" },
-  { "code": "PUSH_TOO_MANY", "message": "pass at most 1000 tickets" },
+  {
+    "code": "PUSH_TOKEN",
+    "message": "A push token is 1 to 4096 characters"
+  },
+  {
+    "code": "PUSH_TOO_MANY",
+    "message": "pass at most 1000 tickets"
+  },
   {
     "code": "QUALIFICATION_EVIDENCE_REQUIRED",
     "message": "this qualification type needs evidence"
@@ -3370,7 +4404,10 @@
     "code": "QUALIFICATION_INVALID",
     "message": "evidence files need the attachments block"
   },
-  { "code": "QUALIFICATION_NOT_FOUND", "message": "qualification not found" },
+  {
+    "code": "QUALIFICATION_NOT_FOUND",
+    "message": "qualification not found"
+  },
   {
     "code": "QUALIFICATION_REQUIREMENT_NOT_FOUND",
     "message": "requirement not found"
@@ -3379,7 +4416,9 @@
     "code": "QUALIFICATION_TYPE_NOT_FOUND",
     "message": "qualification type not found"
   },
-  { "code": "QUOTA_EXCEEDED" },
+  {
+    "code": "QUOTA_EXCEEDED"
+  },
   {
     "code": "QUOTE_ACCEPTED",
     "message": "an accepted quote stays as accepted; start a new quote"
@@ -3404,20 +4443,38 @@
     "code": "QUOTE_EMPTY",
     "message": "a quote needs a line before it is sent"
   },
-  { "code": "QUOTE_FORBIDDEN", "message": "not allowed to change quotes" },
-  { "code": "QUOTE_LINK_INVALID", "message": "this link is not valid" },
-  { "code": "QUOTE_NAME_REQUIRED", "message": "say who answers" },
+  {
+    "code": "QUOTE_FORBIDDEN",
+    "message": "not allowed to change quotes"
+  },
+  {
+    "code": "QUOTE_LINK_INVALID",
+    "message": "this link is not valid"
+  },
+  {
+    "code": "QUOTE_NAME_REQUIRED",
+    "message": "say who answers"
+  },
   {
     "code": "QUOTE_NOT_EDITABLE",
     "message": "only a draft quote, or one with changes requested, can change"
   },
-  { "code": "QUOTE_NOT_FOUND", "message": "no such quote" },
+  {
+    "code": "QUOTE_NOT_FOUND",
+    "message": "no such quote"
+  },
   {
     "code": "QUOTE_NOT_OPEN",
     "message": "this quote no longer takes an answer"
   },
-  { "code": "QUOTE_NOT_SENT", "message": "a draft is edited, not revised" },
-  { "code": "QUOTE_ORIGIN_NOT_FOUND", "message": "no such deal you can quote" },
+  {
+    "code": "QUOTE_NOT_SENT",
+    "message": "a draft is edited, not revised"
+  },
+  {
+    "code": "QUOTE_ORIGIN_NOT_FOUND",
+    "message": "no such deal you can quote"
+  },
   {
     "code": "QUOTE_ORIGIN_UNSUPPORTED",
     "message": "this quotes table has no origin columns, so a deal can"
@@ -3426,7 +4483,10 @@
     "code": "QUOTE_SELECTION_INVALID",
     "message": "this quote has no optional lines"
   },
-  { "code": "QUOTE_TEMPLATE", "message": "a template quote cannot be decided" },
+  {
+    "code": "QUOTE_TEMPLATE",
+    "message": "a template quote cannot be decided"
+  },
   {
     "code": "QUOTE_TOTALS_FROZEN",
     "message": "the totals of an answered, expired or withdrawn quote don"
@@ -3459,40 +4519,91 @@
     "code": "RANK_CONFLICT",
     "message": "the neighbours share a rank key; rebalance the group first"
   },
-  { "code": "RANK_FORBIDDEN", "message": "not allowed to move this row" },
-  { "code": "RANK_KEY_INVALID", "message": "not a rank key" },
-  { "code": "RANK_KEY_ORDER", "message": "previous must sort before next" },
-  { "code": "RANK_KEY_POSITION", "message": "nth must be between 1 and total" },
-  { "code": "RANK_NO_GROUP", "message": "this subject has no rank group" },
-  { "code": "RANK_NOT_FOUND", "message": "row not found" },
+  {
+    "code": "RANK_FORBIDDEN",
+    "message": "not allowed to move this row"
+  },
+  {
+    "code": "RANK_KEY_INVALID",
+    "message": "not a rank key"
+  },
+  {
+    "code": "RANK_KEY_ORDER",
+    "message": "previous must sort before next"
+  },
+  {
+    "code": "RANK_KEY_POSITION",
+    "message": "nth must be between 1 and total"
+  },
+  {
+    "code": "RANK_NO_GROUP",
+    "message": "this subject has no rank group"
+  },
+  {
+    "code": "RANK_NOT_FOUND",
+    "message": "row not found"
+  },
   {
     "code": "RANK_SUBJECT_UNKNOWN",
     "message": "this subject type has no rank column in config.subjects"
   },
-  { "code": "RATE_LIMIT_HITS" },
-  { "code": "RATE_LIMIT_UNKNOWN" },
+  {
+    "code": "RATE_LIMIT_HITS"
+  },
+  {
+    "code": "RATE_LIMIT_UNKNOWN"
+  },
   {
     "code": "REACTION_FORBIDDEN",
     "message": "not allowed to react to this record"
   },
-  { "code": "REACTION_INVALID", "message": "unknown custom emoji" },
-  { "code": "RECORD_SECTIONS_TOO_MANY" },
+  {
+    "code": "REACTION_INVALID",
+    "message": "unknown custom emoji"
+  },
+  {
+    "code": "RECORD_SECTIONS_TOO_MANY"
+  },
   {
     "code": "REFERRAL_CODE_INVALID",
     "message": "the referral code is unknown, expired or used up"
   },
-  { "code": "REFERRAL_NOT_FOUND", "message": "no such referral" },
-  { "code": "REFERRAL_SELF", "message": "a member can" },
-  { "code": "RELATION_CYCLE", "message": "this link would create a cycle" },
-  { "code": "RELATION_DATA_INVALID", "message": "this kind of link doesn" },
-  { "code": "RELATION_FORBIDDEN", "message": "not allowed to link records" },
-  { "code": "RELATION_INVALID", "message": "data must be an object" },
-  { "code": "RELATION_KIND_UNKNOWN", "message": "unknown relation kind" },
+  {
+    "code": "REFERRAL_NOT_FOUND",
+    "message": "no such referral"
+  },
+  {
+    "code": "REFERRAL_SELF",
+    "message": "a member can"
+  },
+  {
+    "code": "RELATION_CYCLE",
+    "message": "this link would create a cycle"
+  },
+  {
+    "code": "RELATION_DATA_INVALID",
+    "message": "this kind of link doesn"
+  },
+  {
+    "code": "RELATION_FORBIDDEN",
+    "message": "not allowed to link records"
+  },
+  {
+    "code": "RELATION_INVALID",
+    "message": "data must be an object"
+  },
+  {
+    "code": "RELATION_KIND_UNKNOWN",
+    "message": "unknown relation kind"
+  },
   {
     "code": "RELATION_ROLLUP_INVALID",
     "message": "agg must be count, sum, avg, min or max"
   },
-  { "code": "RELATION_SELF", "message": "a record can" },
+  {
+    "code": "RELATION_SELF",
+    "message": "a record can"
+  },
   {
     "code": "RELATION_SUBJECT_FORBIDDEN",
     "message": "not allowed to link these records"
@@ -3505,12 +4616,17 @@
     "code": "REMINDER_FORBIDDEN",
     "message": "not allowed to manage reminders"
   },
-  { "code": "REMINDER_NOT_FOUND", "message": "reminder not found" },
+  {
+    "code": "REMINDER_NOT_FOUND",
+    "message": "reminder not found"
+  },
   {
     "code": "REMINDER_SUBJECT_NOT_FOUND",
     "message": "the record was not found in this organization"
   },
-  { "code": "REMINDER_SUBJECT_UNSUPPORTED" },
+  {
+    "code": "REMINDER_SUBJECT_UNSUPPORTED"
+  },
   {
     "code": "RETENTION_FORBIDDEN",
     "message": "Only the service role sets retention policies"
@@ -3523,23 +4639,38 @@
     "code": "REVIEW_INVALID",
     "message": "the reviews table has no reply column"
   },
-  { "code": "REVIEW_NOT_FOUND", "message": "review not found" },
+  {
+    "code": "REVIEW_NOT_FOUND",
+    "message": "review not found"
+  },
   {
     "code": "REVIEW_PURCHASE_REQUIRED",
     "message": "only customers who bought this product can review it"
   },
-  { "code": "RFQ_NOT_FOUND", "message": "no such request for quotation" },
-  { "code": "RFQ_QUOTE_NOT_FOUND", "message": "no such quote" },
+  {
+    "code": "RFQ_NOT_FOUND",
+    "message": "no such request for quotation"
+  },
+  {
+    "code": "RFQ_QUOTE_NOT_FOUND",
+    "message": "no such quote"
+  },
   {
     "code": "RFQ_SUPPLIER_INVALID",
     "message": "the supplier is not an active supplier in contacts"
   },
-  { "code": "RFQ_SUPPLIER_NOT_FOUND", "message": "no such invited supplier" },
+  {
+    "code": "RFQ_SUPPLIER_NOT_FOUND",
+    "message": "no such invited supplier"
+  },
   {
     "code": "RISK_CATEGORY_UNKNOWN",
     "message": "the category is not one of options.categories"
   },
-  { "code": "RISK_CLOSED", "message": "the risk is closed" },
+  {
+    "code": "RISK_CLOSED",
+    "message": "the risk is closed"
+  },
   {
     "code": "RISK_LEVEL_OUT_OF_RANGE",
     "message": "a likelihood or impact is not a level of the risk"
@@ -3552,12 +4683,18 @@
     "code": "RISK_MATRIX_NOT_FOUND",
     "message": "no such risk matrix in this organization"
   },
-  { "code": "RISK_NOT_FOUND", "message": "no such risk" },
+  {
+    "code": "RISK_NOT_FOUND",
+    "message": "no such risk"
+  },
   {
     "code": "ROW_CHANGED_SINCE",
     "message": "the row changed after this entry"
   },
-  { "code": "SAVED_ITEM_FORBIDDEN", "message": "not allowed to save records" },
+  {
+    "code": "SAVED_ITEM_FORBIDDEN",
+    "message": "not allowed to save records"
+  },
   {
     "code": "SAVED_ITEM_INVALID",
     "message": "saving for later needs a signed-in user"
@@ -3566,16 +4703,34 @@
     "code": "SAVED_ITEM_SUBJECT_FORBIDDEN",
     "message": "the record is unknown or not readable in this organization"
   },
-  { "code": "SAVED_VIEW_COLLECTION_NOT_FOUND", "message": "the view" },
-  { "code": "SAVED_VIEW_FORBIDDEN", "message": "not allowed to save views" },
+  {
+    "code": "SAVED_VIEW_COLLECTION_NOT_FOUND",
+    "message": "the view"
+  },
+  {
+    "code": "SAVED_VIEW_FORBIDDEN",
+    "message": "not allowed to save views"
+  },
   {
     "code": "SAVED_VIEW_INVALID",
     "message": "scope must be user, team or tenant"
   },
-  { "code": "SAVED_VIEW_NOT_FOUND", "message": "saved view not found" },
-  { "code": "SAVED_VIEW_RANK_INVALID", "message": "not a rank key" },
-  { "code": "SCIM_INVALID", "message": "userName is required" },
-  { "code": "SCIM_NOT_FOUND", "message": "No SCIM user has this id" },
+  {
+    "code": "SAVED_VIEW_NOT_FOUND",
+    "message": "saved view not found"
+  },
+  {
+    "code": "SAVED_VIEW_RANK_INVALID",
+    "message": "not a rank key"
+  },
+  {
+    "code": "SCIM_INVALID",
+    "message": "userName is required"
+  },
+  {
+    "code": "SCIM_NOT_FOUND",
+    "message": "No SCIM user has this id"
+  },
   {
     "code": "SCORES_MODEL_CONFLICT",
     "message": "the score model changed since it was read"
@@ -3588,7 +4743,10 @@
     "code": "SCORES_MODEL_KEY_TAKEN",
     "message": "a score model with this key already exists"
   },
-  { "code": "SCORES_MODEL_NOT_FOUND", "message": "score model not found" },
+  {
+    "code": "SCORES_MODEL_NOT_FOUND",
+    "message": "score model not found"
+  },
   {
     "code": "SCORES_SUBJECT_INVALID",
     "message": "subject must be an object and subject_id set"
@@ -3609,7 +4767,10 @@
     "code": "SEARCH_QUERY_TOO_LONG",
     "message": "a search query is at most 256 characters"
   },
-  { "code": "SEARCH_SIGNED_OUT", "message": "sign in to keep recents" },
+  {
+    "code": "SEARCH_SIGNED_OUT",
+    "message": "sign in to keep recents"
+  },
   {
     "code": "SEARCH_SUBJECT_UNKNOWN",
     "message": "this subject type has no search entry in config.subjects"
@@ -3626,7 +4787,10 @@
     "code": "SEGMENT_FORBIDDEN",
     "message": "You need segments.edit to save a segment"
   },
-  { "code": "SEGMENT_INVALID", "message": "segment must be an object" },
+  {
+    "code": "SEGMENT_INVALID",
+    "message": "segment must be an object"
+  },
   {
     "code": "SEGMENT_NAME_TAKEN",
     "message": "Another segment in this organization has this name"
@@ -3635,7 +4799,10 @@
     "code": "SEGMENT_NOT_FOUND",
     "message": "No segment in this organization has this id"
   },
-  { "code": "SEGMENT_SUBJECT_UNKNOWN", "message": "The segment" },
+  {
+    "code": "SEGMENT_SUBJECT_UNKNOWN",
+    "message": "The segment"
+  },
   {
     "code": "SEQUENCE_DESCRIPTION_UNSUPPORTED",
     "message": "this sequences table has no description column"
@@ -3648,7 +4815,10 @@
     "code": "SEQUENCE_NOT_ACTIVE",
     "message": "only an active sequence takes enrollments"
   },
-  { "code": "SEQUENCE_NOT_FOUND", "message": "sequence not found" },
+  {
+    "code": "SEQUENCE_NOT_FOUND",
+    "message": "sequence not found"
+  },
   {
     "code": "SERVICE_PRINCIPAL_FORBIDDEN",
     "message": "Service principals are managed by the service"
@@ -3665,19 +4835,33 @@
     "code": "SHARE_EXPIRY_INVALID",
     "message": "expires_at must be in the future"
   },
-  { "code": "SHARE_FORBIDDEN", "message": "not allowed to share" },
-  { "code": "SHARE_LINK_RATE_LIMITED" },
-  { "code": "SHARE_LINK_ROLE_INVALID", "message": "this subject type" },
+  {
+    "code": "SHARE_FORBIDDEN",
+    "message": "not allowed to share"
+  },
+  {
+    "code": "SHARE_LINK_RATE_LIMITED"
+  },
+  {
+    "code": "SHARE_LINK_ROLE_INVALID",
+    "message": "this subject type"
+  },
   {
     "code": "SHARE_MAX_USES_INVALID",
     "message": "max_uses must be at least 1"
   },
-  { "code": "SHARE_NOT_FOUND", "message": "share link not found" },
+  {
+    "code": "SHARE_NOT_FOUND",
+    "message": "share link not found"
+  },
   {
     "code": "SHARE_SUBJECT_NOT_FOUND",
     "message": "the subject does not exist in this organization"
   },
-  { "code": "SHARE_SUBJECT_UNKNOWN", "message": "this subject type can" },
+  {
+    "code": "SHARE_SUBJECT_UNKNOWN",
+    "message": "this subject type can"
+  },
   {
     "code": "SHARE_TOKEN_HASH_INVALID",
     "message": "token_hash must be 64 lowercase hex characters"
@@ -3694,13 +4878,34 @@
     "code": "SHIFT_ASSIGNMENT_OVERLAP",
     "message": "the member has another shift at that time"
   },
-  { "code": "SHIFT_ASSIGNMENT_UNQUALIFIED", "message": "the member doesn" },
-  { "code": "SHIFT_CANCELED", "message": "the shift is canceled" },
-  { "code": "SHIFT_FORBIDDEN", "message": "not allowed to set availability" },
-  { "code": "SHIFT_FULL", "message": "the shift has no open places" },
-  { "code": "SHIFT_NOT_FOUND", "message": "shift not found" },
-  { "code": "SHIFT_SWAP_NOT_FOUND", "message": "shift swap not found" },
-  { "code": "SHIFT_TEMPLATE_NOT_FOUND", "message": "shift template not found" },
+  {
+    "code": "SHIFT_ASSIGNMENT_UNQUALIFIED",
+    "message": "the member doesn"
+  },
+  {
+    "code": "SHIFT_CANCELED",
+    "message": "the shift is canceled"
+  },
+  {
+    "code": "SHIFT_FORBIDDEN",
+    "message": "not allowed to set availability"
+  },
+  {
+    "code": "SHIFT_FULL",
+    "message": "the shift has no open places"
+  },
+  {
+    "code": "SHIFT_NOT_FOUND",
+    "message": "shift not found"
+  },
+  {
+    "code": "SHIFT_SWAP_NOT_FOUND",
+    "message": "shift swap not found"
+  },
+  {
+    "code": "SHIFT_TEMPLATE_NOT_FOUND",
+    "message": "shift template not found"
+  },
   {
     "code": "SHIPMENT_ADDRESS_INVALID",
     "message": "each address needs line1, city and a two-letter country"
@@ -3721,7 +4926,10 @@
     "code": "SHIPMENT_DIRECTION_INVALID",
     "message": "a shipment is outbound or inbound"
   },
-  { "code": "SHIPMENT_EVENTS_APPEND_ONLY", "message": "tracking events can" },
+  {
+    "code": "SHIPMENT_EVENTS_APPEND_ONLY",
+    "message": "tracking events can"
+  },
   {
     "code": "SHIPMENT_FORBIDDEN",
     "message": "not allowed to manage shipments"
@@ -3770,7 +4978,10 @@
     "code": "SHIPMENT_NOT_DRAFT",
     "message": "only a draft shipment changes its lines"
   },
-  { "code": "SHIPMENT_NOT_FOUND", "message": "shipment not found" },
+  {
+    "code": "SHIPMENT_NOT_FOUND",
+    "message": "shipment not found"
+  },
   {
     "code": "SHIPMENT_NOT_LABELED",
     "message": "a shipment gets tracking events once it has a label"
@@ -3835,7 +5046,10 @@
     "code": "SIGNATURE_CONTENT_CHANGED",
     "message": "the version to sign changed after the request was made"
   },
-  { "code": "SIGNATURE_IMAGE_NOT_FOUND", "message": "the signature image isn" },
+  {
+    "code": "SIGNATURE_IMAGE_NOT_FOUND",
+    "message": "the signature image isn"
+  },
   {
     "code": "SIGNATURE_METHOD_INVALID",
     "message": "a drawn signature needs the attachments module for its image"
@@ -3844,7 +5058,10 @@
     "code": "SIGNATURE_ORDER_INVALID",
     "message": "sign_order must be parallel or sequential"
   },
-  { "code": "SIGNATURE_OUT_OF_ORDER", "message": "an earlier signer hasn" },
+  {
+    "code": "SIGNATURE_OUT_OF_ORDER",
+    "message": "an earlier signer hasn"
+  },
   {
     "code": "SIGNATURE_REQUEST_CLOSED",
     "message": "this request is no longer pending"
@@ -3857,7 +5074,10 @@
     "code": "SIGNATURE_SIGNERS_INVALID",
     "message": "every signer must be a member of the organization"
   },
-  { "code": "SIGNATURE_VERSION_NOT_FOUND", "message": "the version isn" },
+  {
+    "code": "SIGNATURE_VERSION_NOT_FOUND",
+    "message": "the version isn"
+  },
   {
     "code": "SIGNING_KEY_INVALID",
     "message": "a signing key needs its private JWK"
@@ -3886,13 +5106,22 @@
     "code": "SLA_POLICY_INVALID",
     "message": "a policy needs a name, a record type and positive minutes"
   },
-  { "code": "SLA_POLICY_NOT_FOUND", "message": "policy not found" },
+  {
+    "code": "SLA_POLICY_NOT_FOUND",
+    "message": "policy not found"
+  },
   {
     "code": "SLA_POLICY_TAKEN",
     "message": "another active policy covers this record type and priority"
   },
-  { "code": "SLA_POLICY_UNSUPPORTED", "message": "this policies table doesn" },
-  { "code": "SLA_SUBJECT_INVALID", "message": "unknown record" },
+  {
+    "code": "SLA_POLICY_UNSUPPORTED",
+    "message": "this policies table doesn"
+  },
+  {
+    "code": "SLA_SUBJECT_INVALID",
+    "message": "unknown record"
+  },
   {
     "code": "SSF_ENDPOINT_REQUIRED",
     "message": "a push stream needs an endpoint_url"
@@ -3909,7 +5138,10 @@
     "code": "SSF_STATUS_INVALID",
     "message": "status is enabled, paused or disabled"
   },
-  { "code": "SSF_STREAM_NOT_FOUND", "message": "stream not found" },
+  {
+    "code": "SSF_STREAM_NOT_FOUND",
+    "message": "stream not found"
+  },
   {
     "code": "SSF_STREAM_NOT_POLL",
     "message": "the stream is not delivered by polling"
@@ -3926,7 +5158,10 @@
     "code": "SSO_DOMAIN_NOT_FOUND",
     "message": "No domain you manage has this id"
   },
-  { "code": "SSO_DOMAIN_NOT_VERIFIED", "message": "Verify the domain first" },
+  {
+    "code": "SSO_DOMAIN_NOT_VERIFIED",
+    "message": "Verify the domain first"
+  },
   {
     "code": "SSO_FORBIDDEN",
     "message": "You may not manage this organization"
@@ -3935,15 +5170,30 @@
     "code": "STATE_APPROVAL_REQUIRED",
     "message": "that status change needs an approved request"
   },
-  { "code": "STATE_FLAG_UNKNOWN", "message": "the machine has no such flag" },
-  { "code": "STATE_HISTORY_APP", "message": "the app keeps this machine" },
+  {
+    "code": "STATE_FLAG_UNKNOWN",
+    "message": "the machine has no such flag"
+  },
+  {
+    "code": "STATE_HISTORY_APP",
+    "message": "the app keeps this machine"
+  },
   {
     "code": "STATE_LIFECYCLE_DISABLED",
     "message": "the machine has no lifecycle; set lifecycle: true"
   },
-  { "code": "STATE_LIFECYCLE_INVALID", "message": "unknown lifecycle change" },
-  { "code": "STATE_LIFECYCLE_UNPUBLISHED", "message": "the machine" },
-  { "code": "STATE_MACHINE_UNKNOWN", "message": "unknown subject" },
+  {
+    "code": "STATE_LIFECYCLE_INVALID",
+    "message": "unknown lifecycle change"
+  },
+  {
+    "code": "STATE_LIFECYCLE_UNPUBLISHED",
+    "message": "the machine"
+  },
+  {
+    "code": "STATE_MACHINE_UNKNOWN",
+    "message": "unknown subject"
+  },
   {
     "code": "STATE_PAUSE_INVALID",
     "message": "a pause must end in the future"
@@ -3968,10 +5218,18 @@
     "code": "STATUS_PAGE_SLUG_TAKEN",
     "message": "another organization uses this slug"
   },
-  { "code": "STREAM_CLOSED" },
-  { "code": "STREAM_GAP" },
-  { "code": "STREAM_NOT_FOUND" },
-  { "code": "SUBJECT_ID_INVALID" },
+  {
+    "code": "STREAM_CLOSED"
+  },
+  {
+    "code": "STREAM_GAP"
+  },
+  {
+    "code": "STREAM_NOT_FOUND"
+  },
+  {
+    "code": "SUBJECT_ID_INVALID"
+  },
   {
     "code": "SUBJECT_MEMBER_FORBIDDEN",
     "message": "not allowed to manage this record"
@@ -3980,7 +5238,10 @@
     "code": "SUBJECT_MEMBER_INVALID",
     "message": "user is not a member of the record"
   },
-  { "code": "SUBJECT_MEMBER_NOT_FOUND", "message": "subject not found" },
+  {
+    "code": "SUBJECT_MEMBER_NOT_FOUND",
+    "message": "subject not found"
+  },
   {
     "code": "SUBJECT_READ_FORBIDDEN",
     "message": "you may not see who read this record"
@@ -3989,9 +5250,16 @@
     "code": "SUBJECT_READ_INVALID",
     "message": "this subject type does not log reads"
   },
-  { "code": "SUBJECT_READ_NOT_FOUND", "message": "subject not found" },
-  { "code": "SUBJECT_REFS_INVALID" },
-  { "code": "SUBJECT_REFS_TOO_MANY" },
+  {
+    "code": "SUBJECT_READ_NOT_FOUND",
+    "message": "subject not found"
+  },
+  {
+    "code": "SUBJECT_REFS_INVALID"
+  },
+  {
+    "code": "SUBJECT_REFS_TOO_MANY"
+  },
   {
     "code": "SUPPORT_APPROVAL_REQUIRED",
     "message": "A second admin must approve this support session (approve_support_request)"
@@ -4000,7 +5268,10 @@
     "code": "SUPPORT_FORBIDDEN",
     "message": "admin_id is required for the service role"
   },
-  { "code": "SUPPORT_REASON_REQUIRED", "message": "A reason is required" },
+  {
+    "code": "SUPPORT_REASON_REQUIRED",
+    "message": "A reason is required"
+  },
   {
     "code": "SUPPORT_SELF",
     "message": "An admin cannot start a support session as themselves"
@@ -4017,8 +5288,13 @@
     "code": "SUPPORT_WRITES_DISABLED",
     "message": "Support sessions are read-only (blocks.impersonation.options.allowWrites)"
   },
-  { "code": "TABLE_APPEND_ONLY" },
-  { "code": "TAG_FORBIDDEN", "message": "not allowed to manage tags" },
+  {
+    "code": "TABLE_APPEND_ONLY"
+  },
+  {
+    "code": "TAG_FORBIDDEN",
+    "message": "not allowed to manage tags"
+  },
   {
     "code": "TAG_INVALID",
     "message": "patch sets name, slug, color, description or kind; name, slug and kind can"
@@ -4027,8 +5303,14 @@
     "code": "TAG_KIND_MISMATCH",
     "message": "tag kind is not allowed on this subject"
   },
-  { "code": "TAG_NOT_FOUND", "message": "tag not found" },
-  { "code": "TAG_RANK_INVALID", "message": "not a rank key" },
+  {
+    "code": "TAG_NOT_FOUND",
+    "message": "tag not found"
+  },
+  {
+    "code": "TAG_RANK_INVALID",
+    "message": "not a rank key"
+  },
   {
     "code": "TAG_SLUG_INVALID",
     "message": "a slug is lowercase letters and digits joined by single hyphens"
@@ -4065,7 +5347,10 @@
     "code": "TASK_CHECKLIST_ITEM_NOT_FOUND",
     "message": "no such checklist item on this work item"
   },
-  { "code": "TASK_FIELD_UNKNOWN", "message": "that field can" },
+  {
+    "code": "TASK_FIELD_UNKNOWN",
+    "message": "that field can"
+  },
   {
     "code": "TASK_FORBIDDEN",
     "message": "not allowed to manage projects and iterations"
@@ -4074,10 +5359,22 @@
     "code": "TASK_ITERATION_INVALID",
     "message": "an iteration needs a name and ends on or after it starts"
   },
-  { "code": "TASK_ITERATION_NOT_FOUND", "message": "iteration not found" },
-  { "code": "TASK_LOCKED", "message": "the item is locked; its dates can" },
-  { "code": "TASK_NOT_FOUND", "message": "no such work item you can edit" },
-  { "code": "TASK_PARENT_CYCLE", "message": "an item can" },
+  {
+    "code": "TASK_ITERATION_NOT_FOUND",
+    "message": "iteration not found"
+  },
+  {
+    "code": "TASK_LOCKED",
+    "message": "the item is locked; its dates can"
+  },
+  {
+    "code": "TASK_NOT_FOUND",
+    "message": "no such work item you can edit"
+  },
+  {
+    "code": "TASK_PARENT_CYCLE",
+    "message": "an item can"
+  },
   {
     "code": "TASK_PARENT_INVALID",
     "message": "the parent is in another organization"
@@ -4090,13 +5387,22 @@
     "code": "TASK_PROJECT_KEY_TAKEN",
     "message": "another project has this key"
   },
-  { "code": "TASK_PROJECT_NOT_FOUND", "message": "project not found" },
+  {
+    "code": "TASK_PROJECT_NOT_FOUND",
+    "message": "project not found"
+  },
   {
     "code": "TASK_RECURRENCE_INVALID",
     "message": "rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO"
   },
-  { "code": "TASK_TITLE_REQUIRED", "message": "a title is required" },
-  { "code": "TAX_CODE_NOT_FOUND", "message": "no such tax code" },
+  {
+    "code": "TASK_TITLE_REQUIRED",
+    "message": "a title is required"
+  },
+  {
+    "code": "TAX_CODE_NOT_FOUND",
+    "message": "no such tax code"
+  },
   {
     "code": "TAX_MARGIN_COST_REQUIRED",
     "message": "a margin scheme line needs the unitCost of what it was bought for"
@@ -4105,9 +5411,18 @@
     "code": "TAX_RETURN_CURRENCY_MIXED",
     "message": "invoices of several currencies fall in the period; name the currency to prepare the return for"
   },
-  { "code": "TAX_RETURN_FILED", "message": "a filed tax return can" },
-  { "code": "TAX_RETURN_NOT_FOUND", "message": "no such tax return" },
-  { "code": "TEAM_FORBIDDEN", "message": "team_ids_of reads only the caller" },
+  {
+    "code": "TAX_RETURN_FILED",
+    "message": "a filed tax return can"
+  },
+  {
+    "code": "TAX_RETURN_NOT_FOUND",
+    "message": "no such tax return"
+  },
+  {
+    "code": "TEAM_FORBIDDEN",
+    "message": "team_ids_of reads only the caller"
+  },
   {
     "code": "TEAM_INVALID",
     "message": "patch sets name, slug or description; name and slug can"
@@ -4116,8 +5431,14 @@
     "code": "TEAM_MEMBER_INVALID",
     "message": "user is not a member of the tenant"
   },
-  { "code": "TEAM_NOT_FOUND", "message": "team not found" },
-  { "code": "TEAM_SLUG_INVALID", "message": "team name needs a slug" },
+  {
+    "code": "TEAM_NOT_FOUND",
+    "message": "team not found"
+  },
+  {
+    "code": "TEAM_SLUG_INVALID",
+    "message": "team name needs a slug"
+  },
   {
     "code": "TEMPLATE_EMPTY",
     "message": "This template has no record to copy"
@@ -4130,12 +5451,18 @@
     "code": "TEMPLATE_IMMUTABLE",
     "message": "A row cannot change between a template and a live record"
   },
-  { "code": "TEMPLATE_INVALID", "message": "A schedule needs a tenant" },
+  {
+    "code": "TEMPLATE_INVALID",
+    "message": "A schedule needs a tenant"
+  },
   {
     "code": "TEMPLATE_NO_DRAFT",
     "message": "This template has no draft to publish"
   },
-  { "code": "TEMPLATE_NOT_FOUND", "message": "No such template" },
+  {
+    "code": "TEMPLATE_NOT_FOUND",
+    "message": "No such template"
+  },
   {
     "code": "TEMPLATE_NOT_PUBLISHED",
     "message": "This template has no published version"
@@ -4144,7 +5471,10 @@
     "code": "TEMPLATE_SCHEDULE_INVALID",
     "message": "A schedule needs a start and a rule"
   },
-  { "code": "TEMPLATE_SCHEDULE_NOT_FOUND", "message": "No such schedule" },
+  {
+    "code": "TEMPLATE_SCHEDULE_NOT_FOUND",
+    "message": "No such schedule"
+  },
   {
     "code": "TEMPLATE_SETTINGS_INVALID",
     "message": "settings does not match this template type"
@@ -4153,12 +5483,28 @@
     "code": "TEMPLATE_TYPE_UNKNOWN",
     "message": "That template type is not registered"
   },
-  { "code": "TEMPLATE_WORKFLOW_INPUT_INVALID" },
-  { "code": "TEMPLATE_WORKFLOW_NOT_FOUND", "message": "No such workflow" },
-  { "code": "TENANT_MISMATCH" },
-  { "code": "TILL_DEPOSIT_NOT_FOUND", "message": "no such cash deposit" },
-  { "code": "TILL_NOT_FOUND", "message": "no such till" },
-  { "code": "TILL_SESSION_NOT_FOUND", "message": "no such till session" },
+  {
+    "code": "TEMPLATE_WORKFLOW_INPUT_INVALID"
+  },
+  {
+    "code": "TEMPLATE_WORKFLOW_NOT_FOUND",
+    "message": "No such workflow"
+  },
+  {
+    "code": "TENANT_MISMATCH"
+  },
+  {
+    "code": "TILL_DEPOSIT_NOT_FOUND",
+    "message": "no such cash deposit"
+  },
+  {
+    "code": "TILL_NOT_FOUND",
+    "message": "no such till"
+  },
+  {
+    "code": "TILL_SESSION_NOT_FOUND",
+    "message": "no such till session"
+  },
   {
     "code": "TIME_EMPLOYEE_INVALID",
     "message": "no employee record for that member in this organization"
@@ -4175,13 +5521,22 @@
     "code": "TIME_ENTRY_INVOICED",
     "message": "this entry is on an invoice; void the invoice to delete it"
   },
-  { "code": "TIME_ENTRY_NOT_FOUND", "message": "no such entry of yours" },
+  {
+    "code": "TIME_ENTRY_NOT_FOUND",
+    "message": "no such entry of yours"
+  },
   {
     "code": "TIME_ENTRY_OVERLAP",
     "message": "this time overlaps another entry"
   },
-  { "code": "TIME_NO_TIMER", "message": "no timer is running" },
-  { "code": "TIME_PERIOD_LOCKED", "message": "this week" },
+  {
+    "code": "TIME_NO_TIMER",
+    "message": "no timer is running"
+  },
+  {
+    "code": "TIME_PERIOD_LOCKED",
+    "message": "this week"
+  },
   {
     "code": "TIME_RATE_COST_UNSUPPORTED",
     "message": "this rate table has no cost column"
@@ -4198,7 +5553,10 @@
     "code": "TIME_RATE_MISSING",
     "message": "some billable entries have no rate; set one on the entry or the rate card"
   },
-  { "code": "TIME_RATE_NOT_FOUND", "message": "no such rate you can change" },
+  {
+    "code": "TIME_RATE_NOT_FOUND",
+    "message": "no such rate you can change"
+  },
   {
     "code": "TIME_RATE_SUBJECT_INVALID",
     "message": "the record is unknown or not in this organization"
@@ -4207,13 +5565,22 @@
     "code": "TIME_SUBJECT_INVALID",
     "message": "name both subject_type and subject_id, or neither"
   },
-  { "code": "TIME_TIMER_RUNNING", "message": "this timer is already running" },
-  { "code": "TIME_USER_INVALID", "message": "that user isn" },
+  {
+    "code": "TIME_TIMER_RUNNING",
+    "message": "this timer is already running"
+  },
+  {
+    "code": "TIME_USER_INVALID",
+    "message": "that user isn"
+  },
   {
     "code": "TIMELINE_ENTRY_FORBIDDEN",
     "message": "Only the service role records activity"
   },
-  { "code": "TIMESHEET_APPROVED", "message": "this week is already approved" },
+  {
+    "code": "TIMESHEET_APPROVED",
+    "message": "this week is already approved"
+  },
   {
     "code": "TIMESHEET_IN_APPROVAL",
     "message": "this week is decided through its approval request"
@@ -4222,7 +5589,10 @@
     "code": "TIMESHEET_NOT_APPROVED",
     "message": "only an approved week can be reopened"
   },
-  { "code": "TIMESHEET_NOT_FOUND", "message": "timesheet not found" },
+  {
+    "code": "TIMESHEET_NOT_FOUND",
+    "message": "timesheet not found"
+  },
   {
     "code": "TIMESHEET_NOT_SUBMITTED",
     "message": "only a submitted week can be decided"
@@ -4235,12 +5605,18 @@
     "code": "TIMESHEET_TIMER_RUNNING",
     "message": "stop the running timer before submitting this week"
   },
-  { "code": "TRASH_FORBIDDEN", "message": "not allowed to trash this record" },
+  {
+    "code": "TRASH_FORBIDDEN",
+    "message": "not allowed to trash this record"
+  },
   {
     "code": "TRASH_HELD",
     "message": "a record in this batch is under a legal hold"
   },
-  { "code": "TRASH_NOT_FOUND", "message": "trash item not found" },
+  {
+    "code": "TRASH_NOT_FOUND",
+    "message": "trash item not found"
+  },
   {
     "code": "TRASH_UNSUPPORTED",
     "message": "this subject type has no deletedAt column"
@@ -4253,10 +5629,21 @@
     "code": "USAGE_FORBIDDEN",
     "message": "Only the service role sets usage prices"
   },
-  { "code": "USAGE_METER_KIND", "message": "Meter is not a distinct meter" },
-  { "code": "USAGE_QUANTITY", "message": "quantity must be zero or more" },
-  { "code": "USAGE_SUBJECT", "message": "subject is required" },
-  { "code": "VALUE_UNSUPPORTED" },
+  {
+    "code": "USAGE_METER_KIND",
+    "message": "Meter is not a distinct meter"
+  },
+  {
+    "code": "USAGE_QUANTITY",
+    "message": "quantity must be zero or more"
+  },
+  {
+    "code": "USAGE_SUBJECT",
+    "message": "subject is required"
+  },
+  {
+    "code": "VALUE_UNSUPPORTED"
+  },
   {
     "code": "VERSION_CONTENT_REQUIRED",
     "message": "pass content or a storage path, or list the subject"
@@ -4273,12 +5660,18 @@
     "code": "VERSION_FORBIDDEN",
     "message": "not allowed to read these versions"
   },
-  { "code": "VERSION_FROZEN", "message": "a frozen version keeps its label" },
+  {
+    "code": "VERSION_FROZEN",
+    "message": "a frozen version keeps its label"
+  },
   {
     "code": "VERSION_HASH_FORBIDDEN",
     "message": "only the service role records a file hash"
   },
-  { "code": "VERSION_NOT_FOUND", "message": "version not found" },
+  {
+    "code": "VERSION_NOT_FOUND",
+    "message": "version not found"
+  },
   {
     "code": "VERSION_RESTORE_UNSUPPORTED",
     "message": "this subject type has no columns or apply function to restore into"
@@ -4287,27 +5680,70 @@
     "code": "WAITLIST_CODE_INVALID",
     "message": "Invite codes need at least 8 characters"
   },
-  { "code": "WAITLIST_CODE_TAKEN", "message": "That invite code exists" },
+  {
+    "code": "WAITLIST_CODE_TAKEN",
+    "message": "That invite code exists"
+  },
   {
     "code": "WAITLIST_CODE_USED",
     "message": "You already used this invite code"
   },
-  { "code": "WAITLIST_EMAIL_INVALID", "message": "Not an email address" },
+  {
+    "code": "WAITLIST_EMAIL_INVALID",
+    "message": "Not an email address"
+  },
   {
     "code": "WAITLIST_FORBIDDEN",
     "message": "You may not manage the waitlist"
   },
-  { "code": "WAREHOUSE_COUNT_NOT_FOUND", "message": "no such stock count" },
-  { "code": "WAREHOUSE_COUNT_PLAN_NOT_FOUND", "message": "no such count plan" },
-  { "code": "WAREHOUSE_PICK_LINE_NOT_FOUND", "message": "no such pick line" },
-  { "code": "WAREHOUSE_PICK_LIST_NOT_FOUND", "message": "no such pick list" },
-  { "code": "WAREHOUSE_RECEIPT_NOT_FOUND", "message": "no such goods receipt" },
-  { "code": "WAREHOUSE_RULE_NOT_FOUND", "message": "no such putaway rule" },
+  {
+    "code": "WAREHOUSE_COUNT_NOT_FOUND",
+    "message": "no such stock count"
+  },
+  {
+    "code": "WAREHOUSE_COUNT_PLAN_NOT_FOUND",
+    "message": "no such count plan"
+  },
+  {
+    "code": "WAREHOUSE_PICK_LINE_NOT_FOUND",
+    "message": "no such pick line"
+  },
+  {
+    "code": "WAREHOUSE_PICK_LIST_NOT_FOUND",
+    "message": "no such pick list"
+  },
+  {
+    "code": "WAREHOUSE_RECEIPT_NOT_FOUND",
+    "message": "no such goods receipt"
+  },
+  {
+    "code": "WAREHOUSE_RULE_NOT_FOUND",
+    "message": "no such putaway rule"
+  },
   {
     "code": "WAREHOUSE_VARIANCE_OVER_LIMIT",
     "message": "a line is off by more than the plan allows, review the count and post it with approve"
   },
-  { "code": "WAREHOUSE_WAVE_NOT_FOUND", "message": "no such pick wave" },
+  {
+    "code": "WAREHOUSE_WAVE_NOT_FOUND",
+    "message": "no such pick wave"
+  },
+  {
+    "code": "WARRANTY_FORBIDDEN",
+    "message": "not allowed to change a warranty claim"
+  },
+  {
+    "code": "WARRANTY_INVALID",
+    "message": "a warranty claim is invalid"
+  },
+  {
+    "code": "WARRANTY_NOT_FOUND",
+    "message": "no such warranty claim"
+  },
+  {
+    "code": "WARRANTY_TRANSITION",
+    "message": "that status change is not allowed"
+  },
   {
     "code": "WEBHOOK_ATTEMPT_REQUIRED",
     "message": "outcome.attempt must be the attempt the claim returned"
@@ -4344,7 +5780,10 @@
     "code": "WEBHOOK_IN_METADATA_INVALID",
     "message": "This endpoints table has no metadata column"
   },
-  { "code": "WEBHOOK_IN_NAME_REQUIRED", "message": "An endpoint needs a name" },
+  {
+    "code": "WEBHOOK_IN_NAME_REQUIRED",
+    "message": "An endpoint needs a name"
+  },
   {
     "code": "WEBHOOK_IN_NO_GRACE",
     "message": "This endpoints table has no previous-secret columns, so a rotation can"
@@ -4369,7 +5808,10 @@
     "code": "WEBHOOK_STATUS_UNKNOWN",
     "message": "status must be succeeded, retrying, dead or canceled"
   },
-  { "code": "WEBHOOK_TYPE_REQUIRED", "message": "An event type is required" },
+  {
+    "code": "WEBHOOK_TYPE_REQUIRED",
+    "message": "An event type is required"
+  },
   {
     "code": "WORK_CENTER_NOT_FOUND",
     "message": "no such work center in this organization"
@@ -4378,8 +5820,13 @@
     "code": "WORKFLOW_COMPILED_FORBIDDEN",
     "message": "Only the service role may store a compiled form"
   },
-  { "code": "WORKFLOW_DELIVERY_UNCONFIGURED" },
-  { "code": "WORKFLOW_FORBIDDEN", "message": "You may not cancel this run" },
+  {
+    "code": "WORKFLOW_DELIVERY_UNCONFIGURED"
+  },
+  {
+    "code": "WORKFLOW_FORBIDDEN",
+    "message": "You may not cancel this run"
+  },
   {
     "code": "WORKFLOW_FORK_UNSUPPORTED",
     "message": "this workflow definitions table has no fork columns"
@@ -4388,7 +5835,10 @@
     "code": "WORKFLOW_GRANT_INVALID",
     "message": "principal_kind is user, team or role"
   },
-  { "code": "WORKFLOW_GRAPH_INVALID", "message": "A graph is an object" },
+  {
+    "code": "WORKFLOW_GRAPH_INVALID",
+    "message": "A graph is an object"
+  },
   {
     "code": "WORKFLOW_KEY_UNSUPPORTED",
     "message": "this workflow runs table has no idempotency_key column"
@@ -4401,7 +5851,10 @@
     "code": "WORKFLOW_NODE_KINDS",
     "message": "kinds is an object keyed by kind"
   },
-  { "code": "WORKFLOW_NOT_FOUND", "message": "Workflow definition not found" },
+  {
+    "code": "WORKFLOW_NOT_FOUND",
+    "message": "Workflow definition not found"
+  },
   {
     "code": "WORKFLOW_NOT_PUBLISHED",
     "message": "This workflow version was never published"
@@ -4410,15 +5863,27 @@
     "code": "WORKFLOW_OPTED_OUT",
     "message": "This organization opted out of this workflow"
   },
-  { "code": "WORKFLOW_PUBLISHER_FORBIDDEN" },
-  { "code": "WORKFLOW_PUBLISHER_REVOKED" },
-  { "code": "WORKFLOW_PURGE_STATUS" },
+  {
+    "code": "WORKFLOW_PUBLISHER_FORBIDDEN"
+  },
+  {
+    "code": "WORKFLOW_PUBLISHER_REVOKED"
+  },
+  {
+    "code": "WORKFLOW_PURGE_STATUS"
+  },
   {
     "code": "WORKFLOW_PURPOSE_INVALID",
     "message": "purpose is automation or lifecycle"
   },
-  { "code": "WORKFLOW_SCOPE_FIXED", "message": "A workflow" },
-  { "code": "WORKFLOW_SCOPE_INVALID", "message": "scope is tenant or system" },
+  {
+    "code": "WORKFLOW_SCOPE_FIXED",
+    "message": "A workflow"
+  },
+  {
+    "code": "WORKFLOW_SCOPE_INVALID",
+    "message": "scope is tenant or system"
+  },
   {
     "code": "WORKFLOW_SCOPE_UNSUPPORTED",
     "message": "this workflow definitions table has no scope column, so there are no system workflows"
@@ -4431,7 +5896,10 @@
     "code": "WORKFLOW_SUBJECT_INVALID",
     "message": "A subject has a type of 1 to 100 and an id of 1 to 200 characters"
   },
-  { "code": "WORKFLOW_SUBJECT_TYPE", "message": "This workflow doesn" },
+  {
+    "code": "WORKFLOW_SUBJECT_TYPE",
+    "message": "This workflow doesn"
+  },
   {
     "code": "WORKFLOW_SUBJECT_UNSUPPORTED",
     "message": "this workflow runs table has no subject columns"
