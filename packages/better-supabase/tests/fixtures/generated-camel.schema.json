@@ -2506,6 +2506,22 @@
       ],
       "additionalProperties": false
     },
+    "importCustomerBatchArgs": {
+      "title": "import_customer_batch arguments",
+      "type": "object",
+      "properties": {
+        "items": {},
+        "run": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "items",
+        "run"
+      ],
+      "additionalProperties": false
+    },
     "importCustomerUpdatedAtArgs": {
       "title": "import_customer_updated_at arguments",
       "type": "object",
@@ -2651,6 +2667,9 @@
     },
     "importCustomerResult": {
       "title": "import_customer result"
+    },
+    "importCustomerBatchResult": {
+      "title": "import_customer_batch result"
     },
     "importCustomerUpdatedAtResult": {
       "title": "import_customer_updated_at result",

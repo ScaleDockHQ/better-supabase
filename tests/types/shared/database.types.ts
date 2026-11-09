@@ -845,6 +845,10 @@ export type Database = {
         Args: { item: Json; run: string; subject_id: string }
         Returns: Json
       }
+      import_customer_batch: {
+        Args: { items: Json; run: string }
+        Returns: Json
+      }
       import_customer_updated_at: {
         Args: { subject_id: string }
         Returns: string

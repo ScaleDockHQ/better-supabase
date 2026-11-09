@@ -560,6 +560,11 @@ export const importCustomerArgs: z.ZodType<{ item: Json; run: string; subject_id
   subject_id: z.string(),
 }).meta({ title: "import_customer arguments" });
 
+export const importCustomerBatchArgs: z.ZodType<{ items: Json; run: string }> = z.object({
+  items: z.json(),
+  run: z.guid(),
+}).meta({ title: "import_customer_batch arguments" });
+
 export const importCustomerUpdatedAtArgs: z.ZodType<{ subject_id: string }> = z.object({
   subject_id: z.string(),
 }).meta({ title: "import_customer_updated_at arguments" });
@@ -607,6 +612,8 @@ export const updateMyProfileArgs: z.ZodType<{ full_name: string }> = z.object({
 }).meta({ title: "update_my_profile arguments" });
 
 export const importCustomerResult: z.ZodType<Json> = z.json();
+
+export const importCustomerBatchResult: z.ZodType<Json> = z.json();
 
 export const importCustomerUpdatedAtResult: z.ZodType<string | null> = z.iso.datetime({ offset: true }).nullable();
 

@@ -560,6 +560,11 @@ export const importCustomerArgs: z.ZodMiniType<{ item: Json; run: string; subjec
   subject_id: z.string(),
 }).check(z.meta({ title: "import_customer arguments" }));
 
+export const importCustomerBatchArgs: z.ZodMiniType<{ items: Json; run: string }> = z.object({
+  items: z.json(),
+  run: z.guid(),
+}).check(z.meta({ title: "import_customer_batch arguments" }));
+
 export const importCustomerUpdatedAtArgs: z.ZodMiniType<{ subject_id: string }> = z.object({
   subject_id: z.string(),
 }).check(z.meta({ title: "import_customer_updated_at arguments" }));
@@ -607,6 +612,8 @@ export const updateMyProfileArgs: z.ZodMiniType<{ full_name: string }> = z.objec
 }).check(z.meta({ title: "update_my_profile arguments" }));
 
 export const importCustomerResult: z.ZodMiniType<Json> = z.json();
+
+export const importCustomerBatchResult: z.ZodMiniType<Json> = z.json();
 
 export const importCustomerUpdatedAtResult: z.ZodMiniType<string | null> = z.nullable(z.iso.datetime({ offset: true }));
 
