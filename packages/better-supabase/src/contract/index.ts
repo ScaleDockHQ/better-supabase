@@ -6,6 +6,7 @@
 export type ContractApiVersion = 1;
 
 export type {
+  AuthorizationFixtureRole,
   AuthorizationFunctions,
   AuthorizationMembership,
   AuthorizationOperation,
@@ -65,3 +66,10 @@ export type { SessionSnapshot } from "../auth/snapshot.ts";
 export type { ApprovalOptions } from "../server/server-types.ts";
 
 export type { BlockTable, BlockTables } from "../sql/block-tables.ts";
+
+export type {
+  BootstrapPermissions,
+  BootstrapPermissionsCompact,
+  BootstrapPermissionsFull,
+  BootstrapPermissionsWire,
+} from "../core/bootstrap-permissions.ts";

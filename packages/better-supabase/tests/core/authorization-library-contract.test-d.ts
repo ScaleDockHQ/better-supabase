@@ -24,6 +24,10 @@ import type { AccessTopicPolicy } from "../../src/realtime/index.ts";
 import type { AnyFunctions, AnyModels } from "../../src/schema/types.ts";
 import type {
   ApprovalOptions,
+  BootstrapPermissions,
+  BootstrapPermissionsCompact,
+  BootstrapPermissionsFull,
+  BootstrapPermissionsWire,
   AuthorizationCallKind,
   AuthorizationChange,
   AuthorizationContext,
@@ -259,8 +263,49 @@ describe("authorization library contract", () => {
     expectTypeOf<Contract.SessionSnapshot>().toEqualTypeOf<SessionSnapshot>();
     expectTypeOf<Contract.ApprovalOptions>().toEqualTypeOf<ApprovalOptions>();
     expectTypeOf<Contract.BlockTables>().toEqualTypeOf<BlockTables>();
+    expectTypeOf<Contract.BootstrapPermissions>().toEqualTypeOf<BootstrapPermissions>();
+    expectTypeOf<Contract.BootstrapPermissionsWire>().toEqualTypeOf<BootstrapPermissionsWire>();
+    expectTypeOf<Contract.BootstrapPermissionsFull>().toEqualTypeOf<BootstrapPermissionsFull>();
+    expectTypeOf<Contract.BootstrapPermissionsCompact>().toEqualTypeOf<BootstrapPermissionsCompact>();
     expectTypeOf<
       Contract.McpOptions<AnyModels, AnyFunctions, never>
     >().toEqualTypeOf<McpOptions<AnyModels, AnyFunctions, never>>();
+  });
+
+  it("keeps the 0.26 provider fields optional and additive", () => {
+    // A provider written before them is still a provider: apiVersion stays 1.
+    const older: AuthorizationProvider = {
+      apiVersion: 1,
+      name: "older",
+      scopes: [{ name: "organization" }],
+      tenantScope: "organization",
+      functions: {
+        idsWith: "a.b({permission})",
+        isPlatform: "a.c({permission})",
+      },
+    };
+
+    const newer: AuthorizationProvider = {
+      ...older,
+      functions: {
+        ...older.functions,
+        subjectForTenant: "a.s({tenant})",
+        bootstrapPermissions: "a.p({tenant})",
+        approverFor: "a.approvers()",
+        managedUsers: "a.managed()",
+      },
+      permissions: [{ key: "file.read", levels: ["own", "team"] }],
+      suspension: { userKey: "user_id" },
+      personas: "roles",
+      fixtureRoles: [{ name: "viewer", setup: "select 1", permissions: [] }],
+      tokenHook: {
+        function: "a.hook",
+        ownedClaims: ["permissions"],
+        teamIdsTruncatedClaim: "team_ids_truncated",
+      },
+    };
+
+    expectTypeOf(older.apiVersion).toEqualTypeOf<1>();
+    expectTypeOf(newer.apiVersion).toEqualTypeOf<1>();
   });
 });

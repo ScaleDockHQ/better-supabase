@@ -2375,9 +2375,10 @@ row level security.
 
 **Info: a config value the authorization provider already supplies.**
 `blocks.invitations.options.platformRoles`,
-`blocks.memberships.options.roleThrough` and the memberships `disabledAt`
-column default to what the provider declares in `platformRoles`, a role
-source's `through` and a membership's `disabledAt`. A config value equal to
+`blocks.memberships.options.roleThrough`, the memberships `disabledAt` column
+and `blocks.permissions.disabled` (`tenant`, `user` and `userKey`) default to
+what the provider declares in `platformRoles`, a role source's `through`, a
+membership's `disabledAt` and `suspension`. A config value equal to
 the provider's is a second copy that goes stale when the provider changes.
 Remove it.
 

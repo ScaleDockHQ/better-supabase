@@ -33,6 +33,10 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   portalSubjects: ["action"],
   portalParties: [],
   subject: [],
+  subjectForTenant: ["tenant", "scope"],
+  bootstrapPermissions: ["tenant", "scope"],
+  approverFor: [],
+  managedUsers: [],
 };
 
 /** The Postgres types a scope's ids can have. */
@@ -282,7 +286,10 @@ export function templateFunctions(template: string, scope?: string): string[] {
         ...filled.matchAll(
           /(?<![\w$."])"?([a-z_][\w$]*)"?\s*\.\s*"?([a-z_{][\w${}]*)"?\s*\(/gi,
         ),
-      ].map((match) => `${match[1]!}.${match[2]!}`),
+      ]
+        .map((match) => `${match[1]!}.${match[2]!}`)
+        // Supabase's own function, which every role can run.
+        .filter((name) => name !== "auth.uid"),
     ),
   ];
 }

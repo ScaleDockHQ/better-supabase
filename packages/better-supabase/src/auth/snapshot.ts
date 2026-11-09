@@ -118,6 +118,19 @@ export interface SessionMemoOptions {
   readonly ttlMs?: number;
   /** Epoch milliseconds. */
   readonly now?: () => number;
+  /**
+   * Where the memo counts its lookups, so several memos can share one count: a
+   * Next.js route handler is bundled apart from the pages, and each bundle
+   * builds its own server. The memo increments `hits` and `misses` on this
+   * object; keep one per process (a module-level or `globalThis` value).
+   */
+  readonly counters?: SessionMemoCounters;
+}
+
+/** The mutable lookup counts of a session memo. */
+export interface SessionMemoCounters {
+  hits: number;
+  misses: number;
 }
 
 export interface SessionMemoStats {
@@ -182,8 +195,7 @@ export function sessionMemo<T>(
   const ttlMs = options.ttlMs ?? 300_000;
   const clock = options.now ?? Date.now;
   const entries = new Map<string, Entry<T>>();
-  let hits = 0;
-  let misses = 0;
+  const counters = options.counters ?? { hits: 0, misses: 0 };
 
   const untilFor = (now: number, expiresAt: number | null): number =>
     expiresAt === null ? now + ttlMs : Math.min(now + ttlMs, expiresAt * 1000);
@@ -210,14 +222,14 @@ export function sessionMemo<T>(
       const known = entries.get(token);
 
       if (known && known.until > now) {
-        hits += 1;
+        counters.hits += 1;
         // Refresh the entry's place in the LRU order.
         store(token, known);
 
         return known.promise;
       }
 
-      misses += 1;
+      counters.misses += 1;
 
       const entry: Entry<T> = {
         promise: load().then(
@@ -269,10 +281,14 @@ export function sessionMemo<T>(
 
     clear() {
       entries.clear();
-      hits = 0;
-      misses = 0;
+      counters.hits = 0;
+      counters.misses = 0;
     },
 
-    stats: () => ({ hits, misses, size: entries.size }),
+    stats: () => ({
+      hits: counters.hits,
+      misses: counters.misses,
+      size: entries.size,
+    }),
   };
 }

@@ -458,6 +458,11 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0428: Expose better_supabase.importing() to app SQL.
 - 0500: Check scale practices in doctor from the catalog and the schema files.
 - 0501: Keep the legal entity number key swaps as `do` blocks until the owning modules render the key.
+- 0520: Accept the 0.26 provider fields as optional additions.
+- 0521: Plan the access token hook: reuse a current refresh, slim OAuth tokens.
+- 0522: Cap the Supabase JWKS cache at 600 seconds and expose purgeKeys.
+- 0523: Measure the JWT matrix: hook time is small, memberships claim bytes are not.
+- 0524: Return the caller's permissions from the bootstrap in a versioned, compact form.
 - 0540: Count object levels in `renameBlock`, not wrappers, and cap the depth at 4.
 - 0541: Record what the server layout items measured and why four stay open.
 - 0542: Build a route's server from a named block set, and load the help bot on demand.

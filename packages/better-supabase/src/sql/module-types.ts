@@ -505,6 +505,7 @@ export interface BlockSqlAccessProvider {
   readonly suspension?: {
     readonly user?: DisabledRow;
     readonly tenant?: DisabledRow;
+    readonly userKey?: string;
   };
   /**
    * An adopted `tenant` module on one of these tables reads role names the same
@@ -529,6 +530,8 @@ export interface BlockSqlAccessProvider {
   readonly ownsPermissions?: boolean;
   /** The claim the provider's hook sets when it truncated `permissions`. */
   readonly truncatedClaim?: string;
+  /** The provider hook's `team_ids_truncated` claim name, for the hook plan. */
+  readonly teamIdsTruncatedClaim?: string;
   /** The wildcard grants `permission_matches` honours; unset is `all`. */
   readonly wildcards?: "all" | "prefix" | "none";
 }

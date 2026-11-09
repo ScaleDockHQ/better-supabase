@@ -5,6 +5,7 @@ import type {
   AuthzSubjectSeed,
   AuthzVersionCache,
 } from "../core/authorizer.ts";
+import type { BootstrapPermissions } from "../core/bootstrap-permissions.ts";
 import type { Executor } from "../core/executor.ts";
 import type {
   InferReadSetParams,
@@ -17,6 +18,8 @@ import type { SchemaMeta } from "../schema/types.ts";
 import { sessionCacheKey, snapshotOf } from "../auth/snapshot.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
 import { bindAuthorizer } from "../core/authorizer.ts";
+import { expandBootstrapPermissions } from "../core/bootstrap-permissions.ts";
+import { TEAM_IDS_TRUNCATED_CLAIM } from "../core/claim-names.ts";
 import { claimsOf } from "../core/claims.ts";
 import { DbException, dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
@@ -92,6 +95,20 @@ export interface Bootstrap<
    * `accessFor` seeds it into the authorizer's runtime.
    */
   readonly subject?: unknown;
+  /**
+   * The caller's permissions, when the provider sets
+   * `authorization.functions.bootstrapPermissions`: expanded from either wire
+   * form (`BootstrapPermissionsWire`). Null when the provider returns none, or
+   * a value this version does not understand (another `apiVersion`, a damaged
+   * bitset), so the page falls back to its authorizer.
+   */
+  readonly permissions?: BootstrapPermissions | null;
+  /**
+   * The token's `team_ids` is not the user's whole team list (the hook set
+   * `team_ids_truncated`), so a team check must ask the database. False when
+   * the claim is absent.
+   */
+  readonly teamIdsTruncated?: boolean;
 }
 
 /** One context and its checks, bound to one authorization version. */
@@ -125,6 +142,8 @@ export interface BootstrapRow {
   readonly reads: unknown;
   /** The authorizer subject the wrapper's `subject` function returned. */
   readonly subject: unknown;
+  /** The wrapper's raw `permissions` payload, in either wire form. */
+  readonly permissions?: unknown;
 }
 
 /**
@@ -236,6 +255,7 @@ function bootstrapRow(value: unknown): BootstrapRow {
     data: value["data"] ?? null,
     reads: value["reads"] ?? null,
     subject: value["subject"] ?? null,
+    permissions: value["permissions"] ?? null,
   };
 }
 
@@ -411,6 +431,12 @@ export async function bootstrapWith<C, P, T, S extends ReadSet = ReadSet>(
     // SAFETY: the decoded payload has the read set's result shape.
     reads: reads as ReadSetResult<S> | null,
     subject: row.sessionActive ? row.subject : null,
+    permissions: row.sessionActive
+      ? (expandBootstrapPermissions(row.permissions) ?? null)
+      : null,
+    teamIdsTruncated:
+      ctx.auth.kind === "user" &&
+      ctx.auth.claims[TEAM_IDS_TRUNCATED_CLAIM] === true,
   };
 }
 

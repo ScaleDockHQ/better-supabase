@@ -446,6 +446,23 @@ function restatedDefaults(context: DoctorContext): FindingInput[] {
     });
   }
 
+  const disabled = context.config.blocks.permissions?.disabled;
+
+  if (disabled !== undefined && provider.suspension !== undefined) {
+    for (const key of ["tenant", "user", "userKey"] as const) {
+      if (
+        disabled[key] !== undefined &&
+        provider.suspension[key] !== undefined &&
+        same(disabled[key], provider.suspension[key])
+      ) {
+        findings.push({
+          message: `blocks.permissions.disabled.${key} repeats the suspension.${key} of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
+          target: `blocks.permissions.disabled.${key}`,
+        });
+      }
+    }
+  }
+
   return findings;
 }
 
@@ -455,7 +472,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "info",
     title: "Config value the authorization provider already supplies",
     description:
-      "`blocks.invitations.options.platformRoles`, `blocks.memberships.options.roleThrough` and the memberships `disabledAt` column default to the values the authorization provider declares (`platformRoles`, a role source's `through`, a membership's `disabledAt`). A config value equal to the provider's is a second copy that goes stale when the provider changes. Doctor reports each one; remove it.",
+      "`blocks.invitations.options.platformRoles`, `blocks.memberships.options.roleThrough`, the memberships `disabledAt` column and `blocks.permissions.disabled` (`tenant`, `user`, `userKey`) default to the values the authorization provider declares (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`). A config value equal to the provider's is a second copy that goes stale when the provider changes. Doctor reports each one; remove it.",
     check: restatedDefaults,
   },
   {

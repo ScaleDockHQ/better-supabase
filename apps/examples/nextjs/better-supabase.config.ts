@@ -300,6 +300,10 @@ export default defineConfig({
       options: {
         policies: true,
         authzVersions: true,
+        // The access token hook asks better_supabase.hook_plan(event) how
+        // much to read: nothing for an OAuth client token, and no membership
+        // reads for a refresh whose authz_ver is still current (ADR 0521).
+        hook: { oauth: "slim" },
         bootstrap: {
           islands: {
             function: "public.island_counts",

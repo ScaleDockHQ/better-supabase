@@ -256,3 +256,138 @@ describe("sessions authorization versions", () => {
     expect(sql).not.toContain("user_authz_versions");
   });
 });
+
+describe("sessions hook plan", () => {
+  const withVersions = { authzVersions: true } as const;
+
+  it("renders nothing without the option", () => {
+    expect(sessions({ options: withVersions })).not.toContain("hook_plan");
+  });
+
+  it("reuses a current refresh and slims OAuth client tokens by default for reuse only", () => {
+    const sql = sessions({ options: { ...withVersions, hook: true } });
+
+    expect(sql).toContain(
+      "create or replace function better_supabase.hook_plan",
+    );
+    expect(sql).toContain(
+      "event ->> 'authentication_method' = 'token_refresh'",
+    );
+    expect(sql).toContain(
+      "(v_claims ->> 'authz_ver')::bigint = better_supabase.authz_version(v_user)",
+    );
+    expect(sql).toContain("v_claims ->> 'permissions_truncated'");
+    expect(sql).not.toContain("return 'slim'");
+  });
+
+  it("slims a token with a client_id when oauth is slim", () => {
+    const sql = sessions({
+      options: { ...withVersions, hook: { oauth: "slim" } },
+    });
+
+    expect(sql).toContain("coalesce(v_claims ->> 'client_id', '') <> ''");
+    expect(sql).toContain("return 'slim'");
+  });
+
+  it("drops the reuse branch for refresh 'full' and needs no versions then", () => {
+    const sql = sessions({
+      options: { hook: { refresh: "full", oauth: "slim" } },
+    });
+
+    expect(sql).not.toContain("return 'reuse'");
+    expect(sql).toContain("return 'slim'");
+  });
+
+  it("refuses reuse without a version source", () => {
+    expect(() => sessions({ options: { hook: true } })).toThrow(
+      /needs authorization versions/,
+    );
+  });
+
+  it("reads the provider's version function", () => {
+    const sql = moduleBody("sessions", {
+      modules: { sessions: { options: { hook: true } } },
+      authzVersionsProvider: { name: "acme", function: "acme.user_version" },
+    })!;
+
+    expect(sql).toContain("= acme.user_version(v_user)");
+  });
+
+  it("reads the team claim from the option, then the provider's hook", () => {
+    const own = sessions({
+      options: {
+        ...withVersions,
+        hook: { teamIdsTruncatedClaim: "teams_cut" },
+      },
+    });
+
+    expect(own).toContain("v_claims ->> 'teams_cut'");
+
+    const provided = moduleBody("sessions", {
+      modules: { sessions: { options: { ...withVersions, hook: true } } },
+      accessProvider: {
+        name: "acme",
+        scope: "organization",
+        idType: "uuid",
+        functions: {
+          idsWith: "a.b({permission})",
+          isPlatform: "a.c({permission})",
+        },
+        truncatedClaim: "perms_cut",
+        teamIdsTruncatedClaim: "teams_cut_2",
+      },
+    })!;
+
+    expect(provided).toContain("v_claims ->> 'teams_cut_2'");
+    expect(provided).toContain("v_claims ->> 'perms_cut'");
+  });
+
+  it("checks the option values", () => {
+    expect(() =>
+      sessions({ options: { ...withVersions, hook: { oauth: "nope" } } }),
+    ).toThrow(/hook.oauth must be/);
+    expect(() =>
+      sessions({
+        options: { ...withVersions, hook: { truncatedClaim: "a;b" } },
+      }),
+    ).toThrow(/truncatedClaim/);
+  });
+});
+
+describe("sessions bootstrap permissions", () => {
+  const render = (entry: unknown) =>
+    moduleBody("sessions", {
+      modules: { sessions: { options: { bootstrap: { home: entry } } } },
+      accessProvider: {
+        name: "acme-authz",
+        scope: "organization",
+        idType: "uuid",
+        functions: {
+          idsWith: "acme.ids({permission})",
+          isPlatform: "acme.is({permission})",
+          bootstrapPermissions: "acme.permissions_for({tenant})",
+        },
+      },
+    })!;
+
+  it("returns the provider's permissions for the call's tenant", () => {
+    const sql = render("app.home_data");
+
+    expect(sql).toContain(
+      "'permissions', to_jsonb(acme.permissions_for(nullif(args ->> 'tenant', '')))",
+    );
+    expect(sql).not.toContain("my_permissions");
+  });
+
+  it("leaves them out of an entry that sets permissions: false", () => {
+    expect(
+      render({ function: "app.home_data", permissions: false }),
+    ).not.toContain("'permissions'");
+  });
+
+  it("returns none without the provider's template", () => {
+    expect(
+      sessions({ options: { bootstrap: { home: "app.home_data" } } }),
+    ).not.toContain("'permissions'");
+  });
+});

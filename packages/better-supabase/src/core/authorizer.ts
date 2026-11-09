@@ -541,6 +541,58 @@ export async function checkEach<Ref>(
   return outcomes.map((outcome) => outcome === "granted");
 }
 
+/** One check of `outcomesOfMany`: a permission on a resource, with its purpose. */
+export interface AuthorizationCheck<Ref> {
+  readonly permission: Ref;
+  readonly resource: AuthorizationResource;
+  readonly purpose?: AuthorizationPurpose;
+}
+
+/**
+ * Decides checks of different permissions together: one `evaluations` call for
+ * all of them when the authorizer has it (AuthZEN Access Evaluations takes a
+ * different action per request), one `evaluate` each otherwise. Returns each
+ * outcome name in order, or `undefined` for a check the authorizer failed.
+ * `tools/list` of 300 tools is one call instead of one per permission.
+ */
+export async function outcomesOfMany<Ref>(
+  authorizer: Authorizer<Ref> | undefined,
+  checks: readonly AuthorizationCheck<Ref>[],
+  context: RequestContext | undefined,
+  runtime?: AuthorizerRuntime,
+): Promise<readonly (AuthorizationOutcome["outcome"] | undefined)[]> {
+  if (!authorizer || checks.length === 0) {
+    return checks.map(() => undefined);
+  }
+
+  const requests = checks.map(({ permission, resource, purpose }) => {
+    const { subject, context: requestContext } = requestOf(
+      context,
+      purposeOf(purpose ?? {}),
+    );
+
+    return { subject, action: permission, resource, context: requestContext };
+  });
+
+  try {
+    const outcomes = authorizer.evaluations
+      ? await (runtime
+          ? authorizer.evaluations(requests, runtime)
+          : authorizer.evaluations(requests))
+      : await Promise.all(
+          requests.map((request) => evaluateWith(authorizer, request, runtime)),
+        );
+
+    return requests.map((_, index) => {
+      const outcome = outcomes[index];
+
+      return isOutcome(outcome) ? outcome.outcome : undefined;
+    });
+  } catch {
+    return checks.map(() => undefined);
+  }
+}
+
 /**
  * Like `checkEach`, but returns each decision's outcome name, or `undefined`
  * when the authorizer gave none or failed.

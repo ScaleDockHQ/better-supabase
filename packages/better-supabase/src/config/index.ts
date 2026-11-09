@@ -180,6 +180,7 @@ export type {
 } from "./expose.ts";
 
 export type {
+  AuthorizationFixtureRole,
   AuthorizationFunctions,
   AuthorizationMembership,
   AuthorizationOperation,
@@ -194,7 +195,13 @@ export type {
   AuthorizationVersions,
 } from "./authorization.ts";
 
-export { providerApiProblem } from "./authorization.ts";
+export {
+  PERMISSION_LEVEL_SEPARATOR,
+  permissionLevelKey,
+  providerApiProblem,
+  resolvePersonas,
+  splitPermissionLevel,
+} from "./authorization.ts";
 
 export type {
   AccessBlockConfig,

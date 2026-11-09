@@ -9,7 +9,15 @@ declare
   user_role rbac.app_role;
   active_tenant text := claims -> 'app_metadata' ->> 'tenant_id';
   permission_keys jsonb := '{}'::jsonb;
+  plan text := better_supabase.hook_plan(event);
 begin
+  -- blocks['sessions'].options.hook: an OAuth client token carries none of
+  -- the claims below, and a refresh whose authz_ver is still current keeps
+  -- the claims it already has, so neither reads memberships or permissions.
+  if plan in ('slim', 'reuse') then
+    return event;
+  end if;
+
   select ur.role into user_role
   from rbac.user_roles ur
   where ur.user_id = (event ->> 'user_id')::uuid;

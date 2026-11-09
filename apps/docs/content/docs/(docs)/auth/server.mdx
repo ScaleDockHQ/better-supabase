@@ -64,6 +64,17 @@ JWKS right away, so the first request verifies its token without waiting for
 it. Pass `prefetchJwks: false` to turn that off; it is off under
 `NODE_ENV=test`.
 
+### Key cache
+
+The key set is fetched once per process and used for 300 seconds. A token with
+a `kid` the cached set lacks fetches it again, at most once every 30 seconds,
+so a stream of forged `kid` values can't hammer the issuer. A Supabase Auth key
+set (`/auth/v1/.well-known/jwks.json`) is never kept longer than 600 seconds,
+whatever `cacheSeconds` says, because signing keys rotate. After you revoke a
+signing key, call `purgeKeys(url)` from `better-supabase/server` to forget that
+set (or `purgeKeys()` for every set and imported secret), and the next request
+fetches it again.
+
 ## Env and keys
 
 `createServer` reads its settings from `env`, the first one given wins:
