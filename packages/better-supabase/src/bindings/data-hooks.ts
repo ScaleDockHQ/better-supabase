@@ -53,6 +53,11 @@ export type DataRow<S extends DataSource> = DataOf<S["get"]>;
 /** What `source.list` takes. */
 export type DataListOptions<S extends DataSource> = FirstArg<S["list"]>;
 
+/** The argument of `source.page`. */
+export type DataPageOptions<S extends DataSource> = FirstArg<
+  NonNullable<S["page"]>
+>;
+
 /** The id `source.get`, `update` and `delete` take. */
 export type DataId<S extends DataSource> = FirstArg<S["get"]>;
 
@@ -399,7 +404,7 @@ export function createDataList<S extends DataSource>(
 /** `source.page(args)` through the engine, with the writes. */
 export function createDataPage<S extends DataSource>(
   target: DataTarget<S>,
-  args: DataListOptions<S> | undefined,
+  args: DataPageOptions<S> | undefined,
   options?: DataOfflineOptions,
 ): Controller<DataState<unknown>, DataWrites<S>> {
   const page = verb(target.source, "page");

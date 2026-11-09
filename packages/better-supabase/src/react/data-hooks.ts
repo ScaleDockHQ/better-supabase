@@ -3,6 +3,7 @@ import { useCallback, useContext, useEffect, useState } from "react";
 import type {
   DataId,
   DataListOptions,
+  DataPageOptions,
   DataRow,
   DataRows,
   DataSource,
@@ -142,6 +143,22 @@ function isCursorPayload(value: unknown): value is CursorPayload {
   );
 }
 
+type PageFunction<S extends DataSource> = NonNullable<S["page"]>;
+
+type PageArgs<S extends DataSource> =
+  PageFunction<S> extends (first: infer A, ...rest: never[]) => unknown
+    ? A
+    : never;
+
+type PageItem<S extends DataSource> =
+  PageFunction<S> extends (
+    ...args: never[]
+  ) => PromiseLike<{ readonly ok: true; readonly data: infer D }>
+    ? D extends { readonly items: readonly (infer T)[] }
+      ? T
+      : never
+    : never;
+
 /** One cursor page after another, on `source.page()`. */
 export interface InfiniteList<T> {
   readonly items: readonly T[];
@@ -158,13 +175,11 @@ export interface InfiniteList<T> {
  */
 export const defineInfiniteListHook =
   /*#__NO_SIDE_EFFECTS__*/
-  <D, S extends DataSource, T>(
+  <D, S extends DataSource>(
     name: string,
     select: (db: D) => S,
     table?: object,
-  ): ((
-    args: DataListOptions<S> & { readonly size: number },
-  ) => InfiniteList<T>) =>
+  ): ((args: Omit<PageArgs<S>, "after">) => InfiniteList<PageItem<S>>) =>
     (args) => {
       const client = useClient();
       const target = dataTarget(client, name, select, table);
@@ -172,7 +187,7 @@ export const defineInfiniteListHook =
       const filters = dataArgsKey(args);
       const [seen, setSeen] = useState(filters);
       const [after, setAfter] = useState<string | null>(null);
-      const [items, setItems] = useState<readonly T[]>([]);
+      const [items, setItems] = useState<readonly PageItem<S>[]>([]);
       const [cursor, setCursor] = useState<string | null>(null);
       const [hasMore, setHasMore] = useState(false);
 
@@ -183,7 +198,9 @@ export const defineInfiniteListHook =
         setCursor(null);
       }
 
-      const pageArgs = { ...args, after };
+      // SAFETY: `after` is the cursor argument the page function declares.
+      // Omitting it from the hook's public args and adding it here rebuilds that argument.
+      const pageArgs = { ...args, after } as DataPageOptions<S>;
 
       const { controller, view } = useController(
         () => createDataPage(target, pageArgs, { offline }),
@@ -206,7 +223,7 @@ export const defineInfiniteListHook =
 
         const page = view.data;
         // SAFETY: isCursorPayload checked that items is an array. T is the row the caller named.
-        const next = page.items as readonly T[];
+        const next = page.items as readonly PageItem<S>[];
 
         setItems((current) => (after === null ? next : [...current, ...next]));
         setCursor(page.nextCursor);

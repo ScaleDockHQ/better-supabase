@@ -6,9 +6,7 @@ import { betterSupabase } from "./lib/supabase";
  * One definition for both readers: PostgREST in web loaders, SQLite on the
  * device.
  */
-export const customerList = defineListQuery(betterSupabase, "customers", {
-  // The device list shows a total and pages back, so it keeps page numbers.
-  pagination: "offset",
+const customerQuery = {
   search: ["name", "kvk"],
   facets: { status: "status" },
   sorts: {
@@ -17,6 +15,18 @@ export const customerList = defineListQuery(betterSupabase, "customers", {
   },
   defaultSort: "name",
   pageSize: 25,
+} as const;
+
+/** Web loaders page by number and show a total. */
+export const customerList = defineListQuery(betterSupabase, "customers", {
+  ...customerQuery,
+  pagination: "offset",
+});
+
+/** The device list continues after the last row, so a later page stays cheap. */
+export const customerCursor = defineListQuery(betterSupabase, "customers", {
+  ...customerQuery,
+  pagination: "cursor",
 });
 
 export const customerColumns = ["id", "name", "status"] as const;

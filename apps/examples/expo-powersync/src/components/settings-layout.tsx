@@ -1,11 +1,11 @@
 // #region recipe:settings-layout
 import type { SettingEntries } from "better-supabase/blocks/settings";
 
+import { FlashList } from "@shopify/flash-list";
 import { tenantOf, useAuth } from "better-supabase/react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Switch,
   Text,
   TextInput,
@@ -145,13 +145,28 @@ export function SettingsLayout() {
     schema: API_SCHEMA,
   });
 
+  const sections = organizationId
+    ? (["user", "organization"] as const)
+    : (["user"] as const);
+
   return (
-    <ScrollView contentContainerStyle={{ gap: 24, padding: 16 }}>
-      <SettingsSection title="Your preferences" state={user} />
-      {organizationId ? (
-        <SettingsSection title="Organization defaults" state={organization} />
-      ) : null}
-    </ScrollView>
+    <FlashList
+      data={sections}
+      keyExtractor={(item) => item}
+      contentContainerStyle={{ padding: 16 }}
+      ItemSeparatorComponent={SettingsGap}
+      renderItem={({ item }) =>
+        item === "user" ? (
+          <SettingsSection title="Your preferences" state={user} />
+        ) : (
+          <SettingsSection title="Organization defaults" state={organization} />
+        )
+      }
+    />
   );
+}
+
+function SettingsGap() {
+  return <View style={{ height: 24 }} />;
 }
 // #endregion recipe:settings-layout
