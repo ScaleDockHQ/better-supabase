@@ -35,17 +35,21 @@ guide. Each change is also in the
 3. Run the codemods, in this order, and commit after each one:
 
    ```bash
+   better-supabase codemod naming
    better-supabase codemod owned-columns
    better-supabase codemod extra-columns
    better-supabase codemod config
    better-supabase codemod generators
-   better-supabase codemod naming
    better-supabase codemod server-imports
    better-supabase codemod table-modules
    ```
 
-   `codemod owned-columns` and `codemod extra-columns` come first because they
-   read options and columns that this release stops accepting.
+   `codemod naming` comes first because it rewrites text, so it runs when the
+   config no longer loads. It renames the config keys this release renamed, and
+   the codemods after it read the config: `owned-columns`, `extra-columns` and
+   `config` stop with `config_invalid` when it still does not load. They come
+   before `generators` because they read options and columns that this release
+   stops accepting.
 
 4. Move the `organization` key to `auth.tenant` by hand (see
    [Config keys](#config-keys)).

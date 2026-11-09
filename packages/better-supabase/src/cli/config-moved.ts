@@ -112,7 +112,7 @@ function specOutputIssues(prefix: string, block: unknown): string[] {
     ? outputs.flatMap((entry: unknown, index: number) =>
         isRecord(entry) && "output" in entry
           ? [
-              `${prefix}api.specs.outputs.${String(index)}.output: renamed to \`file\` in 0.54; rename the key`,
+              `${prefix}api.specs.outputs.${String(index)}.output: renamed to \`file\` in 0.58; rename the key`,
             ]
           : [],
       )
@@ -124,7 +124,7 @@ function renamedInputIssues(prefix: string, block: unknown): string[] {
   return [
     ...RENAMED_INPUT_KEYS.filter(([path]) => hasPath(block, path)).map(
       ([path, to]) =>
-        `${prefix}${path}: renamed to \`${to}\` in 0.54; rename the key, or run \`better-supabase codemod naming\``,
+        `${prefix}${path}: renamed to \`${to}\` in 0.58; rename the key, or run \`better-supabase codemod naming\``,
     ),
     ...specOutputIssues(prefix, block),
   ];
