@@ -131,3 +131,70 @@ export function namingColumns(
 
   return own.length > 0 ? own : columns;
 }
+
+/**
+ * A composite key that starts with the same column as a single-column key to
+ * the same table names one relation. The composite is an alias of that join.
+ */
+function keysShareRelationName(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  const [short, long] =
+    left.length <= right.length ? [left, right] : [right, left];
+
+  return (
+    short.length === 1 &&
+    short[0] !== undefined &&
+    long[0] === short[0] &&
+    long.length > 1
+  );
+}
+
+/** Drops a composite relation that shares its first column with a shorter one. */
+export function collapseCompositeAliases(
+  list: readonly RelationModel[],
+): RelationModel[] {
+  const drop = new Set<number>();
+  const aliases = new Map<number, string[]>();
+
+  for (let left = 0; left < list.length; left += 1) {
+    for (let right = left + 1; right < list.length; right += 1) {
+      const a = list[left];
+      const b = list[right];
+
+      if (
+        a === undefined ||
+        b === undefined ||
+        a.meta.table !== b.meta.table ||
+        a.meta.direction !== b.meta.direction ||
+        !keysShareRelationName(a.fkColumns, b.fkColumns)
+      ) {
+        continue;
+      }
+
+      const short = a.fkColumns.length === 1 ? left : right;
+      const long = short === left ? right : left;
+      const dropped = list[long];
+
+      drop.add(long);
+
+      if (dropped !== undefined) {
+        const names = aliases.get(short) ?? [];
+
+        names.push(dropped.meta.foreignKey);
+        aliases.set(short, names);
+      }
+    }
+  }
+
+  return list.flatMap((relation, index) => {
+    if (drop.has(index)) {
+      return [];
+    }
+
+    const extra = aliases.get(index);
+
+    return extra === undefined ? [relation] : [{ ...relation, aliases: extra }];
+  });
+}

@@ -653,6 +653,41 @@ const DESIGN_RULES: readonly Rule[] = [
       );
     },
   },
+  {
+    code: "BS630",
+    severity: "warning",
+    title: "Foreign keys to one table need two relation names",
+    description:
+      "Two foreign keys to the same table whose first columns differ become two relations, with a suffix so the names stay unique. A composite key that starts with the same column as a single-column key to that table is an alias of the single-column relation and is not reported.",
+    check: (context) =>
+      exposed(context).flatMap((table): FindingInput[] => {
+        const groups = new Map<string, CatalogForeignKey[]>();
+
+        for (const key of table.foreignKeys) {
+          const id = `${key.refSchema}.${key.refTable}`;
+          const list = groups.get(id) ?? [];
+
+          list.push(key);
+          groups.set(id, list);
+        }
+
+        return [...groups.values()].flatMap((keys) => {
+          const firsts = new Set(keys.map((key) => key.columns[0]));
+
+          if (keys.length < 2 || firsts.size < 2) {
+            return [];
+          }
+
+          return [
+            {
+              message: `${qualified(table)} has ${keys.map((key) => key.name).join(" and ")} to the same table, so the generated relations get a suffix. Rename one in gen.tables, or start a composite key with the single-column key's column to keep one name.`,
+              target: qualified(table),
+              object: tableObject(table),
+            },
+          ];
+        });
+      }),
+  },
 ];
 
 export const SCHEMA_DESIGN_RULES: readonly Rule[] = [

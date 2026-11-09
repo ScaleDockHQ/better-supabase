@@ -2635,6 +2635,14 @@ every entity in `blocks.imports.options.targets`. A regenerated migration that
 replaces the whole function from an older body drops targets the schema still
 calls. Sync the migration with the schema file.
 
+### BS630
+
+**Warning: foreign keys to one table need two relation names.** Two foreign
+keys to the same table whose first columns differ become two relations, with a
+suffix so the names stay unique. A composite key that starts with the same
+column as a single-column key to that table is an alias of that relation.
+Rename one relation in `gen.tables`, or share the first column.
+
 ### BS612
 
 **Info: the proxy re-syncs session cookies with `setAll`.** Since 0.40 the library's own cookie handling in `bsb.proxy` writes them. Remove the callback.

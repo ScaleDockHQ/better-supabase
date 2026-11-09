@@ -38,7 +38,11 @@ import { restrictSchemas, tsTypeOf } from "../introspect/typegen.ts";
 import { bootstrapTables } from "./bootstrap-tables.ts";
 import { commentMeta } from "./comment.ts";
 import { buildFunctions } from "./model-functions.ts";
-import { buildRelations, namingColumns } from "./model-relations.ts";
+import {
+  buildRelations,
+  collapseCompositeAliases,
+  namingColumns,
+} from "./model-relations.ts";
 import {
   APP_COLUMN_UDT,
   CODEC_TYPE,
@@ -1138,16 +1142,19 @@ export function generatorModel(
 
 /**
  * Makes relation names unique per table and distinct from column names: two FKs
- * to the same table become `customersByPrimaryContact`-style names. When those
- * still collide, the names use every column of the key
- * (`locationsByCustomerOrganization`), then the constraint name, and only then
- * a trailing `_`.
+ * to the same table become `customersByPrimaryContact`-style names. A composite
+ * key that shares its first column with a single-column key to the same table
+ * is an alias of that relation, not a second name. When names still collide,
+ * they use every column of the key, then the constraint name, and only then a
+ * trailing `_`.
  */
 function dedupeRelations(
   list: readonly RelationModel[],
   columns: ReadonlySet<string>,
   casing: Casing,
 ): RelationModel[] {
+  const collapsed = collapseCompositeAliases(list);
+
   const suffixed = (relation: RelationModel, suffix: string): string =>
     applyCasing(`${relation.base}_by_${suffix}`, casing);
 
@@ -1170,7 +1177,7 @@ function dedupeRelations(
     return twice;
   };
 
-  const plain = repeated(list.map((relation) => relation.name));
+  const plain = repeated(collapsed.map((relation) => relation.name));
 
   const steps = [
     (relation: RelationModel) => suffixed(relation, keyColumns(relation, true)),
@@ -1181,13 +1188,13 @@ function dedupeRelations(
     (current, step) => {
       const clash = repeated(current);
 
-      return list.map((relation, index) => {
+      return collapsed.map((relation, index) => {
         const name = current[index] ?? relation.name;
 
         return clash.has(name) || columns.has(name) ? step(relation) : name;
       });
     },
-    list.map((relation) =>
+    collapsed.map((relation) =>
       plain.has(relation.name) || columns.has(relation.name)
         ? suffixed(relation, keyColumns(relation, false))
         : relation.name,
@@ -1196,7 +1203,7 @@ function dedupeRelations(
 
   const used = new Set<string>();
 
-  return list.map((relation, index) => {
+  return collapsed.map((relation, index) => {
     let name = names[index] ?? relation.name;
 
     while (used.has(name) || columns.has(name)) {
