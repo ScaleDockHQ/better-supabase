@@ -80,6 +80,7 @@ const NAMES: BlockSqlNames = {
         mapping: "mapping",
         counts: "counts",
         errors: "errors",
+        diff: "diff",
         dryRun: "dry_run",
         full: "full",
         inputChecksum: "input_checksum",
@@ -203,6 +204,7 @@ function build(ctx: BlockSqlContext): string {
   ${r("createdAt")} timestamptz not null default now()
 );
 alter table ${runs} add column if not exists ${r("dryRun")} boolean not null default false;
+alter table ${runs} add column if not exists ${r("diff")} jsonb not null default '[]'::jsonb;
 alter table ${runs} add column if not exists ${r("full")} boolean not null default false;
 alter table ${runs} add column if not exists ${r("inputChecksum")} text;
 alter table ${runs} add column if not exists ${r("correlationId")} text;
@@ -349,7 +351,10 @@ ${writeArms}
       ${["inserted", "updated", "unchanged", "conflicted"].map(bumped).join(",\n      ")},
       'missing', coalesce((r.${r("counts")} -> v_entity ->> 'missing')::integer, 0)
     )),
-    ${r("errors")} = r.${r("errors")} || coalesce(v_result -> 'errors', '[]'::jsonb)
+    ${r("errors")} = r.${r("errors")} || coalesce(v_result -> 'errors', '[]'::jsonb),
+    ${r("diff")} = (select coalesce(jsonb_agg(d.value), '[]'::jsonb) from (
+      select value from jsonb_array_elements(r.${r("diff")} || coalesce(v_result -> 'diff', '[]'::jsonb)) value limit 100
+    ) d)
   where r.${r("id")} = v_run_id;`;
 
   return `${schemaPreamble(ctx)}
@@ -571,6 +576,7 @@ declare
   v_data jsonb;
   v_hash text;
   v_source_at timestamptz;
+  v_diff jsonb := '[]'::jsonb;
   v_rec ${records};
   v_other text;
   v_found boolean;
@@ -635,8 +641,6 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
         and x.${x("entity")} = v_entity and x.${x("externalKey")} = v_key and x.${x("role")} = 'primary';
       v_found := found;
       v_source_at := nullif(v_item ->> 'sourceUpdatedAt', '')::timestamptz;
-      -- A source time that is not newer than the stored one skips the row
-      -- before the content is hashed.
       if v_found and v_source_at is not null and v_rec.${x("sourceUpdatedAt")} is not null and v_source_at <= v_rec.${x("sourceUpdatedAt")} then
         v_unchanged := v_unchanged + 1;
         v_done := true;
@@ -719,6 +723,11 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
         perform ${ctx.fn("import_clear_issues")}(v_run_id, v_entity, v_key);
       end if;
 
+      if not v_done and v_run.${r("dryRun")} and jsonb_typeof(v_item -> 'previous') = 'object' and jsonb_array_length(v_diff) < 20 then
+        v_diff := v_diff || jsonb_build_array(jsonb_build_object('entity', v_entity, 'key', v_key, 'fields', (
+          select coalesce(jsonb_agg(jsonb_build_object('field', k, 'old', v_item -> 'previous' -> k, 'new', v_data -> k)), '[]'::jsonb)
+          from jsonb_object_keys(v_data) k where (v_data -> k) is distinct from (v_item -> 'previous' -> k))));
+      end if;
       if not v_done then
         v_subject_id := case when v_found then v_rec.${x("subjectId")} else null end;
         v_call := v_item || jsonb_build_object('tenant', v_run.${r("tenant")}, 'scope', v_scope);
@@ -736,7 +745,7 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
 
   perform ${ctx.fn("import_note_warnings")}(v_run_id, v_entity, v_warnings);
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors, 'diff', v_diff) || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 ${serviceGrant(`${ctx.fn("import_apply_batch")}(uuid, text, jsonb)`)}

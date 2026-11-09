@@ -24,6 +24,11 @@ export function importContract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
+      name: "list_import_diff",
+      args: ["uuid", "text", "integer", "integer"],
+      returns: "jsonb",
+    },
+    {
       name: "resolve_import_conflict",
       args: ["{id}", "text", "text", "text", "text"],
       returns: "jsonb",

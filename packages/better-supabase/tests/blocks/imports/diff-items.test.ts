@@ -40,6 +40,18 @@ describe("diffItems", () => {
   });
 });
 
+describe("dry run diff", () => {
+  it("keeps field diffs and reads them back without the subject writes", () => {
+    const sql = renderBlocks(["imports"])
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain("list_import_diff");
+    expect(sql).toContain("v_item -> 'previous'");
+    expect(sql).toContain("raise exception 'dry run'");
+  });
+});
+
 describe("source updated at", () => {
   it("skips a row before hashing when the source time is not newer", () => {
     const sql = renderBlocks(["imports"])

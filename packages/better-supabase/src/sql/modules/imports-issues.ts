@@ -151,6 +151,38 @@ end;
 $$;
 ${userGrant(`${fn("list_import_issues")}(uuid, text, integer, integer)`)}
 
+-- Counts and the first changed fields of a dry run. The dry run itself writes
+-- no subject rows; the diff is what the batch returned.
+create or replace function ${fn("list_import_diff")}(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_counts jsonb;
+  v_diff jsonb;
+  v_rows jsonb;
+begin
+  select r.${r("counts")}, r.${r("diff")} into v_counts, v_diff from ${runs} r where r.${r("id")} = list_import_diff.run;
+  if v_counts is null then
+    ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
+  end if;
+  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (
+    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value
+    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity
+    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)
+    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)
+  ) d;
+  return jsonb_build_object(
+    'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,
+    'rows', v_rows
+  );
+end;
+$$;
+${userGrant(`${fn("list_import_diff")}(uuid, text, integer, integer)`)}
+
 create or replace function ${fn("resolve_import_conflict")}(tenant ${ctx.idType}, source text, entity text, key text, action text)
 returns jsonb
 language plpgsql
