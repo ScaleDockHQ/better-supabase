@@ -457,6 +457,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0427: Scale baseline and the measure-first verdicts.
 - 0428: Expose better_supabase.importing() to app SQL.
 - 0429: Default import titles come from a template option.
+- 0430: Re-issue a taken number when the item asks.
 
 ## Pre-release pins
 

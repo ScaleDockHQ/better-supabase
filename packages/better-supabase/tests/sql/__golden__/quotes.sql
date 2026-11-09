@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:d49c6b22ca3520f3f21891b8a80b9a3ab555e4f8229f4af9c40026320ea1e208
+-- @bsb-hash sha256:8a566e161c08fda883ae3671a86818cff1adb4eec10e7a9b4a48cfcde756545c
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1375,9 +1375,18 @@ begin
   if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
     raise exception 'a quote needs at least one line' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and exists (select 1 from "better_supabase"."quotes" y where y."tenant_id" = v_tenant and y."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+  if v_number is not null then
+    perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  end if;
   v_made := "better_supabase"."create_quote"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', v_number)),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', coalesce(v_number, ''))),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',
@@ -1568,7 +1577,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:5afa3853cbe5000b6c2e7870f213840bbd2459ca2b14bb213917269e9d4a7d86
+-- @bsb-hash sha256:aa965addb73dcb35e5e8ac01c588b1c990f00f44a7a126ae15e75196dc5ec163
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3050,9 +3059,18 @@ begin
   if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
     raise exception 'a quote needs at least one line' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and exists (select 1 from "better_supabase"."quotes" y where y."tenant_id" = v_tenant and y."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+  if v_number is not null then
+    perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  end if;
   v_made := "better_supabase"."create_quote"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', v_number)),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', coalesce(v_number, ''))),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',
@@ -3250,7 +3268,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:9d9cdc7520418f7804c1b2f384ac3f45cab35e87ce123524f4f14385731bf419
+-- @bsb-hash sha256:59c78f69a3eb0e67e2fa845a332f093ee671c4d017b32ef8de4aa5f544eda5ea
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4629,9 +4647,18 @@ begin
   if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
     raise exception 'a quote needs at least one line' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and exists (select 1 from "app_private"."quotes" y where y."tenant_id" = v_tenant and y."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+  if v_number is not null then
+    perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  end if;
   v_made := "app_private"."create_quote"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', v_number)),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', coalesce(v_number, ''))),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',
@@ -4822,7 +4849,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:8bf099829eff5a4f73b302d99c7ed65ca170bf27d8b16841c35dbc519deb42a2
+-- @bsb-hash sha256:bf07d58fbdde68ee43c436854dd3553b93ddb6d87069ccf5ad472b6937f0056f
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6196,9 +6223,18 @@ begin
   if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
     raise exception 'a quote needs at least one line' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and exists (select 1 from "better_supabase"."quotes" y where y."tenant_id" = v_tenant and y."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+  if v_number is not null then
+    perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  end if;
   v_made := "better_supabase"."create_quote"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', v_number)),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', coalesce(v_number, ''))),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',
@@ -6585,7 +6621,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:bae2fee8fdef2206a335844cc391e0150a4d7ce14bcae0be8921782bb4cda405
+-- @bsb-hash sha256:98f12133375d136303a177e04958d7d281e669a452fc06f81b8c33db918ec25d
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7957,9 +7993,18 @@ begin
   if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
     raise exception 'a quote needs at least one line' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and exists (select 1 from "better_supabase"."quotes" y where y."tenant_id" = v_tenant and y."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+  if v_number is not null then
+    perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  end if;
   v_made := "better_supabase"."create_quote"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', v_number)),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', coalesce(v_number, ''))),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',
@@ -8150,7 +8195,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:2cc0c5782da77171bfc7a35b1bbacfb844f443d66a4603837b18ade7512c4802
+-- @bsb-hash sha256:b4a870cb182f544c930289e99452183c5eea6b1fd65d4d254acec310f2049a2d
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9524,9 +9569,18 @@ begin
   if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
     raise exception 'a quote needs at least one line' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and exists (select 1 from "better_supabase"."quotes" y where y."org_id" = v_tenant and y."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+  if v_number is not null then
+    perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  end if;
   v_made := "better_supabase"."create_quote"(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', v_number)),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace('Quote {number}', '{number}', coalesce(v_number, ''))),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',

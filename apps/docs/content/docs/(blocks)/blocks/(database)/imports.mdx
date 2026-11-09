@@ -183,6 +183,11 @@ second identical run adds none. The row audit triggers carry the check in their
 `when` clause, so `audit_row_change` does not start for a row of a `summary`
 import.
 
+A quote or invoice whose number is already taken fails by default. Put
+`onTaken: "next_free"` in the item's `data` and the import issues the next free
+number instead and reports `IMPORT_NUMBER_REASSIGNED` as a warning; an unknown
+value is `IMPORT_ITEM_INVALID`.
+
 A state machine accepts any declared status on insert in import mode. It
 writes one history row from no status to the inserted status with the reason
 `imported`, and no `status.changed` event.

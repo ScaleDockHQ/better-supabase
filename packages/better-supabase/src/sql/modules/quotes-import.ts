@@ -131,9 +131,18 @@ begin
   if jsonb_typeof(v_data -> 'lines') is distinct from 'array' or jsonb_array_length(v_data -> 'lines') = 0 then
     ${fail("IMPORT_ITEM_INVALID", "a quote needs at least one line", "22023")}
   end if;
-  perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    ${fail("IMPORT_ITEM_INVALID", "onTaken is fail or next_free", "22023")}
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and exists (select 1 from ${t("quotes")} y where y.${q("tenant")} = v_tenant and y.${q("identifier")} = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+  if v_number is not null then
+    perform set_config('better_supabase.fixed_number', 'quote' || chr(31) || v_number, true);
+  end if;
   v_made := ${fn("create_quote")}(v_tenant, coalesce(v_data -> 'attrs', '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-    'title', coalesce(nullif(v_data ->> 'title', ''), replace(${sqlString(ctx.text("titleTemplate", "Quote {number}"))}, '{number}', v_number)),
+    'title', coalesce(nullif(v_data ->> 'title', ''), replace(${sqlString(ctx.text("titleTemplate", "Quote {number}"))}, '{number}', coalesce(v_number, ''))),
     'currency', v_data -> 'currency',
     'validUntil', v_data -> 'validUntil',
     'terms', v_data -> 'terms',

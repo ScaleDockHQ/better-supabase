@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b2529e5309ddd28a6bb931b27f1925fb37ec614e0bc7627a88b4991d69f42039
+-- @bsb-hash sha256:891581b273bdfb45d0db0075c2690a4befd40323baf5c480fba03d8d6f0508bb
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3253,6 +3253,14 @@ begin
     raise exception 'an issued document needs its issue date' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and v_number is not null and exists (select 1 from "better_supabase"."invoices" x where x."tenant_id" = v_tenant and x."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
@@ -3639,7 +3647,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:af0783df2807e2f5ea306fab9d1b1f4be75a64e265025ab0c1cac89dc3311648
+-- @bsb-hash sha256:1d95523e63d5b194dcb6d1f5acea0197b641df52c7c2ad2099b60e73ae1d3678
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7634,6 +7642,14 @@ begin
     raise exception 'an issued document needs its issue date' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and v_number is not null and exists (select 1 from "better_supabase"."invoices" x where x."tenant_id" = v_tenant and x."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
@@ -8263,7 +8279,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:ab5ae033fa3cd25578c2ea4a26fcf7e2190116bac5365f584a5f6154fabe2a2a
+-- @bsb-hash sha256:5e9b56916c007a766a3822ce942eac504e440fcd98e0d1930b24f5d9f07d93e9
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11520,6 +11536,14 @@ begin
     raise exception 'an issued document needs its issue date' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and v_number is not null and exists (select 1 from "app_private"."invoices" x where x."tenant_id" = v_tenant and x."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
@@ -11906,7 +11930,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:eb4e8eb395dcdc462a2cc88a0ceef31f1b39bb803ee7cd5a35a2e6fc99b9f2c5
+-- @bsb-hash sha256:92c86a092286e2fe9c1e032165d22488143c29f02efe27b7ac70e07460114c3a
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15158,6 +15182,14 @@ begin
     raise exception 'an issued document needs its issue date' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and v_number is not null and exists (select 1 from "better_supabase"."invoices" x where x."tenant_id" = v_tenant and x."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
@@ -16007,7 +16039,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:659baf7ad4a09d778cbb0f06fb722c7fda07a8f581a28d329d22b0d6c0773e9e
+-- @bsb-hash sha256:58fc665aca2d21bdab5ee5ec30d2e7dbcf256e46688423a333fab72be3ae6358
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19226,6 +19258,14 @@ begin
     raise exception 'an issued document needs its issue date' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
 
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and v_number is not null and exists (select 1 from "better_supabase"."invoices" x where x."tenant_id" = v_tenant and x."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
+  end if;
+
   if v_credit then
     v_original := coalesce(
       nullif(v_data ->> 'originalId', '')::uuid,
@@ -19612,7 +19652,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:8f49d14c0fb2abdd457d9c3a2c099c1225c3f1ee964eac1b22ee0012ab441f41
+-- @bsb-hash sha256:50c5414a0d73905d95c45ad7d3e5d15afc21ae78f1033a287264307552623eea
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22862,6 +22902,14 @@ begin
   end;
   if v_status <> 'draft' and v_issued_on is null then
     raise exception 'an issued document needs its issue date' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+
+  if coalesce(v_data ->> 'onTaken', 'fail') not in ('fail', 'next_free') then
+    raise exception 'onTaken is fail or next_free' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_data ->> 'onTaken' = 'next_free' and v_number is not null and exists (select 1 from "better_supabase"."invoices" x where x."org_id" = v_tenant and x."identifier" = v_number) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_NUMBER_REASSIGNED', 'message', 'number ' || v_number || ' was taken; the next free number was issued'));
+    v_number := null;
   end if;
 
   if v_credit then
