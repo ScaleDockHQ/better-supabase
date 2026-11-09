@@ -1,9 +1,14 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { fail, serviceGrant } from "../shared.ts";
 
-/** Lease heartbeats and on-demand reference rows for an import. */
-export function importLifecycleSql(ctx: BlockSqlContext): string {
+/** Lease heartbeats, reference rows and the entity list an override can call. */
+export function importLifecycleSql(
+  ctx: BlockSqlContext,
+  entities: readonly string[],
+): string {
+  const listed = entities.map((entity) => sqlString(entity)).join(", ");
   const fn = (name: string): string => ctx.fn(name);
   const runs = ctx.table("runs");
   const r = (column: string): string => ctx.col("runs", column);
@@ -69,5 +74,14 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("import_ensure_ref")}(${ctx.idType}, text, text, jsonb)`)}
+
+create or replace function ${fn("import_entities")}()
+returns text[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select array[${listed === "" ? "" : listed}]::text[] $$;
+${serviceGrant(`${fn("import_entities")}()`)}
 `;
 }

@@ -2626,6 +2626,15 @@ this release renamed. `codemod naming` rewrites the audit lists. Update a JSON
 key a block function used to return. `organization_id` in your own JSON is
 left alone, and files `upgrade` rewrites are skipped.
 
+### BS629
+
+**Warning: a migration drops import dispatch arms.** The newest migration that
+defines a function must contain every `when '<entity>' then` arm the schema
+file contains. An `import_apply_batch` in a schema file must also dispatch
+every entity in `blocks.imports.options.targets`. A regenerated migration that
+replaces the whole function from an older body drops targets the schema still
+calls. Sync the migration with the schema file.
+
 ### BS612
 
 **Info: the proxy re-syncs session cookies with `setAll`.** Since 0.40 the library's own cookie handling in `bsb.proxy` writes them. Remove the callback.

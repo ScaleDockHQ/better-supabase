@@ -969,7 +969,10 @@ begin
 end;
 $$;
 ${serviceGrant(`${ctx.fn("finish_import_run")}(uuid)`)}
-${importLifecycleSql(ctx)}
+${importLifecycleSql(
+  ctx,
+  targets.map((target) => target.entity),
+)}
 
 -- Queues one job per chunk of an entity's items, so a worker writes a large
 -- import in batches; the dedupe key makes a retry harmless.
@@ -1044,6 +1047,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "text", "jsonb"],
       returns: "jsonb",
     },
+    { name: "import_entities", args: [], returns: "text[]" },
     {
       name: "enqueue_import_chunks",
       args: ["uuid", "text", "integer"],

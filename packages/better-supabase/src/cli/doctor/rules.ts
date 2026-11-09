@@ -37,6 +37,7 @@ import { BLOCK_WRITE_RULES } from "./block-writes.ts";
 import { CLAIM_RULES } from "./claims.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
+import { DISPATCH_REGRESSION_RULES } from "./dispatch-regression.ts";
 import { ENV_RULES } from "./env.ts";
 import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
@@ -1115,6 +1116,7 @@ export const RULES: readonly Rule[] = [
   ...FLAG_RULES,
   ...REALTIME_RULES,
   ...ADOPTION_RULES,
+  ...DISPATCH_REGRESSION_RULES,
   ...BLOCK_WRITE_RULES,
   ...PLAIN_SECRET_RULES,
   ...MIGRATION_SAFETY_RULES,

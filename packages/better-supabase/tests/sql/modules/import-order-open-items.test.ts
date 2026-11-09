@@ -15,6 +15,7 @@ describe("import order and open items today", () => {
     expect(sql).toContain("e.value #>> '{data,readAt}'");
     expect(sql).toContain("heartbeat_import_run");
     expect(sql).toContain("import_ensure_ref");
+    expect(sql).toContain("import_entities");
     expect(sql).toContain("IMPORT_REF_CREATED");
     expect(sql).toContain("'incomplete'");
   });
