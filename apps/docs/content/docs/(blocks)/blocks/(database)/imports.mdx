@@ -3,7 +3,7 @@ title: Imports
 description: Import runs with an external record map. A rerun inserts new keys, skips unchanged ones, updates changed ones and leaves user edits alone, and CSV files get a suggested mapping and a dry run.
 ---
 
-`imports` is the counterpart of the data-lifecycle exporter. `parseCsv` reads RFC 4180 CSV (`SPEC_PINS.rfc4180`). `defineImport` names the source, a Standard Schema for one row, a row key and an `insert` function. `suggestMapping` pairs headers to fields. `dryRun` validates every row and returns errors without writing. `runImport` records the run, skips keys that already imported, inserts the rest in batches of 100 and finishes with `import.completed` or `import.failed`.
+`imports` is the counterpart of the data-lifecycle exporter. `parseCsv` reads RFC 4180 CSV (`SPEC_PINS.rfc4180`). `defineImport` names the source, a Standard Schema for one row, a row key and an `insert` function. `suggestMapping` pairs headers to fields. `dryRun` validates every row and returns errors without writing. `runImport` records the run, skips keys that already imported, inserts the rest in batches of 100 and finishes with `import.completed` or `import.failed`. Pass `accessToken` to read a token before every batch; an auth failure is retried once. A dropped batch returns `resumeFrom`, and passing that as `resume` continues the same run from that chunk.
 
 ```bash
 better-supabase add imports
