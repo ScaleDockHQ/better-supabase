@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:842ec2287197061dd64b5f684750d4f2cd9108dbc4112cb986e76844a037e0cf
+-- @bsb-hash sha256:f559e09fdc0fc01af839d0849029dc73350cc207c392ebe52533af7b1833adff
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2565,7 +2565,7 @@ grant execute on function "better_supabase"."list_e_invoice_deliveries"(uuid, te
 
 create table "better_supabase"."invoice_open_items" (
   "tenant_id" uuid not null,
-  "party_id" text not null,
+  "party_id" text,
   "side" text not null constraint bsb_invoice_open_items_side_check check ("side" in ('customer', 'supplier')),
   "document_type" text not null default 'invoice',
   "document_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
@@ -2598,7 +2598,7 @@ begin
   v_balance := (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total" - new."paid_total");
   delete from "better_supabase"."invoice_open_items" x
   where x."document_id" = new."id" and x."document_type" = 'invoice';
-  if new."status"::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new."issued_on" <= current_date and coalesce(new."company_id"::text, new."contact_id"::text) is not null then
+  if new."status"::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new."issued_on" <= current_date then
     insert into "better_supabase"."invoice_open_items" ("tenant_id", "party_id", "side", "document_type", "document_id", "currency", "due_on", "issued_on", "gross", "balance")
     values (new."tenant_id", coalesce(new."company_id"::text, new."contact_id"::text), case when new."direction" = 'purchase' then 'supplier' else 'customer' end, 'invoice', new."id", new."currency"::text,
       new."due_on", new."issued_on", (new."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = new."id"), 0) - new."credited_total")::bigint, v_balance);
@@ -2637,8 +2637,7 @@ begin
     and x."kind" = 'invoice'
     and x."status"::text in ('issued', 'partially_paid', 'paid')
     and x."issued_on" <= current_date
-    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0
-    and coalesce(x."company_id"::text, x."contact_id"::text) is not null;
+    and (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <> 0;
   get diagnostics v_count = row_count;
   return v_count;
 end;

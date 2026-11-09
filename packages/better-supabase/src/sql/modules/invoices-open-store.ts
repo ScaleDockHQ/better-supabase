@@ -63,7 +63,7 @@ export function openItemsStoreSql(
   return `
 create table if not exists ${table} (
   ${o("tenant")} ${ctx.idType} not null,
-  ${o("party")} text not null,
+  ${o("party")} text,
   ${o("side")} text not null check (${o("side")} in ('customer', 'supplier')),
   ${o("documentType")} text not null default 'invoice',
   ${o("document")} uuid not null references ${store.invoices} (${i("id")}) on delete cascade,
@@ -100,7 +100,7 @@ begin
   v_balance := ${balanceOf(store, "new")};
   delete from ${table} x
   where x.${o("document")} = new.${i("id")} and x.${o("documentType")} = 'invoice';
-  if new.${i("status")}::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new.${i("issuedOn")} <= current_date and ${store.partyOf("new")} is not null then
+  if new.${i("status")}::text in ('issued', 'partially_paid', 'paid') and v_balance <> 0 and new.${i("issuedOn")} <= current_date then
     insert into ${table} (${o("tenant")}, ${o("party")}, ${o("side")}, ${o("documentType")}, ${o("document")}, ${o("currency")}, ${o("dueOn")}, ${o("issuedOn")}, ${o("gross")}, ${o("balance")})
     values (new.${i("tenant")}, ${store.partyOf("new")}, ${store.sideOf("new")}, 'invoice', new.${i("id")}, new.${i("currency")}::text,
       new.${i("dueOn")}, new.${i("issuedOn")}, (new.${i("total")} + ${store.charged("new")} - new.${i("creditedTotal")})::bigint, v_balance);
@@ -138,8 +138,7 @@ begin
     and ${store.invoiceKind("x")}
     and x.${i("status")}::text in ('issued', 'partially_paid', 'paid')
     and x.${i("issuedOn")} <= current_date
-    and ${balance} <> 0
-    and ${store.partyOf("x")} is not null;
+    and ${balance} <> 0;
   get diagnostics v_count = row_count;
   return v_count;
 end;
