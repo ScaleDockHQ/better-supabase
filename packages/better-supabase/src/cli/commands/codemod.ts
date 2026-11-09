@@ -2,11 +2,13 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, join, relative, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
+import type { TenantColumnSkip } from "../codemod-naming-pins.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { FilePlan, PlannedFile } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 
+import { SQL_MODULES } from "../../sql/index.ts";
 import { applyCodemod, CODEMODS } from "../codemod.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
@@ -136,27 +138,85 @@ async function projectSql(root: string): Promise<string> {
 }
 
 /**
- * The tenant column names the config sets: `sql.tenantColumn` and
- * `columns.*.tenant`.
+ * The tenant columns the config sets. `sql.tenantColumn` skips that name on
+ * every table. A `columns.<table>.tenant` entry skips it only on that table.
  */
-function tenantColumnsOf(config: ResolvedConfig): ReadonlySet<string> {
-  const names = new Set<string>();
+function tenantColumnsOf(config: ResolvedConfig): TenantColumnSkip {
+  const global = new Set<string>();
 
   if (config.sql.tenantColumn !== undefined) {
-    names.add(config.sql.tenantColumn);
+    global.add(config.sql.tenantColumn);
   }
 
-  for (const block of Object.values(config.blocks)) {
-    for (const columns of Object.values(block?.columns ?? {})) {
+  const byTable = new Map<string, Set<string>>();
+  const schema = config.sql.blockDefaults?.schema ?? "better_supabase";
+
+  const add = (
+    module: string,
+    block: {
+      readonly schema?: string | undefined;
+      readonly tables?:
+        | Readonly<Record<string, string | null | undefined>>
+        | undefined;
+      readonly columns?:
+        | Readonly<
+            Record<
+              string,
+              Readonly<Record<string, string | null | undefined>> | undefined
+            >
+          >
+        | undefined;
+    },
+  ): void => {
+    const names = SQL_MODULES[module]?.names;
+
+    if (names === undefined) {
+      return;
+    }
+
+    const blockSchema = block.schema ?? schema;
+
+    for (const [logical, columns] of Object.entries(block.columns ?? {})) {
       const tenant = columns?.["tenant"];
 
-      if (typeof tenant === "string") {
-        names.add(tenant);
+      if (typeof tenant !== "string") {
+        continue;
       }
+
+      const mapped = block.tables?.[logical];
+      const spec = names.tables[logical];
+
+      const physical =
+        typeof mapped === "string"
+          ? mapped.includes(".")
+            ? mapped
+            : `${blockSchema}.${mapped}`
+          : spec === undefined
+            ? undefined
+            : `${blockSchema}.${spec.name}`;
+
+      if (physical === undefined) {
+        continue;
+      }
+
+      const set = byTable.get(physical) ?? new Set<string>();
+
+      set.add(tenant);
+      byTable.set(physical, set);
+    }
+  };
+
+  for (const [name, block] of Object.entries(config.blocks)) {
+    if (block !== undefined) {
+      add(name, block);
     }
   }
 
-  return names;
+  for (const instance of Object.values(config.instances)) {
+    add(instance.block, instance.config);
+  }
+
+  return { global, byTable };
 }
 
 export async function runCodemod(
@@ -205,7 +265,13 @@ export async function runCodemod(
 
   const dryRun = args["dry-run"] === true;
   const edits: PlannedFile[] = [];
-  const review: { file: string; line: number; message: string }[] = [];
+
+  const review: {
+    file: string;
+    line: number;
+    message: string;
+    errorCode?: "config_invalid";
+  }[] = [];
 
   const projectInput = {
     config,
@@ -356,6 +422,34 @@ export async function runCodemod(
         (hint) => `  ${hint.file}:${String(hint.line)}: ${hint.message}`,
       ),
     );
+  }
+
+  const refused = review.filter((hint) => hint.errorCode === "config_invalid");
+  const namingBlocked = codemod.name === "naming" && configError !== undefined;
+
+  if (refused.length > 0 || namingBlocked) {
+    const error = [
+      ...(namingBlocked
+        ? [
+            `${configError.message} Column renames were left out. Fix the config and run \`better-supabase codemod naming\` again.`,
+          ]
+        : []),
+      ...refused.map((hint) => hint.message),
+    ].join("\n");
+
+    return {
+      code: 2,
+      errorCode: "config_invalid",
+      error,
+      output: lines.join("\n"),
+      data: {
+        codemod: codemod.name,
+        dryRun,
+        changed,
+        files: applied.changes,
+        review,
+      },
+    };
   }
 
   return {

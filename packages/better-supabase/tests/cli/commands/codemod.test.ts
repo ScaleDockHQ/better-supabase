@@ -404,7 +404,7 @@ describe("codemod extra-columns", () => {
     );
 
     expect(await readFile(configFile, "utf-8")).toContain(
-      'columns: { nodes: { deletedAt: "deleted_at" } }',
+      'deletedAt: "deleted_at"',
     );
 
     // Pinned, so a second run changes nothing.

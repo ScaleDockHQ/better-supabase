@@ -52,6 +52,8 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
     try {
       await run(sql);
     } catch (error) {
+      await connection!.driver.exec("rollback").catch(() => undefined);
+
       return error instanceof Error ? error.message : String(error);
     }
 
@@ -85,7 +87,7 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
   const ID = (n: number): string =>
     `'00000000-0000-4000-8000-${String(n).padStart(12, "0")}'`;
 
-  it("lets a row reference a shared row without a tenant, and refuses another tenant's row", async () => {
+  it("refuses a row with no tenant unless that table opts in", async () => {
     if (connection === undefined) {
       return;
     }
@@ -95,14 +97,50 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
     `);
 
     await run(
-      `insert into public.members values (${ID(11)}, ${ID(100)}, ${ID(1)}), (${ID(12)}, ${ID(100)}, ${ID(2)})`,
+      `insert into public.members values (${ID(12)}, ${ID(100)}, ${ID(2)})`,
     );
+
+    expect(
+      await fails(
+        `insert into public.members values (${ID(11)}, ${ID(100)}, ${ID(1)})`,
+      ),
+    ).toContain("must reference a row of");
 
     expect(
       await fails(
         `insert into public.members values (${ID(13)}, ${ID(100)}, ${ID(3)})`,
       ),
     ).toContain("must reference a row of");
+
+    const layout = sameTenantLayout([{ text: SCHEMA }], ["public"]);
+
+    const body = moduleBody("memberships", {
+      modules: {
+        memberships: {
+          options: {
+            sameTenant: [
+              {
+                table: "public.members",
+                column: "role_id",
+                references: { table: "public.roles", shared: true },
+              },
+            ],
+          },
+        },
+      },
+      ...layout,
+    })!;
+
+    const triggerAt = body.indexOf('create trigger "bsb_same_tenant_role_id"');
+    const trigger = body.slice(triggerAt, body.indexOf(";", triggerAt) + 1);
+
+    await run(
+      `drop trigger if exists "bsb_same_tenant_role_id" on public.members;\n${trigger}`,
+    );
+
+    await run(
+      `insert into public.members values (${ID(14)}, ${ID(100)}, ${ID(1)})`,
+    );
   });
 
   it("checks a deferrable key at commit, so the child can come first", async () => {

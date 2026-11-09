@@ -6,6 +6,7 @@
  */
 
 import type { ResolvedConfig } from "../config/index.ts";
+import type { TenantColumnSkip } from "./codemod-naming-pins.ts";
 import type { PlannedFile } from "./core/files.ts";
 
 import { codeRanges } from "./code-ranges.ts";
@@ -36,10 +37,11 @@ export interface MigrationContext {
   /** False when the config did not load, so the project's own names are unknown. */
   readonly configLoaded: boolean;
   /**
-   * The tenant column names the config sets: `sql.tenantColumn` and
-   * `columns.*.tenant`.
+   * The tenant column names the config sets. `global` is `sql.tenantColumn`.
+   * `byTable` is a `columns.<table>.tenant` entry, and it skips that column
+   * only on that table.
    */
-  readonly tenantColumns: ReadonlySet<string>;
+  readonly tenantColumns: TenantColumnSkip;
 }
 
 /** A rewrite of one source file, with the project's context already read. */
@@ -100,6 +102,8 @@ export interface Codemod {
 export interface ReviewLine {
   readonly line: number;
   readonly message: string;
+  /** Set when the line means the command must exit `config_invalid`. */
+  readonly errorCode?: "config_invalid";
 }
 
 export const CODEMODS: Readonly<Record<string, Codemod>> = {

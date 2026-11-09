@@ -265,6 +265,8 @@ describe("declaredIndexes", () => {
 create index members_org_idx on public.members (organization_id, "user_id" desc nulls last);
 create index if not exists on public.members (lower(email), user_id);
 create unique index concurrently members_one on only members using btree (user_id);
+create unique index members_expr on public.members (organization_id, lower(email));
+create unique index members_present on public.members (team_id) where team_id is not null;
 create index members_partial on public.members (team_id) where team_id is not null;
 create index members_gin on public.members using gin (email);
 create index other_idx on private.things (id);`,
@@ -274,11 +276,27 @@ create index other_idx on private.things (id);`,
     );
 
     expect(indexes.get("public.members")).toEqual([
-      { name: "members_org_idx", columns: ["organization_id", "user_id"] },
-      { name: "members_one", columns: ["user_id"], unique: true },
-      { columns: ["id"], unique: true },
-      { columns: ["email"], unique: true },
-      { columns: ["team_id", "user_id"], unique: true },
+      {
+        name: "members_org_idx",
+        columns: ["organization_id", "user_id"],
+        plain: true,
+      },
+      { name: "members_one", columns: ["user_id"], unique: true, plain: true },
+      {
+        name: "members_expr",
+        columns: ["organization_id"],
+        unique: true,
+        plain: false,
+      },
+      {
+        name: "members_present",
+        columns: ["team_id"],
+        unique: true,
+        plain: true,
+      },
+      { columns: ["id"], unique: true, plain: true },
+      { columns: ["email"], unique: true, plain: true },
+      { columns: ["team_id", "user_id"], unique: true, plain: true },
     ]);
     expect(indexes.has("private.things")).toBe(false);
   });

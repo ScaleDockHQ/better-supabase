@@ -33,7 +33,17 @@ export interface SameTenantEntry {
         readonly tenant?: string;
         /** A condition on the referenced row `{row}`. */
         readonly where?: string;
+        /**
+         * The referenced table may hold a row with no tenant, such as a global
+         * role. The default refuses that row.
+         */
+        readonly shared?: boolean;
       };
+  /**
+   * The referenced table may hold a row with no tenant. The same opt-in as
+   * `references.shared`, for an entry whose `references` is a string.
+   */
+  readonly shared?: boolean;
   /** The tenant column of `table`. Default the memberships tenant column. */
   readonly tenant?: string;
   /** More columns that must match: `{ <column>: "<referenced column>" }`. */

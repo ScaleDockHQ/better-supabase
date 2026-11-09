@@ -32,6 +32,7 @@ import {
   sameTenantLayout,
   rlsTables,
 } from "../sql/index.ts";
+import { notNullKeyPredicate } from "../sql/schema-scan.ts";
 import { apiUsedNames } from "./api-used.ts";
 import { parseSnapshot } from "./commands/snapshot.ts";
 import { toCatalog } from "./introspect/catalog.ts";
@@ -520,16 +521,26 @@ async function databaseTables(
       );
 
       indexes[name] = table.indexes
-        .filter(
-          (index) =>
-            !index.partial &&
-            [undefined, "btree"].includes(index.method) &&
-            !blockIndexes.has(index.name),
-        )
+        .filter((index) => {
+          const method = index.method === undefined || index.method === "btree";
+
+          if (!method || blockIndexes.has(index.name)) {
+            return false;
+          }
+
+          return (
+            !index.partial ||
+            (index.unique &&
+              notNullKeyPredicate(index.predicate ?? undefined, index.columns))
+          );
+        })
         .map((index) => ({
           name: index.name,
           columns: index.columns,
           ...(index.unique ? { unique: true } : {}),
+          plain: index.columns.every((column) =>
+            /^[A-Za-z_][\w$]*$/.test(column),
+          ),
         }));
     }
   }

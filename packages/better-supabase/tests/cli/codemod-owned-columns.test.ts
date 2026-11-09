@@ -42,7 +42,10 @@ describe("the owned-columns codemod", () => {
       project([{ path: "/nowhere/supabase/schemas/app.sql", text: APP }]),
     );
 
-    expect(result.review).toEqual([]);
+    expect(result.review.map((line) => line.message)).toEqual([
+      'blocks.reminders.columns.rules.rrule is optional, and the database or snapshot has no "rrule" column on public.reminder_rules. Set it to null to keep the feature off.',
+      'blocks.reminders.columns.reminders.remindAt is optional, and the database or snapshot has no "remind_at" column on public.reminders. Set it to null to keep the feature off.',
+    ]);
     expect(result.files.length).toBeGreaterThan(0);
 
     const reminders = result.files.find((file) =>

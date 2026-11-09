@@ -7,6 +7,8 @@ import type { Paint } from "../style.ts";
 
 import { defineCliCommand } from "../core/command.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { shadowedBlockColumns } from "../doctor/column-renames.ts";
+import { appSchemaTexts } from "../sql-layout.ts";
 import { SQL_ARGS } from "../sql/args.ts";
 import { dataMigration } from "../sql/migrations.ts";
 import { renderStats } from "../sql/render-cache.ts";
@@ -52,10 +54,16 @@ export async function runUpgrade(
       ? await dataMigration(config, args, now)
       : undefined;
 
+  const shadows = shadowedBlockColumns(
+    config,
+    await appSchemaTexts(config),
+  ).map((finding) => finding.message);
+
   return {
     ...synced,
     ...(pending?.code === 1 ? { code: 1, error: pending.error } : {}),
-    output: [upgraded.output, synced.output]
+    ...(shadows.length === 0 ? {} : { warnings: shadows }),
+    output: [upgraded.output, synced.output, ...shadows]
       .filter((text) => text !== undefined && text !== "")
       .join("\n"),
     data: {

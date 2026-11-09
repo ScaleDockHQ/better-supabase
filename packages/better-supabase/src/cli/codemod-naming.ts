@@ -14,8 +14,10 @@ import { renameArguments, renameBlockReferences } from "./codemod-arguments.ts";
 import { renameConfigKeys } from "./codemod-config-keys.ts";
 import {
   columnPins,
+  pinReview,
   renameSqlColumns,
   withColumnPins,
+  withHistoryPins,
 } from "./codemod-naming-pins.ts";
 import { ownLayout } from "./sql-layout.ts";
 
@@ -220,7 +222,11 @@ export function renameMigrationSql(
     if (
       rename.kind === "column" &&
       context !== undefined &&
-      (!context.configLoaded || context.tenantColumns.has(rename.from))
+      (!context.configLoaded ||
+        context.tenantColumns.global.has(rename.from) ||
+        (rename.table !== undefined &&
+          context.tenantColumns.byTable.get(rename.table)?.has(rename.from) ===
+            true))
     ) {
       return [];
     }
@@ -369,12 +375,16 @@ export function namingCodemod(
         return (_path, text) => ({ text, review: [] });
       }
 
-      let pins: ReturnType<typeof columnPins> = [];
+      let report: ReturnType<typeof columnPins> = {
+        pins: [],
+        history: [],
+        review: [],
+      };
 
       try {
         const own = await ownLayout(project.config);
 
-        pins = columnPins(
+        report = columnPins(
           project.config,
           renames,
           own.ownTables ?? {},
@@ -385,18 +395,35 @@ export function namingCodemod(
       }
 
       return (path, text) => {
-        if (pins.length === 0 || path !== project.configFile) {
-          return { text, review: [] };
+        const refused = report.review.map((message) => ({
+          line: 1,
+          message,
+          errorCode: "config_invalid" as const,
+        }));
+
+        if (
+          (report.pins.length === 0 && report.history.length === 0) ||
+          path !== project.configFile
+        ) {
+          return { text, review: refused };
         }
 
-        const pinned = withColumnPins(text, pins);
+        const history = withHistoryPins(text, report.history);
+        const pinned = withColumnPins(history.text, report.pins);
 
         return {
           text: pinned.text,
-          review: pinned.missed.map((pin) => ({
-            line: 1,
-            message: `Your table keeps "${pin.name}", which 0.58 names differently. Add \`columns: { ${pin.table}: { ${pin.column}: "${pin.name}" } }\` to blocks.${pin.block}.`,
-          })),
+          review: [
+            ...refused,
+            ...pinned.missed.map((pin) => ({
+              line: 1,
+              message: pinReview(pin),
+            })),
+            ...history.missed.map((pin) => ({
+              line: 1,
+              message: `Add \`actor: "${pin.actor}"\` to blocks.${pin.block}.options.machines.${pin.machine}.history. The table still has that column, and the history default is actor_id.`,
+            })),
+          ],
         };
       };
     },

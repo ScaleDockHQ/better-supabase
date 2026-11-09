@@ -1,6 +1,9 @@
+import type { IndexStatement } from "./schema-scan.ts";
+
 import { withoutComments } from "./audit-registrations.ts";
 import {
   indexStatements,
+  notNullKeyPredicate,
   qualified,
   TRACK_UPDATED_AT_CALL,
 } from "./schema-scan.ts";
@@ -27,13 +30,24 @@ const TRIGGER_CALL =
 const sameSet = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((column) => b.includes(column));
 
+/** A unique btree key, including `where <column> is not null` and no expression. */
+function countsAsKey(index: IndexStatement): boolean {
+  return (
+    index.unique &&
+    index.plain &&
+    index.method === "btree" &&
+    (!index.partial || notNullKeyPredicate(index.where, index.columns))
+  );
+}
+
 /**
  * The indexes and triggers a block's files create on a table where the app's
  * files already make the same, or a stricter, guarantee: a unique index whose
  * columns are the same as, or a subset of, the block's unique key, and an
  * `updated_at` trigger the app creates with `track_updated_at()` next to a
- * block trigger that sets it. Both run on every write, or index every row, for
- * nothing.
+ * block trigger that sets it. A partial unique index whose `where` is exactly
+ * `<key column> is not null` counts as the full key. An expression key does
+ * not. Both run on every write, or index every row, for nothing.
  */
 export function duplicateObjects(
   blockFiles: readonly { readonly contents: string }[],
@@ -49,22 +63,10 @@ export function duplicateObjects(
 
   const appIndexes = app
     .flatMap((text) => indexStatements(text))
-    .filter(
-      (index) =>
-        index.unique &&
-        !index.partial &&
-        index.method === "btree" &&
-        index.plain,
-    );
+    .filter(countsAsKey);
 
   for (const index of block.flatMap((text) => indexStatements(text))) {
-    if (
-      !index.unique ||
-      index.partial ||
-      index.method !== "btree" ||
-      !index.plain ||
-      !inSchemas(index.table)
-    ) {
+    if (!countsAsKey(index) || !inSchemas(index.table)) {
       continue;
     }
 
