@@ -34,11 +34,13 @@ export function metadataColumns(
     );
   }
 
-  const mapped = new Set(
-    Object.values(ctx.config.columns["log"] ?? {}).filter(
+  // The tenant column counts too: `sql.tenantColumn` names it without an entry.
+  const mapped = new Set([
+    ...Object.values(ctx.config.columns["log"] ?? {}).filter(
       (column): column is string => typeof column === "string",
     ),
-  );
+    ...(ctx.has("log", "tenant") ? [ctx.colName("log", "tenant")] : []),
+  ]);
 
   return Object.entries(configured).map(([column, key]) => {
     if (typeof key !== "string" || key === "") {
