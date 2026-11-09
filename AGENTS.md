@@ -491,6 +491,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0589: Keep employees and users in one team_members table.
 - 0590: Keep same_tenant on owned tables and record the 0.58 upgrade checks.
 - 0591: Measure the type and dev-loop cost of 0.58 in the bench.
+- 0592: Pin columns reached through options and instances.
+- 0593: same_tenant null rows are opt-in.
 
 ## Pre-release pins
 

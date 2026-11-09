@@ -530,17 +530,18 @@ blocks: {
 },
 ```
 
-| Field               | Default                       | Meaning                                                    |
-| ------------------- | ----------------------------- | ---------------------------------------------------------- |
-| `table`             | required                      | the table holding the reference, `table` or `schema.table` |
-| `column`            | required                      | the column holding the referenced row's key                |
-| `tenant`            | the memberships tenant column | the row's tenant column                                    |
-| `references.table`  | required                      | the referenced table; a string is the table alone          |
-| `references.column` | `id`                          | the referenced table's key column                          |
-| `references.tenant` | the row's tenant column       | the referenced table's tenant column                       |
-| `references.where`  | none                          | a condition the referenced row `{row}` must also meet      |
-| `match`             | none                          | `{ <column>: <referenced column> }` pairs that must match  |
-| `through`           | none                          | the tables that dotted `match` keys read through           |
+| Field               | Default                       | Meaning                                                         |
+| ------------------- | ----------------------------- | --------------------------------------------------------------- |
+| `table`             | required                      | the table holding the reference, `table` or `schema.table`      |
+| `column`            | required                      | the column holding the referenced row's key                     |
+| `tenant`            | the memberships tenant column | the row's tenant column                                         |
+| `references.table`  | required                      | the referenced table; a string is the table alone               |
+| `references.column` | `id`                          | the referenced table's key column                               |
+| `references.tenant` | the row's tenant column       | the referenced table's tenant column                            |
+| `references.where`  | none                          | a condition the referenced row `{row}` must also meet           |
+| `shared`            | false                         | the referenced row may have no tenant (`references.shared` too) |
+| `match`             | none                          | `{ <column>: <referenced column> }` pairs that must match       |
+| `through`           | none                          | the tables that dotted `match` keys read through                |
 
 `match` ties the reference to other columns of the row being written. An
 asset on a job must belong to the job's customer, and a material on a quote
@@ -589,7 +590,9 @@ not checked here; give that table its own entry or trigger if it can change.
 
 Every trigger calls the one function `better_supabase.same_tenant()` with the
 entry as its arguments. A null reference passes, so a nullable column stays
-optional, and the foreign key still reports a row that does not exist. The
+optional, and the foreign key still reports a row that does not exist. A
+referenced row whose tenant is null is refused, unless the entry sets
+`shared: true` (a global role, for example). The
 check runs on the referencing table only: it does not stop a change to the
 tenant column of a referenced row. Rows stored before you add an entry are
 checked when they change. The triggers are written in managed ownership,

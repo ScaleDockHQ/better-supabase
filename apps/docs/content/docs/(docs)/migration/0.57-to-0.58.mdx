@@ -14,26 +14,32 @@ An app on an older version than 0.57 upgrades to 0.57 first, then follows this
 guide. Each change is also in the
 [changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
 
-| Section                                                     | Needs code                                                |
-| ----------------------------------------------------------- | --------------------------------------------------------- |
-| [Order of work](#order-of-work)                             | Run the codemods, `gen`, `upgrade` and your SQL workflow  |
-| [Config keys](#config-keys)                                 | Run `codemod naming`, then move `organization` by hand    |
-| [Exports and types](#exports-and-types)                     | Run `codemod naming` and `codemod generators`             |
-| [Blocks](#blocks)                                           | Run `codemod naming`, then `upgrade`                      |
-| [Invoice numbers](#invoice-numbers)                         | Remove `options.uniqueNumber`, then check for duplicates  |
-| [Database names](#database-names)                           | Run `codemod naming`, `upgrade`, then apply the migration |
-| [Declarative module files](#declarative-module-files)       | Run `upgrade` and commit the result                       |
-| [Your own columns and tables](#your-own-columns-and-tables) | Run `codemod extra-columns`, `owned-columns` and `config` |
-| [Generated client code](#generated-client-code)             | Run `gen`, then `codemod table-modules`                   |
-| [CLI](#cli)                                                 | Change scripts, CI and cron entries                       |
-| [Removed](#removed)                                         | Check that nothing depends on a shim                      |
-| [Stays as it is](#stays-as-it-is)                           | None; read the notes                                      |
+| Section                                                     | Needs code                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------------- |
+| [Order of work](#order-of-work)                             | Run the codemods, `gen`, `upgrade` and your SQL workflow      |
+| [Config keys](#config-keys)                                 | Run `codemod naming`, then move `organization` by hand        |
+| [Exports and types](#exports-and-types)                     | Run `codemod naming` and `codemod generators`                 |
+| [Blocks](#blocks)                                           | Run `codemod naming`, then `upgrade`                          |
+| [Invoice numbers](#invoice-numbers)                         | Remove `options.uniqueNumber` before `codemod naming`         |
+| [Counts](#counts)                                           | Pass `count({ mode: "exact" })` where the total must be exact |
+| [RPC JSON keys](#rpc-json-keys)                             | Read the renamed keys, such as `purge_at`                     |
+| [Database names](#database-names)                           | Run `codemod naming`, `upgrade`, then apply the migration     |
+| [Declarative module files](#declarative-module-files)       | Run `upgrade` and commit the result                           |
+| [Your own columns and tables](#your-own-columns-and-tables) | Run `codemod extra-columns`, `owned-columns` and `config`     |
+| [Generated client code](#generated-client-code)             | Run `gen`, then `codemod table-modules`                       |
+| [CLI](#cli)                                                 | Change scripts, CI and cron entries                           |
+| [Removed](#removed)                                         | Check that nothing depends on a shim                          |
+| [Stays as it is](#stays-as-it-is)                           | None; read the notes                                          |
 
 ## Order of work
 
 1. Move to 0.57, run `better-supabase doctor`, and commit a clean tree.
 2. Bump `better-supabase` to 0.58 and the peers it lists.
-3. Run the codemods, in this order, and commit after each one:
+3. Edit the config by hand so it loads, then commit:
+   - Move `organization` to `auth.tenant` ([Config keys](#config-keys)).
+   - Delete `blocks.invoices.options.uniqueNumber` ([Invoice numbers](#invoice-numbers)).
+   - Point generator imports in the config file at `better-supabase/generators/<name>` ([Exports and types](#exports-and-types)).
+4. Run the codemods, in this order, and commit after each one:
 
    ```bash
    better-supabase codemod naming
@@ -45,24 +51,26 @@ guide. Each change is also in the
    better-supabase codemod table-modules
    ```
 
-   `codemod naming` comes first because it rewrites text, so it runs when the
-   config no longer loads. It renames the config keys this release renamed, and
-   the codemods after it read the config: `owned-columns`, `extra-columns` and
-   `config` stop with `config_invalid` when it still does not load. They come
-   before `generators` because they read options and columns that this release
-   stops accepting.
+   `codemod naming` exits with `config_invalid` when the config does not load
+   or a block context refuses it. It still rewrites the source it can, and it
+   leaves the column renames out until the config loads. `owned-columns`,
+   `extra-columns` and `config` stop with `config_invalid` in that case too.
+   They come before `generators` because they read options and columns that
+   this release stops accepting.
 
-4. Move the `organization` key to `auth.tenant` by hand (see
-   [Config keys](#config-keys)).
 5. Run `better-supabase gen` to rewrite the generated files, then
    `better-supabase upgrade` to rewrite the module files.
 6. Write the migration with your SQL workflow (`supabase db schema declarative
 sync` for pg-delta, or `better-supabase db diff`) and read it before you
-   apply it. `codemod naming` has already written the rename migrations for
-   columns, tables, constraints, policies and permission keys, so the diff holds
-   only what is left.
+   apply it. This step holds only when `codemod naming` ran with a loaded
+   config: it has then written the rename migrations for columns, tables,
+   constraints, policies and permission keys, so the diff holds only what is
+   left. If naming exited `config_invalid`, fix the config and run it again
+   before you diff.
 7. Run `better-supabase doctor` and clear what it reports. BS260 lists a source
-   file that still compares against an old hint code.
+   file that still compares against an old hint code. BS625 lists a
+   `block-columns.sql` line that adds a column you pinned to an old name.
+   BS626 lists an old column name in an `audit` list or a `->>` key.
 
 ## Config keys
 
@@ -210,6 +218,20 @@ map `blocks.teams.columns.members.employee` to `null` to keep user-only members.
 `employee_id` for members with an employee record and adds each employee to the
 team in `employees.team_id`. Apps without `employees` see no change. See
 [Teams](/docs/blocks/teams#employees-as-members).
+
+## Counts
+
+`count()` defaults to `estimated`. PostgREST counts an estimated request
+exactly up to `max_rows` (1,000 on Supabase) and uses the planner's estimate
+above it. A total that must be exact passes `count({ mode: "exact" })`.
+
+## RPC JSON keys
+
+JSON keys that a block function returns follow the column renames in
+[Database names](#database-names). `purge_after` is `purge_at`. The same list
+covers `scheduled_for`, `not_before`, `effective_from` and the `*_user_id`
+columns. `codemod naming` rewrites `'{...}'` arguments of
+`better_supabase.audit`. Doctor BS626 reports a key that is still the old name.
 
 ## Database names
 
