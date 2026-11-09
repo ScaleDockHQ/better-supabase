@@ -28,6 +28,7 @@ import {
   geographyPoint,
   hasCoordinates,
 } from "./assets-functions.ts";
+import { meterImportTargets, meterReadingsSql } from "./assets-meters.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -396,6 +397,7 @@ ${links}
   return `${schemaPreamble(ctx)}
 ${tables}
 ${assetsFunctions(ctx)}
+${meterReadingsSql(ctx)}
 ${depreciationFunctions(ctx)}
 ${accountingSourcesSql(ctx, assetAccountingSources(ctx))}`;
 }
@@ -460,5 +462,6 @@ export const ASSETS: BlockSqlDefinition = {
   contributes: {
     accounting: (own) =>
       accountingContributions(own, assetAccountingSources(own)),
+    imports: (own) => meterImportTargets(own),
   },
 };

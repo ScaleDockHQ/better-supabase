@@ -271,6 +271,18 @@ as $$
   )
 $$;
 
+create or replace function tests.expect_import_warning(result jsonb, code text)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from jsonb_array_elements(coalesce(result -> 'warnings', '[]'::jsonb)) w
+    where w.value ->> 'code' = code
+  )
+$$;
+
 grant execute on all functions in schema tests to anon, authenticated, service_role;
 -- create_user writes auth.users as its definer; tests call it as postgres
 -- before switching roles, so no API role can mint users.
