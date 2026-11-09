@@ -196,6 +196,8 @@ export interface ApprovalContribution {
 export interface ImportTargetContribution {
   /** The entity name callers pass to \`import_upsert_batch\`, such as \`party\`. */
   readonly entity: string;
+  /** Entities that must finish before this one. A cycle fails at render. */
+  readonly dependsOn?: readonly string[];
   /** The subject type of the primary row the write creates. */
   readonly subjectType: string;
   /**

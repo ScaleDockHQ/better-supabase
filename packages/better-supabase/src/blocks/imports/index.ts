@@ -62,6 +62,8 @@ export { importsBlock } from "./manifest.ts";
 
 export { integrityReport, type IntegrityCheck } from "./integrity.ts";
 
+export { importWaves, type ImportWaveTarget } from "./waves.ts";
+
 export {
   diffItems,
   stableJson,

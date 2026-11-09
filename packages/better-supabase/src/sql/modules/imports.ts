@@ -6,6 +6,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { importWaves } from "../../blocks/imports/waves.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   ensureCheck,
@@ -148,6 +149,9 @@ function build(ctx: BlockSqlContext): string {
   const x = (column: string): string => ctx.col("records", column);
   const manage = ctx.permission("manage", OPERATIONS["imports.manage"]);
   const targets = targetsOf(ctx);
+
+  // A dependency cycle fails here, before any SQL is written.
+  importWaves(targets);
   const eventsPolicy = sqlString(eventsPolicyOf(ctx));
   const auditMode = auditModeOf(ctx);
   const searchDeferral = ctx.installed("search");
@@ -780,6 +784,18 @@ begin
   end if;
   if v_run.${r("status")} <> 'running' then
     ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
+  end if;
+  if coalesce((v_run.${r("plan")} ->> 'unordered')::boolean, false) is distinct from true
+    and jsonb_typeof(v_run.${r("plan")} -> 'waves') = 'array'
+    and exists (
+      select 1 from jsonb_array_elements(v_run.${r("plan")} -> 'waves') with ordinality as w(wave, n)
+      where w.wave ? v_entity and exists (
+        select 1 from jsonb_array_elements(v_run.${r("plan")} -> 'waves') with ordinality as earlier(wave, n)
+        cross join lateral jsonb_array_elements_text(earlier.wave) dep(entity)
+        join ${ctx.table("chunks")} c on c.${ctx.col("chunks", "run")} = v_run_id
+          and c.${ctx.col("chunks", "entity")} = dep.entity and c.${ctx.col("chunks", "status")} <> 'done'
+        where earlier.n < w.n)) then
+    ${fail("IMPORT_DEPENDENCY_OPEN", "an earlier import wave still has open chunks", "55000")}
   end if;
 
   foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
