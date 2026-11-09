@@ -216,7 +216,6 @@ const NAMES: BlockSqlNames = {
         reason: "reason",
         createdAt: "created_at",
       },
-      optional: ["reason"],
     },
     dueChecks: {
       name: "asset_due_checks",
@@ -232,7 +231,6 @@ const NAMES: BlockSqlNames = {
         result: "result",
         updatedAt: "updated_at",
       },
-      optional: ["lastDoneAt", "nextDueAt", "result"],
     },
     identifiers: {
       name: "asset_identifiers",

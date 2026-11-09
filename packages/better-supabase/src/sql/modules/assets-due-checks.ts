@@ -33,9 +33,9 @@ create table if not exists ${checks} (
   "last_done_at" timestamptz,
   "next_due_at" timestamptz,
   "result" text,
-  "updated_at" timestamptz not null default now(),
-  unique (${c("tenant")}, ${c("asset")}, ${c("checkType")})
+  "updated_at" timestamptz not null default now()
 );
+create unique index if not exists ${ctx.naming.rename("asset_due_checks_key")} on ${checks} (${c("tenant")}, ${c("asset")}, ${c("checkType")});
 create index if not exists ${ctx.naming.rename("asset_due_checks_due_idx")}
   on ${checks} (${c("tenant")}, ${c("nextDueAt")}) where ${c("nextDueAt")} is not null;
 ${lockTable(checks, { read: true })}

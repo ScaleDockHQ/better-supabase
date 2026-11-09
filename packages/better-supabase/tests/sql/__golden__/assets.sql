@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:a338ead365cd7dd1fd3d65c519ee3c2f0c75b7db4e2ec1263e240ee132ca6e98
+-- @bsb-hash sha256:6ec85c4b69781fe1dc14641a6647fb3b8164cf83ac2a19a387184760cdabe30f
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -901,9 +901,9 @@ create table "better_supabase".asset_due_checks (
   "last_done_at" timestamptz,
   "next_due_at" timestamptz,
   "result" text,
-  "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "asset_id", "check_type")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_due_checks_key on "better_supabase".asset_due_checks ("tenant_id", "asset_id", "check_type");
 create index asset_due_checks_due_idx
   on "better_supabase".asset_due_checks ("tenant_id", "next_due_at") where "next_due_at" is not null;
 alter table "better_supabase".asset_due_checks enable row level security;
@@ -1180,9 +1180,9 @@ create table "better_supabase".asset_identifiers (
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
   "type" text not null,
   "value" text not null,
-  "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "type", "value")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_identifiers_key on "better_supabase".asset_identifiers ("tenant_id", "type", "value");
 
 create or replace function "better_supabase"."import_asset"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -1349,7 +1349,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:2b5fa1e0c1a6db7a7d18fffdc117c85f4e2ec85c15eae1ef624504253f4c9969
+-- @bsb-hash sha256:80872c12142a509137b72e99ff406d6aa6891c21879d23b91cb7b9b0954a85a9
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2350,9 +2350,9 @@ create table "better_supabase".asset_due_checks (
   "last_done_at" timestamptz,
   "next_due_at" timestamptz,
   "result" text,
-  "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "asset_id", "check_type")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_due_checks_key on "better_supabase".asset_due_checks ("tenant_id", "asset_id", "check_type");
 create index asset_due_checks_due_idx
   on "better_supabase".asset_due_checks ("tenant_id", "next_due_at") where "next_due_at" is not null;
 alter table "better_supabase".asset_due_checks enable row level security;
@@ -2647,9 +2647,9 @@ create table "better_supabase".asset_identifiers (
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
   "type" text not null,
   "value" text not null,
-  "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "type", "value")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_identifiers_key on "better_supabase".asset_identifiers ("tenant_id", "type", "value");
 
 create or replace function "better_supabase"."import_asset"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -2877,7 +2877,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:f95bf4b10cff9632ccdaa4399eea0616b4ec5b96f2e1ed53932789c15c584606
+-- @bsb-hash sha256:30dae5889e9f8b37cbaa7612d2b3fa5656ad3284833bf6cb6109f3db9b7858ac
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3782,9 +3782,9 @@ create table "app_private".asset_due_checks (
   "last_done_at" timestamptz,
   "next_due_at" timestamptz,
   "result" text,
-  "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "asset_id", "check_type")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_due_checks_key on "app_private".asset_due_checks ("tenant_id", "asset_id", "check_type");
 create index asset_due_checks_due_idx
   on "app_private".asset_due_checks ("tenant_id", "next_due_at") where "next_due_at" is not null;
 alter table "app_private".asset_due_checks enable row level security;
@@ -4061,9 +4061,9 @@ create table "app_private".asset_identifiers (
   "asset_id" uuid not null references "app_private"."assets" ("id") on delete cascade,
   "type" text not null,
   "value" text not null,
-  "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "type", "value")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_identifiers_key on "app_private".asset_identifiers ("tenant_id", "type", "value");
 
 create or replace function "app_private"."import_asset"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -4230,7 +4230,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:6096646ec008f8c26fb67c88e3b5a5fba4cfea1d4b572dde15ae8ceee3824793
+-- @bsb-hash sha256:32ccb2ff767cfe046b1e09514475aebf2c7569123fdc3a019e897e9040fb317b
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5130,9 +5130,9 @@ create table "better_supabase".asset_due_checks (
   "last_done_at" timestamptz,
   "next_due_at" timestamptz,
   "result" text,
-  "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "asset_id", "check_type")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_due_checks_key on "better_supabase".asset_due_checks ("tenant_id", "asset_id", "check_type");
 create index asset_due_checks_due_idx
   on "better_supabase".asset_due_checks ("tenant_id", "next_due_at") where "next_due_at" is not null;
 alter table "better_supabase".asset_due_checks enable row level security;
@@ -5409,9 +5409,9 @@ create table "better_supabase".asset_identifiers (
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
   "type" text not null,
   "value" text not null,
-  "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "type", "value")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_identifiers_key on "better_supabase".asset_identifiers ("tenant_id", "type", "value");
 
 create or replace function "better_supabase"."import_asset"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -5818,7 +5818,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:4edad2069620f346d7887894ad31b3302d02d2643b953a95aa5bc67357ab492f
+-- @bsb-hash sha256:e0e33f8cfd193507b2b979fd5818c45649b8e0561757089edaec1fa0708d6eb4
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6700,6 +6700,7 @@ alter table "better_supabase".asset_due_checks add column if not exists "last_do
 alter table "better_supabase".asset_due_checks add column if not exists "next_due_at" timestamptz;
 alter table "better_supabase".asset_due_checks add column if not exists "result" text;
 alter table "better_supabase".asset_due_checks add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists asset_due_checks_key on "better_supabase".asset_due_checks ("tenant_id", "asset_id", "check_type");
 create index if not exists asset_due_checks_due_idx
   on "better_supabase".asset_due_checks ("tenant_id", "next_due_at") where "next_due_at" is not null;
 alter table "better_supabase".asset_due_checks enable row level security;
@@ -6976,6 +6977,7 @@ alter table "better_supabase".asset_identifiers add column if not exists "asset_
 alter table "better_supabase".asset_identifiers add column if not exists "type" text;
 alter table "better_supabase".asset_identifiers add column if not exists "value" text;
 alter table "better_supabase".asset_identifiers add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists asset_identifiers_key on "better_supabase".asset_identifiers ("tenant_id", "type", "value");
 
 create or replace function "better_supabase"."import_asset"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -7142,7 +7144,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:d38ccf1abb110d70f37dc8d088127d9915be739226b69d6fa0a7614d4d5c352e
+-- @bsb-hash sha256:e61373e9135eeec7c6ace1262f66b1215c8b5fb3dbb5c81e689b5503f305b364
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8042,9 +8044,9 @@ create table "better_supabase".asset_due_checks (
   "last_done_at" timestamptz,
   "next_due_at" timestamptz,
   "result" text,
-  "updated_at" timestamptz not null default now(),
-  unique ("org_id", "asset_id", "check_type")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_due_checks_key on "better_supabase".asset_due_checks ("org_id", "asset_id", "check_type");
 create index asset_due_checks_due_idx
   on "better_supabase".asset_due_checks ("org_id", "next_due_at") where "next_due_at" is not null;
 alter table "better_supabase".asset_due_checks enable row level security;
@@ -8321,9 +8323,9 @@ create table "better_supabase".asset_identifiers (
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
   "type" text not null,
   "value" text not null,
-  "updated_at" timestamptz not null default now(),
-  unique ("org_id", "type", "value")
+  "updated_at" timestamptz not null default now()
 );
+create unique index asset_identifiers_key on "better_supabase".asset_identifiers ("org_id", "type", "value");
 
 create or replace function "better_supabase"."import_asset"(run uuid, item jsonb, subject_id text)
 returns jsonb
