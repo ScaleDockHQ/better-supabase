@@ -24,6 +24,7 @@ import {
 } from "../subjects.ts";
 import {
   attachmentInsertDefaults,
+  inlineSubjectReadable,
   columnOrNull,
   namedRowJson,
   scanColumns,
@@ -385,11 +386,12 @@ end;`;
     { guest: true },
   );
 
-  // Policies inline the check over the row's columns (ADR 0424).
-  const readablePolicySql =
-    subjects.length === 0
-      ? "true"
-      : `(${c("subjectType")} is null or ${subjectReadable(ctx, subjects, { type: c("subjectType"), id: c("subjectId"), tenant: c("tenant") }, { guest: true, tenantColumn: true })})`;
+  const readablePolicySql = inlineSubjectReadable(ctx, layout, subjects, {
+    type: c("subjectType"),
+    id: c("subjectId"),
+    tenant: c("tenant"),
+    fallback: `${ctx.fn("attachment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
+  });
 
   const cascades = subjectCascades(
     ctx,

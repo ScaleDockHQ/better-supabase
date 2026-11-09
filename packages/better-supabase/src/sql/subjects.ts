@@ -647,10 +647,16 @@ export function subjectReadable(
      * the tenant permission is checked as a set, not once per row.
      */
     readonly tenantColumn?: boolean;
+    /**
+     * What a type outside `subjects` answers, instead of false: a call to a
+     * plpgsql function that binds late, for a subject table a later module
+     * creates. Without `subjects` it is the whole answer.
+     */
+    readonly fallback?: string;
   } = {},
 ): string {
   if (subjects.length === 0) {
-    return "true";
+    return options.fallback ?? "true";
   }
 
   const asSet = options.tenantColumn === true;
@@ -685,7 +691,7 @@ export function subjectReadable(
 
       return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)}${live}${granted})${extra}`;
     })
-    .join("\n")}\n    else false\n  end`;
+    .join("\n")}\n    else ${options.fallback ?? "false"}\n  end`;
 
   return guest === "false" ? readable : `(${guest} or ${readable})`;
 }

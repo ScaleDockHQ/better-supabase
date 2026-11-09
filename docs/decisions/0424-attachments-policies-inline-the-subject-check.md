@@ -30,6 +30,14 @@ alone left one per-row `can('tenant', "tenant_id", key)` call per attachment ins
 With the tenant permission checked as a set (`tenantColumn`, ADR 0426) the same
 60,000-customer run takes 73 ms.
 
+## Later modules
+
+A subject table that a later module creates (messages, conversations) does not
+exist when the attachments file runs, so the policy inlines only the subjects
+whose table exists and sends the other types to `attachment_subject_readable`,
+which binds late. `laterTables` (shared with search) finds them. The scale run
+after this change: 34 ms at 60,000 customers and 12,000 attachments.
+
 ## Alternatives considered
 
 A `language sql` function would inline, but a subject table a later module

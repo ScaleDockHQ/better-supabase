@@ -4,12 +4,10 @@
 begin;
 select plan(4);
 
-select is(
-  (select count(*)::int from pg_policies
-    where schemaname = 'better_supabase' and tablename = 'attachments'
-      and (qual like '%attachment_subject_readable%' or with_check like '%attachment_subject_readable%')),
-  0,
-  'no attachments policy calls attachment_subject_readable per row'
+select ok(
+  (select bool_or(qual ~* 'exists' and qual like '%''customer''%') from pg_policies
+    where schemaname = 'better_supabase' and tablename = 'attachments' and cmd = 'SELECT' and permissive = 'PERMISSIVE'),
+  'the read policy checks a customer subject with an inline exists'
 );
 select ok(
   (select bool_or(qual like '%''customer''%') from pg_policies where schemaname = 'better_supabase' and tablename = 'attachments' and cmd = 'SELECT'),
