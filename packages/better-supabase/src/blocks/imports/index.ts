@@ -65,6 +65,16 @@ export { integrityReport, type IntegrityCheck } from "./integrity.ts";
 export { importWaves, type ImportWaveTarget } from "./waves.ts";
 
 export {
+  defineImportSource,
+  runImportSource,
+  type ImportDescription,
+  type ImportSource,
+  type ImportSourceClient,
+  type ImportSourceRun,
+  type SourceItem,
+} from "./source.ts";
+
+export {
   diffItems,
   stableJson,
   type DiffItem,

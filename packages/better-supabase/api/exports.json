@@ -7347,6 +7347,7 @@
       "appTableImport",
       "createImports",
       "defineImport",
+      "defineImportSource",
       "diffItems",
       "dryRun",
       "importChunkHandler",
@@ -7359,6 +7360,7 @@
       "parseCsv",
       "previewImport",
       "runImport",
+      "runImportSource",
       "runImportWorker",
       "stableJson",
       "suggestMapping"
@@ -7379,6 +7381,7 @@
       "ImportChunks",
       "ImportColumn",
       "ImportDefinition",
+      "ImportDescription",
       "ImportEntityCounts",
       "ImportItem",
       "ImportKey",
@@ -7393,6 +7396,9 @@
       "ImportScopeAlias",
       "ImportsEvents",
       "ImportsOptions",
+      "ImportSource",
+      "ImportSourceClient",
+      "ImportSourceRun",
       "ImportsSqlOptions",
       "ImportWaveTarget",
       "ImportWorkerQueue",
@@ -7403,6 +7409,7 @@
       "ResolvedImportKey",
       "RunImportResult",
       "RunImportsOptions",
+      "SourceItem",
       "StartImportRunOptions",
       "UpsertBatchResult"
     ]
