@@ -93,4 +93,63 @@ describe("the owned-columns codemod", () => {
     expect(result.files).toEqual([]);
     expect(result.review[0]?.message).toContain("don't render");
   });
+
+  it("skips an unknown module and a column the config turns off", async () => {
+    const result = await ownedColumnsCodemod().project!({
+      config: {
+        ...config,
+        blocks: {
+          ...config.blocks,
+          reminders: {
+            ...config.blocks["reminders"],
+            columns: { rules: { rrule: null } },
+          },
+        },
+        instances: {
+          extra: {
+            name: "extra",
+            block: "not-real",
+            uses: {},
+            config: { columns: { rows: { reason: null } } },
+          },
+        },
+      },
+      sql: [{ path: "/nowhere/supabase/schemas/app.sql", text: APP }],
+    });
+
+    expect(result.files.length).toBeGreaterThan(0);
+    expect(result.review.some((line) => line.message.includes("rrule"))).toBe(
+      false,
+    );
+  });
+
+  it("reviews a column the app still has under the old name", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "bsb-pin-"));
+
+    const sql =
+      "create table public.drive_nodes (id uuid primary key, deleted_at timestamptz);\n";
+
+    mkdirSync(join(dir, "supabase/schemas"), { recursive: true });
+    writeFileSync(join(dir, "supabase/schemas/app.sql"), sql);
+
+    const pinned = resolveConfig(
+      { blocks: { drive: { tables: { nodes: "public.drive_nodes" } } } },
+      dir,
+    );
+
+    const result = await ownedColumnsCodemod().project!({
+      config: {
+        ...pinned,
+        blocks: {
+          ...pinned.blocks,
+          invoices: { tables: { notATable: "public.x" } },
+        },
+      },
+      sql: [{ path: join(dir, "supabase/schemas/app.sql"), text: sql }],
+    });
+
+    expect(
+      result.review.some((line) => line.message.includes("left out")),
+    ).toBe(true);
+  });
 });

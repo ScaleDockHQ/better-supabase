@@ -100,9 +100,42 @@ describe("normalize", () => {
 
   it("strips a csv quote and scores mojibake", () => {
     expect(sanitizeText('"Widget"', { csvQuotes: true })).toBe("Widget");
+    expect(sanitizeText("`Widget", { csvQuotes: true })).toBe("Widget");
+    expect(sanitizeText("a\u0001b\t\tc", { stripControl: true })).toBe("ab c");
     expect(detectMojibake("cafÃ©")).toBeGreaterThan(0);
     expect(detectMojibake("cafe")).toBe(0);
     expect(looksShouted("T. LOMAN sr.")).toBe(true);
     expect(looksShouted("A. Gerritsen")).toBe(false);
+    expect(looksShouted("")).toBe(false);
+  });
+
+  it("fills the other phone, postal and street shapes", () => {
+    expect(normalizePhone("0031612345678")).toBe("+31612345678");
+    expect(normalizePhone("31612345678", { defaultRegion: "zz" })).toBe(
+      "31612345678",
+    );
+    expect(normalizePhone("316", { defaultRegion: "nl" })).toBe("+31316");
+    expect(normalizePostalCode("not a code", { country: "NL" })).toBe(
+      "NOT A CODE",
+    );
+    expect(normalizePostalCode("10 115", { country: "de" })).toBe("10115");
+    expect(normalizePostalCode("12345-6789", { country: "US" })).toBe(
+      "12345-6789",
+    );
+    expect(normalizePostalCode("12345", { country: "US" })).toBe("12345");
+    expect(normalizePostalCode(" 10115 ")).toBe("10115");
+    expect(splitStreet("Main Street", { country: "US" })).toEqual({
+      street: "Main Street",
+      number: "",
+      addition: "",
+    });
+    expect(normalizeNationalId("12345678", { country: "nl" })).toBe("12345678");
+    expect(normalizeNationalId("12", { country: "NL" })).toBe("");
+    expect(normalizeNationalId("12-34", { country: "US" })).toBe("1234");
+    expect(splitPersonName("van Berg")).toMatchObject({
+      infix: "van",
+      given: "",
+      last: "Berg",
+    });
   });
 });

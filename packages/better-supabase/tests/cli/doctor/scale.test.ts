@@ -577,6 +577,58 @@ describe("BS393 import batches near the statement timeout", () => {
     expect(await check(50_000, "2min")).toHaveLength(0);
     expect(await check(70_000, "2min")).toHaveLength(1);
   });
+
+  it("reads hours and days, and skips a missing extension or a failed read", async () => {
+    expect(await check(5000, "2h")).toEqual([]);
+    expect(await check(50_000_000, "1d")).toHaveLength(1);
+    expect(await check(5000, "500")).toHaveLength(1);
+    expect(await check(5000, "never")).toEqual([]);
+
+    const empty = {
+      describe: "test",
+      session: true,
+      query: (async (sql: string) =>
+        sql.includes("pg_stat_statements") ? [] : []) as never,
+    };
+
+    expect(
+      await run({ ...context(base), stats: true, database: empty }, "BS393"),
+    ).toEqual([]);
+
+    const noBatches = {
+      describe: "test",
+      session: true,
+      query: (async (sql: string) => {
+        if (sql.includes("from pg_extension")) {
+          return [{ schema: "extensions" }];
+        }
+
+        return sql.includes("pg_stat_statements") ? [] : [{ timeout: "8s" }];
+      }) as never,
+    };
+
+    expect(
+      await run(
+        { ...context(base), stats: true, database: noBatches },
+        "BS393",
+      ),
+    ).toEqual([]);
+
+    const failed = {
+      describe: "test",
+      session: true,
+      query: (async () => {
+        throw new Error("down");
+      }) as never,
+    };
+
+    const findings = await run(
+      { ...context(base), stats: true, database: failed },
+      "BS393",
+    );
+
+    expect(findings[0]?.message).toContain("down");
+  });
 });
 
 describe("BS628 list cursor indexes", () => {
@@ -606,6 +658,17 @@ describe("BS628 list cursor indexes", () => {
       create or replace function app.list_cases()
       returns jsonb language sql as $$
         select 1 order by created_at desc, id desc
+      $$;
+    `);
+
+    expect(findings).toEqual([]);
+  });
+
+  it("ignores a list that does not continue by created_at and id", async () => {
+    const findings = await check(`
+      create or replace function app.list_cases()
+      returns jsonb language sql as $$
+        select 1
       $$;
     `);
 

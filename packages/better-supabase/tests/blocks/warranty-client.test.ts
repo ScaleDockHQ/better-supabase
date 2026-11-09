@@ -36,7 +36,18 @@ describe("warranty client", () => {
       create_warranty_claim: claim,
       submit_warranty_claim: { ...claim, status: "submitted" },
       decide_warranty_claim: claim,
-      list_warranty_claims: [claim, { ...claim, id: "c2", status: "draft" }],
+      list_warranty_claims: [
+        claim,
+        {
+          id: "c2",
+          organizationId: "org-1",
+          title: "Other",
+          assetId: "a2",
+          amount: "1",
+          currency: "EUR",
+          status: "draft",
+        },
+      ],
     });
 
     const warranty = createWarranty({ transport: t, tenant: "org-1" });
@@ -70,6 +81,18 @@ describe("warranty client", () => {
     });
 
     expect(listed.ok ? listed.data : []).toHaveLength(2);
+
+    const bare = await warranty.createClaim({
+      title: "Loose hinge",
+      assetId: "a2",
+      amount: 1n,
+      currency: "EUR",
+    });
+
+    const open = await warranty.list();
+
+    expect(bare.ok).toBe(true);
+    expect(open.ok ? open.data : []).toHaveLength(2);
   });
 
   it("refuses a claim when the caller has no organization", async () => {

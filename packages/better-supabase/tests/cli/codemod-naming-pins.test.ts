@@ -217,6 +217,77 @@ describe("withColumnPins", () => {
         .missed,
     ).toEqual([pin]);
   });
+
+  it("skips a history entry that is not a table, and one that already names an actor", () => {
+    const machines = {
+      blocks: {
+        "state-machine": {
+          options: {
+            machines: {
+              quote: { history: { table: "public.quote_history" } },
+              bare: { history: "public.quote_history" },
+              numbered: { history: { table: 1 } },
+              set: {
+                history: { table: "public.quote_history", actor: "actor_id" },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const columns = { "public.quote_history": ["actor_user_id", "actor_id"] };
+
+    expect(columnPins(machines, NAMING_RENAMES, {}, columns).history).toEqual(
+      [],
+    );
+    expect(
+      columnPins(
+        { blocks: { "state-machine": { options: { machines: "no" } } } },
+        NAMING_RENAMES,
+        {},
+        columns,
+      ).history,
+    ).toEqual([]);
+    expect(
+      columnPins(
+        { blocks: { "state-machine": { options: {} } } },
+        NAMING_RENAMES,
+        {},
+        columns,
+      ).history,
+    ).toEqual([]);
+    expect(
+      columnPins({ blocks: { missing: {} } }, NAMING_RENAMES, {}, {}).pins,
+    ).toEqual([]);
+
+    const missed = withHistoryPins(
+      "export default { blocks: { drive: {} } };",
+      [{ block: "state-machine", machine: "quote", actor: "actor_user_id" }],
+    );
+
+    expect(missed.missed).toHaveLength(1);
+    expect(missed.text).not.toContain("actor_user_id");
+
+    const present = withHistoryPins(
+      `export default { blocks: { "state-machine": { options: { machines: { quote: { history: { actor: "actor_id" } } } } } } };`,
+      [{ block: "state-machine", machine: "quote", actor: "actor_user_id" }],
+    );
+
+    expect(present.missed).toEqual([]);
+    expect(present.text).toContain('actor: "actor_id"');
+    expect(present.text).not.toContain("actor_user_id");
+
+    const around = withColumnPins(
+      `const columns = { nodes: {} };
+export default { blocks: { drive: { tables: {} } } };
+const columns = { nodes: {} };
+`,
+      [pin],
+    );
+
+    expect(around.text).toContain('deletedAt: "deleted_at"');
+  });
 });
 
 describe("renameSqlColumns", () => {
@@ -261,6 +332,58 @@ describe("renameSqlColumns", () => {
         "update better_supabase.drive_nodes set deleted_at = now();\n",
         NAMING_RENAMES,
         new Set(["deleted_at"]),
+      ),
+    ).toContain("deleted_at");
+
+    expect(
+      renameSqlColumns(
+        "update better_supabase.drive_nodes set deleted_at = now();\n",
+        NAMING_RENAMES,
+        {
+          global: new Set(["tenant_id"]),
+          byTable: new Map([
+            ["better_supabase.drive_nodes", new Set(["deleted_at"])],
+          ]),
+        },
+      ),
+    ).toContain("deleted_at");
+  });
+
+  it("leaves a dollar tag, a broken audit call and an unqualified table alone", () => {
+    const open =
+      "select 1 from better_supabase.drive_nodes; do $$ begin update better_supabase.drive_nodes set deleted_at = now(); end $$;\nselect $;\n";
+
+    const tag = "select $tag$ deleted_at from better_supabase.drive_nodes;\n";
+
+    const renamed = renameSqlColumns(open, NAMING_RENAMES);
+
+    expect(renamed).toContain("do $$");
+    expect(renamed).toContain("set deleted_at = now()");
+    expect(renameSqlColumns(tag, NAMING_RENAMES)).toContain("$tag$");
+
+    const broken =
+      "select better_supabase.audit('better_supabase.drive_nodes' from better_supabase.drive_nodes;\n";
+
+    expect(renameSqlColumns(broken, NAMING_RENAMES)).toContain("audit(");
+
+    const other =
+      "select better_supabase.audit('public.other', ignore => '{deleted_at}');\nselect «9» from better_supabase.drive_nodes;\n";
+
+    expect(renameSqlColumns(other, NAMING_RENAMES)).toContain("'{deleted_at}'");
+    expect(renameSqlColumns(other, NAMING_RENAMES)).not.toContain("«9»");
+
+    expect(
+      renameSqlColumns(
+        "update better_supabase.drive_nodes set deleted_at = now();\n",
+        [
+          {
+            kind: "column",
+            from: "deleted_at",
+            to: "archived_at",
+            table: "drive_nodes",
+            since: "0.58.0",
+          },
+        ],
       ),
     ).toContain("deleted_at");
   });

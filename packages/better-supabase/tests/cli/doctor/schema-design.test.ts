@@ -616,4 +616,52 @@ describe("schema design rules", () => {
       },
     ]);
   });
+
+  it("ignores an unclosed count and a comment, and reports two foreign keys (BS630)", async () => {
+    const sources = [
+      {
+        path: "src/open.ts",
+        text: ["// db.count()", "const open = db.notes.count("].join("\n"),
+      },
+    ];
+
+    expect(await run(context(base, { sources }), "BS227")).toEqual([]);
+
+    const key = (
+      name: string,
+      column: string,
+    ): CatalogTable["foreignKeys"][number] => ({
+      name,
+      columns: [column],
+      refSchema: "public",
+      refTable: "users",
+      refColumns: ["id"],
+      oneToOne: false,
+      onDelete: "no action",
+      onUpdate: "no action",
+    });
+
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+
+      notes.foreignKeys = [
+        key("notes_author_fkey", "author_id"),
+        key("notes_owner_fkey", "owner_id"),
+        key("notes_same_fkey", "author_id"),
+      ];
+    });
+
+    const findings = await run(context(snap), "BS630");
+
+    expect(findings.map((finding) => finding.target)).toContain("public.notes");
+
+    const same = snapshot((tables) => {
+      table(tables, "notes").foreignKeys = [
+        key("notes_author_fkey", "author_id"),
+        key("notes_author_pair_fkey", "author_id"),
+      ];
+    });
+
+    expect(await run(context(same), "BS630")).toEqual([]);
+  });
 });

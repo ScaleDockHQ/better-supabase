@@ -56,4 +56,82 @@ select payload ->> 'locked_until';`,
       findings.some((finding) => finding.message.includes("lock_expires_at")),
     ).toBe(true);
   });
+
+  it("skips a block it does not know, a null pin and a file upgrade owns", () => {
+    const skipped = shadowedBlockColumns(
+      {
+        sql: { blockDefaults: { schema: "better_supabase" } },
+        blocks: {
+          "not-a-module": { columns: { rows: { name: "title" } } },
+          invoices: {
+            tables: { invoices: "invoices" },
+            columns: {
+              missing: { name: "title" },
+              invoices: { companyId: null, id: "id" },
+            },
+          },
+        },
+        instances: {},
+      } as unknown as ResolvedConfig,
+      [
+        {
+          path: "supabase/schemas/invoices.block-columns.sql",
+          text: `alter table "better_supabase"."invoices" add column if not exists "id" uuid;
+alter table "better_supabase"."invoices" add column if not exists "company_id" text;`,
+        },
+      ],
+    );
+
+    expect(skipped).toEqual([]);
+
+    const stale = staleRenameKeys([
+      { path: "app.ts", text: "select payload ->> 'locked_until';" },
+      {
+        path: "supabase/schemas/900_better_supabase_core.sql",
+        text: "select payload ->> 'locked_until';",
+      },
+      {
+        path: "supabase/schemas/app.sql",
+        text: `-- @bsb-block invoices
+select better_supabase.audit('ai_harness_sessions', redact => '{locked_until}');
+select payload ->> 'organization_id';`,
+      },
+    ]);
+
+    expect(stale).toEqual([]);
+
+    const dotted = shadowedBlockColumns(
+      {
+        sql: {},
+        blocks: {
+          invoices: {
+            tables: { invoices: "public.invoices" },
+            columns: { invoices: { companyId: "customer_id" } },
+          },
+          skipped: undefined,
+        },
+        instances: {},
+      } as unknown as ResolvedConfig,
+      [
+        {
+          path: "invoices.block-columns.sql",
+          text: "alter table public.invoices add column if not exists company_id text;",
+        },
+      ],
+    );
+
+    expect(dotted.map((finding) => finding.target)).toEqual([
+      "public.invoices.company_id",
+    ]);
+
+    const keys = staleRenameKeys([
+      {
+        path: "supabase/schemas/app.sql",
+        text: `select better_supabase.audit('ai_harness_sessions', ignore => '{locked_until}');
+select better_supabase.audit('public.ai_harness_sessions', redact => '{locked_until}');`,
+      },
+    ]);
+
+    expect(keys.length).toBeGreaterThan(0);
+  });
 });

@@ -4,6 +4,7 @@ import {
   declaredColumnTypes,
   declaredEnums,
   declaredIndexes,
+  indexStatements,
   declaredTableColumns,
   declaredTables,
   declaredViews,
@@ -192,6 +193,21 @@ drop view public.gone;`),
       views("create view public.everything as select * from public.t;"),
     ).toEqual({ "public.everything": { columns: undefined, updatable: true } });
   });
+
+  it("skips a view whose select, column list or distinct list does not close", () => {
+    const found = views(`create view public.bare;
+create view public.open (id as select 1 as id;
+create view public.cut as select distinct on (id from public.t;
+create view public.labeled as select 'from' as label from public.t;
+create view public.nosel as notify;`);
+
+    expect(found["public.labeled"]).toEqual({
+      columns: ["label"],
+      updatable: true,
+    });
+    expect(found["public.cut"]?.columns).toBeUndefined();
+    expect(found["public.nosel"]?.columns).toBeUndefined();
+  });
 });
 
 describe("extensionSchema", () => {
@@ -299,5 +315,22 @@ create index other_idx on private.things (id);`,
       { columns: ["team_id", "user_id"], unique: true, plain: true },
     ]);
     expect(indexes.has("private.things")).toBe(false);
+  });
+
+  it("skips an index or a table whose parentheses do not close", () => {
+    expect(
+      declaredIndexes(
+        [
+          {
+            text: `create index broken on public.members (id;
+create table public.open (id uuid`,
+          },
+        ],
+        ["public"],
+      ).size,
+    ).toBe(0);
+    expect(
+      indexStatements("create index broken on public.members (id"),
+    ).toEqual([]);
   });
 });

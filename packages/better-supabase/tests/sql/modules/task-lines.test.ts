@@ -60,4 +60,17 @@ describe("task specification and material lines", () => {
     expect(rendered).toContain("references");
     expect(rendered).toContain("product_variants");
   });
+
+  it("writes nothing in custom mode and skips a variant the table does not map", () => {
+    expect(sql([], { modules: { tasks: { mode: "custom" } } })).not.toContain(
+      "task_specification",
+    );
+
+    const customCatalog = sql(["catalog"], {
+      modules: { catalog: { mode: "custom" } },
+    });
+
+    expect(customCatalog).toContain("task_material_lines");
+    expect(customCatalog).not.toContain("product_variants");
+  });
 });
