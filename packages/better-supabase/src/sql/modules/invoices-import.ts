@@ -167,6 +167,45 @@ export function invoiceImportFunctions(
       : []),
   ];
 
+  const contacts = linked(ctx, "contacts");
+
+  const termSql =
+    contacts?.hasTable("terms") === true && has("paymentTermsId")
+      ? `
+  if nullif(v_data ->> 'paymentTermCode', '') is not null then
+    update ${t("invoices")} x set ${i("paymentTermsId")} = (
+      select z.${contacts.col("terms", "id")} from ${contacts.table("terms")} z
+      where z.${contacts.col("terms", "tenant")} = v_tenant and z.${contacts.col("terms", "code")} = v_data ->> 'paymentTermCode'
+      limit 1
+    )
+    where x.${i("id")} = v_id;
+  end if;`
+      : "";
+
+  const taxResolve =
+    tax === undefined || !lineHas("taxCode") || !lineHas("taxRateBps")
+      ? ""
+      : `
+  update ${lineTable} l set ${line("taxCode")} = (
+    select c.${tax.col("codes", "code")} from ${tax.table("codes")} c
+    join ${tax.table("rates")} r on r.${tax.col("rates", "taxCode")} = c.${tax.col("codes", "id")}
+    where c.${tax.col("codes", "tenant")} = v_tenant and r.${tax.col("rates", "rateBps")} = l.${line("taxRateBps")}
+    group by c.${tax.col("codes", "code")}
+    having count(*) = 1
+  )
+  where l.${line("parent")} = v_id and l.${line("taxCode")} is null;
+  if exists (
+    select 1 from ${lineTable} l
+    where l.${line("parent")} = v_id and l.${line("taxCode")} is null and l.${line("taxRateBps")} is not null
+      and (
+        select count(distinct c.${tax.col("codes", "id")}) from ${tax.table("codes")} c
+        join ${tax.table("rates")} r on r.${tax.col("rates", "taxCode")} = c.${tax.col("codes", "id")}
+        where c.${tax.col("codes", "tenant")} = v_tenant and r.${tax.col("rates", "rateBps")} = l.${line("taxRateBps")}
+      ) > 1
+  ) then
+    v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_CODE_AMBIGUOUS', 'message', 'a tax rate matches more than one tax code'));
+  end if;`;
+
   return `
 -- The shared body of the invoice and credit_note import targets (ADR 0141).
 -- item.data is { number, issuedOn, dueOn?, status?, title?, currency, termsDays?, note?,
@@ -234,7 +273,7 @@ begin
     ${fail("IMPORT_ITEM_INVALID", "an issued document needs its number", "22023")}
   end if;
   begin
-    v_issued_on := nullif(v_data ->> 'issuedOn', '')::date;
+    v_issued_on := coalesce(nullif(v_data ->> 'issuedOn', '')::date, nullif(v_data ->> 'suppliedOn', '')::date);
     v_due_on := nullif(v_data ->> 'dueOn', '')::date;
   exception when others then
     ${fail("IMPORT_ITEM_INVALID", "issuedOn and dueOn are dates", "22023")}
@@ -281,11 +320,34 @@ begin
       : `
   update ${t("invoices")} x set ${header.join(",\n    ")}
   where x.${i("id")} = v_id;`
+  }${
+    has("suppliedOn")
+      ? `
+  update ${t("invoices")} x set ${i("suppliedOn")} = coalesce(nullif(v_data ->> 'suppliedOn', '')::date, v_issued_on)
+  where x.${i("id")} = v_id;`
+      : ""
+  }${
+    lineHas("productType") && lineHas("productId")
+      ? `
+  update ${lineTable} l set ${line("productType")} = 'product'
+  where l.${line("parent")} = v_id and l.${line("productId")} is not null and l.${line("productType")} is distinct from 'product';`
+      : ""
   }
   if v_status <> 'draft' and not v_credit then
     perform ${fn("issue_invoice")}(v_id, v_issued_on, v_due_on, null, v_number);
   end if;${taxLines}${totalsSql}
-  if jsonb_typeof(v_data -> 'payments') = 'array' and jsonb_array_length(v_data -> 'payments') > 0 then
+  if coalesce(v_data ->> 'settlement', 'payments') = 'row' then
+    update ${t("invoices")} x set
+      ${i("paidTotal")} = coalesce((v_data -> 'settlement' ->> 'paidCents')::bigint, x.${i("paidTotal")}),
+      ${has("paidAt") ? `${i("paidAt")} = coalesce((v_data -> 'settlement' ->> 'paidOn')::timestamptz, x.${i("paidAt")}),` : ""}
+      ${i("status")} = case v_data -> 'settlement' ->> 'state'
+        when 'paid' then ${ctx.cast("invoices", "status", "'paid'")}
+        when 'partially_paid' then ${ctx.cast("invoices", "status", "'partially_paid'")}
+        when 'open' then ${ctx.cast("invoices", "status", "'issued'")}
+        else x.${i("status")}
+      end
+    where x.${i("id")} = v_id;
+  elsif jsonb_typeof(v_data -> 'payments') = 'array' and jsonb_array_length(v_data -> 'payments') > 0 then
     if v_credit or v_status = 'draft' then
       ${fail("IMPORT_ITEM_INVALID", "only an issued invoice takes payments", "22023")}
     end if;
@@ -298,7 +360,7 @@ begin
         coalesce(nullif(v_pay ->> 'reference', ''), import_invoice_document.item ->> 'key' || ':payment:' || v_index::text),
         nullif(v_pay ->> 'note', ''), null, null);
     end loop;${paidAt}
-  end if;
+  end if;${termSql}${taxResolve}
   if v_status = 'void' then
     perform ${fn("void_invoice")}(v_id, coalesce(nullif(v_data ->> 'voidReason', ''), 'imported as void'));
   elsif v_status = 'uncollectible' then

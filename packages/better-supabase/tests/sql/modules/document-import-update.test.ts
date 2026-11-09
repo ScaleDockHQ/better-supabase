@@ -22,5 +22,8 @@ describe("imported document updates", () => {
     expect(quotes).toContain("set_quote_lines");
     expect(orders).toContain("repost");
     expect(invoices).toContain("'void', 'paid'");
+    expect(invoices).toContain("settlement");
+    expect(invoices).toContain("supplied_on");
+    expect(invoices).toContain("= 'product'");
   });
 });

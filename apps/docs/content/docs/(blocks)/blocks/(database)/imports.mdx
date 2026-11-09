@@ -263,9 +263,14 @@ The buyer is stored as given in the `buyer` column. With the
 writes nothing. Set `data.update` to `apply` to write the header and, when the
 line count is unchanged, the line title and tax. A different line count
 replaces the lines inside the import session. A void or paid document keeps
-its postings unless `data.repost` is true. A document edited after the import
-is reported as a conflict, and a document whose source changed yields
-`IMPORT_DOCUMENT_CHANGED` while `update` stays `keep`.
+its postings unless `data.repost` is true. `data.settlement` of `row` writes
+`paid`, `partially_paid` or `open` on the invoice without a payment or a
+ledger entry. `suppliedOn` fills `supplied_on`, and fills the issue date when
+`issuedOn` is empty. A blank title keeps the number template. A line with a
+product is `product`. A payment term code and a tax rate that matches one
+code are resolved when those blocks are installed. A document edited after
+the import is reported as a conflict, and a document whose source changed
+yields `IMPORT_DOCUMENT_CHANGED` while `update` stays `keep`.
 
 ### Opening open items
 
