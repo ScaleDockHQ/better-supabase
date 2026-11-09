@@ -2,6 +2,7 @@ import type { BlockMode } from "../../config/blocks.ts";
 import type { BlockSql } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { FORMER_BLOCK_NAMES } from "../former-block-names.ts";
 import { entitiesMarker } from "../markers.ts";
 import { blockSqlVersion } from "../module-types.ts";
 
@@ -15,16 +16,30 @@ export function moduleRow(
   instance: string,
 ): string {
   const version = String(blockSqlVersion(module));
+  const former = FORMER_BLOCK_NAMES.get(instance);
 
-  return instance === module.name
-    ? `insert into better_supabase.blocks (name, version, mode)
+  // A block renamed since it was installed keeps its row: rename it, so the
+  // insert below updates it and no second row appears.
+  const rename =
+    former === undefined
+      ? ""
+      : `update better_supabase.blocks set name = ${sqlString(instance)}
+  where name = ${sqlString(former)}
+    and not exists (select 1 from better_supabase.blocks where name = ${sqlString(instance)});
+`;
+
+  return (
+    rename +
+    (instance === module.name
+      ? `insert into better_supabase.blocks (name, version, mode)
 values (${sqlString(module.name)}, ${version}, ${sqlString(mode)})
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();`
-    : `insert into better_supabase.blocks (name, block, version, mode)
+      : `insert into better_supabase.blocks (name, block, version, mode)
 values (${sqlString(instance)}, ${sqlString(module.name)}, ${version}, ${sqlString(mode)})
 on conflict (name) do update
-  set block = excluded.block, version = excluded.version, mode = excluded.mode, updated_at = now();`;
+  set block = excluded.block, version = excluded.version, mode = excluded.mode, updated_at = now();`)
+  );
 }
 
 const TITLE = (instance: string): string =>

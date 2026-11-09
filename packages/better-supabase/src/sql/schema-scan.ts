@@ -735,6 +735,10 @@ const UPDATED_AT_FUNCTION = /updated_at|moddatetime|touch/i;
 
 const SETS_UPDATED_AT = /\bnew\s*\.\s*"?updated_at"?\s*:?=/i;
 
+/** A call that has `better_supabase.track_updated_at` create the trigger. */
+export const TRACK_UPDATED_AT_CALL: RegExp =
+  /\btrack_updated_at\s*\(\s*'((?:[\w$]+\.)?[\w$]+)'/gi;
+
 /**
  * The update trigger that keeps `updated_at` current on each table in `schemas`
  * the files create one on, by `schema.table`: its function is named like one
@@ -759,6 +763,16 @@ export function declaredUpdatedAtTriggers(
   const found: Record<string, string> = {};
 
   for (const text of texts) {
+    for (const match of text.matchAll(TRACK_UPDATED_AT_CALL)) {
+      const table = qualified(
+        match[1]!.includes(".") ? match[1]! : `public.${match[1]!}`,
+      );
+
+      if (schemas.includes(table.slice(0, table.indexOf(".")))) {
+        found[table] ??= "bsb_updated_at";
+      }
+    }
+
     for (const match of text.matchAll(TRIGGER_DEF)) {
       const name = unquote(match[1]!);
       const table = qualified(match[2]!);
@@ -860,6 +874,8 @@ const COLUMN_KEY = /\s(?:primary\s+key|unique)\b/i;
 export interface OwnIndex {
   readonly name?: string;
   readonly columns: readonly string[];
+  /** Whether it enforces uniqueness: a unique index, a unique or primary key. */
+  readonly unique?: boolean;
 }
 
 /**
@@ -878,6 +894,7 @@ export function declaredIndexes(
     table: string,
     columns: readonly string[],
     name?: string,
+    unique = false,
   ): void => {
     if (
       columns.length > 0 &&
@@ -885,7 +902,11 @@ export function declaredIndexes(
     ) {
       found.set(table, [
         ...(found.get(table) ?? []),
-        name === undefined ? { columns } : { name, columns },
+        {
+          ...(name === undefined ? {} : { name }),
+          columns,
+          ...(unique ? { unique } : {}),
+        },
       ]);
     }
   };
@@ -895,7 +916,7 @@ export function declaredIndexes(
 
     for (const index of indexStatements(text)) {
       if (!index.partial && index.method === "btree") {
-        add(index.table, index.columns, index.name);
+        add(index.table, index.columns, index.name, index.unique);
       }
     }
 
@@ -919,6 +940,8 @@ export function declaredIndexes(
           add(
             table,
             indexKeys(definition.slice(keyOpen + 1, keyClose)).columns,
+            undefined,
+            true,
           );
         } else if (
           !TABLE_CONSTRAINT.test(definition) &&
@@ -927,7 +950,7 @@ export function declaredIndexes(
           const first = new RegExp(`^${NAME}`).exec(definition)?.[0];
 
           if (first !== undefined) {
-            add(table, [unquote(first)]);
+            add(table, [unquote(first)], undefined, true);
           }
         }
       }

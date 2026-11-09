@@ -6,13 +6,21 @@
  * migration of `alter ... rename` statements, so no data moves.
  */
 
-import type { Codemod } from "./codemod.ts";
+import type { Codemod, MigrationContext } from "./codemod.ts";
 
 import naming from "../../api/naming.json" with { type: "json" };
 import { bsbPolicyName, readPolicies } from "../sql/index.ts";
+import { renameArguments, renameBlockReferences } from "./codemod-arguments.ts";
 import { renameConfigKeys } from "./codemod-config-keys.ts";
+import {
+  columnPins,
+  renameSqlColumns,
+  withColumnPins,
+} from "./codemod-naming-pins.ts";
+import { ownLayout } from "./sql-layout.ts";
 
 export type RenameKind =
+  | "argument"
   | "column"
   | "configKey"
   | "constraint"
@@ -203,8 +211,20 @@ function dependentRenames(schema: string, from: string, to: string): string {
 export function renameMigrationSql(
   renames: readonly NamingRename[],
   projectSql?: string,
+  context?: MigrationContext,
 ): string | undefined {
   const statements = renames.flatMap((rename): string[] => {
+    // A column the config names as the tenant column keeps its name, and
+    // without the config nothing says which columns those are: renaming one
+    // makes the schema diff drop it and add an empty one.
+    if (
+      rename.kind === "column" &&
+      context !== undefined &&
+      (!context.configLoaded || context.tenantColumns.has(rename.from))
+    ) {
+      return [];
+    }
+
     switch (rename.kind) {
       case "table": {
         const { schema, name } = qualifiedOf(rename.from);
@@ -289,6 +309,7 @@ export function renameMigrationSql(
         ];
       }
 
+      case "argument":
       case "configKey":
       case "env":
       case "event":
@@ -333,10 +354,70 @@ export function namingCodemod(
       const keys = renameConfigKeys(text, renames);
 
       return {
-        text: renameQuotedNames(renameEnvNames(keys.text, renames), renames),
+        text: renameBlockReferences(
+          renameArguments(
+            renameQuotedNames(renameEnvNames(keys.text, renames), renames),
+            renames,
+          ),
+          renames,
+        ),
         review: keys.review,
       };
     },
-    migration: (sql) => renameMigrationSql(renames, sql),
+    files: async (project) => {
+      if (project.configLoaded === false) {
+        return (_path, text) => ({ text, review: [] });
+      }
+
+      let pins: ReturnType<typeof columnPins> = [];
+
+      try {
+        const own = await ownLayout(project.config);
+
+        pins = columnPins(
+          project.config,
+          renames,
+          own.ownTables ?? {},
+          own.ownColumns ?? {},
+        );
+      } catch {
+        // Without the project's tables nothing says which names the app keeps.
+      }
+
+      return (path, text) => {
+        if (pins.length === 0 || path !== project.configFile) {
+          return { text, review: [] };
+        }
+
+        const pinned = withColumnPins(text, pins);
+
+        return {
+          text: pinned.text,
+          review: pinned.missed.map((pin) => ({
+            line: 1,
+            message: `Your table keeps "${pin.name}", which 0.58 names differently. Add \`columns: { ${pin.table}: { ${pin.column}: "${pin.name}" } }\` to blocks.${pin.block}.`,
+          })),
+        };
+      };
+    },
+    sql: (text, context) =>
+      context.configLoaded
+        ? renameSqlColumns(text, renames, context.tenantColumns)
+        : text,
+    migration: (sql, context) => {
+      const migration = renameMigrationSql(renames, sql, context);
+      const review: string[] = [];
+
+      if (
+        !context.configLoaded &&
+        renames.some((rename) => rename.kind === "column")
+      ) {
+        review.push(
+          "The config did not load, so the column renames were left out: a tenant column named in the config must keep its name. Fix the config and run `better-supabase codemod naming` again.",
+        );
+      }
+
+      return { ...(migration === undefined ? {} : { sql: migration }), review };
+    },
   };
 }

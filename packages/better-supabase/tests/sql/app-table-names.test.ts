@@ -102,6 +102,20 @@ create trigger bsb_updated_at before update on public.organizations
 });
 
 describe("declaredUpdatedAtTriggers", () => {
+  it("finds a table the app tracks with track_updated_at", () => {
+    expect(
+      declaredUpdatedAtTriggers(
+        [
+          {
+            text: `select better_supabase.track_updated_at('public.notes');
+select better_supabase.track_updated_at('other.skipped');`,
+          },
+        ],
+        ["public"],
+      ),
+    ).toEqual({ "public.notes": "bsb_updated_at" });
+  });
+
   it("finds the update trigger by its function's name or body", () => {
     expect(
       declaredUpdatedAtTriggers(

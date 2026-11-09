@@ -18,6 +18,7 @@ import {
   runCodemod,
 } from "../../../src/cli/commands/codemod.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
+import { CliError } from "../../../src/cli/core/errors.ts";
 import { findSpec } from "../../../src/cli/core/manifest.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { usageError } from "../fixtures/usage.ts";
@@ -127,7 +128,7 @@ describe("runCodemod", () => {
     registry["with-sql"] = {
       name: "with-sql",
       description: "test",
-      migration: () => "select 1;\n",
+      migration: () => ({ sql: "select 1;\n" }),
     };
 
     try {
@@ -263,5 +264,193 @@ describe("codemod extra-columns", () => {
     );
 
     expect(done.output).toContain("Nothing to change");
+  });
+
+  it("keeps the configured tenant column out of the rename migration", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/010_app.sql"),
+      "create table app.notes (organization_id uuid, locked_until timestamptz);\n",
+    );
+
+    await runCodemod(
+      resolveConfig(
+        { database: { sql: { tenantColumn: "organization_id" } } },
+        root,
+      ),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+    );
+
+    const names = await readdir(join(root, "supabase/migrations")).catch(
+      () => [],
+    );
+
+    const sql = await Promise.all(
+      names.map((name) =>
+        readFile(join(root, "supabase/migrations", name), "utf-8"),
+      ),
+    );
+
+    expect(sql.join("\n")).not.toContain('rename column "organization_id"');
+    expect(sql.join("\n")).toContain('rename column "locked_until"');
+  });
+
+  it("leaves the column renames out and says so when the config did not load", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/010_app.sql"),
+      "create table app.notes (organization_id uuid);\n",
+    );
+
+    const result = await runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      undefined,
+      new CliError("config_invalid", "bad config"),
+    );
+
+    expect(result.output).toContain("The config did not load");
+
+    const names = await readdir(join(root, "supabase/migrations")).catch(
+      () => [],
+    );
+
+    for (const name of names) {
+      expect(
+        await readFile(join(root, "supabase/migrations", name), "utf-8"),
+      ).not.toContain("rename column");
+    }
+  });
+
+  it("fails a project codemod with config_invalid when the config did not load", async () => {
+    await expect(
+      runCodemod(
+        resolveConfig({}, root),
+        parseCommandArgs(codemodCommand("owned-columns"), ["owned-columns"]),
+        undefined,
+        undefined,
+        new CliError("config_invalid", "bad config"),
+      ),
+    ).rejects.toMatchObject({ code: "config_invalid" });
+  });
+
+  it("renames block columns in schema files and seeds, never in migrations", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await mkdir(join(root, "supabase/migrations"), { recursive: true });
+    const seed = "update better_supabase.drive_nodes set deleted_at = now();\n";
+    await writeFile(join(root, "supabase/seed.sql"), seed);
+    await writeFile(
+      join(root, "supabase/migrations/20260101000000_old.sql"),
+      seed,
+    );
+    await writeFile(
+      join(root, "supabase/schemas/010_app.sql"),
+      "update public.documents set deleted_at = now();\n",
+    );
+
+    await runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+    );
+
+    expect(await readFile(join(root, "supabase/seed.sql"), "utf-8")).toBe(
+      "update better_supabase.drive_nodes set archived_at = now();\n",
+    );
+    expect(
+      await readFile(
+        join(root, "supabase/migrations/20260101000000_old.sql"),
+        "utf-8",
+      ),
+    ).toBe(seed);
+    expect(
+      await readFile(join(root, "supabase/schemas/010_app.sql"), "utf-8"),
+    ).toContain("public.documents set deleted_at");
+
+    const failed = await runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      undefined,
+      new CliError("config_invalid", "bad config"),
+    );
+
+    expect(failed.output).toContain("The config did not load");
+  });
+
+  it("pins the old name of a column the app's own block table keeps", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/010_app.sql"),
+      "create table public.drive_nodes (id uuid primary key, tenant_id uuid, name text, deleted_at timestamptz);\n",
+    );
+    const configFile = join(root, "bsb.config.ts");
+
+    await writeFile(
+      configFile,
+      'export default { blocks: { drive: { tables: { nodes: "public.drive_nodes" } } } };\n',
+    );
+
+    const config = resolveConfig(
+      { blocks: { drive: { tables: { nodes: "public.drive_nodes" } } } },
+      root,
+    );
+
+    await runCodemod(
+      config,
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      configFile,
+    );
+
+    expect(await readFile(configFile, "utf-8")).toContain(
+      'columns: { nodes: { deletedAt: "deleted_at" } }',
+    );
+
+    // Pinned, so a second run changes nothing.
+    const second = await runCodemod(
+      resolveConfig(
+        {
+          blocks: {
+            drive: {
+              tables: { nodes: "public.drive_nodes" },
+              columns: { nodes: { deletedAt: "deleted_at" } },
+            },
+          },
+        },
+        root,
+      ),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      configFile,
+    );
+
+    expect(second.output).not.toContain("bsb.config.ts");
+    expect(
+      (await readFile(configFile, "utf-8")).match(/deletedAt/g),
+    ).toHaveLength(1);
+  });
+
+  it("lists a pin it can't write into the config", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(
+      join(root, "supabase/schemas/010_app.sql"),
+      "create table public.drive_nodes (id uuid primary key, tenant_id uuid, name text, deleted_at timestamptz);\n",
+    );
+    const configFile = join(root, "bsb.config.ts");
+
+    await writeFile(configFile, "export default defineConfig(base);\n");
+
+    const result = await runCodemod(
+      resolveConfig(
+        { blocks: { drive: { tables: { nodes: "public.drive_nodes" } } } },
+        root,
+      ),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      configFile,
+    );
+
+    expect(result.output).toContain('deletedAt: "deleted_at"');
   });
 });

@@ -27,6 +27,19 @@ export interface CodemodProject {
   /** The config file, when one was found, and its text. */
   readonly configFile?: string;
   readonly configText?: string;
+  /** False when the config did not load and `config` is the default one. */
+  readonly configLoaded?: boolean;
+}
+
+/** What a codemod's migration knows about the project's config. */
+export interface MigrationContext {
+  /** False when the config did not load, so the project's own names are unknown. */
+  readonly configLoaded: boolean;
+  /**
+   * The tenant column names the config sets: `sql.tenantColumn` and
+   * `columns.*.tenant`.
+   */
+  readonly tenantColumns: ReadonlySet<string>;
 }
 
 /** A rewrite of one source file, with the project's context already read. */
@@ -57,12 +70,20 @@ export interface Codemod {
    */
   readonly files?: (project: CodemodProject) => Promise<FileRewrite>;
   /**
+   * A rewrite of each of the project's own `.sql` files (schema files, seeds),
+   * except migrations, which are never rewritten, and files the blocks wrote.
+   */
+  readonly sql?: (text: string, context: MigrationContext) => string;
+  /**
    * SQL for a hand migration the codemod writes next to the app's own, or
    * `undefined` when nothing needs renaming. `sql` is the text of the project's
    * `.sql` files, so a rename of an object the project never mentions writes
    * nothing.
    */
-  readonly migration?: (sql: string) => string | undefined;
+  readonly migration?: (
+    sql: string,
+    context: MigrationContext,
+  ) => { readonly sql?: string; readonly review?: readonly string[] };
   /**
    * Files to write that no per-file rewrite can express, such as SQL moved out
    * of the config. A path the rewrites above also touch is written once, with

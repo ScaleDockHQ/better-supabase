@@ -16,6 +16,8 @@ interface SameTenant {
   readonly where: string | undefined;
   readonly match: readonly (readonly [string, string])[];
   readonly hops: readonly Hop[];
+  /** The foreign key is deferrable, so the check runs at commit too. */
+  readonly deferrable: boolean;
 }
 
 interface Hop {
@@ -96,6 +98,7 @@ function autoEntries(
         table: key.table,
         column,
         references: { table: key.references, column: referenced },
+        ...(key.deferrable === true ? { deferrable: true } : {}),
       },
     ];
   });
@@ -303,6 +306,7 @@ function parseEntries(
       where: condition,
       match: pairs,
       hops,
+      deferrable: entry["deferrable"] === true,
     };
   });
 }
@@ -383,7 +387,14 @@ export function sameTenantSql(
       .map(sqlIdent)
       .join(", ");
 
-    return `drop trigger if exists ${name} on ${entry.table};
+    // A deferrable key may point at a row inserted later in the transaction, so
+    // the check waits for the commit; the other keys check before the write.
+    return entry.deferrable
+      ? `drop trigger if exists ${name} on ${entry.table};
+create constraint trigger ${name} after insert or update of ${columns} on ${entry.table}
+  deferrable initially deferred
+  for each row execute function better_supabase.same_tenant(${args.join(", ")});`
+      : `drop trigger if exists ${name} on ${entry.table};
 create trigger ${name} before insert or update of ${columns} on ${entry.table}
   for each row execute function better_supabase.same_tenant(${args.join(", ")});`;
   });
@@ -417,8 +428,8 @@ begin
     i := i + 2;
   end loop;
   execute pg_catalog.format(
-    'select exists (select 1 from %s p where p.%I = ($1).%I and p.%I is not distinct from ($1).%I%s)',
-    tg_argv[2], tg_argv[3], tg_argv[0], tg_argv[4], tg_argv[1], extra
+    'select exists (select 1 from %s p where p.%I = ($1).%I and (p.%I is null or p.%I is not distinct from ($1).%I)%s)',
+    tg_argv[2], tg_argv[3], tg_argv[0], tg_argv[4], tg_argv[4], tg_argv[1], extra
   ) into matched using new;
   if not matched then
     raise exception '%.% must reference a row of % in the same tenant', tg_table_name, tg_argv[0], tg_argv[2]

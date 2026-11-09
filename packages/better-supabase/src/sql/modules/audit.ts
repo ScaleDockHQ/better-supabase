@@ -262,11 +262,7 @@ function present(
   return {
     columns: kept.map(([logical]) => ctx.col(table, logical)).join(", "),
     values: kept.map(([, value]) => value).join(",\n    "),
-    pairs: kept.map(([logical, value]) => [
-      ctx.config.columns[table]?.[logical] ??
-        NAMES.tables[table]!.columns[logical]!,
-      value,
-    ]),
+    pairs: kept.map(([logical, value]) => [ctx.colName(table, logical), value]),
   };
 }
 
@@ -277,11 +273,9 @@ function subjects(ctx: BlockSqlContext, log: string): string {
     .map((logical) => ctx.col("log", logical));
 
   const taken = [
-    ...Object.keys(NAMES.tables["log"]!.columns).map(
-      (logical) =>
-        ctx.config.columns["log"]?.[logical] ??
-        NAMES.tables["log"]!.columns[logical]!,
-    ),
+    ...Object.keys(NAMES.tables["log"]!.columns)
+      .filter((logical) => ctx.has("log", logical))
+      .map((logical) => ctx.colName("log", logical)),
     ...metadataColumns(ctx).map(([column]) => column),
   ];
 

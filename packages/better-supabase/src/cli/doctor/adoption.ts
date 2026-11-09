@@ -36,7 +36,10 @@ import { configFor } from "../gen/shared.ts";
 import { isRecord } from "../guards.ts";
 import { appTablesWithoutPolicies } from "./app-table-policies.ts";
 import { adoptionContext, appTablesOf, appViewsOf } from "./app-tables.ts";
-import { blockColumnsOnOwnedTables } from "./owned-columns.ts";
+import {
+  blockColumnsOnOwnedTables,
+  duplicatedBlockObjects,
+} from "./owned-columns.ts";
 import { catalogOf, qualified } from "./shared.ts";
 import { appTriggerGuards } from "./tenant-triggers.ts";
 
@@ -390,6 +393,22 @@ export const ADOPTION_RULES: readonly Rule[] = [
     description:
       "A block runs over a table the app creates and adds an optional column to it with `add column if not exists`, and the app's own schema files don't declare that column. Blocks no longer add columns to tables you own, and the feature that needs the column turns off instead. Run `better-supabase codemod owned-columns` to declare the columns in your schema files, or map the column to `null` in `blocks.<name>.columns` to keep the feature off.",
     check: blockColumnsOnOwnedTables,
+  },
+  {
+    code: "BS623",
+    severity: "warning",
+    title: "A block's unique index repeats one of yours",
+    description:
+      "A block creates a unique index on a table where your own files already have a unique index over the same columns, or over a subset of them. Yours is the stricter key, so the block's adds write cost and storage and guarantees nothing more. Blocks already leave out an index over the same columns and the invoices number key your subset implies, so this finding means the index serves an `on conflict` target or a foreign key. Drop the block's index with a hand migration, or narrow the block's key to the columns your index covers.",
+    check: (context) => duplicatedBlockObjects(context, "index"),
+  },
+  {
+    code: "BS624",
+    severity: "warning",
+    title: "A block's trigger repeats one of yours",
+    description:
+      "A block creates a trigger that keeps `updated_at` current on a table where your files already call `track_updated_at()`, Blocks leave their own trigger out of a table whose files call it, so the finding appears only for a trigger the block still adds, and both then run on every write. Keep one of them.",
+    check: (context) => duplicatedBlockObjects(context, "trigger"),
   },
   {
     code: "BS350",

@@ -30,6 +30,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { tenantOf } from "../../core/tenant-key.ts";
 import {
   applyTemporal,
   blockCall,
@@ -972,7 +973,7 @@ function organizationsClient<
           });
 
           return {
-            organizationId: text(row["organization_id"]),
+            organizationId: text(tenantOf(row)),
             refresh: row["refresh"] === true,
           };
         },

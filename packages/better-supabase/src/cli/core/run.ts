@@ -589,11 +589,15 @@ export function cliFromTree(
       // Reloads discover the file again, so a config created under `--watch` is picked up.
       const reloadConfig = (): Promise<ResolvedConfig> => loadWith();
 
+      const loadFailure: { error?: CliError } = {};
+
       const config = await loadWith(configFile).catch((cause: unknown) => {
         if (
           runsWithInvalidConfig(command) &&
           toCliError(cause).code === "config_invalid"
         ) {
+          loadFailure.error = toCliError(cause);
+
           return defaultConfig(cwd, globals.config, environment, configFile);
         }
 
@@ -627,6 +631,9 @@ export function cliFromTree(
         cwd,
         config,
         ...(configFile ? { configFile } : {}),
+        ...(loadFailure.error === undefined
+          ? {}
+          : { configError: loadFailure.error }),
         reloadConfig,
         io: interactive ? io : withoutPrompts(io),
         env,

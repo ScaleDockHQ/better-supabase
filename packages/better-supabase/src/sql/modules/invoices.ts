@@ -481,7 +481,13 @@ create table if not exists ${t("invoices")} (
   check (${i("status")} <> 'draft' or ${i("number")} is null),
   check (${invoiceTemplatesOn(ctx) ? `${i("template")} is not null or ` : ""}${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company === "pair" ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}${invoiceTemplatesOn(ctx) && ctx.flag("requireParty", false) && ctx.has("invoices", "companyId") ? `,\n  check (${i("template")} is not null or ${i("companyId")} is not null)` : ""}
 );
-${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${searchColumnSql(ctx, "invoices", ["identifier", "title", "note", "supplierReference"])}${ctx.has("invoices", "purchaseOrder") ? index("invoices_purchase_order_idx", ["purchaseOrder"]) : ""}${appUniqueIndex(ctx, "invoices", numberKey)}
+${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${searchColumnSql(ctx, "invoices", ["identifier", "title", "note", "supplierReference"])}${ctx.has("invoices", "purchaseOrder") ? index("invoices_purchase_order_idx", ["purchaseOrder"]) : ""}${appUniqueIndex(
+    ctx,
+    "invoices",
+    numberKey,
+    undefined,
+    { impliedBy: "subset" },
+  )}
 ${lockModuleTable(ctx, "invoices", { read: true })}${invoiceTemplatesOn(ctx) ? `\n${templateGuardSql({ fn: ctx.fn("invoice_template_guard"), trigger: ctx.trigger("invoice_template"), table: t("invoices"), column: ctx.colName("invoices", "template"), hint: "INVOICE_TEMPLATE_IMMUTABLE" })}\n${triggerGrant(`${ctx.fn("invoice_template_guard")}()`)}` : ""}
 ${renderPolicy(
   makePolicy({

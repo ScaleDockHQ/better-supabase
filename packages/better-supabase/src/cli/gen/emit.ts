@@ -745,9 +745,17 @@ export function emitModule(model: Model, options: EmitOptions): string {
   return lines.join("\n");
 }
 
-/** Where the server's schema module goes: `generated-schema.ts`. */
+/**
+ * Where the server's schema module goes: `generated-schema.ts` beside
+ * `generated.ts`. A `gen.file` named `schema.ts` would give `schema-schema.ts`,
+ * so it gets `generated-schema.ts` too.
+ */
 export function schemaModulePath(output: string): string {
-  return `${output.replace(/\.[cm]?[jt]sx?$/, "")}-schema.ts`;
+  const stem = output.replace(/\.[cm]?[jt]sx?$/, "");
+
+  return /(?:^|\/)schema$/.test(stem)
+    ? `${stem.slice(0, -"schema".length)}generated-schema.ts`
+    : `${stem}-schema.ts`;
 }
 
 /**

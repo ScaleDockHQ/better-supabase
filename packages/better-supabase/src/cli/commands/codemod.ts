@@ -135,11 +135,36 @@ async function projectSql(root: string): Promise<string> {
   return (await projectSqlFiles(root)).map((source) => source.text).join("\n");
 }
 
+/**
+ * The tenant column names the config sets: `sql.tenantColumn` and
+ * `columns.*.tenant`.
+ */
+function tenantColumnsOf(config: ResolvedConfig): ReadonlySet<string> {
+  const names = new Set<string>();
+
+  if (config.sql.tenantColumn !== undefined) {
+    names.add(config.sql.tenantColumn);
+  }
+
+  for (const block of Object.values(config.blocks)) {
+    for (const columns of Object.values(block?.columns ?? {})) {
+      const tenant = columns?.["tenant"];
+
+      if (typeof tenant === "string") {
+        names.add(tenant);
+      }
+    }
+  }
+
+  return names;
+}
+
 export async function runCodemod(
   config: ResolvedConfig,
   args: CodemodOptions,
   paint: Paint = plain,
   configFile?: string,
+  configError?: CliError,
 ): Promise<CommandResult> {
   const [name, ...paths] = args._ ?? [];
 
@@ -160,6 +185,14 @@ export async function runCodemod(
     );
   }
 
+  // A codemod that reads the config can't tell what to change from the
+  // default config; one that only rewrites text is how a user fixes the config.
+  if (codemod.project !== undefined && configError !== undefined) {
+    throw new CliError("config_invalid", configError.message, {
+      cause: configError,
+    });
+  }
+
   const roots = (paths.length > 0 ? paths : ["."]).map((path) =>
     resolve(config.root, path),
   );
@@ -176,6 +209,7 @@ export async function runCodemod(
 
   const projectInput = {
     config,
+    configLoaded: configError === undefined,
     sql: await projectSqlFiles(config.root),
     ...(configFile === undefined
       ? {}
@@ -217,7 +251,33 @@ export async function runCodemod(
     );
   }
 
-  const sql = codemod.migration?.(await projectSql(config.root));
+  const context = {
+    configLoaded: configError === undefined,
+    tenantColumns: tenantColumnsOf(config),
+  };
+
+  if (codemod.sql !== undefined) {
+    for (const file of projectInput.sql) {
+      // A pushed migration is never rewritten.
+      if (/(?:^|[\\/])migrations[\\/]/.test(file.path)) {
+        continue;
+      }
+
+      const text = codemod.sql(file.text, context);
+
+      if (text !== file.text) {
+        edits.push({ path: file.path, contents: text, policy: "edit" });
+      }
+    }
+  }
+
+  const migration = codemod.migration?.(await projectSql(config.root), context);
+
+  for (const message of migration?.review ?? []) {
+    review.push({ file: "", line: 1, message });
+  }
+
+  const sql = migration?.sql;
 
   if (sql !== undefined) {
     const dir = migrationsDir(config);
@@ -317,7 +377,13 @@ export function codemodCommand(name: string): AnyCommand {
     meta: commandMeta(`codemod ${name}`),
     args: CODEMOD_ARGS,
     runsWithInvalidConfig: true,
-    run: (args, { config, configFile, paint }) =>
-      runCodemod(config, { ...args, _: [name, ...args._] }, paint, configFile),
+    run: (args, { config, configFile, configError, paint }) =>
+      runCodemod(
+        config,
+        { ...args, _: [name, ...args._] },
+        paint,
+        configFile,
+        configError,
+      ),
   });
 }

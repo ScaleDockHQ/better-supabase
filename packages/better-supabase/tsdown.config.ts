@@ -482,6 +482,9 @@ const cli = defineConfig({
       "jiti",
       "magicast",
     ],
+    // valibot and jsonpath-rfc9535 are also optional peers, which tsdown keeps external; the CLI
+    // needs its own copy, since apps install no CLI dependency.
+    alwaysBundle: ["jsonpath-rfc9535", "valibot"],
     onlyBundle: [
       "@clack/core",
       "@clack/prompts",

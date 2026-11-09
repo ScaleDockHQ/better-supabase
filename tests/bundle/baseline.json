@@ -6,7 +6,7 @@
   "./create/lite": 2622586,
   "./create/oauth": 1576,
   "./create/supabase": 4625,
-  "./cli": 699890,
+  "./cli": 751803,
   "./client": 63963,
   "./client/native": 64035,
   "./react": 86553,
@@ -292,5 +292,5 @@
   "./blocks/expenses": 40713,
   "./blocks/donations": 41263,
   "better-supabase CLI (startup)": 33049,
-  "content mapper (startup)": 138399
+  "content mapper (startup)": 149525
 }

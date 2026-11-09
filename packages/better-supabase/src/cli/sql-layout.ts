@@ -51,7 +51,10 @@ export async function schemasDirOf(config: ResolvedConfig): Promise<string> {
   return declarativeSchemasDir(toml, sqlWorkflow(config, toml));
 }
 
-/** The declarative schema files, then the migrations oldest first. */
+/**
+ * The migrations oldest first, then the declarative schema files, so a schema
+ * file, which holds the final state, wins over an older migration.
+ */
 async function schemaTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
@@ -59,13 +62,13 @@ async function schemaTexts(
   const migrations = resolve(config.root, migrationsDir(config));
 
   const paths = [
-    ...(await schemaPaths(config.root, toml, sqlWorkflow(config, toml))).files,
     ...(existsSync(migrations)
       ? (await readdir(migrations))
           .filter((name) => name.endsWith(".sql"))
           .toSorted()
           .map((name) => join(migrations, name))
       : []),
+    ...(await schemaPaths(config.root, toml, sqlWorkflow(config, toml))).files,
   ];
 
   return Promise.all(
@@ -99,8 +102,9 @@ async function declarativeTexts(
 }
 
 /**
- * The `better_supabase.audit(...)` calls in the declarative schemas, then the
- * migrations oldest first, so a later call or `unaudit` wins.
+ * The `better_supabase.audit(...)` calls in the migrations oldest first, then
+ * the declarative schemas, so a later call or `unaudit` wins and the schema
+ * files, which hold the final state, win over a migration.
  */
 async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
   return auditRegistrations(await schemaTexts(config));
@@ -522,7 +526,11 @@ async function databaseTables(
             [undefined, "btree"].includes(index.method) &&
             !blockIndexes.has(index.name),
         )
-        .map((index) => ({ name: index.name, columns: index.columns }));
+        .map((index) => ({
+          name: index.name,
+          columns: index.columns,
+          ...(index.unique ? { unique: true } : {}),
+        }));
     }
   }
 

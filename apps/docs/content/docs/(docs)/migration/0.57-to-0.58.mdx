@@ -20,6 +20,7 @@ guide. Each change is also in the
 | [Config keys](#config-keys)                                 | Run `codemod naming`, then move `organization` by hand    |
 | [Exports and types](#exports-and-types)                     | Run `codemod naming` and `codemod generators`             |
 | [Blocks](#blocks)                                           | Run `codemod naming`, then `upgrade`                      |
+| [Invoice numbers](#invoice-numbers)                         | Remove `options.uniqueNumber`, then check for duplicates  |
 | [Database names](#database-names)                           | Run `codemod naming`, `upgrade`, then apply the migration |
 | [Declarative module files](#declarative-module-files)       | Run `upgrade` and commit the result                       |
 | [Your own columns and tables](#your-own-columns-and-tables) | Run `codemod extra-columns`, `owned-columns` and `config` |
@@ -35,17 +36,21 @@ guide. Each change is also in the
 3. Run the codemods, in this order, and commit after each one:
 
    ```bash
+   better-supabase codemod naming
    better-supabase codemod owned-columns
    better-supabase codemod extra-columns
    better-supabase codemod config
    better-supabase codemod generators
-   better-supabase codemod naming
    better-supabase codemod server-imports
    better-supabase codemod table-modules
    ```
 
-   `codemod owned-columns` and `codemod extra-columns` come first because they
-   read options and columns that this release stops accepting.
+   `codemod naming` comes first because it rewrites text, so it runs when the
+   config no longer loads. It renames the config keys this release renamed, and
+   the codemods after it read the config: `owned-columns`, `extra-columns` and
+   `config` stop with `config_invalid` when it still does not load. They come
+   before `generators` because they read options and columns that this release
+   stops accepting.
 
 4. Move the `organization` key to `auth.tenant` by hand (see
    [Config keys](#config-keys)).
@@ -76,6 +81,14 @@ the same parent in the file that calls `defineConfig`.
 
 `blocks.<name>.subjects` keeps its name, because it binds a block to record
 types.
+
+The permission action keys under `blocks.<name>.permissions` follow ADR 0130:
+`view` is `read`, `viewAll` is `readAll`, `viewSensitive` is `readSensitive`,
+`edit` is `write` and `admin` is `manage`, for the blocks that had them (`audit`,
+`automations`, `billing`, `employees`, `impersonation`, `invitations`,
+`segments`, `webhooks-in`, `webhooks-out`, `workflow-editor`, `workflows` and
+`ai-chat`). The config refuses an old key and names the new one, and `codemod
+naming` renames it.
 
 The `organization` key moves to another parent, so the codemod reports it and
 leaves it. Move it yourself:
@@ -165,6 +178,25 @@ a `task` argument, its events carry `taskId`, its subject paths start with
 
 The `vector-search` block installs itself for an app with a `vectorSearch` table
 or a `-- @bsb vector-search` tag. List it only to set its `schema` option.
+
+## Invoice numbers
+
+The invoices table is unique on organization, direction, kind and identifier (or
+the number when the table has no identifier column), in every project.
+`blocks.invoices.options.uniqueNumber` is removed, and the config refuses it.
+Delete the option. A migration that adds the key fails when two invoices of one
+kind share an identifier. Find them first:
+
+```sql
+select tenant_id, direction, kind, coalesce(identifier, number) as identifier, count(*)
+from better_supabase.invoices
+group by 1, 2, 3, 4
+having count(*) > 1;
+```
+
+Use your own table and column names if you map the block to your table.
+Give each row a distinct `identifier`, or renumber the duplicates, before you
+apply the migration.
 
 ## Database names
 

@@ -243,7 +243,11 @@ export function adoptedTables(
   ownTables?: Readonly<Record<string, string>>,
   views: Pick<
     BlockSqlLayout,
-    "ownViews" | "ownColumns" | "subjects" | "accessProvider"
+    | "ownViews"
+    | "ownColumns"
+    | "subjects"
+    | "accessProvider"
+    | "blockTenantColumn"
   > = {},
 ): readonly AdoptedTable[] {
   const tables: AdoptedTable[] = [];
@@ -289,12 +293,12 @@ export function adoptedTables(
 
       const columns: Record<string, string> = {};
 
-      for (const [column, physical] of Object.entries(table.columns)) {
+      for (const column of Object.keys(table.columns)) {
         if (!ctx.has(logical, column) || unchecked[logical]?.includes(column)) {
           continue;
         }
 
-        columns[column] = ctx.config.columns[logical]?.[column] ?? physical;
+        columns[column] = ctx.colName(logical, column);
       }
 
       const { schema, name: tableName } = ctx.tableName(logical);

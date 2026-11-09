@@ -242,6 +242,34 @@ describe("renameMigrationSql", () => {
   });
 });
 
+describe("column renames and the tenant column", () => {
+  const sql =
+    "create table t (organization_id uuid, locked_until timestamptz);";
+
+  it("renames job_schedules.locked_until", () => {
+    expect(renameMigrationSql(NAMING_RENAMES, sql)).toContain(
+      'alter table "better_supabase"."job_schedules" rename column "locked_until" to "lock_expires_at"',
+    );
+  });
+
+  it("skips the configured tenant column, and every column without a config", () => {
+    const loaded = renameMigrationSql(NAMING_RENAMES, sql, {
+      configLoaded: true,
+      tenantColumns: new Set(["organization_id"]),
+    });
+
+    expect(loaded).not.toContain('rename column "organization_id"');
+    expect(loaded).toContain('rename column "locked_until"');
+
+    expect(
+      renameMigrationSql(NAMING_RENAMES, sql, {
+        configLoaded: false,
+        tenantColumns: new Set(),
+      }) ?? "",
+    ).not.toContain("rename column");
+  });
+});
+
 describe("generated policy names", () => {
   const sql = `
 create policy tasks_read on "better_supabase"."tasks" for select to authenticated using (true);
@@ -272,6 +300,7 @@ describe("BS260", () => {
 
   it("reports a source file that uses an old name", async () => {
     const findings = await rule.check({
+      config: { blocks: {} },
       sources: [
         { path: "a.ts", text: "const s = buildApiModel(x);\n" },
         { path: "b.ts", text: "const s = defineApiModel(x);\n" },
@@ -282,6 +311,7 @@ describe("BS260", () => {
     expect(findings).toHaveLength(2);
 
     const subpath = await rule.check({
+      config: { blocks: {} },
       sources: [
         {
           path: "d.ts",
@@ -295,5 +325,83 @@ describe("BS260", () => {
       target: "a.ts",
       location: { file: "a.ts", line: 1 },
     });
+  });
+});
+
+describe("argument renames", () => {
+  const codemod = namingCodemod();
+
+  it("renames the keys, members and shorthand of the tasks verb arguments", () => {
+    const { text } = applyCodemod(
+      codemod,
+      [
+        'import { workItemId } from "./x";',
+        "await tasks.assign({ workItemId: id, userId });",
+        "await tasks.move({ workItemId });",
+        "const { workItemId } = event.data;",
+        "log(event.data.workItemId);",
+        'const note = "workItemId";',
+        "",
+      ].join("\n"),
+    );
+
+    expect(text).toBe(
+      [
+        'import { workItemId } from "./x";',
+        "await tasks.assign({ taskId: id, userId });",
+        "await tasks.move({ taskId: workItemId });",
+        "const { taskId: workItemId } = event.data;",
+        "log(event.data.taskId);",
+        'const note = "workItemId";',
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+describe("block references", () => {
+  it("renames string block keys and $blocks members of a renamed block", () => {
+    const { text } = applyCodemod(
+      namingCodemod(),
+      [
+        'const a = config.blocks["time-tracking"];',
+        "const b = db.$blocks.timeTracking.list();",
+        "const c = db.$blocks.bulk.run();",
+        "const d = other.timeTracking;",
+        '// blocks["time-tracking"] stays in a comment',
+        "",
+      ].join("\n"),
+    );
+
+    expect(text).toBe(
+      [
+        'const a = config.blocks["time-entries"];',
+        "const b = db.$blocks.timeEntries.list();",
+        "const c = db.$blocks.bulkActions.run();",
+        "const d = other.timeTracking;",
+        '// blocks["time-tracking"] stays in a comment',
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps the argument names of an entity the config renamed", async () => {
+    const rule = NAMING_RENAME_RULES[0]!;
+
+    const sources = [
+      { path: "a.ts", text: "tasks.assign({ workItemId: id });\n" },
+    ];
+
+    const context = (blocks: object): never =>
+      // SAFETY: the rule reads only `config.blocks` and `sources`.
+      ({ config: { blocks }, sources }) as never;
+
+    expect(await rule.check(context({}))).toHaveLength(1);
+
+    const kept = await rule.check(
+      context({ tasks: { entities: { task: "work_item" } } }),
+    );
+
+    expect(kept).toEqual([]);
   });
 });

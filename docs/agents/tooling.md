@@ -73,8 +73,10 @@ bump is one commit series:
 - Vitest caches results in `node_modules/.vitest-cache` at the repo root. When
   a run reports failures for code you have already fixed, delete that folder.
 - `tests/types/perf` gates check time against a calibration program it
-  checks first, so the baseline holds on machines of any speed. A check-time
-  failure in CI is a real slowdown, not a slow runner.
+  checks first, so the baseline holds on machines of any speed. A time failure
+  needs a rerun on a quiet machine before it counts: concurrent work doubles
+  every wall time, and the native compilers check the calibration program in
+  about 20 ms (ADR 0591).
 - The CLI tests read the library's fixtures through
   `tests/cli/fixtures/library.ts`. The CLI imports the library only through
   its entry files (`src/sql/index.ts`, not `src/sql/registry.ts` or `src/sql/render.ts`), which the CLI

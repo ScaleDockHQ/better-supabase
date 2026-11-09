@@ -760,3 +760,20 @@ describe("flagContext", () => {
     ).toEqual({ targetingKey: USER });
   });
 });
+
+describe("flag overrides under sql.tenantColumn", () => {
+  it("reads the tenant of an override from tenant_id too", () => {
+    const [flag] = flagDefinitionsOf([
+      {
+        key: "k",
+        type: "string",
+        variants: { a: "x" },
+        default_variant: "a",
+        enabled: true,
+        overrides: [{ tenant_id: "org-1", user_id: null, variant: "a" }],
+      },
+    ]);
+
+    expect(flag?.overrides[0]?.organizationId).toBe("org-1");
+  });
+});

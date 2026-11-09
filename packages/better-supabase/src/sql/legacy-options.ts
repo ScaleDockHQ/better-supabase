@@ -167,12 +167,23 @@ export function legacyOptionTarget(
   return undefined;
 }
 
+/**
+ * `invoices.options.uniqueNumber` is gone: the table is unique on (tenant,
+ * direction, kind, identifier or number) in every project.
+ */
+const UNIQUE_NUMBER_REMOVED =
+  "was removed: the invoices table is unique on tenant, direction, kind and identifier (or number), whatever the option said. Delete the option. If numbers repeat inside a kind, give each invoice a distinct `identifier` or renumber the duplicates before you apply the migration (see the 0.57 to 0.58 guide for a query that finds them).";
+
 /** What an option the module doesn't declare is told: the codemod, or the list. */
 export function unknownOptionMessage(
   where: string,
   key: string,
   declared: ReadonlySet<string>,
 ): string {
+  if (key === "uniqueNumber" && where.endsWith("invoices")) {
+    return `${where}.options.uniqueNumber ${UNIQUE_NUMBER_REMOVED}`;
+  }
+
   return LEGACY_OPTION.test(key)
     ? `${where}.options.${key} was removed: write the column in your schema files. Run \`better-supabase codemod extra-columns\` to move it.`
     : `${where}.options: unknown option "${key}". Options: ${[...declared].join(", ") || "none"}`;

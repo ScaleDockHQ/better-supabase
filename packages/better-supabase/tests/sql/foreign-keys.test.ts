@@ -67,4 +67,31 @@ create table public.broken (id uuid references public.parents
       },
     ]);
   });
+
+  it("marks a deferrable key and leaves the others unmarked", () => {
+    const { foreignKeys } = sameTenantLayout(
+      [
+        {
+          text: `create table public.a (
+  id uuid primary key,
+  b_id uuid references public.b deferrable initially deferred,
+  c_id uuid references public.c not deferrable,
+  d_id uuid,
+  constraint a_d foreign key (d_id) references public.d (id) deferrable
+);
+alter table public.a add constraint a_e foreign key (e_id) references public.e (id) deferrable initially immediate;`,
+        },
+      ],
+      ["public"],
+    );
+
+    expect(
+      foreignKeys.map((key) => [key.columns[0], key.deferrable === true]),
+    ).toEqual([
+      ["b_id", true],
+      ["c_id", false],
+      ["d_id", true],
+      ["e_id", true],
+    ]);
+  });
 });

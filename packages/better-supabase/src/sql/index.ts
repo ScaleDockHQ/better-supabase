@@ -179,6 +179,8 @@ export {
 
 export { writtenValues } from "./written-values.ts";
 
+export { duplicateObjects, type DuplicateObject } from "./duplicate-objects.ts";
+
 export {
   addedColumnTypes,
   declaredColumnTypes,

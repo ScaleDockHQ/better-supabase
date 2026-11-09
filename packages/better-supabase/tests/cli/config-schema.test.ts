@@ -359,7 +359,7 @@ describe("configIssues for a config written before 0.15", () => {
     ).toEqual([
       "casing: moved to `gen.casing` in 0.15; upgrade to 0.53 with that release first",
       "$production.doctor: moved to `tooling.doctor` in 0.15; upgrade to 0.53 with that release first",
-      "integrations: renamed to `adapters` in 0.54; rename the key, or run `better-supabase codemod naming`",
+      "integrations: renamed to `adapters` in 0.58; rename the key, or run `better-supabase codemod naming`",
     ]);
   });
 

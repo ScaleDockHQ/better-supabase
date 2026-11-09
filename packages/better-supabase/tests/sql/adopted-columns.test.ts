@@ -232,6 +232,16 @@ create table public.app_events (
     ).toEqual([]);
   });
 
+  it("names the tenant column from sql.tenantColumn without a columns entry", () => {
+    const [table] = adoptedTables(
+      { tags: { tables: { tags: "public.org_tags" } } },
+      { "public.org_tags": "supabase/schemas/tags.sql" },
+      { blockTenantColumn: "organization_id" },
+    );
+
+    expect(table?.columns["tenant"]).toBe("organization_id");
+  });
+
   it("lists the text columns each app table takes without a cast", () => {
     const [table] = adoptedTables(
       { numbering: { tables: { sequences: "public.org_sequences" } } },

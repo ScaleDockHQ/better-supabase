@@ -275,10 +275,10 @@ create index other_idx on private.things (id);`,
 
     expect(indexes.get("public.members")).toEqual([
       { name: "members_org_idx", columns: ["organization_id", "user_id"] },
-      { name: "members_one", columns: ["user_id"] },
-      { columns: ["id"] },
-      { columns: ["email"] },
-      { columns: ["team_id", "user_id"] },
+      { name: "members_one", columns: ["user_id"], unique: true },
+      { columns: ["id"], unique: true },
+      { columns: ["email"], unique: true },
+      { columns: ["team_id", "user_id"], unique: true },
     ]);
     expect(indexes.has("private.things")).toBe(false);
   });

@@ -108,14 +108,77 @@ const V1 = [
   ],
 ] as const;
 
+/**
+ * Whether the object literal around `index` is a generator: it has a `generate`
+ * key. Other contracts (`defineAuthorizationHooks`, a block provider) also
+ * write `apiVersion: 1`, and they are not generators.
+ */
+function insideGenerator(text: string, index: number): boolean {
+  let depth = 0;
+  let start = -1;
+
+  for (let at = index; at >= 0; at -= 1) {
+    const char = text.charAt(at);
+
+    if (char === "}") {
+      depth += 1;
+    } else if (char === "{") {
+      if (depth === 0) {
+        start = at;
+        break;
+      }
+
+      depth -= 1;
+    }
+  }
+
+  if (start === -1) {
+    return false;
+  }
+
+  depth = 0;
+
+  for (let at = start; at < text.length; at += 1) {
+    const char = text.charAt(at);
+
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return /\bgenerate\s*[:(]/.test(text.slice(start, at));
+      }
+    }
+  }
+
+  return false;
+}
+
+const VERSION_ONE = /\bapiVersion:\s*1\b/;
+
 function reviewLines(text: string): ReviewLine[] {
-  return text
-    .split("\n")
-    .flatMap((line, index): ReviewLine[] =>
-      V1.flatMap(([pattern, message]): ReviewLine[] =>
-        pattern.test(line) ? [{ line: index + 1, message }] : [],
-      ),
-    );
+  let offset = 0;
+
+  return text.split("\n").flatMap((line, index): ReviewLine[] => {
+    const lineStart = offset;
+    offset += line.length + 1;
+
+    return V1.flatMap(([pattern, message]): ReviewLine[] => {
+      if (!pattern.test(line)) {
+        return [];
+      }
+
+      if (
+        pattern.source === VERSION_ONE.source &&
+        !insideGenerator(text, lineStart + line.search(VERSION_ONE))
+      ) {
+        return [];
+      }
+
+      return [{ line: index + 1, message }];
+    });
+  });
 }
 
 /** Moves generator imports to their subpaths and flags v1 generators. */

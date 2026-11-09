@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { IMPLIED_UNIQUE_MARK } from "../over-app-tables.ts";
 import { lockTable } from "../shared.ts";
 
 /** Postgres truncates longer identifiers, so two long index names could meet. */
@@ -54,6 +55,7 @@ export function appUniqueIndex(
   logical: string,
   columns: readonly string[],
   where?: string,
+  options: { readonly impliedBy?: "subset" } = {},
 ): string {
   if (!ctx.appOwned.includes(logical) || ctx.appViews.includes(logical)) {
     return "";
@@ -62,5 +64,5 @@ export function appUniqueIndex(
   const physical = columns.map((column) => ctx.colName(logical, column));
   const name = `${ctx.tableName(logical).name}_${physical.join("_")}_key`;
 
-  return `\ncreate unique index if not exists ${sqlIdent(name.slice(0, MAX_IDENTIFIER))} on ${ctx.table(logical)} (${physical.map((column) => sqlIdent(column)).join(", ")})${where === undefined ? "" : ` where ${where}`};`;
+  return `\n${options.impliedBy === "subset" ? `${IMPLIED_UNIQUE_MARK}\n` : ""}create unique index if not exists ${sqlIdent(name.slice(0, MAX_IDENTIFIER))} on ${ctx.table(logical)} (${physical.map((column) => sqlIdent(column)).join(", ")})${where === undefined ? "" : ` where ${where}`};`;
 }

@@ -23,6 +23,11 @@ export interface CliContext {
   readonly config: ResolvedConfig;
   /** The config file `config` came from, when there is one. */
   readonly configFile?: string;
+  /**
+   * Why the config did not load, for a command that `runsWithInvalidConfig`.
+   * `config` is then the default config, not the project's.
+   */
+  readonly configError?: CliError;
   /** Loads the config file again, for commands that run until stopped. */
   readonly reloadConfig?: () => Promise<ResolvedConfig>;
   /** `prompts` is unset in CI, in agent mode and under `--json` or `--yes`. */

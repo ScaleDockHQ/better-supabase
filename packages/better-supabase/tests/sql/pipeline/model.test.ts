@@ -187,6 +187,26 @@ describe("appColumnsOf", () => {
     ).toStrictEqual({ "public.tags": [{ name: "region", type: "text" }] });
   });
 
+  it("reads an @bsb fields tag from a comment with line breaks", () => {
+    const text = `create table public.deposit_lines (
+  id uuid primary key,
+  region text,
+  note text
+);
+comment on table public.deposit_lines is 'Lines of a deposit.
+@bsb fields region, note
+@bsb audit';`;
+
+    expect(
+      appColumnsOf([{ path: "supabase/schemas/lines.sql", text }]),
+    ).toEqual({
+      "public.deposit_lines": [
+        { name: "region", type: "text" },
+        { name: "note", type: "text" },
+      ],
+    });
+  });
+
   const module =
     "-- @bsb-block tags@1 managed\nalter table public.tags add column region text;";
 

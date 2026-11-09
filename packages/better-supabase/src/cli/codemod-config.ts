@@ -74,7 +74,7 @@ export function tenantEntries(
  * The index of the `}` that closes the `{` at `open`, skipping strings and
  * comments.
  */
-function closing(
+export function closing(
   text: string,
   open: number,
   code: (index: number) => boolean,

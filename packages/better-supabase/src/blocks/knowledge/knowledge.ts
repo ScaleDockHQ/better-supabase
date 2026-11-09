@@ -12,6 +12,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { vectorLiteral as pgVector } from "../../core/search.ts";
+import { tenantOf } from "../../core/tenant-key.ts";
 import {
   applyTemporal,
   blockCall,
@@ -543,9 +544,7 @@ function hitOf(value: unknown): KnowledgeHit {
         ? row["chunk_id"]
         : `${textOf(row["document_id"])}#${Number(row["idx"])}`,
     organizationId:
-      typeof row["organization_id"] === "string"
-        ? row["organization_id"]
-        : undefined,
+      typeof tenantOf(row) === "string" ? String(tenantOf(row)) : undefined,
   };
 }
 

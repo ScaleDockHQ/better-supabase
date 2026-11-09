@@ -829,7 +829,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restr
 -- ==== data supabase/better-supabase-data/900_better_supabase_088_time_entries.sql
 -- better-supabase module: time-entries
 -- @bsb-block-data time-entries
--- @bsb-hash sha256:9f119fc99f2ff9bc951756a5b19544390bd76af8e195481c89a8c5a8633f80ca
+-- @bsb-hash sha256:04ad8678759e0c6a8aeac364974d74d2c8d1ac906659d266f388a426a6a63345
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -837,6 +837,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restr
 
 create extension if not exists "btree_gist" with schema "extensions";
 
+update better_supabase.blocks set name = 'time-entries'
+  where name = 'time-tracking'
+    and not exists (select 1 from better_supabase.blocks where name = 'time-entries');
 insert into better_supabase.blocks (name, version, mode)
 values ('time-entries', 3, 'managed')
 on conflict (name) do update
