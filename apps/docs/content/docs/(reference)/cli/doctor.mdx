@@ -1319,7 +1319,10 @@ table of the app's, and the live database lacks a column the block's SQL
 names, so the block's functions fail until that column exists. Doctor reads
 every column the module's SQL names: the ones in `blocks.<name>.columns`
 and the defaults for the unmapped ones, leaving out the columns mapped to
-`null`. Tables that a block uses only when `blocks.<name>.tables` maps them
+`null` and the optional columns the config doesn't name. A table without an
+optional column keeps that feature off (ADR 0580). Blocks don't add columns to
+your tables, so add the column to your schema (`codemod owned-columns`
+declares the block's columns) or map it. Tables that a block uses only when `blocks.<name>.tables` maps them
 (the notifications `deliveryEvents` and `suppressions`, the audit
 `restricted` table and the invitations `platformInvitations`) are checked
 once they are mapped, and skipped otherwise, as the generated SQL skips them.
@@ -2621,8 +2624,10 @@ the pin after you rename the column.
 ### BS626
 
 **Warning: SQL still names a column 0.58 renamed.** An `audit` `ignore` or
-`redact` list, or a `->> '...'` key in your own SQL, still uses a column name
-this release renamed. `codemod naming` rewrites the audit lists. Update a JSON
+`redact` list (a `better_supabase.audit()` call or the JSON argument of an
+`audit_row_change()` trigger), or a `->> '...'` key in your own SQL, still
+uses a column name this release renamed. `codemod naming` rewrites the
+`audit()` lists; edit a trigger's JSON by hand. Update a JSON
 key a block function used to return. `organization_id` in your own JSON is
 left alone, and files `upgrade` rewrites are skipped.
 
@@ -2655,6 +2660,19 @@ keys to the same table whose first columns differ become two relations, with a
 suffix so the names stay unique. A composite key that starts with the same
 column as a single-column key to that table is an alias of that relation.
 Rename one relation in `gen.tables`, or share the first column.
+
+### BS631
+
+**Error: team members keep employees, but the user column is required.** The
+teams and employees blocks run over your own `team_members` table, and it has
+the employee column, so teams keeps an employee on a team without a user. The
+table's user column is `not null`, often because it is part of the primary
+key, so removing a member or a user who has an employee record fails, and so
+does adding an employee without an account. Drop the employee column, or map
+`blocks.teams.columns.members.employee` to `null`, to keep user-only members.
+To keep employees, give the table its own primary key, drop the `not null` on
+the user column and add unique indexes on `(team_id, user_id)` and
+`(team_id, employee_id)`.
 
 ### BS612
 

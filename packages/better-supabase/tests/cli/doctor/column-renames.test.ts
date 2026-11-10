@@ -57,6 +57,29 @@ select payload ->> 'locked_until';`,
     ).toBe(true);
   });
 
+  it("reports an old column name in an audit_row_change trigger list", () => {
+    const findings = staleRenameKeys([
+      {
+        path: "supabase/schemas/audit.sql",
+        text: `create trigger bsb_audit
+  after insert or update or delete on better_supabase.api_keys
+  for each row
+  execute function better_supabase.audit_row_change('{"ignore": ["last_used_at", "window_start"], "redact": ["secret_hash"]}');
+create trigger bsb_audit after update on better_supabase.api_keys
+  for each row execute function better_supabase.audit_row_change('not json');
+create trigger bsb_audit after update on better_supabase.api_keys
+  for each row execute function better_supabase.audit_row_change('[1]');`,
+      },
+    ]);
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        target: "supabase/schemas/audit.sql:window_start",
+        message: expect.stringContaining("window_started_at"),
+      }),
+    ]);
+  });
+
   it("skips a block it does not know, a null pin and a file upgrade owns", () => {
     const skipped = shadowedBlockColumns(
       {
