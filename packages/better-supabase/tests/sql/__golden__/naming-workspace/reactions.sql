@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:5646a53e96a5208db4c6fa0e2f4ec5fc1eb5083a15af3fb11c2ed5595c92c0a0
+-- @bsb-hash sha256:6f3149d5110f5c2dd480b9bfde2d6442d889046056be67dfa712d3fe72dc9e14
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,20 +84,20 @@ grant execute on function "better_supabase"."reaction_subject_visible"(text, tex
 
 create policy bsb_reactions_read on "better_supabase"."reactions"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and true);
 create policy bsb_reactions_insert on "better_supabase"."reactions"
   for insert to authenticated
   with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+    and true) and (select better_supabase.actor_may_write()));
 create policy bsb_reactions_delete on "better_supabase"."reactions"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create policy bsb_reaction_scores_read on "better_supabase"."reaction_scores"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and true);
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
 create or replace function "better_supabase"."reactions_check"()
@@ -470,7 +470,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."reactions" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restrictive
   for insert to public
@@ -479,7 +479,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restri
     or ("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    and true)
   );
 create policy bsb_tenant_scope_update on "better_supabase"."reactions" as restrictive
   for update to public
@@ -495,7 +495,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."reaction_scores" as 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."reaction_scores" as restrictive
   for insert to public

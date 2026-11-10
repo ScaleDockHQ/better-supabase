@@ -5,7 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -17,6 +17,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
+import { inlineSubjectReadable } from "./attachments-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const PAYLOAD = [
@@ -140,7 +141,7 @@ function visibleCase(
   return subjectReadable(ctx, reactionSubjects(ctx), args, { live: true });
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -158,6 +159,29 @@ function build(ctx: BlockSqlContext): string {
   const subjects = reactionSubjects(ctx);
   const fn = (name: string): string => ctx.fn(name);
   const visible = fn("reaction_subject_visible");
+
+  // The policies inline the check over the row's columns (ADR 0424 and 0426),
+  // qualified so a subject's own `tenant_id` can't capture the row's.
+  const inlineVisible = (
+    table: string,
+    col: (logical: string) => string,
+  ): string => {
+    const q = (logical: string): string => `${table}.${col(logical)}`;
+
+    return inlineSubjectReadable(
+      ctx,
+      layout,
+      subjects,
+      {
+        type: q("subjectType"),
+        id: q("subjectId"),
+        tenant: q("tenant"),
+        fallback: `${visible}(${q("subjectType")}, ${q("subjectId")}, ${q("tenant")})`,
+      },
+      { module: "reactions", guest: false, live: true, typeNotNull: true },
+    );
+  };
+
   const name = ctx.tableName("reactions").name;
   const scoresName = ctx.tableName("scores").name;
   const emojiName = ctx.tableName("emoji").name;
@@ -286,7 +310,7 @@ $$;
 revoke execute on function ${visible}(text, text, ${ctx.idType}) from public, anon;
 grant execute on function ${visible}(text, text, ${ctx.idType}) to authenticated, service_role;
 
-${renderPolicy(makePolicy({ table: reactions, name: sqlIdent(`${ctx.tableName("reactions").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})` }), { target: reactions })}
+${renderPolicy(makePolicy({ table: reactions, name: sqlIdent(`${ctx.tableName("reactions").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${inlineVisible(reactions, c)}` }), { target: reactions })}
 ${renderPolicy(
   makePolicy({
     table: reactions,
@@ -296,7 +320,7 @@ ${renderPolicy(
     check: `${c("user")} = (select auth.uid())
     and ${c("actor")} = (select auth.uid())::text
     and ${ctx.scope.check(c("tenant"), create)}
-    and ${visible}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`,
+    and ${inlineVisible(reactions, c)}`,
   }),
   { target: reactions },
 )}
@@ -304,7 +328,7 @@ ${renderPolicy(makePolicy({ table: reactions, name: sqlIdent(`${ctx.tableName("r
 
 ${
   ctx.manages
-    ? `${renderPolicy(makePolicy({ table: scores, name: sqlIdent(`${scoresName}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(sc("tenant"), read)} and ${visible}(${sc("subjectType")}, ${sc("subjectId")}, ${sc("tenant")})` }), { target: scores })}
+    ? `${renderPolicy(makePolicy({ table: scores, name: sqlIdent(`${scoresName}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(sc("tenant"), read)} and ${inlineVisible(scores, sc)}` }), { target: scores })}
 `
     : ""
 }
