@@ -64,7 +64,7 @@ export function UnreadBadge() {
         className="tabular-nums"
         data-testid="unread-count"
       >
-        {count ?? "–"}
+        {count === undefined ? "–" : count >= 100 ? "99+" : count}
       </Badge>
     </Link>
   );

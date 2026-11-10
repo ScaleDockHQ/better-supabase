@@ -3,6 +3,7 @@ import { tenantOf } from "better-supabase/next";
 import { DownloadIcon, ScrollTextIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 import { forbidden } from "next/navigation";
+import { Suspense } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -28,14 +29,55 @@ import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
-import { AuditLogTable } from "./audit-log-table";
+import type { AuditFilters as AuditFilterValues } from "../audit-queries";
 
-/** Render inside `<Suspense>`. The log is a plan feature (`audit`). */
-export async function AuditLog() {
-  const [session, t, permissions] = await Promise.all([
+import { getAuditFacets } from "../audit-queries";
+import { AuditFilters } from "./audit-filters";
+import { AuditRows, AuditRowsSkeleton, AuditTotal } from "./audit-rows";
+
+/**
+ * The export of the rows on screen: the same filters and window, without the
+ * page cursor.
+ */
+function exportHref(filters: AuditFilterValues): string {
+  const params = new URLSearchParams();
+
+  for (const key of ["actor", "type", "from", "to", "q"] as const) {
+    const value = filters[key];
+
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.toString();
+
+  return query === "" ? "/api/audit/export" : `/api/audit/export?${query}`;
+}
+
+async function AuditFiltersLoader({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
+  return <AuditFilters facets={await getAuditFacets(organizationId)} />;
+}
+
+/**
+ * Render inside `<Suspense>`. The log is a plan feature (`audit`). The filters
+ * come from the URL; the filter bar, the rows and the total each wait on their
+ * own read.
+ */
+export async function AuditLog({
+  filters: pending,
+}: {
+  filters: Promise<AuditFilterValues>;
+}) {
+  const [session, t, permissions, filters] = await Promise.all([
     getSession(),
     getExtracted("audit"),
     getPermissions(),
+    pending,
   ]);
 
   const organizationId = tenantOf(session);
@@ -79,7 +121,7 @@ export async function AuditLog() {
         <CardAction>
           <FeatureGate feature="exports">
             <a
-              href="/api/audit/export"
+              href={exportHref(filters)}
               download
               className={buttonVariants({ variant: "outline", size: "sm" })}
             >
@@ -89,8 +131,16 @@ export async function AuditLog() {
           </FeatureGate>
         </CardAction>
       </CardHeader>
-      <CardContent>
-        <AuditLogTable organizationId={organizationId} />
+      <CardContent className="grid gap-4">
+        <Suspense fallback={<Skeleton className="h-8" />}>
+          <AuditFiltersLoader organizationId={organizationId} />
+        </Suspense>
+        <Suspense fallback={<AuditRowsSkeleton />}>
+          <AuditRows organizationId={organizationId} filters={filters} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <AuditTotal organizationId={organizationId} filters={filters} />
+        </Suspense>
       </CardContent>
     </Card>
   );

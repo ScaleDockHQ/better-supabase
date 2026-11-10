@@ -708,6 +708,16 @@ msgctxt "rules.S0Fieh"
 msgid "Conditions on customer fields, tested in the database when a customer is saved."
 msgstr "Conditions on customer fields, tested in the database when a customer is saved."
 
+#: src/app/[locale]/(app)/settings/audit/error.tsx
+msgctxt "audit.HpZQZz"
+msgid "The audit log could not be read."
+msgstr "The audit log could not be read."
+
+#: src/app/[locale]/(app)/settings/audit/error.tsx
+msgctxt "audit.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
 #: src/app/[locale]/(app)/settings/layout.tsx
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.D3idYv"
@@ -2164,42 +2174,71 @@ msgctxt "assistant.9WRlF4"
 msgid "Send"
 msgstr "Send"
 
+#: src/features/audit/components/audit-entry-sheet.tsx
+msgctxt "audit.wR7xTu"
+msgid "Entry"
+msgstr "Entry"
+
+#: src/features/audit/components/audit-entry-sheet.tsx
+msgctxt "audit.Z1UrbQ"
+msgid "What changed, and who changed it."
+msgstr "What changed, and who changed it."
+
+#: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
 msgctxt "audit.JJkC4D"
 msgid "Every actor"
 msgstr "Every actor"
 
+#: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
 msgctxt "audit.jd6CuF"
 msgid "Every action"
 msgstr "Every action"
 
+#: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.CHXoWz"
 msgid "Actor"
 msgstr "Actor"
 
+#: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
 msgctxt "audit.QlsDcr"
 msgid "Action"
 msgstr "Action"
 
+#: src/features/audit/components/audit-filters.tsx
+msgctxt "audit.dM-p3_"
+msgid "From"
+msgstr "From"
+
+#: src/features/audit/components/audit-filters.tsx
+msgctxt "audit.xmcVZ0"
+msgid "Search"
+msgstr "Search"
+
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.N0gXcw"
 msgid "Nothing recorded yet."
 msgstr "Nothing recorded yet."
 
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.McnLsx"
 msgid "When"
 msgstr "When"
 
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.m1czzY"
 msgid "Event"
 msgstr "Event"
 
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.rzbYbE"
 msgid "Target"
 msgstr "Target"
@@ -2238,6 +2277,56 @@ msgstr "Database changes and app events, recorded by the audit module."
 msgctxt "audit.TE51b7"
 msgid "Export CSV"
 msgstr "Export CSV"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.ZEwCqR"
+msgid "Nothing matches these filters."
+msgstr "Nothing matches these filters."
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.F4gyn3"
+msgid "Clear filters"
+msgstr "Clear filters"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.iIeVwA"
+msgid "Older"
+msgstr "Older"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.WTLSja"
+msgid "Not found."
+msgstr "Not found."
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.RrCui3"
+msgid "Summary"
+msgstr "Summary"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.VWGEKN"
+msgid "Before"
+msgstr "Before"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.4X-U8o"
+msgid "After"
+msgstr "After"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit._TqDm0"
+msgid "10,000 or more entries"
+msgstr "10,000 or more entries"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.QXXK0l"
+msgid "{count, number} entries"
+msgstr "{count, number} entries"
 
 #: src/features/auth/components/forgot-password-form.tsx
 msgctxt "auth.p-kmJg"
@@ -11268,20 +11357,53 @@ msgctxt "notifications.ShdEie"
 msgid "Mark all read"
 msgstr "Mark all read"
 
+#: src/features/notifications/components/notification-history.tsx
+msgctxt "notifications.zQvVDJ"
+msgid "All"
+msgstr "All"
+
+#: src/features/notifications/components/notification-history.tsx
+msgctxt "notifications.jabB4C"
+msgid "Unread"
+msgstr "Unread"
+
+#: src/features/notifications/components/notification-history.tsx
 #: src/features/notifications/components/notification-list.tsx
 msgctxt "notifications.KjR3ZD"
 msgid "Nothing here yet"
 msgstr "Nothing here yet"
 
+#: src/features/notifications/components/notification-history.tsx
 #: src/features/notifications/components/notification-list.tsx
 msgctxt "notifications.5L9NEw"
 msgid "Send yourself a notification to see it arrive."
 msgstr "Send yourself a notification to see it arrive."
 
+#: src/features/notifications/components/notification-history.tsx
+msgctxt "notifications.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/notifications/components/notification-history.tsx
+msgctxt "notifications.iIeVwA"
+msgid "Older"
+msgstr "Older"
+
 #: src/features/notifications/components/notification-list.tsx
+#: src/features/notifications/components/notification-rows.tsx
 msgctxt "notifications.bW7B87"
 msgid "New"
 msgstr "New"
+
+#: src/features/notifications/components/notification-rows.tsx
+msgctxt "notifications.aGlMQV"
+msgid "Mark read"
+msgstr "Mark read"
+
+#: src/features/notifications/components/notifications-live.tsx
+msgctxt "notifications.SWSSNW"
+msgid "{count, number} new"
+msgstr "{count, number} new"
 
 #: src/features/notifications/components/unread-badge.tsx
 msgctxt "notifications.43pi5p"
