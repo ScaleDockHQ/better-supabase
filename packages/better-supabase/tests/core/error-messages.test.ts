@@ -29,6 +29,7 @@ const messages: ErrorMessages = {
   max_affected: "Too many rows",
   rate_limited: "Slow down",
   quota_exceeded: "Upgrade",
+  truncated: "Add a limit",
   unsupported: "Unsupported",
   unexpected: "Something went wrong",
 };

@@ -64,6 +64,11 @@ export interface DbErrorKinds {
    */
   quota_exceeded: { meter?: string; limit?: number; retryAfter?: number };
   /**
+   * An unbounded read returned `maxRows` rows and a further row exists.
+   * PostgREST cut the list. Add `limit` or use `page()`.
+   */
+  truncated: { table: string; maxRows: number };
+  /**
    * The executor or its dialect can't run this operation (an include on SQLite,
    * say).
    */
@@ -125,6 +130,7 @@ const STATUS: { readonly [K in DbErrorKind]: number } = {
   max_affected: 400,
   rate_limited: 429,
   quota_exceeded: 429,
+  truncated: 413,
   unsupported: 501,
   unexpected: 500,
 };

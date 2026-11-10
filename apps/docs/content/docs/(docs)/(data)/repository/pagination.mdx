@@ -93,17 +93,15 @@ error. A `list` without `limit` can therefore look complete when it isn't.
 
 ```ts
 export const betterSupabase = createSupabase(schema, { maxRows: 1000 });
-
-betterSupabase.on("query", ({ table, truncated }) => {
-  if (truncated) metrics.increment(`db.${table}.truncated`);
-});
 ```
 
 - `maxRows` tells better-supabase the cap. It defaults to 1000; set it to
   what your project uses.
-- A read without `limit` that returns exactly `maxRows` rows sets
-  `truncated: true` on the [`query` event](/docs/extending/events) and logs
-  a warning once per table. The result itself is unchanged.
+- A read without `limit` that returns `maxRows` rows asks for one more row.
+  When that row exists, the read returns a `truncated` error (HTTP 413) and
+  the rows are not returned. Set `truncation: "warn"` to keep the rows, set
+  `truncated: true` on the [`query` event](/docs/extending/events) and log a
+  warning once per table.
 - The fix is `limit` for a bounded list, `page` for everything else, or
   an [aggregate](/docs/repository/aggregates) when you only need a number.
 

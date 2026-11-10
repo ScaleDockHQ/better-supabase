@@ -320,6 +320,9 @@ catalogs:
     '@supabase-labs/middleware-openfeature':
       specifier: 0.2.0
       version: 0.2.0
+    '@supabase/auth-js':
+      specifier: 2.119.0
+      version: 2.119.0
     '@supabase/config':
       specifier: 0.11.1
       version: 0.11.1
@@ -341,6 +344,9 @@ catalogs:
     '@supabase/postgrest-typegen':
       specifier: 0.6.0
       version: 0.6.0
+    '@supabase/realtime-js':
+      specifier: 2.119.0
+      version: 2.119.0
     '@supabase/server':
       specifier: 1.9.2
       version: 1.9.2
@@ -1916,6 +1922,9 @@ importers:
       '@supabase-labs/middleware-openfeature':
         specifier: 'catalog:'
         version: 0.2.0(typescript@7.0.2)
+      '@supabase/auth-js':
+        specifier: 'catalog:'
+        version: 2.119.0
       '@supabase/config':
         specifier: 'catalog:'
         version: 0.11.1(@effect/platform-node@4.0.5(effect@4.1.2)(redis@6.3.1(@opentelemetry/api@1.9.1)))(effect@4.1.2)
@@ -1934,6 +1943,9 @@ importers:
       '@supabase/postgrest-typegen':
         specifier: 'catalog:'
         version: 0.6.0(oxfmt@0.74.0(@astrojs/compiler-rs@0.5.2)(svelte@5.57.3(@typescript-eslint/types@8.71.0)))
+      '@supabase/realtime-js':
+        specifier: 'catalog:'
+        version: 2.119.0
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.119.0(@opentelemetry/api@1.9.1)

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:494e59ef57e4669c4ce6f24148feffe53b4f493de70aec9d2f84e378294f120c
+-- @bsb-hash sha256:fee3e807ae0c492801a823925bbc7e0698dde91399e4bb1bc475accbf63c7172
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1083,7 +1083,13 @@ begin
       end if;
     end loop;
   end if;
-  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0 or v_counts::text like '%"conflicted":%') then
+  if v_outcome = 'completed' and (
+    jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0
+    or exists (
+      select 1 from jsonb_each(coalesce(v_counts, '{}'::jsonb)) v_entity_counts(key, value)
+      where coalesce((v_entity_counts.value ->> 'conflicted')::integer, 0) > 0
+    )
+  ) then
     v_outcome := 'completed_with_issues';
   end if;
 
@@ -1492,7 +1498,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:b0c3bdacc684e4a548f6093ee6ec2c2d35c54673e7927290c4b16f66cdece84e
+-- @bsb-hash sha256:70f61cff7246aea3db640e7dbf75962c5e4d3f7fa24bd08e224707c7a237cd1f
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2797,7 +2803,13 @@ begin
       end if;
     end loop;
   end if;
-  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0 or v_counts::text like '%"conflicted":%') then
+  if v_outcome = 'completed' and (
+    jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0
+    or exists (
+      select 1 from jsonb_each(coalesce(v_counts, '{}'::jsonb)) v_entity_counts(key, value)
+      where coalesce((v_entity_counts.value ->> 'conflicted')::integer, 0) > 0
+    )
+  ) then
     v_outcome := 'completed_with_issues';
   end if;
 
@@ -3206,7 +3218,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:16f273f8da00549d5d0515612ea9f7ab702fc8c42cb8ae7ca2fd4b4524b0be34
+-- @bsb-hash sha256:65a8c277d5a66208a9556ec0f9b4968cd8478687315dec7667bc8848dcf46993
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4293,7 +4305,13 @@ begin
       end if;
     end loop;
   end if;
-  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0 or v_counts::text like '%"conflicted":%') then
+  if v_outcome = 'completed' and (
+    jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0
+    or exists (
+      select 1 from jsonb_each(coalesce(v_counts, '{}'::jsonb)) v_entity_counts(key, value)
+      where coalesce((v_entity_counts.value ->> 'conflicted')::integer, 0) > 0
+    )
+  ) then
     v_outcome := 'completed_with_issues';
   end if;
 
@@ -4702,7 +4720,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:448ae335d53ca19e9a2aec48ceb27413dec408e754351193b1f5a19d8605ba6d
+-- @bsb-hash sha256:787c1a391596589d501563407c288a71d9ec1d879a5db861db81c993d67641cf
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5784,7 +5802,13 @@ begin
       end if;
     end loop;
   end if;
-  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0 or v_counts::text like '%"conflicted":%') then
+  if v_outcome = 'completed' and (
+    jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0
+    or exists (
+      select 1 from jsonb_each(coalesce(v_counts, '{}'::jsonb)) v_entity_counts(key, value)
+      where coalesce((v_entity_counts.value ->> 'conflicted')::integer, 0) > 0
+    )
+  ) then
     v_outcome := 'completed_with_issues';
   end if;
 
@@ -6515,7 +6539,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:9be1e5129b02f6334be0c11c5bdd40f85600283707e6f1236f7b5b1c897b9bdf
+-- @bsb-hash sha256:1b863518d2844d41bef503eb728b977f04c55b131d4b635d9bbbda572773fd0d
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7579,7 +7603,13 @@ begin
       end if;
     end loop;
   end if;
-  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0 or v_counts::text like '%"conflicted":%') then
+  if v_outcome = 'completed' and (
+    jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0
+    or exists (
+      select 1 from jsonb_each(coalesce(v_counts, '{}'::jsonb)) v_entity_counts(key, value)
+      where coalesce((v_entity_counts.value ->> 'conflicted')::integer, 0) > 0
+    )
+  ) then
     v_outcome := 'completed_with_issues';
   end if;
 
@@ -7988,7 +8018,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:a6b432131de549d937bfbf528503293f81dcc99404b14e08cc7815df98b9edc5
+-- @bsb-hash sha256:0113eb88e71aaacff3022ecd2e08750e573a361228e2f981284c9cc805908a42
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9070,7 +9100,13 @@ begin
       end if;
     end loop;
   end if;
-  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0 or v_counts::text like '%"conflicted":%') then
+  if v_outcome = 'completed' and (
+    jsonb_array_length(coalesce(v_run."errors", '[]'::jsonb)) > 0
+    or exists (
+      select 1 from jsonb_each(coalesce(v_counts, '{}'::jsonb)) v_entity_counts(key, value)
+      where coalesce((v_entity_counts.value ->> 'conflicted')::integer, 0) > 0
+    )
+  ) then
     v_outcome := 'completed_with_issues';
   end if;
 

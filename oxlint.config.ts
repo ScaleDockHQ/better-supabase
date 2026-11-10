@@ -32,6 +32,7 @@ export const ignorePatterns: string[] = [
   "**/.cursor/**",
   "**/generated.ts",
   "**/generated.meta.*",
+  "**/generated.functions.*",
   "**/generated-*.ts",
   // The files the zod, nuqs and factories generators write next to generated.ts.
   "**/generated.{zod,nuqs,factories,valibot}.ts",

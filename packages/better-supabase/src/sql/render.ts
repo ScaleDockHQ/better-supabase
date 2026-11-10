@@ -255,7 +255,11 @@ function moduleFiles(
 
   const searchTriggers =
     searchAt !== -1 && installed.indexOf(module.name) > searchAt
-      ? ownerSearchTriggers(moduleContext("search", layout, installed), ctx)
+      ? ownerSearchTriggers(
+          moduleContext("search", layout, installed),
+          ctx,
+          layout,
+        )
       : "";
 
   // The row audit registration belongs in the schema file, so a schema diff

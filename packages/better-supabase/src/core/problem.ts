@@ -85,6 +85,7 @@ const TITLES: { readonly [K in DbErrorKind]: string } = {
   max_affected: "Too many rows affected",
   rate_limited: "Too Many Requests",
   quota_exceeded: "Quota exceeded",
+  truncated: "Result truncated",
   unsupported: "Not supported by this executor",
   unexpected: "Internal Server Error",
 };

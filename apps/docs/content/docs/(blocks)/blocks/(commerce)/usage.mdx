@@ -576,6 +576,6 @@ if (!consumed.ok) return problemResponse(consumed.error);
 
 await usage.record(organizationId, "api_calls"); // metering only, no check
 const { used, limit, remaining, resetsAt } = await usage
-  .current(organizationId, "documents")
+  .current({ organizationId, meter: "documents" })
   .orThrow();
 ```

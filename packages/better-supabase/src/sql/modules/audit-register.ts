@@ -196,15 +196,15 @@ ${statementChecks()}
   execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   if audit.statement then
     execute format(
-      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement when (${WHEN_NOT_IMPORT}) execute function better_supabase.audit_statement_change(%L)',
       target, base_settings::text
     );
     execute format(
-      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement when (${WHEN_NOT_IMPORT}) execute function better_supabase.audit_statement_change(%L)',
       target, base_settings::text
     );
     execute format(
-      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement when (${WHEN_NOT_IMPORT}) execute function better_supabase.audit_statement_change(%L)',
       target, base_settings::text
     );
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then

@@ -113,6 +113,7 @@ below, and `classify` overrides it for some errors:
 | Kind                                                                                                             | Do                                                            |
 | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `network`, `timeout`, `aborted`, `rate_limited`, `quota_exceeded`, `serialization`, `unauthorized`, `unexpected` | retry: PowerSync keeps the batch and calls `uploadData` again |
+| `truncated`                                                                                                      | discard                                                       |
 | `conflict`, `stale`, `foreign_key`                                                                               | conflict: complete it and show the conflict next to the row   |
 | `forbidden`, `not_found`, `check`, `not_null`, `validation` and the rest                                         | discard: complete it; the server will never accept it         |
 

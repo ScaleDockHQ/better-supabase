@@ -201,9 +201,9 @@ export interface SubjectSearch {
     readonly via?: string;
     readonly through?: readonly SearchWatchHop[];
     /**
-     * The columns of `table` whose change re-indexes the record, next to `key`.
-     * Without it, any update of a row does, and a trigger on `update of` these
-     * columns skips the rest.
+     * The columns of `table` the record's title or body reads, next to `key`.
+     * The update trigger fires on `key` and these columns, and only when one of
+     * them changed. Without it, only a change to `key` re-indexes the record.
      */
     readonly columns?: readonly string[];
   }[];

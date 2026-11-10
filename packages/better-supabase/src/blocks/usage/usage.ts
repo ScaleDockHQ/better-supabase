@@ -563,7 +563,9 @@ export function createUsage(options: UsageOptions): Usage {
         (Array.isArray(value) ? value : []).map(statusOf),
       ),
     remaining: ({ organizationId, meter }) =>
-      current({ organizationId, meter }).map((status) => status.remaining),
+      call("usage_remaining", { tenant: organizationId, meter }, (value) =>
+        optionalNumber(recordOf(value, "usage_remaining")["remaining"]),
+      ),
     history: ({ organizationId, ...list }) =>
       call(
         "usage_history",
