@@ -943,6 +943,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     fn("list_pending_ai_tool_approvals", ["integer"]),
     fn("record_ai_run_step", ["uuid", "jsonb"]),
     fn("list_ai_run_steps", ["uuid"]),
+    fn("list_ai_run_steps_for", ["uuid[]", "integer"]),
     fn("load_ai_harness_session", ["uuid", "text"]),
     fn("save_ai_harness_session", ["uuid", "text", "jsonb", "text"]),
     fn(

@@ -551,6 +551,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0667: A historical quote import can replace a decided quote.
 - 0649: Observe the server's Supabase requests with a fetch wrapper.
 - 0652: Record the hot read baselines and join the inbox page's contacts in one pass.
+- 0670: Read run steps, versions, applications, templates and care plans in batches.
 
 ## Pre-release pins
 

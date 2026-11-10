@@ -620,6 +620,33 @@ begin
 end;
 $$;
 ${userGrant(`${fn("get_version")}(uuid)`)}
+
+-- Many versions with their content in one read, in the order requested. The
+-- read check runs once per distinct record; a version that is missing or that
+-- the caller cannot read is left out instead of failing the batch.
+create or replace function ${fn("get_versions")}(version_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  with wanted as (
+    select x.* from ${versions} x where x.${c("id")} = any (get_versions.version_ids)
+  ),
+  allowed as materialized (
+    select q.${c("tenant")}, q.${c("subjectType")}, q.${c("subjectId")}
+    from (select distinct w.${c("tenant")}, w.${c("subjectType")}, w.${c("subjectId")} from wanted w) q
+    where ${SERVICE_CALLER} or (${ctx.can("tenant", `q.${c("tenant")}`, read)} and ${subjectReadable(ctx, subjects, { type: `q.${c("subjectType")}`, id: `q.${c("subjectId")}`, tenant: `q.${c("tenant")}` })}${own(`q.${c("subjectType")}`)})
+  )
+  select coalesce(jsonb_agg(${summary("v")} || jsonb_build_object('content', v.${c("content")}) order by array_position(get_versions.version_ids, v.${c("id")})), '[]'::jsonb)
+  from wanted v
+  join allowed a on a.${c("tenant")} = v.${c("tenant")} and a.${c("subjectType")} = v.${c("subjectType")} and a.${c("subjectId")} = v.${c("subjectId")}
+  );
+end;
+$$;
+${userGrant(`${fn("get_versions")}(uuid[])`)}
 ${
   ctx.installed("share-links")
     ? `
@@ -876,6 +903,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "get_version", args: ["uuid"], returns: "jsonb" },
+    { name: "get_versions", args: ["uuid[]"], returns: "jsonb" },
     { name: "restore_version", args: ["uuid", "text[]"], returns: "jsonb" },
   ];
 }

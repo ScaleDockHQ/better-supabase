@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:b4b55d173605a29bf9f8ea4e1555c88a036d7e43def6b142a63c045157424282
+-- @bsb-hash sha256:2b606147e3d2e1a9d90e8b97d7ec4918d4c0c5597277197751ebe0b459ee4876
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -278,6 +278,63 @@ as $$
 $$;
 revoke execute on function "better_supabase"."template_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."template_get"(uuid) to authenticated, service_role;
+
+-- Many templates with their newest published version and draft in one read,
+-- in the order requested. One the caller can't read has no entry.
+create or replace function "better_supabase"."templates_get_many"(template_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'scope', x."scope",
+    'key', x."key",
+    'type', x."type",
+    'name', x."name",
+    'language', x."language",
+    'isDefault', x."is_default",
+    'settings', x."settings",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when x."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+    'published', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is not null
+      order by y."version" desc limit 1),
+    'draft', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is null))
+    order by array_position(templates_get_many.template_ids, x."id")), '[]'::jsonb)
+  from "better_supabase"."templates" x
+  where x."id" = any (templates_get_many.template_ids)
+$$;
+revoke execute on function "better_supabase"."templates_get_many"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."templates_get_many"(uuid[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."remove_template"(template_id uuid)
 returns boolean
@@ -895,7 +952,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:1da98dee9ed3dd9e2f012b5a8cb9c80052ed8a2aad5bbb8d3670acac1be97a3a
+-- @bsb-hash sha256:b6c0fde481822f38d122b1f083c0c7f95c8a35c81774010bf9ea2b4b1f628347
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1229,6 +1286,63 @@ as $$
 $$;
 revoke execute on function "better_supabase"."template_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."template_get"(uuid) to authenticated, service_role;
+
+-- Many templates with their newest published version and draft in one read,
+-- in the order requested. One the caller can't read has no entry.
+create or replace function "better_supabase"."templates_get_many"(template_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'scope', x."scope",
+    'key', x."key",
+    'type', x."type",
+    'name', x."name",
+    'language', x."language",
+    'isDefault', x."is_default",
+    'settings', x."settings",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when x."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+    'published', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is not null
+      order by y."version" desc limit 1),
+    'draft', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is null))
+    order by array_position(templates_get_many.template_ids, x."id")), '[]'::jsonb)
+  from "better_supabase"."templates" x
+  where x."id" = any (templates_get_many.template_ids)
+$$;
+revoke execute on function "better_supabase"."templates_get_many"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."templates_get_many"(uuid[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."remove_template"(template_id uuid)
 returns boolean
@@ -2367,7 +2481,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:50d2ccef567cf93f7ce459cf98033071eb8975b6110416089b3e24eb7db03d75
+-- @bsb-hash sha256:404307e921b0dd04bd75ed09816e732b52850be8be689d88673e3426d9cdbb12
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2649,6 +2763,63 @@ as $$
 $$;
 revoke execute on function "app_private"."template_get"(uuid) from public, anon;
 grant execute on function "app_private"."template_get"(uuid) to authenticated, service_role;
+
+-- Many templates with their newest published version and draft in one read,
+-- in the order requested. One the caller can't read has no entry.
+create or replace function "app_private"."templates_get_many"(template_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'scope', x."scope",
+    'key', x."key",
+    'type', x."type",
+    'name', x."name",
+    'language', x."language",
+    'isDefault', x."is_default",
+    'settings', x."settings",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'publishedVersion', (select y."version" from "app_private"."template_versions" y where y."template_id" = x."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when x."forked_from" is not null then (select y."version" from "app_private"."template_versions" y where y."template_id" = x."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+    'published', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "app_private"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is not null
+      order by y."version" desc limit 1),
+    'draft', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "app_private"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is null))
+    order by array_position(templates_get_many.template_ids, x."id")), '[]'::jsonb)
+  from "app_private"."templates" x
+  where x."id" = any (templates_get_many.template_ids)
+$$;
+revoke execute on function "app_private"."templates_get_many"(uuid[]) from public, anon;
+grant execute on function "app_private"."templates_get_many"(uuid[]) to authenticated, service_role;
 
 create or replace function "app_private"."remove_template"(template_id uuid)
 returns boolean
@@ -3266,7 +3437,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:a341380e9116f43be6ff54df551570af40ede021132d54d683afbfee1425a90a
+-- @bsb-hash sha256:4636e921a1d6825859779f2f62e7843c9669c0219ba0fda8315bc4f6522d9043
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3543,6 +3714,63 @@ as $$
 $$;
 revoke execute on function "better_supabase"."template_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."template_get"(uuid) to authenticated, service_role;
+
+-- Many templates with their newest published version and draft in one read,
+-- in the order requested. One the caller can't read has no entry.
+create or replace function "better_supabase"."templates_get_many"(template_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'scope', x."scope",
+    'key', x."key",
+    'type', x."type",
+    'name', x."name",
+    'language', x."language",
+    'isDefault', x."is_default",
+    'settings', x."settings",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when x."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+    'published', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is not null
+      order by y."version" desc limit 1),
+    'draft', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is null))
+    order by array_position(templates_get_many.template_ids, x."id")), '[]'::jsonb)
+  from "better_supabase"."templates" x
+  where x."id" = any (templates_get_many.template_ids)
+$$;
+revoke execute on function "better_supabase"."templates_get_many"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."templates_get_many"(uuid[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."remove_template"(template_id uuid)
 returns boolean
@@ -4174,6 +4402,16 @@ as $$ select "better_supabase"."template_get"($1) $$;
 revoke execute on function "api"."template_get"(uuid) from public, anon;
 grant execute on function "api"."template_get"(uuid) to authenticated, service_role;
 
+create or replace function "api"."templates_get_many"(template_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."templates_get_many"($1) $$;
+revoke execute on function "api"."templates_get_many"(uuid[]) from public, anon;
+grant execute on function "api"."templates_get_many"(uuid[]) to authenticated, service_role;
+
 create or replace function "api"."remove_template"(template_id uuid)
 returns boolean
 language sql
@@ -4304,7 +4542,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:d3ff54ee08a633655cce1e23f411d7ce4ec2bff0aa0d8d01d2cf9530a1bc1ffe
+-- @bsb-hash sha256:0e42e49ae19e822fe646c55df91919bed0931e066f2b9dc13ed47828e4ab3a09
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4573,6 +4811,63 @@ as $$
 $$;
 revoke execute on function "better_supabase"."template_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."template_get"(uuid) to authenticated, service_role;
+
+-- Many templates with their newest published version and draft in one read,
+-- in the order requested. One the caller can't read has no entry.
+create or replace function "better_supabase"."templates_get_many"(template_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'scope', x."scope",
+    'key', x."key",
+    'type', x."type",
+    'name', x."name",
+    'language', x."language",
+    'isDefault', x."is_default",
+    'settings', x."settings",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when x."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+    'published', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is not null
+      order by y."version" desc limit 1),
+    'draft', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is null))
+    order by array_position(templates_get_many.template_ids, x."id")), '[]'::jsonb)
+  from "better_supabase"."templates" x
+  where x."id" = any (templates_get_many.template_ids)
+$$;
+revoke execute on function "better_supabase"."templates_get_many"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."templates_get_many"(uuid[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."remove_template"(template_id uuid)
 returns boolean
@@ -5190,7 +5485,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:09fb0c2d6c2d989dc22de310dc4018872887660760572a36f762bc62a86bf51d
+-- @bsb-hash sha256:c27645c67caa081904c6525d36447b5c76067550ae5ef1916a05b025df7bf2d5
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5467,6 +5762,63 @@ as $$
 $$;
 revoke execute on function "better_supabase"."template_get"(uuid) from public, anon;
 grant execute on function "better_supabase"."template_get"(uuid) to authenticated, service_role;
+
+-- Many templates with their newest published version and draft in one read,
+-- in the order requested. One the caller can't read has no entry.
+create or replace function "better_supabase"."templates_get_many"(template_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x."id",
+    'tenant', x."org_id",
+    'scope', x."scope",
+    'key', x."key",
+    'type', x."type",
+    'name', x."name",
+    'language', x."language",
+    'isDefault', x."is_default",
+    'settings', x."settings",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'publishedVersion', (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."id" and y."published_at" is not null order by y."version" desc limit 1),
+    'upstreamVersion', case when x."forked_from" is not null then (select y."version" from "better_supabase"."template_versions" y where y."template_id" = x."forked_from" and y."published_at" is not null order by y."version" desc limit 1) end,
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+    'published', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is not null
+      order by y."version" desc limit 1),
+    'draft', (select jsonb_build_object(
+    'id', y."id",
+    'template', y."template_id",
+    'version', y."version",
+    'hash', y."hash",
+    'publishedAt', y."published_at",
+    'createdBy', y."created_by",
+    'createdAt', y."created_at",
+    'body', y."body"
+  ) from "better_supabase"."template_versions" y
+      where y."template_id" = x."id" and y."published_at" is null))
+    order by array_position(templates_get_many.template_ids, x."id")), '[]'::jsonb)
+  from "better_supabase"."templates" x
+  where x."id" = any (templates_get_many.template_ids)
+$$;
+revoke execute on function "better_supabase"."templates_get_many"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."templates_get_many"(uuid[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."remove_template"(template_id uuid)
 returns boolean

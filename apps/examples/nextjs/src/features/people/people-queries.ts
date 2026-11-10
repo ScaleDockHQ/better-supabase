@@ -220,11 +220,9 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
       .orThrow(),
   ]);
 
-  const applications = (
-    await Promise.all(
-      jobs.map((job) => db.hiring.applications({ jobId: job.id }).orThrow()),
-    )
-  ).flat();
+  const applications = await db.hiring
+    .applicationsForJobs({ jobIds: jobs.map((job) => job.id) })
+    .orThrow();
 
   const names = new Map(
     customers.map((customer) => [customer.id, customer.name]),

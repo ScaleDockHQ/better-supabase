@@ -161,7 +161,7 @@ export interface BlockNameRegistry {
       readonly "sandboxes": "id" | "tenant" | "user" | "chat" | "harness" | "provider" | "sandbox" | "container" | "status" | "metadata" | "idleSeconds" | "error" | "lastUsedAt" | "expiresAt" | "stoppedAt" | "createdAt" | "updatedAt";
       readonly "harness": "chat" | "harness" | "owner" | "resume" | "continue" | "status" | "holder" | "lockedUntil" | "lastActiveAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_ai_chat_participant" | "add_ai_chat_party" | "ai_chat_can_read" | "ai_chat_notify" | "ai_chat_share_summaries" | "ai_message_path" | "ai_message_path_of" | "ai_message_siblings" | "ai_sandbox_for" | "ai_tool_approval_approvable" | "ai_tool_policies_for" | "allowed_ai_models" | "answer_ai_pending_input" | "append_ai_user_message" | "apply_ai_tool_approval" | "attach_ai_run" | "claim_ai_chat_stream" | "create_ai_chat" | "create_ai_chat_link" | "decide_ai_tool_approval" | "delete_ai_chat" | "delete_ai_project" | "finish_ai_sandbox_stop" | "get_ai_chat" | "get_ai_chat_by_link" | "get_ai_run" | "get_ai_tool_approvals" | "get_shared_ai_chat" | "idle_ai_sandboxes" | "list_ai_chat_participants" | "list_ai_chat_shares" | "list_ai_chats" | "list_ai_moderation_events" | "list_ai_projects" | "list_ai_run_steps" | "list_ai_runs" | "list_ai_sandboxes" | "list_pending_ai_tool_approvals" | "load_ai_harness_session" | "lock_ai_harness_session" | "open_ai_pending_input" | "purge_ai_chats" | "rate_ai_message" | "record_ai_moderation_event" | "record_ai_run_step" | "record_ai_tool_approval" | "register_ai_sandbox" | "release_ai_chat_stream" | "remove_ai_chat_participant" | "remove_ai_chat_party" | "request_ai_chat_stop" | "revoke_ai_chat_link" | "revoke_ai_chat_share" | "rotate_ai_chat_link" | "save_ai_assistant_message" | "save_ai_harness_session" | "save_ai_project" | "set_ai_run_cost" | "set_ai_tool_policy" | "share_ai_chat" | "switch_ai_branch" | "touch_ai_sandbox" | "unlock_ai_harness_session" | "update_ai_chat" | "upsert_ai_models";
+    readonly functions: "add_ai_chat_participant" | "add_ai_chat_party" | "ai_chat_can_read" | "ai_chat_notify" | "ai_chat_share_summaries" | "ai_message_path" | "ai_message_path_of" | "ai_message_siblings" | "ai_sandbox_for" | "ai_tool_approval_approvable" | "ai_tool_policies_for" | "allowed_ai_models" | "answer_ai_pending_input" | "append_ai_user_message" | "apply_ai_tool_approval" | "attach_ai_run" | "claim_ai_chat_stream" | "create_ai_chat" | "create_ai_chat_link" | "decide_ai_tool_approval" | "delete_ai_chat" | "delete_ai_project" | "finish_ai_sandbox_stop" | "get_ai_chat" | "get_ai_chat_by_link" | "get_ai_run" | "get_ai_tool_approvals" | "get_shared_ai_chat" | "idle_ai_sandboxes" | "list_ai_chat_participants" | "list_ai_chat_shares" | "list_ai_chats" | "list_ai_moderation_events" | "list_ai_projects" | "list_ai_run_steps" | "list_ai_run_steps_for" | "list_ai_runs" | "list_ai_sandboxes" | "list_pending_ai_tool_approvals" | "load_ai_harness_session" | "lock_ai_harness_session" | "open_ai_pending_input" | "purge_ai_chats" | "rate_ai_message" | "record_ai_moderation_event" | "record_ai_run_step" | "record_ai_tool_approval" | "register_ai_sandbox" | "release_ai_chat_stream" | "remove_ai_chat_participant" | "remove_ai_chat_party" | "request_ai_chat_stop" | "revoke_ai_chat_link" | "revoke_ai_chat_share" | "rotate_ai_chat_link" | "save_ai_assistant_message" | "save_ai_harness_session" | "save_ai_project" | "set_ai_run_cost" | "set_ai_tool_policy" | "share_ai_chat" | "switch_ai_branch" | "touch_ai_sandbox" | "unlock_ai_harness_session" | "update_ai_chat" | "upsert_ai_models";
     readonly actions: "read" | "create" | "share" | "moderate" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -478,7 +478,7 @@ export interface BlockNameRegistry {
       readonly "actions": "id" | "tenant" | "plan" | "goal" | "kind" | "title" | "instructions" | "frequency" | "teamRole" | "measureKind" | "task" | "bookingSeries" | "requiresApproval" | "approval" | "reviewEvery" | "reviewedAt" | "reviewNotifiedAt" | "startsOn" | "endsOn" | "status" | "startedAt" | "endedAt" | "endReason" | "rank" | "createdAt" | "updatedAt";
       readonly "evaluations": "id" | "tenant" | "plan" | "goal" | "evaluatedAt" | "status" | "outcome" | "submission" | "author";
     };
-    readonly functions: "add_care_plan_action" | "add_care_plan_goal" | "add_care_plan_problem" | "archive_care_plan" | "care_plan_action_approved" | "care_plan_action_end" | "care_plan_action_start" | "care_plan_json" | "create_care_plan" | "due_care_plan_reviews" | "end_care_plan_action" | "get_care_plan" | "list_care_plan_measures" | "list_care_plans" | "publish_care_plan" | "record_care_plan_evaluation" | "request_care_plan_agreement" | "review_care_plan_action" | "start_care_plan_action" | "update_care_plan" | "update_care_plan_action" | "update_care_plan_goal" | "update_care_plan_problem";
+    readonly functions: "add_care_plan_action" | "add_care_plan_goal" | "add_care_plan_problem" | "archive_care_plan" | "care_plan_action_approved" | "care_plan_action_end" | "care_plan_action_start" | "care_plan_json" | "create_care_plan" | "due_care_plan_reviews" | "end_care_plan_action" | "get_care_plan" | "get_care_plans" | "list_care_plan_measures" | "list_care_plans" | "publish_care_plan" | "record_care_plan_evaluation" | "request_care_plan_agreement" | "review_care_plan_action" | "start_care_plan_action" | "update_care_plan" | "update_care_plan_action" | "update_care_plan_goal" | "update_care_plan_problem";
     readonly actions: "read" | "write" | "evaluate" | "publish" | "manage";
     readonly hooks: "before_care_plan_create" | "after_care_plan_create" | "before_care_plan_publish" | "after_care_plan_publish" | "before_care_plan_evaluation_create" | "after_care_plan_evaluation_create";
     readonly entities: {
@@ -1136,7 +1136,7 @@ export interface BlockNameRegistry {
       readonly "interviewers": "tenant" | "interview" | "user";
       readonly "scorecardScores": "tenant" | "scorecard" | "criterion" | "score" | "notes";
     };
-    readonly functions: "application_detail" | "apply_to_job" | "close_application" | "list_applications" | "list_jobs" | "save_job" | "schedule_interview" | "submit_scorecard";
+    readonly functions: "application_detail" | "apply_to_job" | "close_application" | "list_applications" | "list_applications_for_jobs" | "list_jobs" | "save_job" | "schedule_interview" | "submit_scorecard";
     readonly actions: "read" | "write" | "manage" | "create" | "jobsCreate" | "jobsUpdate" | "score";
     readonly hooks: "before_application_hire" | "after_application_hire";
     readonly entities: {
@@ -2428,7 +2428,7 @@ export interface BlockNameRegistry {
       readonly "schedules": "id" | "template" | "tenant" | "input" | "enabled" | "createdBy" | "createdAt" | "updatedAt";
       readonly "runs": "schedule" | "tenant" | "occurrence" | "application" | "createdAt";
     };
-    readonly functions: "clone_row" | "fork_template" | "publish_template_version" | "record_template_application" | "remove_template" | "save_template" | "save_template_draft" | "set_default_template" | "sync_templates" | "template_applications_list" | "template_apply_target" | "template_get" | "template_row_guard" | "template_table" | "template_versions_list" | "templates_list";
+    readonly functions: "clone_row" | "fork_template" | "publish_template_version" | "record_template_application" | "remove_template" | "save_template" | "save_template_draft" | "set_default_template" | "sync_templates" | "template_applications_list" | "template_apply_target" | "template_get" | "template_row_guard" | "template_table" | "template_versions_list" | "templates_get_many" | "templates_list";
     readonly actions: "read" | "apply" | "manage";
     readonly hooks: "before_template_save" | "after_template_save" | "before_template_apply" | "after_template_apply";
     readonly entities: {
@@ -2542,7 +2542,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "versions": "id" | "tenant" | "subjectType" | "subjectId" | "number" | "label" | "content" | "storagePath" | "contentHash" | "fileHash" | "hashVersion" | "source" | "frozen" | "createdBy" | "createdAt";
     };
-    readonly functions: "delete_version" | "get_version" | "label_version" | "list_versions" | "restore_version" | "snapshot_version" | "version_insert" | "versions_capture";
+    readonly functions: "delete_version" | "get_version" | "get_versions" | "label_version" | "list_versions" | "restore_version" | "snapshot_version" | "version_insert" | "versions_capture";
     readonly actions: "read" | "create" | "restore" | "manage";
     readonly hooks: "before_version_snapshot" | "after_version_snapshot" | "before_version_restore" | "after_version_restore";
     readonly entities: {

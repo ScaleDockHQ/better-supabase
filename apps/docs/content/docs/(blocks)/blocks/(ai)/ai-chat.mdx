@@ -265,6 +265,9 @@ A run's `engine` is `ai-sdk` for an answer written inside the request and
 const { runs } = createAiChat({ transport, service: serviceTransport });
 const mine = await runs.list({ active: true }).orThrow();
 const steps = await runs.steps.list(mine[0].id).orThrow();
+const allSteps = await runs.steps
+  .listFor({ runIds: mine.map((run) => run.id) })
+  .orThrow();
 const inbox = await runs.pendingApprovals().orThrow();
 ```
 
@@ -273,6 +276,7 @@ const inbox = await runs.pendingApprovals().orThrow();
 | `get`, `list`                | The caller's runs, or one chat's (`chatId`), newest first             |
 | `attach`                     | Records the engine's run id (service role)                            |
 | `steps.record`, `steps.list` | Records a step by its key (service role); the same key updates it     |
+| `steps.listFor`              | Steps of many runs in one call, each with its `runId`                 |
 | `pendingApprovals`           | The caller's undecided approvals across chats, with each chat's title |
 
 Members read the runs and steps of the chats they can read; only the
