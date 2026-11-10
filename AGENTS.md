@@ -506,6 +506,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0604: Account helpers take the server as their first argument.
 - 0605: Write each renamed block to its own module, and measure before making blocks lazy.
 - 0606: Inline the subject check in the reaction read policies.
+- 0607: Ask the policy tables once per tenant in a purge.
 
 ## Pre-release pins
 

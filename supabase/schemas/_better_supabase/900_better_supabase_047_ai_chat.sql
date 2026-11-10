@@ -1,6 +1,6 @@
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:8e7b4cf95579c3b014ea594031942ae33b0471f09511b624b6d39a8a9ea45efe
+-- @bsb-hash sha256:93a2da5cde8b76945f1e14e608e7cdeb6fac898b18b1a209a4122200cd3f13a5
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2057,7 +2057,7 @@ begin
   with doomed as (
     select x."id" from "better_supabase"."ai_chats" x
     where x."is_temporary" and x."expires_at" <= now()
-      and not "better_supabase"."is_held"('ai_chats', (x."tenant_id")::text)
+      and not "better_supabase"."is_held_memo"('ai_chats', (x."tenant_id")::text)
     limit greatest(coalesce(purge_ai_chats.batch, 1000), 1)
   )
   delete from "better_supabase"."ai_chats" c using doomed where c."id" = doomed."id";

@@ -691,7 +691,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:2d2ddbd029160e4504f627fa1182826b10969847313f492107f83cbd1d580700
+-- @bsb-hash sha256:8cb6b655a56f5483c342e74fa02016315ff81ab0d3bf167979d9deca94f438be
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -981,11 +981,11 @@ as $$
 declare
   purged integer;
 begin
-  if "better_supabase"."is_held"('job_archive', (null)::text) then
+  if "better_supabase"."is_held_memo"('job_archive', (null)::text) then
     return 0;
   end if;
-  older_than := coalesce("better_supabase"."retention_for"('job_archive', (null)::text), older_than);
-  dead_older_than := coalesce("better_supabase"."retention_for"('job_archive', (null)::text), dead_older_than);
+  older_than := coalesce("better_supabase"."retention_for_memo"('job_archive', (null)::text), older_than);
+  dead_older_than := coalesce("better_supabase"."retention_for_memo"('job_archive', (null)::text), dead_older_than);
   execute format(
     'with purged as (delete from pgmq.%1$I where msg_id in (select a.msg_id from pgmq.%1$I a where a.archived_at < now() - case when a.message ? ''dead'' then $3 else $1 end order by a.msg_id limit $2) returning 1) select count(*)::integer from purged',
     'a_' || queue

@@ -708,7 +708,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:c1eb5ccdddaeb7a879f02388d2e16f5a8de4e0ea5bbf1e9882787ca087dc2248
+-- @bsb-hash sha256:dd67fa7ab9028fc5cef66a5827fa75486bb1f318c03b5b66526d2926aa2f889a
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1352,8 +1352,8 @@ begin
     delete from "better_supabase"."usage_history" where "id" in (
       select h."id" from "better_supabase"."usage_history" h
       where (h."recorded_at" < now() - least(older_than, "better_supabase"."retention_floor"('usage'))
-      and h."recorded_at" < now() - coalesce("better_supabase"."retention_for"('usage', (h."tenant_id")::text), older_than)
-      and not "better_supabase"."is_held"('usage', (h."tenant_id")::text))
+      and h."recorded_at" < now() - coalesce("better_supabase"."retention_for_memo"('usage', (h."tenant_id")::text), older_than)
+      and not "better_supabase"."is_held_memo"('usage', (h."tenant_id")::text))
       order by h."id" limit batch
     )
     returning 1

@@ -2380,7 +2380,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:3e40098ac38438a8126422184a209e26f4da12860367b1a880174a7020636c9f
+-- @bsb-hash sha256:b5781311ae36ecc224dc96d47ed0548f1c2be0f14d3a1764d8b286f0dc73110a
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4081,8 +4081,8 @@ begin
   delete from "better_supabase"."inbox_inbound_events" e where e."id" in (
     select x."id" from "better_supabase"."inbox_inbound_events" x
     where (x."received_at" < now() - least(coalesce(older_than, interval '30 days'), "better_supabase"."retention_floor"('inbound_events'))
-      and x."received_at" < now() - coalesce("better_supabase"."retention_for"('inbound_events', (x."tenant_id")::text), coalesce(older_than, interval '30 days'))
-      and not "better_supabase"."is_held"('inbound_events', (x."tenant_id")::text))
+      and x."received_at" < now() - coalesce("better_supabase"."retention_for_memo"('inbound_events', (x."tenant_id")::text), coalesce(older_than, interval '30 days'))
+      and not "better_supabase"."is_held_memo"('inbound_events', (x."tenant_id")::text))
       and x."status" in ('processed', 'ignored')
     limit greatest(coalesce(batch, 1000), 1)
   );
