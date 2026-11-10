@@ -738,7 +738,7 @@ error all come back as `{ ok: false, error }`, like any other action.
 
 ### Bound arguments, guards and results
 
-`bsb.action` takes three more options. `bound` is a schema for the leading arguments of `action.bind(null, id)`; `tenant(input, bound)` and the body `fn(input, ctx, bound)` read the validated tuple. `guard(tenant, ctx)` runs after authentication and the permission check and before the body, and a returned `DbError` refuses the call. `result(outcome)` maps the `ActionResult` before it returns:
+`bsb.action` takes four more options. `bound` is a schema for the leading arguments of `action.bind(null, id)`; `tenant(input, bound)` and the body `fn(input, ctx, bound)` read the validated tuple. `guard(tenant, ctx)` runs after authentication and the permission check and before the body, and a returned `DbError` refuses the call. `invalidates` lists tables whose cache tags drop after a successful call, as on `bsb.blockAction`. `result(outcome)` maps the `ActionResult` before it returns and may be async:
 
 ```ts
 export const archive = bsb.action(

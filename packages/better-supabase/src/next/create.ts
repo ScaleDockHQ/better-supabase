@@ -848,7 +848,8 @@ export function createNext<
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
 
       // SAFETY: `result` keeps the data type.
-      const mapped = (o: Out): Out => (actionOptions.result?.(o) ?? o) as Out;
+      const mapped = async (o: Out): Promise<Out> =>
+        ((await actionOptions.result?.(o)) ?? o) as Out;
 
       return async (...args: unknown[]) => {
         const input = args.at(-1);
@@ -946,6 +947,14 @@ export function createNext<
             betterSupabase.events.logger,
             incomingRequest,
             statsHeader,
+          );
+        }
+
+        if (settled.ok && actionOptions.invalidates) {
+          invalidateAll(
+            actionOptions.invalidates.flatMap((table) =>
+              tableTags(table, { tenant: "*" }),
+            ),
           );
         }
 
@@ -1080,7 +1089,6 @@ export function createNext<
       // SAFETY: blockActionOf calls `host.action` with the options and callback it was given.
       blockActionOf(
         next as never,
-        invalidateAll,
         client as never,
         method,
         blockOptions as never,
