@@ -53,10 +53,9 @@ dropping the typed result checks. The maintainer approved raising the baselines 
 did. `tests/next-build/server-baseline.json` holds main's per-route values plus this change's delta
 (for example `/[locale]/(app)/appraisals/page` 2,826,655 raw on main, then +824); CI passes the
 server guard with them. `tests/next-build/next-build.test.ts` and the never-grows guard are
-unchanged. In `tests/next-build/baseline.json` CI measured three first-load brotli values over
-their slack, so those were raised to the measured values: `/[locale]/(app)/assistant/tasks/page`
-358,657 to 359,557, `/[locale]/(app)/shop/orders/[id]/page` 372,568 to 373,523 and
-`/[locale]/(app)/shop/page` 371,425 to 372,363.
+unchanged. CI on #793 also measured three first-load brotli values over their slack
+(`assistant/tasks/page` +3 bytes, `shop/orders/[id]/page` +23 and `shop/page` +9); #793 merged
+before they were raised, so a follow-up re-measures them from CI instead of hand-editing.
 
 Not done in this change, listed in the plan: `import_allocation`, a purchase order number, tax lines
 and a canceled quantity on purchase orders, sales order `draft` and `on_hold`, historical quote
