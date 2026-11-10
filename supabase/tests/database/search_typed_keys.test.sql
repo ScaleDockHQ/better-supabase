@@ -71,7 +71,7 @@ values (
 
 select set_config(
   'better_supabase.search_mark',
-  pg_stat_get_xact_function_calls('better_supabase.search_refresh(text, text)'::regprocedure)::text,
+  coalesce(pg_stat_get_xact_function_calls('better_supabase.search_refresh(text, text)'::regprocedure), 0)::text,
   true
 );
 
@@ -80,7 +80,7 @@ set extractor = 'none'
 where node_id = '00000000-0000-4000-8000-00000000d0e1';
 
 select is(
-  pg_stat_get_xact_function_calls('better_supabase.search_refresh(text, text)'::regprocedure),
+  coalesce(pg_stat_get_xact_function_calls('better_supabase.search_refresh(text, text)'::regprocedure), 0),
   current_setting('better_supabase.search_mark')::bigint,
   'updating an unwatched text column does not re-index the node'
 );
