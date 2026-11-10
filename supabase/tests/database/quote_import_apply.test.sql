@@ -1,4 +1,4 @@
--- Historical quote import over a decided quote (ADR 0666). A first run imports
+-- Historical quote import over a decided quote (ADR 0667). A first run imports
 -- an accepted quote with one line. A second run with update "apply" and two
 -- lines replaces the lines of the sent and decided quote, keeps its status, its
 -- dates and its answer, and stores the given totals. Without "apply" the quote

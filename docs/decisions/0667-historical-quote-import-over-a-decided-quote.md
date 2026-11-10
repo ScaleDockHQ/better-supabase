@@ -1,4 +1,4 @@
-# 0666: A historical quote import can replace a decided quote
+# 0667: A historical quote import can replace a decided quote
 
 - Status: accepted
 - Date: 2026-11-10

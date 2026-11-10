@@ -1,4 +1,4 @@
-# 0664: Staff orders take draft and on-hold states
+# 0665: Staff orders take draft and on-hold states
 
 - Status: accepted
 - Date: 2026-11-10

@@ -1,4 +1,4 @@
--- Purchase order tax lines (ADR 0665). Saving a draft with taxRateBps on its
+-- Purchase order tax lines (ADR 0666). Saving a draft with taxRateBps on its
 -- lines writes one tax line per code and rate, rounded per line; saving again
 -- rebuilds them; a line without a rate adds none; a rate above 100000 is
 -- refused; Globex (…b1) can't read them. Run with `supabase test db`.

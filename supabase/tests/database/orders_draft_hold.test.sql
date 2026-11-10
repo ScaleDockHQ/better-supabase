@@ -1,4 +1,4 @@
--- Staff order states (ADR 0664). The Acme admin (…a1) saves a draft order from
+-- Staff order states (ADR 0665). The Acme admin (…a1) saves a draft order from
 -- lines: it holds no stock and records order.drafted, not order.placed.
 -- Confirming it makes a confirmed order and records order.placed once. A
 -- confirmed order goes on hold and comes back to the status it was held from;

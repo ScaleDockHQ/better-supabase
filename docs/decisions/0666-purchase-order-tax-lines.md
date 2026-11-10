@@ -1,4 +1,4 @@
-# 0665: Purchase orders keep tax lines
+# 0666: Purchase orders keep tax lines
 
 - Status: accepted
 - Date: 2026-11-10

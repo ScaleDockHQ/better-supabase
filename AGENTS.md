@@ -546,9 +546,9 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0660: Move the remaining paged offset lists onto the keyset template.
 - 0664: Bank accounts take a holder and a primary flag.
 - 0648: Map the data of a bsb.action to another type with a third argument.
-- 0664: Staff orders take draft and on-hold states.
-- 0665: Purchase orders keep tax lines.
-- 0666: A historical quote import can replace a decided quote.
+- 0665: Staff orders take draft and on-hold states.
+- 0666: Purchase orders keep tax lines.
+- 0667: A historical quote import can replace a decided quote.
 - 0649: Observe the server's Supabase requests with a fetch wrapper.
 - 0652: Record the hot read baselines and join the inbox page's contacts in one pass.
 
