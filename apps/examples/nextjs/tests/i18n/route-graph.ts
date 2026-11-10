@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
+import { APP_NAMESPACES } from "../../src/i18n/namespaces";
+
 export const APP = resolve(import.meta.dirname, "../..");
 const SRC = join(APP, "src");
 const LOCALE = join(SRC, "app", "[locale]");
@@ -11,7 +13,8 @@ const ROUTE_FILES =
 const EXTENSIONS = [".tsx", ".ts", "/index.tsx", "/index.ts"];
 const IMPORT = /(?:from\s+|import\s*\(\s*|import\s+)"([^"]+)"/g;
 const USE_EXTRACTED = /useExtracted\(\s*"([^"]+)"/g;
-const PROVIDER_NAMESPACES = /<RouteMessages\s+namespaces=\{\[([^\]]*)\]\}/;
+const PROVIDER =
+  /<NextIntlClientProvider\s+messages=\{(null|pick\(messages,\s*([^)]*)\))\}/;
 
 function resolveImport(from: string, specifier: string): string | undefined {
   const base = specifier.startsWith("@/")
@@ -106,15 +109,24 @@ function routeFiles(dir: string): string[] {
   return found;
 }
 
-/** The namespaces a layout hands to its subtree, if it renders a provider. */
+/**
+ * The namespaces a layout hands to its subtree, if it renders a
+ * `NextIntlClientProvider`: none for `messages={null}`, otherwise the strings
+ * (and `APP_NAMESPACES`) given to `pick`.
+ */
 function declaredNamespaces(file: string): string[] | undefined {
-  const match = PROVIDER_NAMESPACES.exec(read(file));
+  const match = PROVIDER.exec(read(file));
 
   if (!match) {
     return undefined;
   }
 
-  return [...(match[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+  const args = match[2] ?? "";
+
+  return [
+    ...(args.includes("APP_NAMESPACES") ? APP_NAMESPACES : []),
+    ...[...args.matchAll(/"([^"]+)"/g)].map((m) => m[1]!),
+  ];
 }
 
 export interface ProviderScope {
@@ -124,7 +136,7 @@ export interface ProviderScope {
 
 /**
  * The namespaces the nearest provider at or above `file` hands down. The root
- * layout renders the outermost one.
+ * layout renders the outermost one, with no messages.
  */
 export function effectiveNamespaces(file: string): ProviderScope {
   let dir = dirname(file);
@@ -143,7 +155,7 @@ export function effectiveNamespaces(file: string): ProviderScope {
     dir = dirname(dir);
   }
 
-  throw new Error(`no RouteMessages provider above ${relative(APP, file)}`);
+  throw new Error(`no NextIntlClientProvider above ${relative(APP, file)}`);
 }
 
 /** The route files whose namespaces a provider layout must cover. */

@@ -165,7 +165,7 @@ create table if not exists ${orders} (
   check (${w("endsAt")} is null or ${w("endsAt")} > ${w("startsAt")}),
   check (${w("status")} not in (${list(BUSY)}) or (${w("technician")} is not null and ${w("startsAt")} is not null))
 );
-create index if not exists ${index("workOrders", "tenant_idx")} on ${orders} (${w("tenant")}, ${w("createdAt")} desc);
+create index if not exists ${index("workOrders", "tenant_idx")} on ${orders} (${w("tenant")}, ${w("createdAt")} desc, ${w("id")} desc);
 create index if not exists ${index("workOrders", "slot_idx")} on ${orders} (${w("technician")}, ${w("startsAt")}) where ${w("startsAt")} is not null;
 create index if not exists ${index("workOrders", "board_idx")} on ${orders} (${w("tenant")}, ${w("startsAt")}) where ${w("startsAt")} is not null;
 create index if not exists ${index("workOrders", "backlog_idx")} on ${orders} (${w("tenant")}, ${w("createdAt")}) where ${w("status")} = 'unscheduled';

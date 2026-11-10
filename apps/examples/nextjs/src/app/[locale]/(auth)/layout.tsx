@@ -1,7 +1,8 @@
 import { CloudIcon } from "lucide-react";
+import { NextIntlClientProvider, useMessages } from "next-intl";
 
 import { OfflineBanner } from "@/features/offline/components/offline-banner";
-import { RouteMessages } from "@/i18n/route-messages";
+import { pick } from "@/i18n/namespaces";
 
 /**
  * Synchronous: the brand and the centered column are the static shell. The
@@ -10,8 +11,10 @@ import { RouteMessages } from "@/i18n/route-messages";
  * `router.push("/")` would land back here.
  */
 export default function AuthLayout({ children }: LayoutProps<"/[locale]">) {
+  const messages = useMessages();
+
   return (
-    <RouteMessages namespaces={["offline"]}>
+    <NextIntlClientProvider messages={pick(messages, ["offline"])}>
       <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/40 p-6">
         <div className="flex items-center gap-2 text-lg font-semibold">
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -22,6 +25,6 @@ export default function AuthLayout({ children }: LayoutProps<"/[locale]">) {
         <OfflineBanner className="max-w-sm" />
         <div className="w-full max-w-sm">{children}</div>
       </div>
-    </RouteMessages>
+    </NextIntlClientProvider>
   );
 }

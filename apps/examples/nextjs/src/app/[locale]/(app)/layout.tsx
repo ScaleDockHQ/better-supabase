@@ -1,4 +1,4 @@
-import { useExtracted } from "next-intl";
+import { NextIntlClientProvider, useExtracted, useMessages } from "next-intl";
 import { Suspense } from "react";
 
 import { DataProviders } from "@/app/data-providers";
@@ -30,7 +30,7 @@ import {
   UserMenu,
   UserMenuSkeleton,
 } from "@/features/user/components/user-menu";
-import { RouteMessages } from "@/i18n/route-messages";
+import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
 
 // A default <Link> into the app loads only this static frame; everything
 // that reads the session renders on a per-link prefetch or the navigation.
@@ -45,24 +45,10 @@ export const ensureStatic = "shell";
 export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
   const t = useExtracted("navigation");
   const toggle = t("Toggle sidebar");
+  const messages = useMessages();
 
   return (
-    <RouteMessages
-      namespaces={[
-        "announcements",
-        "app",
-        "dashboard",
-        "errors",
-        "inbox",
-        "navigation",
-        "notifications",
-        "offline",
-        "organization",
-        "search",
-        "settings",
-        "user",
-      ]}
-    >
+    <NextIntlClientProvider messages={pick(messages, APP_NAMESPACES)}>
       <DataProviders>
         <SidebarProvider>
           <Sidebar collapsible="icon">
@@ -110,6 +96,6 @@ export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
           </SidebarInset>
         </SidebarProvider>
       </DataProviders>
-    </RouteMessages>
+    </NextIntlClientProvider>
   );
 }

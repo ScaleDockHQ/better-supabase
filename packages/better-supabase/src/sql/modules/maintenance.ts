@@ -295,6 +295,7 @@ create table if not exists ${calibrations} (
   check (${c("dueAt")} is null or ${c("dueAt")} >= ${c("performedAt")})
 );
 create index if not exists ${name("calibrations", "asset_idx")} on ${calibrations} (${c("tenant")}, ${c("asset")}, ${c("performedAt")} desc);
+create index if not exists ${name("calibrations", "list_idx")} on ${calibrations} (${c("tenant")}, ${c("performedAt")} desc, ${c("id")});
 create index if not exists ${name("calibrations", "due_idx")} on ${calibrations} (${c("tenant")}, ${c("dueAt")});
 ${lockTable(calibrations, { read: true })}
 ${readPolicy("calibrations", c("tenant"))}

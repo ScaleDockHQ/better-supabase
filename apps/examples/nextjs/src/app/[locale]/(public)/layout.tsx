@@ -1,15 +1,18 @@
 import { CloudIcon } from "lucide-react";
+import { NextIntlClientProvider, useMessages } from "next-intl";
 
 import { OfflineBanner } from "@/features/offline/components/offline-banner";
-import { RouteMessages } from "@/i18n/route-messages";
+import { pick } from "@/i18n/namespaces";
 
 /**
  * Public pages wider than the sign-in column, such as a status page. Anyone can
  * open them; `src/proxy.ts` lists their paths.
  */
 export default function PublicLayout({ children }: LayoutProps<"/[locale]">) {
+  const messages = useMessages();
+
   return (
-    <RouteMessages namespaces={["offline"]}>
+    <NextIntlClientProvider messages={pick(messages, ["offline"])}>
       <div className="flex min-h-svh flex-col items-center gap-6 bg-muted/40 p-6">
         <div className="flex items-center gap-2 text-lg font-semibold">
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -20,6 +23,6 @@ export default function PublicLayout({ children }: LayoutProps<"/[locale]">) {
         <OfflineBanner className="max-w-3xl" />
         <main className="w-full max-w-3xl">{children}</main>
       </div>
-    </RouteMessages>
+    </NextIntlClientProvider>
   );
 }

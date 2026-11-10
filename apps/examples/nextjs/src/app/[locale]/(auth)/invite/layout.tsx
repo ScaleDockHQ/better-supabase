@@ -1,13 +1,22 @@
 import type { ReactNode } from "react";
 
-import { RouteMessages } from "@/i18n/route-messages";
+import { NextIntlClientProvider, useMessages } from "next-intl";
+
+import { pick } from "@/i18n/namespaces";
 
 export default function InviteLayout({ children }: { children: ReactNode }) {
+  const messages = useMessages();
+
   return (
-    <RouteMessages
-      namespaces={["errors", "invitation", "offline", "organization"]}
+    <NextIntlClientProvider
+      messages={pick(messages, [
+        "errors",
+        "invitation",
+        "offline",
+        "organization",
+      ])}
     >
       {children}
-    </RouteMessages>
+    </NextIntlClientProvider>
   );
 }

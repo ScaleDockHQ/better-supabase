@@ -75,7 +75,7 @@ create table if not exists ${plans} (
   check ((${p("kind")} = 'flat' and ${p("rateBps")} is not null and ${p("tiers")} is null)
     or (${p("kind")} = 'tiered' and ${p("rateBps")} is null and ${p("tiers")} is not null))
 );
-create index if not exists ${name("plans", "tenant_idx")} on ${plans} (${p("tenant")}, ${p("createdAt")} desc);
+create index if not exists ${name("plans", "tenant_idx")} on ${plans} (${p("tenant")}, ${p("createdAt")} desc, ${p("id")} desc);
 ${lockTable(plans, { read: true })}
 ${readPolicy("plans", p("tenant"))}
 

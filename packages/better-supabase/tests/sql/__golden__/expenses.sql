@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:de443d845bccc4195a7f47864bcfdff53614e3aa592d3c48b3feb384029aba01
+-- @bsb-hash sha256:e6972ed03dbeac3d9ef1c621944274cf3a162c93739eb0de8199974c0365e10e
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,7 +52,7 @@ create table "better_supabase"."expense_reports" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc);
+create index "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc, "id" desc);
 create index "expense_reports_user_idx" on "better_supabase"."expense_reports" ("user_id", "tenant_id");
 create index "expense_reports_approval_idx" on "better_supabase"."expense_reports" ("approval_id") where "approval_id" is not null;
 create index "expense_reports_approval_tx_idx" on "better_supabase"."expense_reports" ("approval_transaction_id") where "approval_transaction_id" is not null;
@@ -769,7 +769,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:a8d0ce5cf97365be60d10b651c0a4598092148b86952c953c77360d21734f9c0
+-- @bsb-hash sha256:38da72a3daf716ddecef96169fe3c9dd82191018b5be31df6b1be7a2d4e36868
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -820,7 +820,7 @@ create table "better_supabase"."expense_reports" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc);
+create index "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc, "id" desc);
 create index "expense_reports_user_idx" on "better_supabase"."expense_reports" ("user_id", "tenant_id");
 create index "expense_reports_approval_idx" on "better_supabase"."expense_reports" ("approval_id") where "approval_id" is not null;
 create index "expense_reports_approval_tx_idx" on "better_supabase"."expense_reports" ("approval_transaction_id") where "approval_transaction_id" is not null;
@@ -1642,7 +1642,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:6d3d322b74e46bec2162df91ce7043cc7fc164e242a8b95084b9a643085d81de
+-- @bsb-hash sha256:64ee8c14dd4ef8cce9e827d344a90853d5aed63c62e1dd98583352d0003f585e
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1698,7 +1698,7 @@ create table "app_private"."expense_reports" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index "expense_reports_tenant_idx" on "app_private"."expense_reports" ("tenant_id", "created_at" desc);
+create index "expense_reports_tenant_idx" on "app_private"."expense_reports" ("tenant_id", "created_at" desc, "id" desc);
 create index "expense_reports_user_idx" on "app_private"."expense_reports" ("user_id", "tenant_id");
 create index "expense_reports_approval_idx" on "app_private"."expense_reports" ("approval_id") where "approval_id" is not null;
 create index "expense_reports_approval_tx_idx" on "app_private"."expense_reports" ("approval_transaction_id") where "approval_transaction_id" is not null;
@@ -2415,7 +2415,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:242fda788434d7d7380c05bdc12b8ed933750bf31354f8af580f3a5debfa56e9
+-- @bsb-hash sha256:ad7407e022cd6dd12d49c940ec0184109ee121060cb50cecc1b1a45730e961b4
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2466,7 +2466,7 @@ create table "better_supabase"."expense_reports" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc);
+create index "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc, "id" desc);
 create index "expense_reports_user_idx" on "better_supabase"."expense_reports" ("user_id", "tenant_id");
 create index "expense_reports_approval_idx" on "better_supabase"."expense_reports" ("approval_id") where "approval_id" is not null;
 create index "expense_reports_approval_tx_idx" on "better_supabase"."expense_reports" ("approval_transaction_id") where "approval_transaction_id" is not null;
@@ -3308,7 +3308,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:1a59d9338e097057844e58d9d42049cc98f568a796dad6903970230c9ab0ea79
+-- @bsb-hash sha256:4526cc397f1736e8d07d506b53a83b63368c2a3b5691baa834461bbb6b628171
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3355,7 +3355,7 @@ alter table "better_supabase"."expense_reports" add column if not exists "reimbu
 alter table "better_supabase"."expense_reports" add column if not exists "cancelled_at" timestamptz;
 alter table "better_supabase"."expense_reports" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."expense_reports" add column if not exists "updated_at" timestamptz not null default now();
-create index if not exists "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc);
+create index if not exists "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("tenant_id", "created_at" desc, "id" desc);
 create index if not exists "expense_reports_user_idx" on "better_supabase"."expense_reports" ("user_id", "tenant_id");
 create index if not exists "expense_reports_approval_idx" on "better_supabase"."expense_reports" ("approval_id") where "approval_id" is not null;
 create index if not exists "expense_reports_approval_tx_idx" on "better_supabase"."expense_reports" ("approval_transaction_id") where "approval_transaction_id" is not null;
@@ -4068,7 +4068,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:d619b1ec2851712e4b690ebb23ddfc7c49a834ce4d4abefe47f7a7dd46056670
+-- @bsb-hash sha256:b9df612ed607ce8559f5e915072c442faf806e7d4ac6558cd76f7adb739297cb
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4119,7 +4119,7 @@ create table "better_supabase"."expense_reports" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("org_id", "created_at" desc);
+create index "expense_reports_tenant_idx" on "better_supabase"."expense_reports" ("org_id", "created_at" desc, "id" desc);
 create index "expense_reports_user_idx" on "better_supabase"."expense_reports" ("user_id", "org_id");
 create index "expense_reports_approval_idx" on "better_supabase"."expense_reports" ("approval_id") where "approval_id" is not null;
 create index "expense_reports_approval_tx_idx" on "better_supabase"."expense_reports" ("approval_transaction_id") where "approval_transaction_id" is not null;

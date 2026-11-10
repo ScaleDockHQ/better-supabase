@@ -1,0 +1,33 @@
+---
+title: Observing Supabase calls
+description: Count and time every request the server makes to Supabase with observedFetch.
+---
+
+`observedFetch` from `better-supabase/server` wraps a `fetch` so each request
+reports its method, URL, status and duration. Pass the result as the `fetch`
+option of `createServer`, and every call the server's clients make to the Data
+API, Auth and Storage goes through it:
+
+```ts title="src/lib/supabase/server.ts"
+import { createServer, observedFetch } from "better-supabase/server";
+
+import { betterSupabase } from "./index";
+
+export const bsb = createServer(betterSupabase, {
+  fetch: observedFetch({
+    onCall: ({ method, url, status, durationMs, error }) => {
+      console.log(method, url, status ?? error, `${Math.round(durationMs)}ms`);
+    },
+  }),
+});
+```
+
+The URL has no query string, because it can carry tokens. When the request
+throws, `status` is `undefined` and `error` holds the error's name, and the
+original error is rethrown. The observer runs after the request settled, and an
+observer that throws is ignored, so it can never change a response. Wrap
+another `fetch` (a retrying or tracing one) with the `fetch` option, and
+replace the clock in tests with `now`.
+
+The [Express example](https://github.com/ScaleDockHQ/better-supabase/blob/main/apps/examples/express/src/app.ts)
+counts the calls by status this way.

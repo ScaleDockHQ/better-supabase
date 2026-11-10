@@ -300,6 +300,7 @@ export function defineBlocks<
   )?.api;
 
   const surfaces = new Map<string, BlockInstanceSurface | undefined>();
+  const sharedBuilders = new WeakMap<BlockClientSource, BlockBuilder>();
 
   return {
     blocks,
@@ -348,11 +349,26 @@ export function defineBlocks<
       // SAFETY: one getter per created block, named as `BlockSetClientMap` is.
       return clients as BlockSetClientMap<B>;
     },
-    client: (db, key, options = {}) =>
+    client: (db, key, options = {}) => {
+      // Without options the builder depends on `db` alone, so every call for
+      // one `db` shares it and the port graph is wired once.
+      const shareable = Object.keys(options).length === 0;
+      let builder = shareable ? sharedBuilders.get(db) : undefined;
+
+      if (builder === undefined) {
+        builder = blockBuilder(
+          clientContext(db, { config, ...options }),
+          blocks,
+        );
+
+        if (shareable) {
+          sharedBuilders.set(db, builder);
+        }
+      }
+
       // SAFETY: `build(key)` returns the client of the block under `key`.
-      blockBuilder(clientContext(db, { config, ...options }), blocks).build(
-        String(key),
-      ) as never,
+      return builder.build(String(key)) as never;
+    },
     describe: (key) => {
       if (!surfaces.has(key)) {
         surfaces.set(key, describeInstance(config, blocks, key));

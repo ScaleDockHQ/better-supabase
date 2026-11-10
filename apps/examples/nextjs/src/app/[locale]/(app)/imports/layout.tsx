@@ -1,27 +1,17 @@
 import type { ReactNode } from "react";
 
-import { RouteMessages } from "@/i18n/route-messages";
+import { NextIntlClientProvider, useMessages } from "next-intl";
+
+import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
 
 export default function ImportsLayout({ children }: { children: ReactNode }) {
+  const messages = useMessages();
+
   return (
-    <RouteMessages
-      namespaces={[
-        "announcements",
-        "app",
-        "dashboard",
-        "errors",
-        "imports",
-        "inbox",
-        "navigation",
-        "notifications",
-        "offline",
-        "organization",
-        "search",
-        "settings",
-        "user",
-      ]}
+    <NextIntlClientProvider
+      messages={pick(messages, [...APP_NAMESPACES, "imports"])}
     >
       {children}
-    </RouteMessages>
+    </NextIntlClientProvider>
   );
 }

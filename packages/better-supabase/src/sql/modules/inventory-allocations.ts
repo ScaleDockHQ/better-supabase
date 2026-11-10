@@ -366,8 +366,9 @@ $$;
 ${userGrant(`${fn("release_allocations")}(${ctx.idType}, text, text)`)}
 
 -- Releases one open allocation: what it holds goes back to available and its
--- backorder closes. Returns the allocation.
-create or replace function ${fn("release_allocation")}(allocation uuid)
+-- backorder closes. A quantity below what the allocation has left releases only
+-- that much, backorder first, and shrinks the allocation. Returns the allocation.
+create or replace function ${fn("release_allocation")}(allocation uuid, quantity numeric default null)
 returns jsonb
 language plpgsql
 security definer
@@ -376,28 +377,50 @@ as $$
 #variable_conflict use_column
 declare
   v_row record;
+  v_left numeric;
+  v_backorder numeric;
+  v_held numeric;
 begin
   ${load("release_allocation")}
   if v_row.status <> 'open' then
     ${fail("INVENTORY_ALLOCATION_CLOSED", "the allocation is no longer open", "55000")}
   end if;
-  if v_row.allocated > 0 then
-    ${reserve("v_row.variant", "v_row.location", "-v_row.allocated")}
+  v_left := v_row.quantity - v_row.fulfilled;
+  if release_allocation.quantity is not null
+    and (release_allocation.quantity <= 0 or release_allocation.quantity > v_left) then
+    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be more than zero and at most what the allocation has left", "22023")}
   end if;
-  update ${allocations} x set ${a("allocated")} = 0, ${a("status")} = 'released', ${a("updatedAt")} = now() where x.${a("id")} = v_row.id;
-  ${event("allocation.released", "v_row")}
-  if v_row.allocated > 0 then
+  if release_allocation.quantity is null or release_allocation.quantity = v_left then
+    v_held := v_row.allocated;
+    if v_held > 0 then
+      ${reserve("v_row.variant", "v_row.location", "-v_held")}
+    end if;
+    update ${allocations} x set ${a("allocated")} = 0, ${a("status")} = 'released', ${a("updatedAt")} = now() where x.${a("id")} = v_row.id;
+  else
+    v_backorder := v_left - v_row.allocated;
+    v_held := greatest(release_allocation.quantity - v_backorder, 0);
+    if v_held > 0 then
+      ${reserve("v_row.variant", "v_row.location", "-v_held")}
+    end if;
+    update ${allocations} x set ${a("allocated")} = x.${a("allocated")} - v_held,
+      ${a("quantity")} = x.${a("quantity")} - release_allocation.quantity, ${a("updatedAt")} = now()
+    where x.${a("id")} = v_row.id;
+  end if;
+  ${event("allocation.released", "v_row", ", 'released', coalesce(release_allocation.quantity, v_left)::text")}
+  if v_held > 0 then
     perform ${fn("fill_backorders")}(v_row.tenant, v_row.variant, v_row.location);
   end if;
   return (select ${allocationJson(ctx, "x")} from ${allocations} x where x.${a("id")} = v_row.id);
 end;
 $$;
-${userGrant(`${fn("release_allocation")}(uuid)`)}
+${userGrant(`${fn("release_allocation")}(uuid, numeric)`)}
 
 -- Moves an open allocation to another document (a quote that became an order),
--- keeping what it holds. line_id names the line on the new document. Returns
--- the allocation.
-create or replace function ${fn("transfer_allocation")}(allocation uuid, document_type text, document_id text, line_id text default null)
+-- keeping what it holds. line_id names the line on the new document. A quantity
+-- below what the allocation has left moves only that much, holding stock first,
+-- into a new allocation and leaves the rest where it was. Returns the moved
+-- allocation.
+create or replace function ${fn("transfer_allocation")}(allocation uuid, document_type text, document_id text, line_id text default null, quantity numeric default null)
 returns jsonb
 language plpgsql
 security definer
@@ -406,6 +429,9 @@ as $$
 #variable_conflict use_column
 declare
   v_row record;
+  v_left numeric;
+  v_held numeric;
+  v_new uuid;
 begin
   ${load("transfer_allocation")}
   if v_row.status <> 'open' then
@@ -414,14 +440,31 @@ begin
   if transfer_allocation.document_type is null or transfer_allocation.document_id is null then
     ${fail("INVENTORY_DOCUMENT_INVALID", "an allocation names its document type and id", "22023")}
   end if;
-  update ${allocations} x set ${a("documentType")} = transfer_allocation.document_type, ${a("documentId")} = transfer_allocation.document_id,
-    ${a("line")} = transfer_allocation.line_id, ${a("updatedAt")} = now()
-  where x.${a("id")} = v_row.id;
-  ${event("allocation.transferred", "v_row", ", 'toDocumentType', transfer_allocation.document_type, 'toDocumentId', transfer_allocation.document_id")}
-  return (select ${allocationJson(ctx, "x")} from ${allocations} x where x.${a("id")} = v_row.id);
+  v_left := v_row.quantity - v_row.fulfilled;
+  if transfer_allocation.quantity is not null
+    and (transfer_allocation.quantity <= 0 or transfer_allocation.quantity > v_left) then
+    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be more than zero and at most what the allocation has left", "22023")}
+  end if;
+  if transfer_allocation.quantity is null or transfer_allocation.quantity = v_left then
+    update ${allocations} x set ${a("documentType")} = transfer_allocation.document_type, ${a("documentId")} = transfer_allocation.document_id,
+      ${a("line")} = transfer_allocation.line_id, ${a("updatedAt")} = now()
+    where x.${a("id")} = v_row.id;
+    v_new := v_row.id;
+  else
+    v_held := least(transfer_allocation.quantity, v_row.allocated);
+    update ${allocations} x set ${a("allocated")} = x.${a("allocated")} - v_held,
+      ${a("quantity")} = x.${a("quantity")} - transfer_allocation.quantity, ${a("updatedAt")} = now()
+    where x.${a("id")} = v_row.id;
+    insert into ${allocations} (${a("tenant")}, ${a("variant")}, ${a("location")}, ${a("documentType")}, ${a("documentId")}, ${a("line")}, ${a("quantity")}, ${a("allocated")})
+    values (v_row.tenant, v_row.variant, v_row.location, transfer_allocation.document_type, transfer_allocation.document_id,
+      transfer_allocation.line_id, transfer_allocation.quantity, v_held)
+    returning ${a("id")} into v_new;
+  end if;
+  ${event("allocation.transferred", "v_row", ", 'toDocumentType', transfer_allocation.document_type, 'toDocumentId', transfer_allocation.document_id, 'transferred', coalesce(transfer_allocation.quantity, v_left)::text")}
+  return (select ${allocationJson(ctx, "x")} from ${allocations} x where x.${a("id")} = v_new);
 end;
 $$;
-${userGrant(`${fn("transfer_allocation")}(uuid, text, text, text)`)}
+${userGrant(`${fn("transfer_allocation")}(uuid, text, text, text, numeric)`)}
 
 -- A document's allocations, oldest first.
 create or replace function ${fn("list_allocations")}(tenant ${ctx.idType}, document_type text, document_id text)

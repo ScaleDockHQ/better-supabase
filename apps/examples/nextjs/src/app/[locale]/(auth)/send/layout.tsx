@@ -1,11 +1,17 @@
 import type { ReactNode } from "react";
 
-import { RouteMessages } from "@/i18n/route-messages";
+import { NextIntlClientProvider, useMessages } from "next-intl";
+
+import { pick } from "@/i18n/namespaces";
 
 export default function SendLayout({ children }: { children: ReactNode }) {
+  const messages = useMessages();
+
   return (
-    <RouteMessages namespaces={["drive", "errors", "offline"]}>
+    <NextIntlClientProvider
+      messages={pick(messages, ["drive", "errors", "offline"])}
+    >
       {children}
-    </RouteMessages>
+    </NextIntlClientProvider>
   );
 }

@@ -1,6 +1,6 @@
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:ce0ed687ed634ed3afda270f16bbfb69ec1d8c63c58c1cc72858fc5d79dd653e
+-- @bsb-hash sha256:6b79f9d2c14b054641cc365bd136ddc787714a41d03601299b8fff5c7226e673
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -54,7 +54,7 @@ create table "better_supabase"."ai_batches" (
   "updated_at" timestamptz not null default now()
 );
 create index ai_batches_due_idx on "better_supabase"."ai_batches" ("next_poll_at") where "status" = 'pending' or not "results_saved";
-create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc);
+create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc, "id" desc);
 create index ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
 revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;

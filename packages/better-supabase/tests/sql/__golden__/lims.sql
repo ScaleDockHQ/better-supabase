@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:9867c1a9af582b0397ca22c0b94f9aad184ee0b9e3dfa5083b3be22a053aeaf0
+-- @bsb-hash sha256:166b93a3b1909338dfd5d76881a8da26ea6e42837a40de2ca6bf8719ce59b9fd
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -55,6 +55,7 @@ create table "better_supabase"."lims_samples" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
+create index "lims_samples_list_idx" on "better_supabase"."lims_samples" ("tenant_id", "sequence" desc, "id");
 create index "lims_samples_status_idx" on "better_supabase"."lims_samples" ("tenant_id", "status");
 alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
@@ -306,7 +307,7 @@ $$;
 revoke execute on function "better_supabase"."get_sample"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_sample"(uuid) to authenticated, service_role;
 
--- Samples, newest first. filters is { status, limit, offset }.
+-- Samples, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_samples"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -318,20 +319,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_samples.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_samples.tenant is not null and coalesce(better_supabase.can('tenant', list_samples.tenant, 'lims.read'), false))) then
     raise exception 'not allowed to read samples' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'kind', y."kind", 'lot', y."lot", 'receivedOn', y."received_on", 'status', y."status", 'notes', y."notes", 'rejectionReason', y."rejection_reason", 'completedAt', y."completed_at", 'releasedAt', y."released_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'kind', x."kind", 'lot', x."lot", 'receivedOn', x."received_on", 'status', x."status", 'notes', x."notes", 'rejectionReason', x."rejection_reason", 'completedAt', x."completed_at", 'releasedAt', x."released_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."lims_samples" x
+      where x."tenant_id" = list_samples.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_samples"(uuid, jsonb) from public, anon;
@@ -651,7 +686,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:75e8abb326f14ded0e34f1628b51f92fb33617f3cdaa48b8ff770130b19abdae
+-- @bsb-hash sha256:c372281c091ae5b43139739ec62eb6661c330116411533c004ffb0d34907138c
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -705,6 +740,7 @@ create table "better_supabase"."lims_samples" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
+create index "lims_samples_list_idx" on "better_supabase"."lims_samples" ("tenant_id", "sequence" desc, "id");
 create index "lims_samples_status_idx" on "better_supabase"."lims_samples" ("tenant_id", "status");
 alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
@@ -970,7 +1006,7 @@ $$;
 revoke execute on function "better_supabase"."get_sample"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_sample"(uuid) to authenticated, service_role;
 
--- Samples, newest first. filters is { status, limit, offset }.
+-- Samples, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_samples"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -982,20 +1018,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_samples.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_samples.tenant is not null and coalesce(better_supabase.can('tenant', list_samples.tenant, 'lims.read'), false))) then
     raise exception 'not allowed to read samples' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'kind', y."kind", 'lot', y."lot", 'receivedOn', y."received_on", 'status', y."status", 'notes', y."notes", 'rejectionReason', y."rejection_reason", 'completedAt', y."completed_at", 'releasedAt', y."released_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'kind', x."kind", 'lot', x."lot", 'receivedOn', x."received_on", 'status', x."status", 'notes', x."notes", 'rejectionReason', x."rejection_reason", 'completedAt', x."completed_at", 'releasedAt', x."released_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."lims_samples" x
+      where x."tenant_id" = list_samples.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_samples"(uuid, jsonb) from public, anon;
@@ -1401,7 +1471,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:85aace150327f3418ad439bad7b8af529ef96174f7a7cdef1a5ef7273ae4dba5
+-- @bsb-hash sha256:b578fac660f4987406233f9e9b0c63f0e8af7e016758608bc276944912bc6637
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1460,6 +1530,7 @@ create table "app_private"."lims_samples" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
+create index "lims_samples_list_idx" on "app_private"."lims_samples" ("tenant_id", "sequence" desc, "id");
 create index "lims_samples_status_idx" on "app_private"."lims_samples" ("tenant_id", "status");
 alter table "app_private"."lims_samples" enable row level security;
 revoke all on "app_private"."lims_samples" from public, anon, authenticated;
@@ -1711,7 +1782,7 @@ $$;
 revoke execute on function "app_private"."get_sample"(uuid) from public, anon;
 grant execute on function "app_private"."get_sample"(uuid) to authenticated, service_role;
 
--- Samples, newest first. filters is { status, limit, offset }.
+-- Samples, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "app_private"."list_samples"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1723,20 +1794,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_samples.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_samples.tenant is not null and coalesce(better_supabase.can('tenant', list_samples.tenant, 'lims.read'), false))) then
     raise exception 'not allowed to read samples' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'kind', y."kind", 'lot', y."lot", 'receivedOn', y."received_on", 'status', y."status", 'notes', y."notes", 'rejectionReason', y."rejection_reason", 'completedAt', y."completed_at", 'releasedAt', y."released_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'kind', x."kind", 'lot', x."lot", 'receivedOn', x."received_on", 'status', x."status", 'notes', x."notes", 'rejectionReason', x."rejection_reason", 'completedAt', x."completed_at", 'releasedAt', x."released_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "app_private"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."lims_samples" x
+      where x."tenant_id" = list_samples.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_samples"(uuid, jsonb) from public, anon;
@@ -2056,7 +2161,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:10d7d443f7343f084c0072ed4b5dd927a811b59cd2250eb5715c2c6d7e713b22
+-- @bsb-hash sha256:b6b08434c1502fbb450495566777804e6b488975e9f613fcf7f6040f96036f4c
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2110,6 +2215,7 @@ create table "better_supabase"."lims_samples" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
+create index "lims_samples_list_idx" on "better_supabase"."lims_samples" ("tenant_id", "sequence" desc, "id");
 create index "lims_samples_status_idx" on "better_supabase"."lims_samples" ("tenant_id", "status");
 alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
@@ -2361,7 +2467,7 @@ $$;
 revoke execute on function "better_supabase"."get_sample"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_sample"(uuid) to authenticated, service_role;
 
--- Samples, newest first. filters is { status, limit, offset }.
+-- Samples, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_samples"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2373,20 +2479,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_samples.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_samples.tenant is not null and coalesce(better_supabase.can('tenant', list_samples.tenant, 'lims.read'), false))) then
     raise exception 'not allowed to read samples' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'kind', y."kind", 'lot', y."lot", 'receivedOn', y."received_on", 'status', y."status", 'notes', y."notes", 'rejectionReason', y."rejection_reason", 'completedAt', y."completed_at", 'releasedAt', y."released_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'kind', x."kind", 'lot', x."lot", 'receivedOn', x."received_on", 'status', x."status", 'notes', x."notes", 'rejectionReason', x."rejection_reason", 'completedAt', x."completed_at", 'releasedAt', x."released_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."lims_samples" x
+      where x."tenant_id" = list_samples.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_samples"(uuid, jsonb) from public, anon;
@@ -2813,7 +2953,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:f1c6bdfba43dae0aea15fae7b1e73b0c94a2cd6f79ef179c826828f92c135dfa
+-- @bsb-hash sha256:d519c200229e6f0e8bfe6e81f9b127983948488434c995eddf9dfca7827b8f6b
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2863,6 +3003,7 @@ alter table "better_supabase"."lims_samples" add column if not exists "created_b
 alter table "better_supabase"."lims_samples" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."lims_samples" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_lims_samples_tenant_id_key" on "better_supabase"."lims_samples" ("tenant_id", "id");
+create index if not exists "lims_samples_list_idx" on "better_supabase"."lims_samples" ("tenant_id", "sequence" desc, "id");
 create index if not exists "lims_samples_status_idx" on "better_supabase"."lims_samples" ("tenant_id", "status");
 alter table "better_supabase"."lims_samples" enable row level security;
 grant select on "better_supabase"."lims_samples" to authenticated;
@@ -3112,7 +3253,7 @@ $$;
 revoke execute on function "better_supabase"."get_sample"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_sample"(uuid) to authenticated, service_role;
 
--- Samples, newest first. filters is { status, limit, offset }.
+-- Samples, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_samples"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3124,20 +3265,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_samples.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_samples.tenant is not null and coalesce(better_supabase.can('tenant', list_samples.tenant, 'lims.read'), false))) then
     raise exception 'not allowed to read samples' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'kind', y."kind", 'lot', y."lot", 'receivedOn', y."received_on", 'status', y."status", 'notes', y."notes", 'rejectionReason', y."rejection_reason", 'completedAt', y."completed_at", 'releasedAt', y."released_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'kind', x."kind", 'lot', x."lot", 'receivedOn', x."received_on", 'status', x."status", 'notes', x."notes", 'rejectionReason', x."rejection_reason", 'completedAt', x."completed_at", 'releasedAt', x."released_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."lims_samples" x
+      where x."tenant_id" = list_samples.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_samples"(uuid, jsonb) from public, anon;
@@ -3457,7 +3632,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:4390c4426339722444b9700f1e332a5c731ea7f02c53c9f867592e3c1be41b8c
+-- @bsb-hash sha256:b6051fc0786c307900d470a97e483bbbc568ce168bf9588ffb553a3ed70af8d5
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3511,6 +3686,7 @@ create table "better_supabase"."lims_samples" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "sequence")
 );
+create index "lims_samples_list_idx" on "better_supabase"."lims_samples" ("org_id", "sequence" desc, "id");
 create index "lims_samples_status_idx" on "better_supabase"."lims_samples" ("org_id", "status");
 alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
@@ -3762,7 +3938,7 @@ $$;
 revoke execute on function "better_supabase"."get_sample"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_sample"(uuid) to authenticated, service_role;
 
--- Samples, newest first. filters is { status, limit, offset }.
+-- Samples, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_samples"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3774,20 +3950,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_samples.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_samples.tenant is not null and coalesce(better_supabase.can('tenant', list_samples.tenant, 'lims.read'), false))) then
     raise exception 'not allowed to read samples' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'number', y."number", 'title', y."title", 'kind', y."kind", 'lot', y."lot", 'receivedOn', y."received_on", 'status', y."status", 'notes', y."notes", 'rejectionReason', y."rejection_reason", 'completedAt', y."completed_at", 'releasedAt', y."released_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LIMS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'number', x."number", 'title', x."title", 'kind', x."kind", 'lot', x."lot", 'receivedOn', x."received_on", 'status', x."status", 'notes', x."notes", 'rejectionReason', x."rejection_reason", 'completedAt', x."completed_at", 'releasedAt', x."released_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."lims_samples" x
       where x."org_id" = list_samples.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."lims_samples" x
+      where x."org_id" = list_samples.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_samples"(uuid, jsonb) from public, anon;

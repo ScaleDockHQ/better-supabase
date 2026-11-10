@@ -1,9 +1,15 @@
 import type { ReactNode } from "react";
 
-import { RouteMessages } from "@/i18n/route-messages";
+import { NextIntlClientProvider, useMessages } from "next-intl";
+
+import { pick } from "@/i18n/namespaces";
 
 export default function SignupLayout({ children }: { children: ReactNode }) {
+  const messages = useMessages();
+
   return (
-    <RouteMessages namespaces={["auth", "offline"]}>{children}</RouteMessages>
+    <NextIntlClientProvider messages={pick(messages, ["auth", "offline"])}>
+      {children}
+    </NextIntlClientProvider>
   );
 }

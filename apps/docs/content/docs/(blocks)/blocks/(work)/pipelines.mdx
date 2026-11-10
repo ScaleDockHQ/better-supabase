@@ -339,3 +339,23 @@ by job.
 ## Default and ensure
 
 `default({ organizationId, subjectType, scopeId })` returns the pipeline marked as default for the subject type (and scope), or `undefined`. `ensure({ organizationId, subjectType, key, name, stages })` returns the pipeline with that key, or creates it and its stages in order when it is missing. Calling it again changes nothing.
+
+## Board lanes on the client
+
+`createBoardController` holds the lanes of a board and moves a card at once, then saves the move. Pass the starting `lanes` (from the board's read set) and `move`, a server action that transitions the record:
+
+```ts
+import { createBoardController } from "better-supabase/blocks/pipelines";
+
+const board = createBoardController({
+  lanes: [
+    { id: "new", cards: [{ id: "1" }, { id: "2" }] },
+    { id: "won", cards: [] },
+  ],
+  move: ({ cardId, to }) => transitionDeal({ id: cardId, to }),
+});
+
+await board.actions.move("1", "won", 0); // false when the save failed
+```
+
+A failed save puts the card back and sets `error`; `saving` counts the moves in flight. After a reload, `setLanes` replaces the lanes with the server's. A move onto the card's own place, or of an unknown card or lane, returns `false` without calling `move`.

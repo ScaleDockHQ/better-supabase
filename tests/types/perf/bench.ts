@@ -393,7 +393,7 @@ function run(profile: Profile): Run {
 
   writeFileSync(join(work, "snapshot.json"), JSON.stringify(snapshot(profile)));
   writeConfig(profile, true);
-  writeFileSync(join(work, "consumer.ts"), consumer(profile, "./generated.ts"));
+  writeFileSync(join(work, "consumer.ts"), consumer(profile));
   writeTsconfig(true);
   gen();
   rmSync(join(work, "node_modules/.cache"), { recursive: true, force: true });
@@ -444,7 +444,13 @@ const describe = (measurement: Measurement): string =>
 const only = process.env["BENCH_ONLY"];
 
 for (const [profileName, profile] of Object.entries(
-  only === "upgrade" ? {} : PROFILES,
+  only === "upgrade"
+    ? {}
+    : Object.fromEntries(
+        Object.entries(PROFILES).filter(
+          ([profileName]) => only === undefined || only === profileName,
+        ),
+      ),
 )) {
   const current = run(profile);
   next[profileName] = {

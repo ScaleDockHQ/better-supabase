@@ -10,9 +10,10 @@ import {
 } from "./route-graph";
 
 /**
- * A client component reads its messages from the nearest `RouteMessages`
- * provider. A namespace the provider leaves out renders the raw key, so every
- * route file's client islands must read only namespaces its provider lists.
+ * A client component reads its messages from the nearest
+ * `NextIntlClientProvider`. A namespace the provider leaves out renders the raw
+ * key, so every route file's client islands must read only namespaces its
+ * provider lists.
  */
 describe("route message namespaces", () => {
   const files = allRouteFiles();
@@ -38,7 +39,7 @@ describe("route message namespaces", () => {
 
     expect(
       missing,
-      "add the namespace to the nearest layout's <RouteMessages namespaces>",
+      "add the namespace to the nearest layout's pick(messages, [...]) list",
     ).toEqual([]);
   });
 });

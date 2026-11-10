@@ -140,7 +140,7 @@ create table if not exists ${runs} (
   ${r("asOf")} date not null,${maybe("dunningRuns", "createdBy", "uuid")}
   ${r("createdAt")} timestamptz not null default now()
 );
-create index if not exists ${ctx.naming.rename("invoice_dunning_runs_tenant_idx")} on ${runs} (${r("tenant")}, ${r("createdAt")} desc);
+create index if not exists ${ctx.naming.rename("invoice_dunning_runs_tenant_idx")} on ${runs} (${r("tenant")}, ${r("createdAt")} desc, ${r("id")} desc);
 ${lockModuleTable(ctx, "dunningRuns", { read: true })}
 ${readPolicy("invoice_dunning_runs_read", r("tenant"), runs)}
 

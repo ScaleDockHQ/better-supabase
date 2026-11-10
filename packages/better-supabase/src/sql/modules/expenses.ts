@@ -277,7 +277,7 @@ ${approvals === undefined ? "" : `  ${r("approval")} uuid references ${approvals
   ${r("createdAt")} timestamptz not null default now(),
   ${r("updatedAt")} timestamptz not null default now()
 );
-create index if not exists ${index("reports", "tenant_idx")} on ${reports} (${r("tenant")}, ${r("createdAt")} desc);
+create index if not exists ${index("reports", "tenant_idx")} on ${reports} (${r("tenant")}, ${r("createdAt")} desc, ${r("id")} desc);
 create index if not exists ${index("reports", "user_idx")} on ${reports} (${r("user")}, ${r("tenant")});
 ${approvals === undefined ? "" : `create index if not exists ${index("reports", "approval_idx")} on ${reports} (${r("approval")}) where ${r("approval")} is not null;`}${linkIndex("approval_tx_idx", "approvalTransaction")}${linkIndex("reimbursement_idx", "reimbursement")}
 ${lockModuleTable(ctx, "reports", { read: true })}

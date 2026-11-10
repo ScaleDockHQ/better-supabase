@@ -126,3 +126,19 @@ The hooks are `before_lims_sample_register`, `after_lims_sample_register`,
 `release_sample(sample_id)`, `reject_sample(sample_id, reason)` and
 `instrument_status(tenant, asset_id, on_date)` are plain SQL functions. In
 custom mode you implement them over your own tables.
+
+## Paging a list
+
+`listSamples` still takes `offset`. For a deep list, `samplePage` pages by keyset and
+returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
+`after`, and set `total: true` to count up to `totalCap` rows (ADR 0642).
+
+```ts
+const first = await lims.samplePage({ limit: 50, total: true }).orThrow();
+
+if (first.hasMore) {
+  const next = await lims
+    .samplePage({ limit: 50, after: first.nextCursor })
+    .orThrow();
+}
+```

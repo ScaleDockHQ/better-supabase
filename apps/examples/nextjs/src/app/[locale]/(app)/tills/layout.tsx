@@ -1,27 +1,17 @@
 import type { ReactNode } from "react";
 
-import { RouteMessages } from "@/i18n/route-messages";
+import { NextIntlClientProvider, useMessages } from "next-intl";
+
+import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
 
 export default function TillsLayout({ children }: { children: ReactNode }) {
+  const messages = useMessages();
+
   return (
-    <RouteMessages
-      namespaces={[
-        "announcements",
-        "app",
-        "dashboard",
-        "errors",
-        "inbox",
-        "navigation",
-        "notifications",
-        "offline",
-        "organization",
-        "search",
-        "settings",
-        "tills",
-        "user",
-      ]}
+    <NextIntlClientProvider
+      messages={pick(messages, [...APP_NAMESPACES, "tills"])}
     >
       {children}
-    </RouteMessages>
+    </NextIntlClientProvider>
   );
 }

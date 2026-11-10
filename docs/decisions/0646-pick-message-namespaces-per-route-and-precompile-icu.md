@@ -14,18 +14,23 @@ namespace shows a raw key to the visitor.
 
 ## Decision
 
-**Per-route namespaces.** `RouteMessages` (`src/i18n/route-messages.tsx`) renders a provider that
-holds only the listed top-level namespaces. The root layout lists none, each route group lists what
-its frame reads, and each top-level segment of `(app)` and `(auth)` has a `layout.tsx` that lists its
-own namespaces. A nested provider replaces its parent's messages, so a layout lists its parents'
-namespaces too. Server components keep reading the full catalog through `getExtracted` and
-`useExtracted`; only `"use client"` files need a namespace in a provider.
+**Per-route namespaces.** The next-intl docs list "providing individual messages" as the way to send a
+client subtree only what it reads: wrap it in a `NextIntlClientProvider` and give it a subset of
+`useMessages()`. The example does that and nothing more. The root layout renders
+`<NextIntlClientProvider messages={null}>`, `(app)` hands its shell `APP_NAMESPACES`, `(auth)` and
+`(public)` hand `offline`, and a segment layout exists only where its pages read a namespace the group
+lacks (`crm` adds `crm` and `sequences`). Each of those layouts calls the 10-line `pick` in
+`src/i18n/namespaces.ts` on `useMessages()`. A nested provider replaces its parent's messages, so a
+segment lists the group's namespaces too (`[...APP_NAMESPACES, "crm"]`). Server components keep
+reading the full catalog through `getExtracted` and `useExtracted`; only `"use client"` files need a
+namespace in a provider. An earlier draft wrapped this in a `RouteMessages` component and a layout
+per segment; the docs show neither, and segments with no extra namespace needed no layout.
 
 **A test that fails on a missing namespace.** `tests/i18n/route-namespaces.test.ts` walks the
 imports of every route file, follows the ones reached from a `"use client"` file, collects the
-`useExtracted("<namespace>")` calls and fails when the nearest provider at or above the file omits
-one. The failure names the file, the namespace and the layout to edit. Dynamic namespaces are not
-supported: `useExtracted` takes a string literal.
+`useExtracted("<namespace>")` calls and fails when the nearest `NextIntlClientProvider` at or above
+the file omits one. The failure names the file, the namespace and the layout to edit. Dynamic
+namespaces are not supported: `useExtracted` takes a string literal.
 
 **ICU precompile.** `experimental.messages.precompile` is on. next-intl compiles each message at
 build time, so the browser no longer ships the ICU parser. This pays on every route, unlike the

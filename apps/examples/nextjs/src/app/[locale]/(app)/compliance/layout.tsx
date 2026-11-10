@@ -1,31 +1,21 @@
 import type { ReactNode } from "react";
 
-import { RouteMessages } from "@/i18n/route-messages";
+import { NextIntlClientProvider, useMessages } from "next-intl";
+
+import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
 
 export default function ComplianceLayout({
   children,
 }: {
   children: ReactNode;
 }) {
+  const messages = useMessages();
+
   return (
-    <RouteMessages
-      namespaces={[
-        "acknowledgements",
-        "announcements",
-        "app",
-        "dashboard",
-        "errors",
-        "inbox",
-        "navigation",
-        "notifications",
-        "offline",
-        "organization",
-        "search",
-        "settings",
-        "user",
-      ]}
+    <NextIntlClientProvider
+      messages={pick(messages, [...APP_NAMESPACES, "acknowledgements"])}
     >
       {children}
-    </RouteMessages>
+    </NextIntlClientProvider>
   );
 }

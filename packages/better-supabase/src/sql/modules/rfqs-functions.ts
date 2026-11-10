@@ -1,8 +1,9 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { RfqsSql } from "./rfqs-sql.ts";
 
+import { listBody, listDeclare } from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { pageSize, userGrant } from "../shared.ts";
+import { userGrant } from "../shared.ts";
 import { rfqsSql } from "./rfqs-sql.ts";
 
 /** The SQL that checks and stores the requested lines of rfq `rfq` from `lines`. */
@@ -34,6 +35,22 @@ export function rfqsFunctions(ctx: BlockSqlContext): string {
   const sql = rfqsSql(ctx);
   const { fn, q, l, s, rfqs, lines, suppliers } = sql;
   const idType = ctx.idType;
+
+  const list = {
+    name: "list_rfqs",
+    from: rfqs,
+    alias: "x",
+    where: [
+      `x.${q("tenant")} = list_rfqs.tenant`,
+      `(v_status is null or x.${q("status")} = v_status)`,
+    ],
+    keys: [
+      { expr: `x.${q("sequence")}`, dir: "desc", type: "bigint" },
+      { expr: `x.${q("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: sql.rfqJson("x"),
+    invalid: sql.invalid,
+  } as const;
 
   const numberAssign = assignNumberSql(
     ctx,
@@ -197,7 +214,7 @@ end;
 $$;
 ${userGrant(`${fn("get_rfq")}(uuid)`)}
 
--- Requests, newest first. filters is { status, limit, offset }.
+-- Requests, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function ${fn("list_rfqs")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -208,21 +225,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list)}
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not ${sql.allowed("list_rfqs.tenant", sql.read)} then
     ${sql.forbidden("not allowed to read requests for quotation")}
   end if;
-  return coalesce((
-    select jsonb_agg(${sql.rfqJson("y")} order by y.${q("sequence")} desc)
-    from (
-      select * from ${rfqs} x
-      where x.${q("tenant")} = list_rfqs.tenant
-        and (not v_filters ? 'status' or x.${q("status")} = v_filters ->> 'status')
-      order by x.${q("sequence")} desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(list)}
 end;
 $$;
 ${userGrant(`${fn("list_rfqs")}(${idType}, jsonb)`)}

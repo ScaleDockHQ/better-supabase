@@ -68,8 +68,8 @@ so a failing test shows up in CI. Library edits hit the cache for unrelated
 tasks. Pull request CI and Vercel previews no longer prerender every docs and
 marketing page; a page outside the first three of its route renders on its
 first request. Set `BSB_BUILD_SCOPE=full` to check every page before a
-release. Branch protection must require `verify / unit (1/3)`, `(2/3)`,
-`(3/3)`, `verify / coverage`, `Integration (pg-delta round trip)` and
-`Integration (CentraKit)`. Revisit the shards when the library's unit run
-grows past about 120s per shard, and the build scope if a route regresses
-only in its prerender.
+release. Branch protection must require `verify / unit (1/6)` through
+`(6/6)`, `verify / coverage`, `Integration (pg-delta round trip)` and
+`Integration (CentraKit)`. ADR 0638 packs those shards by measured
+duration. Revisit the build scope if a route regresses only in its
+prerender.

@@ -207,6 +207,7 @@ create table if not exists ${samples} (
   ${s("updatedAt")} timestamptz not null default now(),
   unique (${s("tenant")}, ${s("sequence")})
 );${appKey("samples", "tenant_id", `${s("tenant")}, ${s("id")}`)}
+create index if not exists ${name("samples", "list_idx")} on ${samples} (${s("tenant")}, ${s("sequence")} desc, ${s("id")});
 create index if not exists ${name("samples", "status_idx")} on ${samples} (${s("tenant")}, ${s("status")});
 ${lockTable(samples, { read: true })}
 ${readPolicy("samples", s("tenant"))}
