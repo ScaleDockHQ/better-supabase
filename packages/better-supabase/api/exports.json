@@ -1870,6 +1870,7 @@
     "types": [
       "Aal",
       "Access",
+      "ActionMapper",
       "ActionOptions",
       "ActionParams",
       "ActionResult",
@@ -8485,6 +8486,7 @@
       "BlockTransport",
       "BlockTransportMiddleware",
       "BoardActions",
+      "BoardCard",
       "BoardController",
       "BoardLane",
       "BoardMove",
