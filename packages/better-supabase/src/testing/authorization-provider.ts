@@ -193,7 +193,8 @@ export function testAuthorizationProvider(
             (key) =>
               key === "permission" ||
               key === "user" ||
-              key === "tenant" ||
+              // apiVersion 1 accepts a managedUsers template without placeholders.
+              (key === "tenant" && name !== "managedUsers") ||
               key === "role" ||
               (key === "scope" &&
                 scopes.size > 1 &&

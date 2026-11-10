@@ -491,6 +491,35 @@ describe("testAuthorizationProvider", () => {
     );
   });
 
+  it("accepts managedUsers with or without {tenant}", async () => {
+    const managedUsers = (template: string) =>
+      withProvider({
+        functions: { ...stubProvider.functions, managedUsers: template },
+        requires: [
+          ...stubProvider.requires,
+          {
+            function: "authz.managed_user_ids",
+            args: "uuid",
+            role: "authenticated",
+          },
+        ],
+      });
+
+    for (const template of [
+      "authz.managed_user_ids({tenant})",
+      "authz.managed_user_ids()",
+    ]) {
+      const report = await testAuthorizationProvider(managedUsers(template));
+      expect(report.checks.every((check) => check.ok)).toBe(true);
+    }
+
+    expect(
+      await failures(managedUsers("authz.managed_user_ids({user})")),
+    ).toEqual([
+      "templates use only their placeholders: functions.managedUsers uses {user}; it takes {tenant}",
+    ]);
+  });
+
   it("checks that operations name listed permissions", async () => {
     const report = await testAuthorizationProvider(
       withProvider({

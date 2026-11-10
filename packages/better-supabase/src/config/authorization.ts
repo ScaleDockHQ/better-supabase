@@ -150,9 +150,10 @@ export interface AuthorizationFunctions {
    */
   readonly approverFor?: string;
   /**
-   * The user ids the caller manages (the manager chain and delegations
-   * included), as a set of uuid: it is used as `select u from <template> as
-   * t(u)`. No placeholders.
+   * The user ids the caller manages in `{tenant}` (the manager chain and
+   * delegations included), as a set of uuid: it is used as `select u from
+   * <template> as t(u)`. `{tenant}` is optional: a template that leaves it out
+   * returns the users the caller manages in every tenant.
    */
   readonly managedUsers?: string;
 }

@@ -227,7 +227,7 @@ puts the result into a policy or a module function:
 | `subject`          | none                                                                       | `jsonb`: the signed-in user's authorizer subject (a function name, called with no arguments) |
 | `subjectForTenant` | `{tenant}`, `{scope}`                                                      | `jsonb`: that subject restricted to `{tenant}`; `null` for an unknown tenant                 |
 | `approverFor`      | none                                                                       | a set of user ids the caller approves for, covers and delegations included                   |
-| `managedUsers`     | none                                                                       | a set of user ids the caller manages, the manager chain and delegations included             |
+| `managedUsers`     | `{tenant}` (optional)                                                      | the user ids the caller manages in `{tenant}`, the manager chain and delegations included    |
 
 `rowsWith` answers a `config.subjects.<type>.permissions.<action>` entry with
 `rows` ([Actions granted per row](/docs/blocks/sql#actions-granted-per-row)).
@@ -266,6 +266,12 @@ the `teams` block returns its set instead of reading `team_members`, and
 `saved-views` and `collections` share with those teams even without the
 `teams` block. Doctor (BS417) warns when the provider declares a `team`
 scope and leaves it unset.
+
+`managedUsers` takes `{tenant}` when the provider keeps a manager chain per
+tenant: `authz.managed_user_ids({tenant})` returns only the reports the caller
+manages in that tenant, so a manager in one organization never reaches
+reports in another. A template without `{tenant}` returns the users the caller
+manages in every tenant.
 
 `permissionsFor` fills `better_supabase.member_permissions` and
 `permission_claims`, so the access token hook can carry permission keys. The
@@ -933,6 +939,7 @@ over the provider's.
 | `functions.subjectForTenant`                      | the bootstrap subject restricted to the page's tenant                                        | next minor |
 | `functions.bootstrapPermissions`                  | the caller's permissions in the bootstrap, full or compact (`apiVersion: 1`)                 | next minor |
 | `functions.approverFor`, `functions.managedUsers` | the user sets for approver covers and manager chains                                         | next minor |
+| `{tenant}` in `functions.managedUsers`            | the manager chain of one tenant, so a manager never reaches reports in another tenant        | next minor |
 | `personas: 'roles'`, `fixtureRoles`               | one access matrix file per fixture role                                                      | next minor |
 | `permissions[].levels`                            | the levels of a permission (`<permission>@<level>` keys)                                     | next minor |
 | `tokenHook.teamIdsTruncatedClaim`                 | the claim that marks a partial `team_ids`                                                    | next minor |
