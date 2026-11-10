@@ -16,6 +16,10 @@ export {
   syncMiddlewareSetCookie,
 } from "../proxy.ts";
 
+export { permissionsOf, toSession } from "../../auth/view.ts";
+
+export { postAuthPath } from "../sign-in.ts";
+
 export type { NextOptions, ProxyOptions } from "../types.ts";
 
 /**
