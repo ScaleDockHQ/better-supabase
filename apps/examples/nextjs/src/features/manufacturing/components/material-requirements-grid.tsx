@@ -6,14 +6,14 @@ import { useTable } from "@tanstack/react-table";
 import { useAction } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import type { RequirementRow } from "../manufacturing-queries";
 
 import { createFromRequirements } from "../manufacturing-actions";
 
-type RequirementCell = CellContext<DataGridFeatures, RequirementRow>;
+type RequirementCell = CellContext<ReadOnlyGridFeatures, RequirementRow>;
 
 function ProductCell({ row }: RequirementCell) {
   const t = useExtracted("production");
@@ -91,7 +91,7 @@ export function MaterialRequirementsGrid({
 }) {
   const t = useExtracted("production");
 
-  const columns: ColumnDef<DataGridFeatures, RequirementRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, RequirementRow>[] = [
     {
       accessorKey: "product",
       header: t("Product"),
@@ -127,7 +127,7 @@ export function MaterialRequirementsGrid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...requirements],
     getRowId: (row) => `${row.variantId}:${row.action}`,

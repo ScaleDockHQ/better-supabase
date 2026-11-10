@@ -8,7 +8,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -45,7 +45,7 @@ import type { Loaded, UsageRightRow } from "../dam-queries";
 
 import { revokeUsageRight } from "../dam-actions";
 
-type RightCell = CellContext<DataGridFeatures, UsageRightRow>;
+type RightCell = CellContext<ReadOnlyGridFeatures, UsageRightRow>;
 
 function LicenseeCell({ row }: RightCell) {
   return <span className="font-medium">{row.original.licensee}</span>;
@@ -106,7 +106,7 @@ function StatusCell({ row }: RightCell) {
 function RightGrid({ rights }: { rights: readonly UsageRightRow[] }) {
   const t = useExtracted("dam");
 
-  const columns: ColumnDef<DataGridFeatures, UsageRightRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, UsageRightRow>[] = [
     {
       accessorKey: "licensee",
       header: t("Licensee"),
@@ -129,7 +129,7 @@ function RightGrid({ rights }: { rights: readonly UsageRightRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...rights],
     getRowId: (row) => row.id,

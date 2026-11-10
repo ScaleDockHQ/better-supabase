@@ -1,13 +1,13 @@
 import { createOpenApi } from "better-supabase/spec";
 
 import { API_BASE_PATH, apiResources } from "@/features/api/api-resources";
-import { betterSupabase } from "@/lib/supabase";
+import { betterSupabaseCore } from "@/lib/supabase/core";
 
 /**
  * The OpenAPI 3.1 document of `/api/v1`, from the same resource map the routes
  * serve, so the two can't drift. Built once per server instance.
  */
-const document = createOpenApi(betterSupabase, {
+const document = createOpenApi(betterSupabaseCore, {
   info: { title: "Example SaaS API", version: "1.0.0" },
   basePath: API_BASE_PATH,
   resources: apiResources,

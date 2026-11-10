@@ -69,28 +69,27 @@ export async function CalendarView({
 }: {
   query: Record<string, string | string[] | undefined>;
 }) {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "calendar.read")) {
-    forbidden();
-  }
-
-  const [t, format] = await Promise.all([
-    getExtracted("calendar"),
-    getFormatter(),
-    io(),
-  ]);
-
-  const canWrite = can(permissions, "calendar.write");
-  const canManage = can(permissions, "calendar.manage");
   const first = firstOfMonth(query["month"], "UTC");
   const weeks = weeksOf(first);
   const from = weeks[0]?.[0] ?? first;
   const until = (weeks.at(-1)?.[6] ?? first).add({ days: 1 });
 
-  const month = await settle(() =>
-    loadCalendarMonth(from.toString(), until.toString()),
-  );
+  // `settle` never rejects, so the month loads next to the permission check
+  // and a refused caller leaves no unhandled promise behind.
+  const [permissions, t, format, month] = await Promise.all([
+    getPermissions(),
+    getExtracted("calendar"),
+    getFormatter(),
+    settle(() => loadCalendarMonth(from.toString(), until.toString())),
+    io(),
+  ]);
+
+  if (!can(permissions, "calendar.read")) {
+    forbidden();
+  }
+
+  const canWrite = can(permissions, "calendar.write");
+  const canManage = can(permissions, "calendar.manage");
 
   const monthKey = (date: Temporal.PlainDate) =>
     date.toPlainYearMonth().toString();

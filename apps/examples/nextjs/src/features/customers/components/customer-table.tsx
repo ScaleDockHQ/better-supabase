@@ -46,10 +46,13 @@ export interface CustomerRow {
 export function CustomerTable({
   customers,
   statusCounts,
+  statusCountsCapped,
   canWrite,
 }: {
   customers: readonly CustomerRow[];
   statusCounts: Readonly<Record<string, number>>;
+  /** The counts stopped at the scan cap, so each one is a lower bound. */
+  statusCountsCapped: boolean;
   canWrite: boolean;
 }) {
   const t = useExtracted("customers");
@@ -118,7 +121,7 @@ export function CustomerTable({
             >
               {statusLabel(value)}
               <Badge variant="outline" className="tabular-nums">
-                {count}
+                {statusCountsCapped ? `${count}+` : count}
               </Badge>
             </Button>
           ))}

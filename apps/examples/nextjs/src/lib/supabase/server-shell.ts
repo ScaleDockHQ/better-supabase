@@ -7,6 +7,7 @@ import { createNext } from "better-supabase/next";
 import { env } from "@/env";
 
 import { permissions } from "./blocks.config";
+import { sharedCounters } from "./session-counters";
 import { betterSupabaseShell } from "./shell";
 
 const options: NextOptions = {
@@ -16,6 +17,8 @@ const options: NextOptions = {
     route: "/api/bs-stats",
   },
   replicas: { pinMs: 5000 },
+  // The same counters as `server.ts`, so `/api/bs-sessions` counts both.
+  sessions: { counters: sharedCounters() },
   authorizer: permissionsAuthorizer({ permissions, load: myPermissions }),
 };
 

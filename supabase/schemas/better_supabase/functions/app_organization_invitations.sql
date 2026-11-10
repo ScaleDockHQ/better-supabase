@@ -7,7 +7,7 @@ set search_path = ''
 as $$
 begin
   if not better_supabase.member_can((select auth.uid()), organization, 'members.invite') then
-    raise exception 'Not allowed to list invitations' using errcode = '42501';
+    raise exception 'Not allowed to list invitations' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
   end if;
   return query
   select i.id, i.email, coalesce(r.key, i.role), coalesce(p.full_name, p.email), i.created_at, i.expires_at

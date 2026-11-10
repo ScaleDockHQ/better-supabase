@@ -9,7 +9,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import {
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -46,7 +46,7 @@ import type { InspectionRow, Loaded } from "../inspections-queries";
 
 import { InspectionStatusBadge, useKindLabel } from "./inspection-labels";
 
-type InspectionCell = CellContext<DataGridFeatures, InspectionRow>;
+type InspectionCell = CellContext<ReadOnlyGridFeatures, InspectionRow>;
 
 function PlannedCell({ row }: InspectionCell) {
   const t = useExtracted("inspections");
@@ -108,7 +108,7 @@ function CalendarGrid({
 }) {
   const t = useExtracted("inspections");
 
-  const columns: ColumnDef<DataGridFeatures, InspectionRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, InspectionRow>[] = [
     {
       accessorKey: "plannedStart",
       header: t("Planned"),
@@ -133,7 +133,7 @@ function CalendarGrid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...inspections],
     getRowId: (row) => row.id,

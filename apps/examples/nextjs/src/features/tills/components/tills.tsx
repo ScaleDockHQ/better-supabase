@@ -9,7 +9,7 @@ import { useExtracted, useFormatter, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -21,8 +21,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -46,7 +46,7 @@ import type { Loaded, TillSessionRow } from "../tills-queries";
 
 import { createTill } from "../tills-actions";
 
-type SessionCell = CellContext<DataGridFeatures, TillSessionRow>;
+type SessionCell = CellContext<ReadOnlyGridFeatures, TillSessionRow>;
 
 function TillCell({ row }: SessionCell) {
   return <span className="font-medium">{row.original.till}</span>;
@@ -99,7 +99,7 @@ function StatusCell({ row }: SessionCell) {
 function SessionGrid({ sessions }: { sessions: readonly TillSessionRow[] }) {
   const t = useExtracted("tills");
 
-  const columns: ColumnDef<DataGridFeatures, TillSessionRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, TillSessionRow>[] = [
     { accessorKey: "till", header: t("Till"), cell: TillCell, size: 220 },
     {
       accessorKey: "openedAt",
@@ -117,7 +117,7 @@ function SessionGrid({ sessions }: { sessions: readonly TillSessionRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...sessions],
     getRowId: (row) => row.id,

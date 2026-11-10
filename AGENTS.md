@@ -509,6 +509,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0607: Ask the policy tables once per tenant in a purge.
 - 0608: Build the proxy from the session runtime.
 - 0609: Infer a uuid subject id in the inline read policies.
+- 0615: Expire domain tags after a write, and give display-only grids a lean feature bundle.
 - 0630: Add db squash, env.map, a fetch-level PostgREST fake, asSignedInUser and two pgTAP helpers.
 - 0631: Add useOptimisticAction, onEnded, onRejoin, sharedPostgres, a verified ssl option and member reads.
 - 0632: Measure a 1,200 table profile in the type bench.

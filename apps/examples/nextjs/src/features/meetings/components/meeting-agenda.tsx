@@ -9,7 +9,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import {
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -46,7 +46,7 @@ import type { Loaded, MeetingRow } from "../meetings-queries";
 
 import { MeetingStatusBadge, useKindLabel } from "./meeting-labels";
 
-type MeetingCell = CellContext<DataGridFeatures, MeetingRow>;
+type MeetingCell = CellContext<ReadOnlyGridFeatures, MeetingRow>;
 
 function StartsCell({ row }: MeetingCell) {
   const format = useFormatter();
@@ -93,7 +93,7 @@ function StatusCell({ row }: MeetingCell) {
 function AgendaGrid({ meetings }: { meetings: readonly MeetingRow[] }) {
   const t = useExtracted("meetings");
 
-  const columns: ColumnDef<DataGridFeatures, MeetingRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, MeetingRow>[] = [
     {
       accessorKey: "startsAt",
       header: t("Starts"),
@@ -112,7 +112,7 @@ function AgendaGrid({ meetings }: { meetings: readonly MeetingRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...meetings],
     getRowId: (row) => row.id,

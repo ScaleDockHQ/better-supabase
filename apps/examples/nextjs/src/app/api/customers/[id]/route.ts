@@ -1,4 +1,4 @@
-import { bsb } from "../../../../lib/supabase/server";
+import { bsbCore as bsb } from "../../../../lib/supabase/server-core";
 
 export const GET = bsb.route<{ id: string }>((_request, { db, params }) =>
   db.customers.get(params.id, {

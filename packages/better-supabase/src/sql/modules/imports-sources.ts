@@ -25,6 +25,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   if auth.role() is distinct from 'service_role' then
     ${fail("IMPORT_FORBIDDEN", "not allowed to register an import source", "42501")}

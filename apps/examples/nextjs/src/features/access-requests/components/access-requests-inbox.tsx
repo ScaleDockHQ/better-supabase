@@ -79,15 +79,18 @@ const STATUS_VARIANT: Record<AccessRequestStatus, BadgeProps["variant"]> = {
  * back to the previous one when the duration runs out.
  */
 export async function AccessRequestsInbox() {
-  if (!can(await getPermissions(), "access_requests.create")) {
-    forbidden();
-  }
-
-  const [t, format, result] = await Promise.all([
+  // The permission check and the read start together; `loadInbox` never
+  // rejects, so a refused caller leaves no unhandled promise behind.
+  const [permissions, t, format, result] = await Promise.all([
+    getPermissions(),
     getExtracted("accessRequests"),
     getFormatter(),
     loadInbox(),
   ]);
+
+  if (!can(permissions, "access_requests.create")) {
+    forbidden();
+  }
 
   if (result.kind === "error") {
     return (
