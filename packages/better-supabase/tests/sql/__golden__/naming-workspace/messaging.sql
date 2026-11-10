@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:ed2f1aec877e450d1a1a356332b3d1604c1e71792f34279618fc903aab40db76
+-- @bsb-hash sha256:d0bbee20c80ca49e3d6fd11fb257010bf26d93dbeb1e71e49d7a18c6656709fc
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -235,7 +235,7 @@ begin
     -- A reply that is sent live and not deleted adds to the root's rollup in
     -- place. A delete, a restore or a reply that is not newer than the rollup's
     -- newest (a copied thread carries its counts, replies of one transaction share
-    -- a time) asks the replies again (ADR 0639).
+    -- a time) asks the replies again (ADR 0644).
     if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
       update "better_supabase"."messages" r set
         "reply_count" = r."reply_count" + 1,

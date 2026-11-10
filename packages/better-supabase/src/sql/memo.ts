@@ -7,7 +7,7 @@
  * A setting a transaction sets stays in the session's table of placeholders
  * after the transaction ends, so a key that varies per statement or per user
  * would grow it for the life of a pooled connection. `memo_slot_get` and
- * `memo_slot_set` keep such a key in one of 256 settings (ADR 0639): the slot
+ * `memo_slot_set` keep such a key in one of 256 settings (ADR 0644): the slot
  * holds one key and its value, and a second key in the same slot replaces it,
  * which costs a recompute and never a wrong answer. `memo_get` and `memo_set`
  * stay for the few fixed keys (a generation counter) that must not be

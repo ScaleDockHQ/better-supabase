@@ -284,7 +284,7 @@ begin
   if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."archived_at" is distinct from old."archived_at") then
     -- A reply that is sent live and not deleted adds to the root's rollup in
     -- place. A delete, a restore or a reply sent before the newest one asks the
-    -- replies again (ADR 0639).
+    -- replies again (ADR 0644).
     if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
       update "better_supabase"."messages" r set
         "reply_count" = r."reply_count" + 1,

@@ -1,4 +1,4 @@
-# 0639: Inline the remaining subject read policies, bound the memo keys and roll up replies in place
+# 0644: Inline the remaining subject read policies, bound the memo keys and roll up replies in place
 
 - Status: accepted
 - Date: 2026-11-10

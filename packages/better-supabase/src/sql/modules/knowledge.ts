@@ -391,7 +391,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const scoped = `${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${ctx.scope.check(d.tenant, read)}) or ${ctx.scope.check(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)})`;
 
-  // The policy inlines the check over the row's columns (ADR 0639), qualified
+  // The policy inlines the check over the row's columns (ADR 0644), qualified
   // with the table so a subject's own columns can't capture them; the function
   // stays for the write paths and for a type a later module's table holds.
   const subjectPolicy = subjectScoped

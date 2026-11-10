@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:3e72f748f26b68e9047fc920846497e0301b55a9a43cfc406fffe231ec3c7d52
+-- @bsb-hash sha256:cf53278704113f6e17e92d59f2f2fdb52c79ed2d4e8fcaff5e517bf3c53cfb44
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -124,7 +124,7 @@ declare
   v_me uuid := auth.uid();
   v_key text := 'approvals.f' || md5(format('%s|%s|%s|%s|%s', v_me, approval_fact.tenant, approval_fact.kind, approval_fact.value, approval_fact.requester));
   v_stamp text := statement_timestamp()::text || '/' || coalesce(better_supabase.memo_get('approvals.gen'), '0');
-  v_hit text := better_supabase.memo_get(v_key);
+  v_hit text := better_supabase.memo_slot_get(v_key);
   v_result boolean;
 begin
   if v_hit is not null and split_part(v_hit, '|', 1) = v_stamp then
@@ -139,7 +139,7 @@ begin
     when 'manager' then false
     else false
   end, false);
-  perform better_supabase.memo_set(v_key, v_stamp || '|' || case when v_result then 't' else 'f' end);
+  perform better_supabase.memo_slot_set(v_key, v_stamp || '|' || case when v_result then 't' else 'f' end);
   return v_result;
 end;
 $$;

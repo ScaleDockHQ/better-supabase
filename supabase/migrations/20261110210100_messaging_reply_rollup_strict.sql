@@ -18,7 +18,7 @@ begin
     -- A reply that is sent live and not deleted adds to the root's rollup in
     -- place. A delete, a restore or a reply that is not newer than the rollup's
     -- newest (a copied thread carries its counts, replies of one transaction share
-    -- a time) asks the replies again (ADR 0639).
+    -- a time) asks the replies again (ADR 0644).
     if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
       update "better_supabase"."messages" r set
         "reply_count" = r."reply_count" + 1,

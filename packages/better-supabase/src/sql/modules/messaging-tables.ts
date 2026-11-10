@@ -402,7 +402,7 @@ begin
     -- A reply that is sent live and not deleted adds to the root's rollup in
     -- place. A delete, a restore or a reply that is not newer than the rollup's
     -- newest (a copied thread carries its counts, replies of one transaction share
-    -- a time) asks the replies again (ADR 0639).
+    -- a time) asks the replies again (ADR 0644).
     if new.${ms("deletedAt")} is null and (tg_op = 'INSERT' or old.${ms("sentAt")} is null) then
       update ${t("messages")} r set
         ${ms("replyCount")} = r.${ms("replyCount")} + 1,

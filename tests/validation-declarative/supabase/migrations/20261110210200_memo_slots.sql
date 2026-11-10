@@ -1,4 +1,4 @@
--- The bounded memo helpers every module shares (ADR 0639).
+-- The bounded memo helpers every module shares (ADR 0644).
 CREATE OR REPLACE FUNCTION better_supabase.memo_slot_get (
   key text
 )

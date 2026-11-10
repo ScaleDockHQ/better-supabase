@@ -394,7 +394,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       { target: table },
     );
 
-  // The policy inlines the check over the row's columns (ADR 0639); the
+  // The policy inlines the check over the row's columns (ADR 0644); the
   // function stays for the types a later module's table holds and for the
   // write paths. Without subjects every subject passes.
   const own = (column: string): string => `${deadlines}.${d(column)}`;

@@ -168,7 +168,7 @@ function tables(
   const k = (column: string): string => c("contacts", column);
   const m = (column: string): string => c("members", column);
 
-  // The policy inlines the subject check over the contact's columns (ADR 0639);
+  // The policy inlines the subject check over the contact's columns (ADR 0644);
   // a contact type no subject registers keeps can_subject. Deals are not read
   // through contacts, so the two policies don't recurse.
   const contactReadable = registryReadable(ctx, layout, "deals", {

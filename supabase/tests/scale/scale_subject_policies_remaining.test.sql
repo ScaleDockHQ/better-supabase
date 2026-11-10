@@ -1,4 +1,4 @@
--- Subject read policies of deal contacts, subject knowledge and deadlines on the scale fixture (ADR 0639): 60,000 customers with 12,000 rows of each
+-- Subject read policies of deal contacts, subject knowledge and deadlines on the scale fixture (ADR 0644): 60,000 customers with 12,000 rows of each
 -- family on them, read as a signed-in member. Each policy inlines the subject check; the
 -- same count through the earlier form (can_subject or the plpgsql wrapper per row,
 -- recreated inside the transaction) prints beside it. Set bsb.scale_rows to resize.

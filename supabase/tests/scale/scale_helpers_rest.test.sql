@@ -1,5 +1,5 @@
 -- Memo slots, thread reply rollups, the full messages index and the id tiebreaker on the
--- tenant and created_at indexes (ADR 0639). Set bsb.scale_rows to resize (default 20,000).
+-- tenant and created_at indexes (ADR 0644). Set bsb.scale_rows to resize (default 20,000).
 begin;
 select plan(9);
 
