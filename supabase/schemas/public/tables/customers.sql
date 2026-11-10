@@ -54,6 +54,10 @@ create index customers_organization_id_created_by_idx on public.customers (organ
 -- customers_by_status filters on status and sorts by name within a tenant.
 create index customers_organization_id_status_name_idx on public.customers (organization_id, status, name);
 
+-- The default customer list sorts by name within a tenant; without this index
+-- the plan reads every row of the tenant and sorts it (ADR 0638).
+create index customers_organization_id_name_idx on public.customers (organization_id, name);
+
 create index customers_active_idx on public.customers (organization_id, created_at desc)
   where archived_at is null;
 
