@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { Suspense } from "react";
+
 import type { RecipeGroup } from "@/lib/recipes";
 
 import { Badge } from "@/components/reui/badge";
@@ -131,9 +133,16 @@ export default function RecipesPage() {
           .map((group) => group.category)}
       >
         <div className="flex flex-col gap-12">
-          {groups.map((group) => (
-            <RecipeGroupSection key={group.category} group={group} />
-          ))}
+          {groups.map((group, index) =>
+            // The first group is above the fold; each later one streams in its own boundary.
+            index === 0 ? (
+              <RecipeGroupSection key={group.category} group={group} />
+            ) : (
+              <Suspense key={group.category} fallback={null}>
+                <RecipeGroupSection group={group} />
+              </Suspense>
+            ),
+          )}
         </div>
       </RecipeFilters>
 

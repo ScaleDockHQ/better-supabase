@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { Suspense } from "react";
+
 import { categoryHref } from "@/features/blocks/categories";
 import { BlockSearch } from "@/features/blocks/components/block-search";
 import { CategoryIcon } from "@/features/blocks/components/category-icon";
@@ -54,9 +56,16 @@ export default function BlocksPage() {
 
       <BlockSearch blocks={blocks}>
         <div className="flex flex-col gap-14">
-          {groups.map((group) => (
-            <CategorySection key={group.category} group={group} />
-          ))}
+          {groups.map((group, index) =>
+            // The first category is above the fold; each later one streams in its own boundary.
+            index === 0 ? (
+              <CategorySection key={group.category} group={group} />
+            ) : (
+              <Suspense key={group.category} fallback={null}>
+                <CategorySection group={group} />
+              </Suspense>
+            ),
+          )}
         </div>
       </BlockSearch>
     </div>
