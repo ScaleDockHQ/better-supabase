@@ -32,7 +32,7 @@
   "/[locale]/(app)/assistant/tasks/page": {
     "raw": 1318594,
     "gzip": 411572,
-    "brotli": 358657
+    "brotli": 359557
   },
   "/[locale]/(app)/banking/page": {
     "raw": 1463957,
@@ -497,7 +497,7 @@
   "/[locale]/(app)/shop/orders/[id]/page": {
     "raw": 1359387,
     "gzip": 427617,
-    "brotli": 372568
+    "brotli": 373523
   },
   "/[locale]/(app)/shop/orders/page": {
     "raw": 1398631,
@@ -507,7 +507,7 @@
   "/[locale]/(app)/shop/page": {
     "raw": 1355513,
     "gzip": 426370,
-    "brotli": 371425
+    "brotli": 372363
   },
   "/[locale]/(app)/templates/page": {
     "raw": 1398910,
