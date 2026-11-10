@@ -176,6 +176,28 @@ export const HASH_UPGRADE = {
 };
 
 /**
+ * A subject without `idType` whose id column the app's schema files declare as
+ * `uuid` compares on that type. Only the inline policies use it: each branch
+ * runs for its own subject type, so another type's text id never reaches the
+ * cast.
+ */
+function withInferredId(entry: Subject, layout: BlockSqlLayout): Subject {
+  if (entry.idType !== undefined) {
+    return entry;
+  }
+
+  const table = entry.table.includes(".")
+    ? entry.table
+    : `public.${entry.table}`;
+
+  const column = entry.id ?? "id";
+
+  return layout.uuidColumns?.[table]?.includes(column) === true
+    ? { ...entry, idType: "uuid", idInferred: true }
+    : entry;
+}
+
+/**
  * The policy form of `attachment_subject_readable` over the row's columns (ADR
  * 0424): the subjects whose table exists inline, a later module's subject types
  * through `fallback`, which binds late.
@@ -221,12 +243,19 @@ export function inlineSubjectReadable(
 
   const { fallback, ...args } = columns;
 
-  const readable = subjectReadable(ctx, early, args, {
-    guest: options.guest ?? true,
-    ...(options.live === true ? { live: true } : {}),
-    tenantColumn: true,
-    fallback,
-  });
+  const readable = subjectReadable(
+    ctx,
+    early.map(
+      ([type, entry]) => [type, withInferredId(entry, layout)] as const,
+    ),
+    args,
+    {
+      guest: options.guest ?? true,
+      ...(options.live === true ? { live: true } : {}),
+      tenantColumn: true,
+      fallback,
+    },
+  );
 
   return options.typeNotNull === true
     ? readable
