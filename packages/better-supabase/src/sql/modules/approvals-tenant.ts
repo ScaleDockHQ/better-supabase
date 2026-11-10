@@ -893,7 +893,7 @@ function consumeSql(
   if ${has("fingerprint") ? `v_req.${c("fingerprint")}` : "null::text"} is distinct from consume_approval.fingerprint then
     ${fail("APPROVAL_FINGERPRINT_MISMATCH", "the request changed after it was approved; ask for approval again", "22023")}
   end if;
-  update ${requests} r set ${c("consumedAt")} = now()
+  update ${requests} r set ${ctx.owns("requests") ? `${c("status")} = 'consumed', ` : ""}${c("consumedAt")} = now()
     where r.${c("id")} = v_req.${c("id")} returning * into v_req;
   ${record("approval.consumed", "v_req", true)}
   return ${json("v_req")};`
@@ -917,6 +917,42 @@ begin${body}
 end;
 $$;
 ${userGrant(`${fn("consume_approval")}(uuid, text)`)}`;
+}
+
+/** The requests table's status values. */
+export const REQUEST_STATUSES =
+  "'pending', 'approved', 'rejected', 'cancelled', 'expired', 'consumed'";
+
+/** The check that a request carries `consumed_at` exactly when it is consumed. */
+export function consumedCheck(ctx: BlockSqlContext): string {
+  const c = (column: string): string => ctx.col("requests", column);
+
+  return `constraint ${sqlIdent(`bsb_${ctx.tableName("requests").name}_consumed_check`)} check ((${c("status")} = 'consumed') = (${c("consumedAt")} is not null))`;
+}
+
+/**
+ * Version 5 to 6: a used request moves from approved to consumed. The status
+ * check takes the new value first, then the backfill runs, then the check that
+ * ties consumed_at to the status. The backfill fires the deferred audit
+ * triggers at once, since Postgres refuses to alter a table with pending ones.
+ */
+export function consumedUpgrade(ctx: BlockSqlContext): string {
+  if (!ctx.owns("requests") || !ctx.has("requests", "consumedAt")) {
+    return "";
+  }
+
+  const requests = ctx.table("requests");
+  const c = (column: string): string => ctx.col("requests", column);
+  const { name } = ctx.tableName("requests");
+
+  const status = `${name}_${ctx.colName("requests", "status")}_check`;
+  const statusCheck = sqlIdent(`bsb_${status}`);
+
+  return `alter table ${requests} drop constraint if exists ${sqlIdent(status)};
+alter table ${requests} add constraint ${statusCheck} check (${c("status")} in (${REQUEST_STATUSES}));
+update ${requests} set ${c("status")} = 'consumed' where ${c("consumedAt")} is not null and ${c("status")} = 'approved';
+set constraints all immediate;
+alter table ${requests} add ${consumedCheck(ctx)};`;
 }
 
 /**

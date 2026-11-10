@@ -480,6 +480,231 @@ describe("state machine", () => {
     );
   });
 
+  it("stamps a column when a record enters a status", () => {
+    const sql = sqlOf({
+      "state-machine": {
+        options: {
+          machines: { quote: { ...quote, stamps: { sent: "sent_at" } } },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      `if new."status"::text = 'sent' and new."sent_at" is null and not`,
+    );
+    expect(sql).toContain(`if new."status"::text = 'sent' then
+      new."sent_at" := now();`);
+  });
+
+  it("checks a transition's permission and function inside the trigger", () => {
+    const sql = sqlOf({
+      "state-machine": {
+        options: {
+          machines: {
+            quote: {
+              ...quote,
+              guards: {
+                draft: {
+                  sent: {
+                    permission: "quotes.send",
+                    check: "public.quote_has_lines",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const update = sql.slice(sql.indexOf("is not distinct from"));
+
+    expect(update).toContain(
+      `if old."status"::text = 'draft' and new."status"::text = 'sent' then`,
+    );
+    expect(update).toContain("'quotes.send'");
+    expect(update).toContain("STATE_TRANSITION_FORBIDDEN");
+    expect(update).toContain(
+      `coalesce("public"."quote_has_lines"(new), false)`,
+    );
+    expect(update).toContain("STATE_GUARD_FAILED");
+    expect(sql).toContain(`v_next := array_remove(v_next, 'sent');`);
+  });
+
+  it("checks only the permission of a guard without a function, and empties next while paused", () => {
+    const sql = sqlOf({
+      "state-machine": {
+        options: {
+          machines: {
+            quote: {
+              ...quote,
+              lifecycle: true,
+              stamps: { draft: "drafted_at" },
+              guards: { draft: { sent: { permission: "quotes.send" } } },
+            },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain("STATE_TRANSITION_FORBIDDEN");
+    expect(sql).not.toContain("STATE_GUARD_FAILED");
+    expect(sql).toContain(
+      `if new."status"::text = 'draft' and new."drafted_at" is null`,
+    );
+    expect(sql).toContain(`if v_paused then
+        v_next := '{}'::text[];`);
+  });
+
+  it("accepts stamps and guards on a workflow machine", () => {
+    const sql = sqlOf(
+      {
+        "state-machine": {
+          options: {
+            machines: {
+              change: {
+                table: "public.changes",
+                column: "status",
+                workflow: "changes",
+                stamps: { approved: "approved_at" },
+                guards: { review: { approved: { check: "approve_ok" } } },
+              },
+            },
+          },
+        },
+      },
+      ["workflow-editor"],
+    );
+
+    expect(sql).toContain(`new."approved_at" := now();`);
+    expect(sql).toContain(`coalesce("public"."approve_ok"(new), false)`);
+    expect(sql).toContain("-> 'transitions' -> v_status");
+  });
+
+  it("lists no next status for a machine without transitions", () => {
+    const sql = sqlOf({
+      "state-machine": {
+        options: { machines: { quote: { ...quote, transitions: {} } } },
+      },
+    });
+
+    expect(sql).toContain("v_next := '{}'::text[];");
+  });
+
+  it("renders nothing in custom mode", () => {
+    expect(
+      sqlOf({
+        "state-machine": { mode: "custom", options: { machines: { quote } } },
+      }),
+    ).not.toContain("bsb_transition_quote");
+  });
+
+  it.each([
+    [
+      "requiresApproval without the approvals module",
+      { quote: { ...quote, requiresApproval: { draft: ["sent"] } } },
+      "needs the approvals module",
+    ],
+    [
+      "requiresApproval that is not an object",
+      { quote: { ...quote, requiresApproval: ["sent"] } },
+      "requiresApproval must be an object of status to statuses",
+    ],
+    [
+      "a workflow machine without the workflow-editor module",
+      {
+        quote: { table: "public.quotes", column: "status", workflow: "quotes" },
+      },
+      "needs the workflow-editor module",
+    ],
+  ])("refuses %s", (_name, machines, message) => {
+    expect(() => sqlOf({ "state-machine": { options: { machines } } })).toThrow(
+      message,
+    );
+  });
+
+  it("returns the statuses a record may move to from status_state", () => {
+    const sql = sqlOf({
+      "state-machine": { options: { machines: { quote } } },
+    });
+
+    expect(sql).toContain(
+      `v_next := case v_status when 'draft' then '{sent}'::text[] else '{}'::text[] end;`,
+    );
+    expect(sql).toContain("'next', to_jsonb(v_next)");
+  });
+
+  it.each([
+    [
+      "a stamp for an unknown status",
+      { stamps: { paid: "paid_at" } },
+      "stamps: paid is not a status",
+    ],
+    [
+      "a stamp that is not a column",
+      { stamps: { sent: "sent at" } },
+      "stamps.sent must be a column name",
+    ],
+    [
+      "a guard on an edge the machine lacks",
+      { guards: { sent: { draft: { permission: "quotes.send" } } } },
+      "sent to draft is not an allowed transition",
+    ],
+    [
+      "an empty guard",
+      { guards: { draft: { sent: {} } } },
+      "takes permission, check or both",
+    ],
+    [
+      "guards that are not an object",
+      { guards: ["draft"] },
+      "guards must be an object",
+    ],
+    [
+      "a guard with an unknown key",
+      { guards: { draft: { sent: { role: "admin" } } } },
+      "takes permission, check or both",
+    ],
+    [
+      "a guard target list that is not an object",
+      { guards: { draft: "sent" } },
+      "guards.draft must be an object",
+    ],
+    [
+      "a guard function that is not a string",
+      { guards: { draft: { sent: { check: 1 } } } },
+      "check must be a function name",
+    ],
+    [
+      "stamps that are not an object",
+      { stamps: "sent_at" },
+      "stamps must be an object",
+    ],
+    [
+      "an empty permission key",
+      { guards: { draft: { sent: { permission: "" } } } },
+      "permission must be a permission key",
+    ],
+    [
+      "a stamp on the initial status that is not a string",
+      { stamps: { draft: 1 } },
+      "stamps.draft must be a column name",
+    ],
+    [
+      "a guard function that is not a name",
+      { guards: { draft: { sent: { check: "x; drop table y" } } } },
+      "check must be a function name",
+    ],
+  ])("rejects %s", (_name, extra, message) => {
+    expect(() =>
+      sqlOf({
+        "state-machine": {
+          options: { machines: { quote: { ...quote, ...extra } } },
+        },
+      }),
+    ).toThrow(message);
+  });
+
   it("adds the actor columns and drops the old transition on upgrade", () => {
     const [plan] = upgradePlan([{ module: "state-machine", version: 2 }]);
     expect(plan?.to).toBe(3);

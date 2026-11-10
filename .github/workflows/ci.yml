@@ -61,10 +61,12 @@ jobs:
     secrets:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
-  # Vercel is the other place the docs build runs, and a failing preview there doesn't block a
-  # merge. MDX parse errors only surface when Fumadocs compiles the pages.
+  # Vercel production builds the docs on push. A pull request builds them here only when the
+  # docs package changed, because a failing preview does not block a merge.
   docs:
     name: Docs build
+    needs: affected
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.affected.outputs.docs == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -86,11 +88,12 @@ jobs:
           grep -E "Maximum resident set size|Elapsed \(wall clock\)" build-usage.txt \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
-  # One build per framework adapter that has an example app, in its own job, so a framework's
-  # bundler and the library's subpath exports are checked together. The other adapters' examples
-  # have no build step; their typecheck runs in verify.
+  # Vite's example builds here. The Next.js example builds in `verify / test`, which measures
+  # its output, so a second build would miss the Turbo cache for both.
   adapter-builds:
     name: Adapter build (${{ matrix.name }})
+    needs: affected
+    if: ${{ !cancelled() && needs.affected.outputs.vite == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -100,8 +103,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Next.js
-            filter: "@better-supabase/example-nextjs"
           - name: Vite and React
             filter: "@better-supabase/example-vite-react"
     steps:
@@ -116,11 +117,10 @@ jobs:
           FILTER: ${{ matrix.filter }}
         run: pnpm exec turbo run build --filter="$FILTER"
 
-  # A pull request that touches neither the library, the suites that run on the stack, nor the
-  # stack itself skips Integration and Realtime. Pushes to main always run them.
+  # A change that touches neither the library, the suites that run on the stack, nor the stack
+  # itself skips Integration and Realtime. Pushes use the previous commit on the branch.
   affected:
     name: Affected
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -128,6 +128,9 @@ jobs:
       id-token: write
     outputs:
       stack: ${{ steps.query.outputs.stack }}
+      docs: ${{ steps.query.outputs.docs }}
+      nextjs: ${{ steps.query.outputs.nextjs }}
+      vite: ${{ steps.query.outputs.vite }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -139,31 +142,64 @@ jobs:
 
       - id: query
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
-          packages=$(pnpm exec turbo query affected --base "$BASE" --head HEAD --packages \
+          mark_all() {
+            {
+              echo "stack=true"
+              echo "docs=true"
+              echo "nextjs=true"
+              echo "vite=true"
+            } >> "$GITHUB_OUTPUT"
+          }
+          # A new branch, a force-push, or a missing base has no ancestor to diff against.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BASE^{commit}" 2>/dev/null \
+            || ! git merge-base --is-ancestor "$BASE" HEAD; then
+            mark_all
+            exit 0
+          fi
+          json=$(pnpm exec turbo query affected --base "$BASE" --head HEAD --packages \
             better-supabase \
+            docs \
             @better-supabase/example-nextjs \
+            @better-supabase/example-vite-react \
             @better-supabase/validation-centrakit \
             @better-supabase/validation-recipes \
             @better-supabase/validation-presets \
-            @better-supabase/validation-request-context \
-            | jq '.data.affectedPackages.length')
+            @better-supabase/validation-request-context)
+          names=$(printf '%s' "$json" | jq -r '.data.affectedPackages.items[].name')
+          flag() {
+            if printf '%s\n' "$names" | grep -qx "$1"; then
+              echo "$2=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$2=false" >> "$GITHUB_OUTPUT"
+            fi
+          }
           files=$(git diff --name-only "$BASE"...HEAD -- \
             supabase .github/actions/supabase-stack .github/workflows/ci.yml | wc -l)
-          if [ "$packages" -gt 0 ] || [ "$files" -gt 0 ]; then
+          if printf '%s\n' "$names" | grep -qx better-supabase \
+            || printf '%s\n' "$names" | grep -qx @better-supabase/example-nextjs \
+            || printf '%s\n' "$names" | grep -qx @better-supabase/validation-centrakit \
+            || printf '%s\n' "$names" | grep -qx @better-supabase/validation-recipes \
+            || printf '%s\n' "$names" | grep -qx @better-supabase/validation-presets \
+            || printf '%s\n' "$names" | grep -qx @better-supabase/validation-request-context \
+            || [ "$files" -gt 0 ]; then
             echo "stack=true" >> "$GITHUB_OUTPUT"
           else
             echo "stack=false" >> "$GITHUB_OUTPUT"
           fi
+          flag docs docs
+          flag @better-supabase/example-nextjs nextjs
+          flag @better-supabase/example-vite-react vite
 
   # Runs next to verify, not after it: Integration is the longest job, so waiting for verify would
   # add its whole runtime to the critical path. Each shard starts its own stack.
   stack:
     name: Integration (${{ matrix.name }})
     needs: affected
-    # `affected` is skipped on push, and a skipped need skips this job unless `!cancelled()`.
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
+    # A skipped or failed affected job must not start the stack.
+    if: ${{ !cancelled() && needs.affected.outputs.stack == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -214,7 +250,7 @@ jobs:
   validation:
     name: Integration (${{ matrix.name }})
     needs: affected
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
+    if: ${{ !cancelled() && needs.affected.outputs.stack == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -260,7 +296,7 @@ jobs:
   realtime:
     name: Integration (Realtime on the legacy engine)
     needs: affected
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
+    if: ${{ !cancelled() && needs.affected.outputs.stack == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

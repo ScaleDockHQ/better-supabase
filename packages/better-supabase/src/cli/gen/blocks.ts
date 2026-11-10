@@ -410,6 +410,28 @@ function employeeStatuses(
   return [...new Set(all)];
 }
 
+/**
+ * Each `blocks.state-machine.options.machines` entry's `transitions`, so the
+ * app reads the allowed edges without a copy. A workflow machine has none.
+ */
+function machineTransitions(
+  resolved: ReturnType<typeof resolveBlock>,
+): Readonly<Record<string, unknown>> {
+  const machines = resolved.options["machines"];
+
+  if (!isRecord(machines)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(machines).flatMap(([name, machine]) =>
+      isRecord(machine) && isRecord(machine["transitions"])
+        ? [[name, machine["transitions"]]]
+        : [],
+    ),
+  );
+}
+
 /** The columns the app's schema files add to a block's table, by file. */
 export type AppColumns = Readonly<
   Record<string, readonly { readonly name: string; readonly type: string }[]>
@@ -503,6 +525,15 @@ function generatedEntry(
         options[key] = value;
       }
     }
+  }
+
+  const transitions = machineTransitions(resolved);
+
+  if (
+    Object.keys(transitions).length > 0 &&
+    modules.includes("state-machine")
+  ) {
+    options["transitions"] = transitions;
   }
 
   const statuses = employeeStatuses(resolved);
