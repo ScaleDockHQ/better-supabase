@@ -20,7 +20,7 @@ export function importContract(): readonly BlockSqlContractFunction[] {
     },
     {
       name: "list_import_issues",
-      args: ["uuid", "text", "integer", "integer"],
+      args: ["uuid", "text", "integer", "integer", "text"],
       returns: "jsonb",
     },
     { name: "import_integrity", args: ["{id}", "text"], returns: "jsonb" },
@@ -32,7 +32,7 @@ export function importContract(): readonly BlockSqlContractFunction[] {
     },
     {
       name: "list_import_diff",
-      args: ["uuid", "text", "integer", "integer"],
+      args: ["uuid", "text", "integer", "integer", "text"],
       returns: "jsonb",
     },
     {
