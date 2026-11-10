@@ -3,6 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 import { createVersionCache } from "../../src/server/authz-versions.ts";
 
 describe("createVersionCache", () => {
+  it("drops the least recently used user past maxEntries", async () => {
+    const cache = createVersionCache({ maxStaleMs: 1000, maxEntries: 2 });
+
+    await cache.seed("a", 1);
+    await cache.seed("b", 2);
+    expect(await cache.get("a")).toBe(1);
+
+    await cache.seed("c", 3);
+
+    expect(await cache.get("b")).toBeUndefined();
+    expect(await cache.get("a")).toBe(1);
+    expect(await cache.get("c")).toBe(3);
+  });
+
   it("keeps the higher version a slow bootstrap seeds", async () => {
     const cache = createVersionCache({ maxStaleMs: 1000 });
 

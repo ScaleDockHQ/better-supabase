@@ -76,4 +76,17 @@ describe("BlockSet.client", () => {
 
     expect(rpc.mock.calls[0]?.[1]).toMatchObject({ tenant: "org-3" });
   });
+
+  it("shares one client per db and builds a new one for another db", () => {
+    const set = defineBlocks(
+      { comments: { schema: "better_supabase", options: {} } },
+      { comments: commentsBlock },
+    );
+
+    const { db } = fakeDb("org-3");
+    const other = fakeDb("org-4").db;
+
+    expect(set.client(db, "comments")).toBe(set.client(db, "comments"));
+    expect(set.client(other, "comments")).not.toBe(set.client(db, "comments"));
+  });
 });
