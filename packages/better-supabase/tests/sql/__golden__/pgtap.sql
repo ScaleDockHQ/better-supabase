@@ -1,8 +1,8 @@
 -- ==== alone: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:116db14fe8dccbd20e1a1913aa7f169627bed4c2059ffa87e0fb0505bfa9d4ee
--- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
+-- @bsb-hash sha256:48dcf967c544a376f130b1f4feb7d7da58cb795fa368f528ba26f732ec225226
+-- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued, tests.act_as, tests.visible_row_count and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -146,6 +146,39 @@ as $$
 begin
   perform set_config('request.jwt.claims', '', true);
   reset role;
+end;
+$$;
+
+-- Acts as any role for the rest of the transaction, with the claims PostgREST
+-- would set: select tests.act_as('authenticated', '<uuid>', '{"tenant_id": "<uuid>"}');
+create or replace function tests.act_as(role_name text, user_id uuid default null, claims jsonb default '{}')
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  issued jsonb := jsonb_build_object('role', role_name)
+    || case when user_id is null then '{}'::jsonb else jsonb_build_object('sub', user_id) end
+    || coalesce(claims, '{}'::jsonb);
+begin
+  perform set_config('request.jwt.claims', issued::text, true);
+  execute format('set local role %I', role_name);
+end;
+$$;
+
+-- How many rows the current role sees, RLS applied:
+-- select is(tests.visible_row_count('public.tasks', 'status = ''open'''), 3::bigint);
+create or replace function tests.visible_row_count(relation regclass, filter text default null)
+returns bigint
+language plpgsql
+set search_path = ''
+as $$
+declare
+  found_count bigint;
+begin
+  execute format('select count(*) from %s%s', relation, case when filter is null or filter = '' then '' else ' where ' || filter end)
+    into found_count;
+  return found_count;
 end;
 $$;
 
@@ -371,8 +404,8 @@ select * from extensions.finish();
 -- ==== schema app_private: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:116db14fe8dccbd20e1a1913aa7f169627bed4c2059ffa87e0fb0505bfa9d4ee
--- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
+-- @bsb-hash sha256:48dcf967c544a376f130b1f4feb7d7da58cb795fa368f528ba26f732ec225226
+-- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued, tests.act_as, tests.visible_row_count and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -516,6 +549,39 @@ as $$
 begin
   perform set_config('request.jwt.claims', '', true);
   reset role;
+end;
+$$;
+
+-- Acts as any role for the rest of the transaction, with the claims PostgREST
+-- would set: select tests.act_as('authenticated', '<uuid>', '{"tenant_id": "<uuid>"}');
+create or replace function tests.act_as(role_name text, user_id uuid default null, claims jsonb default '{}')
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  issued jsonb := jsonb_build_object('role', role_name)
+    || case when user_id is null then '{}'::jsonb else jsonb_build_object('sub', user_id) end
+    || coalesce(claims, '{}'::jsonb);
+begin
+  perform set_config('request.jwt.claims', issued::text, true);
+  execute format('set local role %I', role_name);
+end;
+$$;
+
+-- How many rows the current role sees, RLS applied:
+-- select is(tests.visible_row_count('public.tasks', 'status = ''open'''), 3::bigint);
+create or replace function tests.visible_row_count(relation regclass, filter text default null)
+returns bigint
+language plpgsql
+set search_path = ''
+as $$
+declare
+  found_count bigint;
+begin
+  execute format('select count(*) from %s%s', relation, case when filter is null or filter = '' then '' else ' where ' || filter end)
+    into found_count;
+  return found_count;
 end;
 $$;
 
@@ -741,8 +807,8 @@ select * from extensions.finish();
 -- ==== api schema: test supabase/tests/000_better_supabase_pgtap.test.sql
 -- better-supabase module: pgtap
 -- @bsb-block pgtap@1 managed
--- @bsb-hash sha256:116db14fe8dccbd20e1a1913aa7f169627bed4c2059ffa87e0fb0505bfa9d4ee
--- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
+-- @bsb-hash sha256:48dcf967c544a376f130b1f4feb7d7da58cb795fa368f528ba26f732ec225226
+-- tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued, tests.act_as, tests.visible_row_count and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -886,6 +952,39 @@ as $$
 begin
   perform set_config('request.jwt.claims', '', true);
   reset role;
+end;
+$$;
+
+-- Acts as any role for the rest of the transaction, with the claims PostgREST
+-- would set: select tests.act_as('authenticated', '<uuid>', '{"tenant_id": "<uuid>"}');
+create or replace function tests.act_as(role_name text, user_id uuid default null, claims jsonb default '{}')
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  issued jsonb := jsonb_build_object('role', role_name)
+    || case when user_id is null then '{}'::jsonb else jsonb_build_object('sub', user_id) end
+    || coalesce(claims, '{}'::jsonb);
+begin
+  perform set_config('request.jwt.claims', issued::text, true);
+  execute format('set local role %I', role_name);
+end;
+$$;
+
+-- How many rows the current role sees, RLS applied:
+-- select is(tests.visible_row_count('public.tasks', 'status = ''open'''), 3::bigint);
+create or replace function tests.visible_row_count(relation regclass, filter text default null)
+returns bigint
+language plpgsql
+set search_path = ''
+as $$
+declare
+  found_count bigint;
+begin
+  execute format('select count(*) from %s%s', relation, case when filter is null or filter = '' then '' else ' where ' || filter end)
+    into found_count;
+  return found_count;
 end;
 $$;
 

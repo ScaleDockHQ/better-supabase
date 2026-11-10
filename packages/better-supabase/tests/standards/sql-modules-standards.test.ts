@@ -51,6 +51,8 @@ describe("pgTAP", () => {
       "tests.create_user",
       "tests.authenticate_as",
       "tests.authenticate_as_anon",
+      "tests.act_as",
+      "tests.visible_row_count",
       "tests.rls_enabled",
     ]) {
       expect(file.contents).toContain(`create or replace function ${helper}(`);

@@ -6,7 +6,7 @@ export const PGTAP: BlockSqlDefinition = {
   name: "pgtap",
   title: "pgTAP helpers",
   description:
-    "tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.",
+    "tests.create_user, tests.authenticate_as (by id or email), tests.authenticate_as_issued, tests.act_as, tests.visible_row_count and catalog checks (every_table_has_rls, policies_use, no_anon_policies, every_table_audited, partitions_have_rls) for `supabase test db`. Written to supabase/tests, never to your schema.",
   requires: [],
   target: "test",
   build: (
@@ -152,6 +152,39 @@ as $$
 begin
   perform set_config('request.jwt.claims', '', true);
   reset role;
+end;
+$$;
+
+-- Acts as any role for the rest of the transaction, with the claims PostgREST
+-- would set: select tests.act_as('authenticated', '<uuid>', '{"tenant_id": "<uuid>"}');
+create or replace function tests.act_as(role_name text, user_id uuid default null, claims jsonb default '{}')
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  issued jsonb := jsonb_build_object('role', role_name)
+    || case when user_id is null then '{}'::jsonb else jsonb_build_object('sub', user_id) end
+    || coalesce(claims, '{}'::jsonb);
+begin
+  perform set_config('request.jwt.claims', issued::text, true);
+  execute format('set local role %I', role_name);
+end;
+$$;
+
+-- How many rows the current role sees, RLS applied:
+-- select is(tests.visible_row_count('public.tasks', 'status = ''open'''), 3::bigint);
+create or replace function tests.visible_row_count(relation regclass, filter text default null)
+returns bigint
+language plpgsql
+set search_path = ''
+as $$
+declare
+  found_count bigint;
+begin
+  execute format('select count(*) from %s%s', relation, case when filter is null or filter = '' then '' else ' where ' || filter end)
+    into found_count;
+  return found_count;
 end;
 $$;
 

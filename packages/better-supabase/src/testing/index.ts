@@ -9,9 +9,9 @@ export type { SigningJwk, TestJwtClaims, TestSigner } from "./jwt.ts";
 
 export { localSigningKey, signLocalJwt } from "./local-key.ts";
 
-export { asUser, LOCAL_JWT_SECRET } from "./as-user.ts";
+export { asSignedInUser, asUser, LOCAL_JWT_SECRET } from "./as-user.ts";
 
-export type { LocalStack, TestUser } from "./as-user.ts";
+export type { LocalStack, TestCredentials, TestUser } from "./as-user.ts";
 
 export { liteStack } from "./lite.ts";
 
@@ -287,6 +287,10 @@ export { testImportTarget, importTargetPgTap } from "./import-target.ts";
 export type { ImportTargetFixture, ImportTargetSpec } from "./import-target.ts";
 
 export { createFakeClient } from "./fake-client.ts";
+
+export { createFakePostgrest } from "./fake-postgrest.ts";
+
+export type { FakePostgrest } from "./fake-postgrest.ts";
 
 export type {
   FakeClient,
