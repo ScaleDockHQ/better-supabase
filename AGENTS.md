@@ -527,6 +527,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0637: Page block lists by keyset, and render access, list and idempotency from tags.
 - 0638: Shard unit tests by duration, and skip CI work a push did not change.
 - 0639: Keep a size baseline until the measurement leaves its slack.
+- 0641: Bound the version cache and share the block builder per db.
 - 0644: Inline the remaining subject read policies, bound the memo keys and roll up replies in place.
 - 0648: Map the data of a bsb.action to another type with a third argument.
 

@@ -84,3 +84,8 @@ lists are not moved to keyset (ADR 0637 keeps the offset option); that needs a d
 fifteen indexes, adds the full messages index and the two memo functions, and replaces the rollup,
 memo and audit functions. An existing install keeps the old index of the same name until the diff
 replaces it. The prelude defines `memo_slot_get` and `memo_slot_set`.
+
+The re-measured First Load JS baseline of 13 routes in `tests/next-build/baseline.json` rose by 7 to
+47 bytes brotli (about 0.01 percent of a route, no raw baseline moved). Brotli moves with chunk
+hashes; the numbers are taken from a fresh build of this branch after merging main. The guard in
+`next-build.test.ts` is unchanged.
