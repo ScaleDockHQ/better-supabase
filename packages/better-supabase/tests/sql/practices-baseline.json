@@ -316,6 +316,14 @@
     "security-definer-functions": 57,
     "row-triggers": 6
   },
+  "memberships-summary-many": {
+    "security-definer-functions": 8,
+    "row-triggers": 3
+  },
+  "memberships-summary": {
+    "security-definer-functions": 6,
+    "row-triggers": 1
+  },
   "memberships": {
     "security-definer-functions": 44,
     "row-triggers": 6

@@ -10,6 +10,7 @@ import { definePlugin } from "../../src/core/plugin.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { provideTemporal } from "../../src/core/temporal.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -318,5 +319,124 @@ describe("definition accessors", () => {
     });
 
     expect(() => db.$storage).toThrow(/db\.\$storage needs a client/);
+  });
+});
+
+describe("connection runtime slot", () => {
+  it("names the entries to import when no runtime is installed", () => {
+    const slot = Symbol.for("better-supabase.connection-runtime");
+    const host = globalThis as Record<symbol, unknown>;
+    const installed = host[slot];
+
+    host[slot] = undefined;
+
+    try {
+      // SAFETY: the call throws before it reads the executor.
+      expect(() => createSupabase(schema).connect({} as never)).toThrow(
+        /needs the connection runtime/,
+      );
+    } finally {
+      host[slot] = installed;
+    }
+  });
+
+  it("registers a lazy table before any db is connected", () => {
+    const slot = Symbol.for("better-supabase.connection-runtime");
+    const host = globalThis as Record<symbol, unknown>;
+    const installed = host[slot];
+    const { tags, ...rest } = schema.meta.tables;
+
+    if (!tags) {
+      throw new Error("the fixture has no tags table");
+    }
+
+    const lazy = createSupabase(
+      defineSchema({ ...schema.meta, tables: rest, lazyTables: true }),
+    );
+
+    host[slot] = undefined;
+
+    try {
+      lazy.registerTable({ ...tags, key: "lazyTags" });
+    } finally {
+      host[slot] = installed;
+    }
+
+    expect(Object.keys(lazy.meta.tables)).toContain("lazyTags");
+  });
+});
+
+describe("tables the server loads on first use", () => {
+  const { tags, ...rest } = schema.meta.tables;
+
+  if (!tags) {
+    throw new Error("the fixture has no tags table");
+  }
+
+  const load = vi.fn(() => Promise.resolve({ ...tags, key: "lazyTags" }));
+
+  const lazy = createSupabase(
+    defineSchema({
+      ...schema.meta,
+      tables: rest,
+      lazyTables: true,
+      tableLoaders: { lazyTags: load },
+    }),
+  );
+
+  const executor: Executor = {
+    name: "stub",
+    execute: (op) => Promise.resolve(answer(op)),
+  };
+
+  it("lists the loader keys beside the loaded tables when a name is unknown", () => {
+    expect(() => lazy.connect(executor).$table("nope")).toThrow(
+      /unknown table "nope"\. Known: .*lazyTags/u,
+    );
+  });
+
+  it("runs a method once its table module has loaded", async () => {
+    const result = await lazy.connect(executor).$table("lazyTags").count();
+
+    expect(result.error).toBeNull();
+    expect(load).toHaveBeenCalledOnce();
+  });
+});
+
+describe("$decodeReadSet", () => {
+  const set = defineReadSet(
+    betterSupabase,
+    "chrome",
+    { params: { organizationId: "uuid" } },
+    (s, p) => ({ tag: s.tags.get(p.organizationId, { select: ["id"] }) }),
+  );
+
+  const executor: Executor = {
+    name: "stub",
+    execute: (op) => Promise.resolve(answer(op)),
+  };
+
+  const db = betterSupabase.connect(executor);
+  const values = { organizationId: "o1" };
+
+  it("refuses values that miss a parameter", async () => {
+    const result = await db.$decodeReadSet(set, {} as never, {});
+
+    expect(result.error?.kind).toBe("invalid_request");
+    expect(result.error?.message).toContain("db.$decodeReadSet(chrome)");
+  });
+
+  it("reports a single-row spec without a row", async () => {
+    const result = await db.$decodeReadSet(set, values, { tag: { rows: [] } });
+
+    expect(result.error).toMatchObject({ kind: "not_found" });
+  });
+
+  it("decodes the one row", async () => {
+    const result = await db.$decodeReadSet(set, values, {
+      tag: { rows: [{ id: "a" }] },
+    });
+
+    expect(result).toEqual(ok({ tag: { id: "a" } }));
   });
 });

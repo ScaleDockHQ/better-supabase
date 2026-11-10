@@ -12,4 +12,6 @@ const conditions = [
 export default defineConfig({
   resolve: { conditions },
   ssr: { resolve: { conditions } },
+  // These tests connect a definition from the core entry, which holds no connection runtime.
+  test: { setupFiles: ["./src/connection-runtime.ts"] },
 });

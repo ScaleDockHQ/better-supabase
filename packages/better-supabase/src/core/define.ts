@@ -26,6 +26,7 @@ import type { Db } from "./repository-types.ts";
 import type { QuerySpec, Specs } from "./spec.ts";
 import type { StandardSchemaV1 } from "./standard.ts";
 
+import { addLazyTable } from "../schema/define.ts";
 import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { definitionEvents } from "./diagnostics.ts";
 import { orderPlugins } from "./plugin.ts";
@@ -426,7 +427,18 @@ export class BetterSupabase<
    * `client.table(customers)`; everything else lists its tables.
    */
   registerTable(table: SchemaMeta["tables"][string]): void {
-    connectionRuntime().registerTable(this, table);
+    const runtime = installedRuntime();
+
+    // No db has been connected yet, so only the schema needs the table; a
+    // route that registers tables before it connects (the OpenAPI document)
+    // must not need the connection runtime.
+    if (runtime === undefined) {
+      addLazyTable(this.meta, table);
+
+      return;
+    }
+
+    runtime.registerTable(this, table);
   }
 }
 
@@ -450,14 +462,26 @@ export interface ConnectionRuntime {
   ): void;
 }
 
-let installed: ConnectionRuntime | undefined;
+// Kept on globalThis because the CLI and the app it loads can hold separate
+// copies of this module: a definition built by one is connected by the other.
+const RUNTIME_SLOT = Symbol.for("better-supabase.connection-runtime");
+
+type RuntimeHost = { [RUNTIME_SLOT]?: ConnectionRuntime };
 
 /** Installs the connection runtime. Entries that connect call it once. */
 export function installConnectionRuntime(runtime: ConnectionRuntime): void {
-  installed = runtime;
+  // SAFETY: the slot only ever holds a ConnectionRuntime.
+  (globalThis as RuntimeHost)[RUNTIME_SLOT] = runtime;
+}
+
+function installedRuntime(): ConnectionRuntime | undefined {
+  // SAFETY: the slot only ever holds a ConnectionRuntime.
+  return (globalThis as RuntimeHost)[RUNTIME_SLOT];
 }
 
 function connectionRuntime(): ConnectionRuntime {
+  const installed = installedRuntime();
+
   if (!installed) {
     throw new TypeError(
       "better-supabase: connect() needs the connection runtime. Create the client or server (better-supabase/client, better-supabase/server or an adapter) before calling definition.connect().",
