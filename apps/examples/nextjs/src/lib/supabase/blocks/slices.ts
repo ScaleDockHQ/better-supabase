@@ -1067,7 +1067,18 @@ export const ssoConfig = {
 export const stateMachineConfig = {
   schema: "better_supabase",
   api: "api",
-  options: {},
+  options: {
+    transitions: {
+      work_item: {
+        triage: ["backlog", "unstarted", "started", "completed", "canceled"],
+        backlog: ["triage", "unstarted", "started", "completed", "canceled"],
+        unstarted: ["triage", "backlog", "started", "completed", "canceled"],
+        started: ["triage", "backlog", "unstarted", "completed", "canceled"],
+        completed: ["triage", "backlog", "unstarted", "started", "canceled"],
+        canceled: ["triage", "backlog", "unstarted", "started", "completed"],
+      },
+    },
+  },
 } as const satisfies GeneratedBlock;
 
 /** The `streams` instance's config slice. */
