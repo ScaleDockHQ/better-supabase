@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { seedFiles, sourceGlobs } from "../../../src/cli/doctor/inputs.ts";
+import {
+  functionFiles,
+  seedFiles,
+  sourceGlobs,
+} from "../../../src/cli/doctor/inputs.ts";
 import { CONFIG_DEFAULTS, resolveConfig } from "../../../src/config/index.ts";
 
 describe("sourceGlobs", () => {
@@ -88,6 +92,41 @@ describe("seedFiles", () => {
     expect(await seedFiles(root, undefined)).toEqual([
       { path: "supabase/seeds/a.sql", text: "select 1;\n" },
       { path: "supabase/seeds/b.sql", text: "select 2;\n" },
+    ]);
+  });
+});
+
+describe("functionFiles", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "bsb-doctor-functions-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("returns nothing without a functions folder", async () => {
+    expect(await functionFiles(root, undefined)).toEqual([]);
+  });
+
+  it("reads script files in path order and skips node_modules and other files", async () => {
+    const dir = join(root, "supabase", "functions");
+
+    await mkdir(join(dir, "hello"), { recursive: true });
+    await mkdir(join(dir, "hello", "node_modules", "dep"), { recursive: true });
+    await writeFile(join(dir, "hello", "index.ts"), "export {};");
+    await writeFile(join(dir, "a.mjs"), "export {};");
+    await writeFile(join(dir, "notes.md"), "# notes");
+    await writeFile(
+      join(dir, "hello", "node_modules", "dep", "index.js"),
+      "module.exports = {};",
+    );
+
+    expect(await functionFiles(root, undefined)).toEqual([
+      { path: "supabase/functions/a.mjs", text: "export {};" },
+      { path: "supabase/functions/hello/index.ts", text: "export {};" },
     ]);
   });
 });

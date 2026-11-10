@@ -266,3 +266,92 @@ describe("sharedJwks", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("jwksSource with a loader function", () => {
+  const keys = { keys: [KEY] };
+
+  it("reports a rejection that is not an Error", async () => {
+    const source = jwksSource(() => Promise.reject("plain text"));
+
+    expect(await source(false)).toMatchObject({
+      ok: false,
+      error: { message: "The JWKS could not be loaded: plain text" },
+    });
+  });
+
+  it("answers a refresh from the cache until the refetch window has passed", async () => {
+    let clock = 0;
+    const load = vi.fn(() => Promise.resolve(keys));
+    const source = jwksSource(load, { now: () => clock });
+
+    await source(false);
+    clock = 10_000;
+    await source(true);
+    expect(load).toHaveBeenCalledOnce();
+
+    clock = 31_000;
+    await source(true);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares one load between concurrent callers", async () => {
+    const load = vi.fn(() => Promise.resolve(keys));
+    const source = jwksSource(load);
+
+    await Promise.all([source(false), source(false)]);
+
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it("serves the known keys while the cache is stale and fails once the stale window ends", async () => {
+    let clock = 0;
+
+    const load = vi
+      .fn<() => Promise<typeof keys>>()
+      .mockResolvedValueOnce(keys)
+      .mockRejectedValue(new Error("down"));
+
+    const source = jwksSource(load, {
+      now: () => clock,
+      cacheSeconds: 10,
+      maxStaleSeconds: 20,
+    });
+
+    await source(false);
+    clock = 15_000;
+    expect(await source(false)).toMatchObject({ ok: true });
+
+    clock = 35_000;
+    expect(await source(false)).toMatchObject({
+      ok: false,
+      error: { code: "JWKS_FETCH_FAILED" },
+    });
+  });
+});
+
+describe("sharedJwks failures", () => {
+  it("reports a fetch that rejects with something other than an Error", async () => {
+    clearJwksCache();
+
+    const fetch = vi.fn<typeof globalThis.fetch>(() => Promise.reject("nope"));
+
+    expect(await sharedJwks(JWKS_URL, false, { fetch })).toMatchObject({
+      ok: false,
+      error: { message: "The JWKS could not be loaded: nope" },
+    });
+  });
+
+  it("purges a key set named by its address as a string", async () => {
+    clearJwksCache();
+
+    const fetch = vi.fn<typeof globalThis.fetch>(() =>
+      Promise.resolve(Response.json({ keys: [KEY] })),
+    );
+
+    await sharedJwks(JWKS_URL, false, { fetch });
+    purgeJwks(JWKS_URL.href);
+    await sharedJwks(JWKS_URL, false, { fetch });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});
