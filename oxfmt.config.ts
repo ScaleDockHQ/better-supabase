@@ -26,6 +26,9 @@ const config: OxfmtConfig = defineConfig({
     ...ignorePatterns,
     "packages/better-supabase/tests/fixtures/generated*",
     "apps/examples/**/lib/supabase/generated.*",
+    // `gen --check` compares the file with its own unformatted output, and the
+    // wrapped comment of a longer block list differs from the formatted one.
+    "apps/examples/nextjs/src/lib/supabase/blocks.api.ts",
     "apps/examples/monorepo/runtime/src/generated.*",
     "tests/validation-*/src/**/generated.*",
     // `gen --check` compares the file with its own unformatted output.

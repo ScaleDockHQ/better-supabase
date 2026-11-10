@@ -3,7 +3,6 @@
 import { defineBlocks } from "better-supabase/blocks";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
-
 import { blockConfig } from "./blocks.config.ts";
 
 export const apiInstances = {
@@ -13,10 +12,9 @@ export const apiInstances = {
 
 /**
  * The instances in `gen.serverBlocks.api`. Build the server from them:
- * `app.blocks(apiBlocks)`. A route that imports this module bundles these
- * blocks and not the rest of `blocks.generated.ts`. Spread `apiInstances` into
- * your own `defineBlocks` to give a block its ports.
- *
+ * `app.blocks(apiBlocks)`. A route that imports this module
+ * bundles these blocks and not the rest of `blocks.generated.ts`. Spread
+ * `apiInstances` into your own `defineBlocks` to give a block its ports.
  * @public
  */
 export const apiBlocks = defineBlocks(blockConfig, apiInstances);
