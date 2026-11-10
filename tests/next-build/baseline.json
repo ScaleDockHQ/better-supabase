@@ -12,7 +12,7 @@
   "/[locale]/(app)/approvals/page": {
     "raw": 1416842,
     "gzip": 449019,
-    "brotli": 391265
+    "brotli": 392269
   },
   "/[locale]/(app)/assistant/[id]/page": {
     "raw": 1298014,
@@ -437,7 +437,7 @@
   "/[locale]/(app)/settings/roles/[roleId]/page": {
     "raw": 1315175,
     "gzip": 413082,
-    "brotli": 359622
+    "brotli": 360581
   },
   "/[locale]/(app)/settings/roles/page": {
     "raw": 1455190,
@@ -557,7 +557,7 @@
   "/[locale]/(app)/workflows/page": {
     "raw": 1327783,
     "gzip": 417456,
-    "brotli": 363406
+    "brotli": 364350
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 905022,

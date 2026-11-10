@@ -835,7 +835,7 @@
     "brotli": 170765
   },
   "/api/queues/block-ticks/route": {
-    "raw": 4027828,
+    "raw": 4028387,
     "gzip": 1229155,
     "brotli": 1022050
   },
