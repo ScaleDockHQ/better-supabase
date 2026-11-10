@@ -1753,6 +1753,12 @@
                 "required": ["view", "key"],
                 "additionalProperties": false
               },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "watch": {
                 "type": "array",
                 "items": {

@@ -33,7 +33,12 @@ import type { AuditFilters as AuditFilterValues } from "../audit-queries";
 
 import { getAuditFacets } from "../audit-queries";
 import { AuditFilters } from "./audit-filters";
-import { AuditRows, AuditRowsSkeleton, AuditTotal } from "./audit-rows";
+import {
+  AuditRows,
+  AuditRowsSkeleton,
+  AuditTotal,
+  AuditTotalSkeleton,
+} from "./audit-rows";
 
 /**
  * The export of the rows on screen: the same filters and window, without the
@@ -138,7 +143,7 @@ export async function AuditLog({
         <Suspense fallback={<AuditRowsSkeleton />}>
           <AuditRows organizationId={organizationId} filters={filters} />
         </Suspense>
-        <Suspense fallback={null}>
+        <Suspense fallback={<AuditTotalSkeleton />}>
           <AuditTotal organizationId={organizationId} filters={filters} />
         </Suspense>
       </CardContent>
