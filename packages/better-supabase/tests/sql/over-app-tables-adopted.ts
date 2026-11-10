@@ -52,7 +52,7 @@ export const OVER: readonly (readonly [string, string])[] = TABLES.filter(
   },
 );
 
-export const CREATING: readonly (readonly [string, string])[] = TABLES.filter(
+const CREATING: readonly (readonly [string, string])[] = TABLES.filter(
   ([module, table]) =>
     !OVER.some(([other, own]) => other === module && own === table),
 );
