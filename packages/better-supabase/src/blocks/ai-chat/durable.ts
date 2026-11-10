@@ -97,6 +97,15 @@ export interface AiRuns {
       runId: string,
       options?: { readonly limit?: number },
     ): AsyncResult<readonly AiRunStep[]>;
+    /**
+     * The first `limit` steps (default 50) of many runs in one read, ordered by
+     * run id and then by start. Each step carries its `runId`. A run that is
+     * missing or unreadable has no steps.
+     */
+    listFor(input: {
+      readonly runIds: readonly string[];
+      readonly limit?: number;
+    }): AsyncResult<readonly AiRunStep[]>;
   };
   /** The caller's undecided approvals across chats, newest first. */
   pendingApprovals(size?: number): AsyncResult<readonly AiPendingApproval[]>;
@@ -220,6 +229,12 @@ export function aiRunLookups(
             ? rows
             : rows.slice(0, options.limit);
         }),
+      listFor: ({ runIds, limit }) =>
+        call(
+          "list_ai_run_steps_for",
+          { runs: runIds, per_run: limit },
+          (value) => recordsOf(value, "list_ai_run_steps_for").map(stepOf),
+        ),
     },
     pendingApprovals: (size) =>
       call("list_pending_ai_tool_approvals", { size }, (value) =>

@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:dee572d4f86b76305ddb7773abe11c66c66bec6a7ac25d24f3924473cdc8c829
+-- @bsb-hash sha256:da81da12ec5f5e322133675e4fa52aeab65335241cae95503224cf877cfe1928
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -225,6 +225,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
+
+-- Many versions with their content in one read, in the order requested. The
+-- read check runs once per distinct record; a version that is missing or that
+-- the caller cannot read is left out instead of failing the batch.
+create or replace function "better_supabase"."get_versions"(version_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  with wanted as (
+    select x.* from "better_supabase"."versions" x where x."id" = any (get_versions.version_ids)
+  ),
+  allowed as materialized (
+    select q."tenant_id", q."subject_type", q."subject_id"
+    from (select distinct w."tenant_id", w."subject_type", w."subject_id" from wanted w) q
+    where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', q."tenant_id", 'versions.read'), false) and case q."subject_type"
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = (q."subject_id")::uuid and s."organization_id" = q."tenant_id")
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (q."subject_id")::uuid and s."organization_id" = q."tenant_id") and coalesce(better_supabase.can('tenant', q."tenant_id", 'customers.read'), false)
+    else false
+  end and q."subject_type" <> 'ai_document')
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") || jsonb_build_object('content', v."content") order by array_position(get_versions.version_ids, v."id")), '[]'::jsonb)
+  from wanted v
+  join allowed a on a."tenant_id" = v."tenant_id" and a."subject_type" = v."subject_type" and a."subject_id" = v."subject_id"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_versions"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_versions"(uuid[]) to authenticated, service_role;
 
 -- A share link pinned to a version (create_share_link's version_id) reads
 -- that version with the token alone, for anon. Volatile: resolving the link
@@ -569,6 +601,15 @@ set search_path = ''
 as $$ select "better_supabase"."get_version"($1) $$;
 revoke execute on function "api"."get_version"(uuid) from public, anon;
 grant execute on function "api"."get_version"(uuid) to authenticated, service_role;
+
+create or replace function "api"."get_versions"(version_ids uuid[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_versions"($1) $$;
+revoke execute on function "api"."get_versions"(uuid[]) from public, anon;
+grant execute on function "api"."get_versions"(uuid[]) to authenticated, service_role;
 
 create or replace function "api"."get_shared_version"(token text)
 returns jsonb

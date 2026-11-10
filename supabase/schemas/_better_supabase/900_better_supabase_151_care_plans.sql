@@ -1,6 +1,6 @@
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:14c808dd89fc47fb16770192107f5279d127edbe804b5cbfff9a5a235a3b8c34
+-- @bsb-hash sha256:fae9434d11c108e012f1f175b40b2b1be4f8485aca564a0d3a095b8ab40d8870
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -917,6 +917,24 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_care_plan"(uuid) to authenticated, service_role;
+
+-- Many plans, each with its problems, goals, actions and evaluations, in the
+-- order requested. A plan that is missing or that the caller cannot read has
+-- no entry.
+create or replace function "better_supabase"."get_care_plans"(plan_ids uuid[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg("better_supabase"."care_plan_json"(x."id") order by array_position(get_care_plans.plan_ids, x."id")), '[]'::jsonb)
+  from "better_supabase"."care_plans" x
+  where x."id" = any (get_care_plans.plan_ids)
+    and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'care_plans.read'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)))
+$$;
+revoke execute on function "better_supabase"."get_care_plans"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_care_plans"(uuid[]) to authenticated, service_role;
 
 -- A client's plans the caller reads, the newest version first, without
 -- their problems. include_archived adds the archived ones.
@@ -1893,6 +1911,16 @@ set search_path = ''
 as $$ select "better_supabase"."get_care_plan"($1) $$;
 revoke execute on function "api"."get_care_plan"(uuid) from public, anon;
 grant execute on function "api"."get_care_plan"(uuid) to authenticated, service_role;
+
+create or replace function "api"."get_care_plans"(plan_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_care_plans"($1) $$;
+revoke execute on function "api"."get_care_plans"(uuid[]) from public, anon;
+grant execute on function "api"."get_care_plans"(uuid[]) to authenticated, service_role;
 
 create or replace function "api"."list_care_plans"(subject_type text, subject_id text, include_archived boolean default false)
 returns jsonb

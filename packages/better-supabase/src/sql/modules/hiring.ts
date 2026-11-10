@@ -36,6 +36,7 @@ import {
   scoresTable,
   scoresWrite,
 } from "./hiring-adoption.ts";
+import { applicationList } from "./hiring-lists.ts";
 import { closeInStages, jobStages, stageTriggers } from "./hiring-stages.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -906,19 +907,11 @@ $$;
 ${userGrant(`${fn("list_jobs")}(${ctx.idType}, text)`)}
 
 -- A job's applications in board order, as the caller. state keeps one state.
-create or replace function ${fn("list_applications")}(job uuid, state text default null)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(${applicationJson("x")} order by x.${a("stage")}, x.${a("rank")} collate "C", x.${a("id")}), '[]'::jsonb)
-  from ${t("applications")} x
-  where x.${a("job")} = list_applications.job
-    and (list_applications.state is null or ${asText(ctx, "applications", `x.${a("state")}`)} = list_applications.state)
-$$;
-${userGrant(`${fn("list_applications")}(uuid, text)`)}
+${applicationList(ctx, applicationJson, { name: "list_applications", param: "job uuid", type: "uuid", match: "x.job = list_applications.job" })}
+
+-- The applications of many jobs in one read, as the caller: the jobs in the
+-- order given, each in board order. state keeps one state.
+${applicationList(ctx, applicationJson, { name: "list_applications_for_jobs", param: "jobs uuid[]", type: "uuid[]", match: "x.job = any (list_applications_for_jobs.jobs)", first: "array_position(list_applications_for_jobs.jobs, x.job), " })}
 `;
 }
 
@@ -960,6 +953,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "application_detail", args: ["uuid"], returns: "jsonb" },
     { name: "list_jobs", args: ["{id}", "text"], returns: "jsonb" },
     { name: "list_applications", args: ["uuid", "text"], returns: "jsonb" },
+    {
+      name: "list_applications_for_jobs",
+      args: ["uuid[]", "text"],
+      returns: "jsonb",
+    },
   ];
 }
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:a4ee212a94bb6116031aaf5a01d77b3d2304d5cafd3f56c501000fed6def60d0
+-- @bsb-hash sha256:226e1b3cfad0c6374dae7ce141232b530ec3ba10bf364403bf6c75a73c552220
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2517,6 +2517,37 @@ $$;
 revoke execute on function "better_supabase"."list_ai_run_steps"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_run_steps"(uuid) to authenticated, service_role;
 
+-- The first per_run steps of many runs in one read, each run's steps in the
+-- order they started. A run that is missing or in a chat the caller cannot
+-- read is left out instead of failing the batch.
+create or replace function "better_supabase"."list_ai_run_steps_for"(runs uuid[], per_run integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with readable_chats as materialized (
+    select c.chat
+    from (
+      select distinct x."chat_id" as chat from "better_supabase"."ai_runs" x where x."id" = any (list_ai_run_steps_for.runs)
+    ) c
+    where "better_supabase"."ai_chat_can_read"(c.chat)
+  ),
+  ranked as (
+    select x.*, row_number() over (partition by x."run_id" order by x."started_at", x."id") as step_rank
+    from "better_supabase"."ai_run_steps" x
+    join "better_supabase"."ai_runs" r on r."id" = x."run_id"
+    where x."run_id" = any (list_ai_run_steps_for.runs)
+      and r."chat_id" in (select chat from readable_chats)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'run_id', x."run_id", 'chat_id', x."chat_id", 'step_key', x."step_key", 'label', x."label", 'status', x."status", 'detail', x."detail", 'started_at', x."started_at", 'ended_at', x."ended_at") order by x."run_id", x.step_rank), '[]'::jsonb)
+  from ranked x
+  where x.step_rank <= greatest(coalesce(list_ai_run_steps_for.per_run, 50), 1)
+$$;
+revoke execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) from public, anon;
+grant execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) to authenticated, service_role;
+
 -- A harness session's state, or null (the service role only). Experimental.
 create or replace function "better_supabase"."load_ai_harness_session"(chat uuid, harness text)
 returns jsonb
@@ -2777,7 +2808,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:539a9b49316e1e5b4733c9c0c4cea48f09e07ea7dec0a3771cc088be64ac43dc
+-- @bsb-hash sha256:36d7a4f4dbae60f50db6e324ea74d0b5a2ebb80343b2ff13d72c2ddfeb7deb38
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5223,6 +5254,37 @@ $$;
 revoke execute on function "better_supabase"."list_ai_run_steps"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_run_steps"(uuid) to authenticated, service_role;
 
+-- The first per_run steps of many runs in one read, each run's steps in the
+-- order they started. A run that is missing or in a chat the caller cannot
+-- read is left out instead of failing the batch.
+create or replace function "better_supabase"."list_ai_run_steps_for"(runs uuid[], per_run integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with readable_chats as materialized (
+    select c.chat
+    from (
+      select distinct x."chat_id" as chat from "better_supabase"."ai_runs" x where x."id" = any (list_ai_run_steps_for.runs)
+    ) c
+    where "better_supabase"."ai_chat_can_read"(c.chat)
+  ),
+  ranked as (
+    select x.*, row_number() over (partition by x."run_id" order by x."started_at", x."id") as step_rank
+    from "better_supabase"."ai_run_steps" x
+    join "better_supabase"."ai_runs" r on r."id" = x."run_id"
+    where x."run_id" = any (list_ai_run_steps_for.runs)
+      and r."chat_id" in (select chat from readable_chats)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'run_id', x."run_id", 'chat_id', x."chat_id", 'step_key', x."step_key", 'label', x."label", 'status', x."status", 'detail', x."detail", 'started_at', x."started_at", 'ended_at', x."ended_at") order by x."run_id", x.step_rank), '[]'::jsonb)
+  from ranked x
+  where x.step_rank <= greatest(coalesce(list_ai_run_steps_for.per_run, 50), 1)
+$$;
+revoke execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) from public, anon;
+grant execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) to authenticated, service_role;
+
 -- A harness session's state, or null (the service role only). Experimental.
 create or replace function "better_supabase"."load_ai_harness_session"(chat uuid, harness text)
 returns jsonb
@@ -5487,7 +5549,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:c97f860ccc782ea9c137c82b43a90d676a8b9ec18eaa9bad1d1538962d07da56
+-- @bsb-hash sha256:60aa687e570f4c355bde160cc12c60fd0d820845624dca303d10879f1cc2b3e6
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8008,6 +8070,37 @@ $$;
 revoke execute on function "app_private"."list_ai_run_steps"(uuid) from public, anon;
 grant execute on function "app_private"."list_ai_run_steps"(uuid) to authenticated, service_role;
 
+-- The first per_run steps of many runs in one read, each run's steps in the
+-- order they started. A run that is missing or in a chat the caller cannot
+-- read is left out instead of failing the batch.
+create or replace function "app_private"."list_ai_run_steps_for"(runs uuid[], per_run integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with readable_chats as materialized (
+    select c.chat
+    from (
+      select distinct x."chat_id" as chat from "app_private"."ai_runs" x where x."id" = any (list_ai_run_steps_for.runs)
+    ) c
+    where "app_private"."ai_chat_can_read"(c.chat)
+  ),
+  ranked as (
+    select x.*, row_number() over (partition by x."run_id" order by x."started_at", x."id") as step_rank
+    from "app_private"."ai_run_steps" x
+    join "app_private"."ai_runs" r on r."id" = x."run_id"
+    where x."run_id" = any (list_ai_run_steps_for.runs)
+      and r."chat_id" in (select chat from readable_chats)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'run_id', x."run_id", 'chat_id', x."chat_id", 'step_key', x."step_key", 'label', x."label", 'status', x."status", 'detail', x."detail", 'started_at', x."started_at", 'ended_at', x."ended_at") order by x."run_id", x.step_rank), '[]'::jsonb)
+  from ranked x
+  where x.step_rank <= greatest(coalesce(list_ai_run_steps_for.per_run, 50), 1)
+$$;
+revoke execute on function "app_private"."list_ai_run_steps_for"(uuid[], integer) from public, anon;
+grant execute on function "app_private"."list_ai_run_steps_for"(uuid[], integer) to authenticated, service_role;
+
 -- A harness session's state, or null (the service role only). Experimental.
 create or replace function "app_private"."load_ai_harness_session"(chat uuid, harness text)
 returns jsonb
@@ -8268,7 +8361,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:d0072f651bd80df7f1016a2d28c5301cfd6677853fdfd370927382ee6db6d6ce
+-- @bsb-hash sha256:af7b22b450d4f98145b84d32b774e724f8f4652e7da45fe3b811f0f7519047d2
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10784,6 +10877,37 @@ $$;
 revoke execute on function "better_supabase"."list_ai_run_steps"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_run_steps"(uuid) to authenticated, service_role;
 
+-- The first per_run steps of many runs in one read, each run's steps in the
+-- order they started. A run that is missing or in a chat the caller cannot
+-- read is left out instead of failing the batch.
+create or replace function "better_supabase"."list_ai_run_steps_for"(runs uuid[], per_run integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with readable_chats as materialized (
+    select c.chat
+    from (
+      select distinct x."chat_id" as chat from "better_supabase"."ai_runs" x where x."id" = any (list_ai_run_steps_for.runs)
+    ) c
+    where "better_supabase"."ai_chat_can_read"(c.chat)
+  ),
+  ranked as (
+    select x.*, row_number() over (partition by x."run_id" order by x."started_at", x."id") as step_rank
+    from "better_supabase"."ai_run_steps" x
+    join "better_supabase"."ai_runs" r on r."id" = x."run_id"
+    where x."run_id" = any (list_ai_run_steps_for.runs)
+      and r."chat_id" in (select chat from readable_chats)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'run_id', x."run_id", 'chat_id', x."chat_id", 'step_key', x."step_key", 'label', x."label", 'status', x."status", 'detail', x."detail", 'started_at', x."started_at", 'ended_at', x."ended_at") order by x."run_id", x.step_rank), '[]'::jsonb)
+  from ranked x
+  where x.step_rank <= greatest(coalesce(list_ai_run_steps_for.per_run, 50), 1)
+$$;
+revoke execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) from public, anon;
+grant execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) to authenticated, service_role;
+
 -- A harness session's state, or null (the service role only). Experimental.
 create or replace function "better_supabase"."load_ai_harness_session"(chat uuid, harness text)
 returns jsonb
@@ -11565,6 +11689,16 @@ as $$ select "better_supabase"."list_ai_run_steps"($1) $$;
 revoke execute on function "api"."list_ai_run_steps"(uuid) from public, anon;
 grant execute on function "api"."list_ai_run_steps"(uuid) to authenticated, service_role;
 
+create or replace function "api"."list_ai_run_steps_for"(runs uuid[], per_run integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_ai_run_steps_for"($1, $2) $$;
+revoke execute on function "api"."list_ai_run_steps_for"(uuid[], integer) from public, anon;
+grant execute on function "api"."list_ai_run_steps_for"(uuid[], integer) to authenticated, service_role;
+
 create or replace function "api"."load_ai_harness_session"(chat uuid, harness text)
 returns jsonb
 language sql
@@ -11619,7 +11753,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:e98f42cf9f4b38e9a042f7471689d2c0f8be44dd77cdf1a045f2f2f2c9e9584e
+-- @bsb-hash sha256:b43487758c8e8ed79edf28776e75922f4384699a999961c87a824983192fcdaf
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14090,6 +14224,37 @@ $$;
 revoke execute on function "better_supabase"."list_ai_run_steps"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_run_steps"(uuid) to authenticated, service_role;
 
+-- The first per_run steps of many runs in one read, each run's steps in the
+-- order they started. A run that is missing or in a chat the caller cannot
+-- read is left out instead of failing the batch.
+create or replace function "better_supabase"."list_ai_run_steps_for"(runs uuid[], per_run integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with readable_chats as materialized (
+    select c.chat
+    from (
+      select distinct x."chat_id" as chat from "better_supabase"."ai_runs" x where x."id" = any (list_ai_run_steps_for.runs)
+    ) c
+    where "better_supabase"."ai_chat_can_read"(c.chat)
+  ),
+  ranked as (
+    select x.*, row_number() over (partition by x."run_id" order by x."started_at", x."id") as step_rank
+    from "better_supabase"."ai_run_steps" x
+    join "better_supabase"."ai_runs" r on r."id" = x."run_id"
+    where x."run_id" = any (list_ai_run_steps_for.runs)
+      and r."chat_id" in (select chat from readable_chats)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'run_id', x."run_id", 'chat_id', x."chat_id", 'step_key', x."step_key", 'label', x."label", 'status', x."status", 'detail', x."detail", 'started_at', x."started_at", 'ended_at', x."ended_at") order by x."run_id", x.step_rank), '[]'::jsonb)
+  from ranked x
+  where x.step_rank <= greatest(coalesce(list_ai_run_steps_for.per_run, 50), 1)
+$$;
+revoke execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) from public, anon;
+grant execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) to authenticated, service_role;
+
 -- A harness session's state, or null (the service role only). Experimental.
 create or replace function "better_supabase"."load_ai_harness_session"(chat uuid, harness text)
 returns jsonb
@@ -14350,7 +14515,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:e0b1a9f5b6deb546970002c8ddec44fcab96e0ac5c74f61036fdd27079d5387a
+-- @bsb-hash sha256:3ad8b8c43401ac2da79fc5225fc957205bc9024fd86a85243b3ffc9f17964983
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16865,6 +17030,37 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_ai_run_steps"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_run_steps"(uuid) to authenticated, service_role;
+
+-- The first per_run steps of many runs in one read, each run's steps in the
+-- order they started. A run that is missing or in a chat the caller cannot
+-- read is left out instead of failing the batch.
+create or replace function "better_supabase"."list_ai_run_steps_for"(runs uuid[], per_run integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with readable_chats as materialized (
+    select c.chat
+    from (
+      select distinct x."chat_id" as chat from "better_supabase"."ai_runs" x where x."id" = any (list_ai_run_steps_for.runs)
+    ) c
+    where "better_supabase"."ai_chat_can_read"(c.chat)
+  ),
+  ranked as (
+    select x.*, row_number() over (partition by x."run_id" order by x."started_at", x."id") as step_rank
+    from "better_supabase"."ai_run_steps" x
+    join "better_supabase"."ai_runs" r on r."id" = x."run_id"
+    where x."run_id" = any (list_ai_run_steps_for.runs)
+      and r."chat_id" in (select chat from readable_chats)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'run_id', x."run_id", 'chat_id', x."chat_id", 'step_key', x."step_key", 'label', x."label", 'status', x."status", 'detail', x."detail", 'started_at', x."started_at", 'ended_at', x."ended_at") order by x."run_id", x.step_rank), '[]'::jsonb)
+  from ranked x
+  where x.step_rank <= greatest(coalesce(list_ai_run_steps_for.per_run, 50), 1)
+$$;
+revoke execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) from public, anon;
+grant execute on function "better_supabase"."list_ai_run_steps_for"(uuid[], integer) to authenticated, service_role;
 
 -- A harness session's state, or null (the service role only). Experimental.
 create or replace function "better_supabase"."load_ai_harness_session"(chat uuid, harness text)
