@@ -66,6 +66,16 @@ a Suspense boundary the browser could stream.
 - The duplicated not-found chunk is outside the first-load sum by the baseline's own rule
   (`SHARED_ENTRIES`); it was not changed.
 
+## After the connection runtime split (ADR 0635)
+
+`/api/v1/openapi.json` calls `loadTables`, which needs the connection runtime. Main's build passed
+only when another route in the same page-data worker had already created a server, and failed
+locally on main. The route now creates the api server (`void bsbApi`), so the runtime is always
+installed. Its server entry grows from 0.5 MB to 1.15 MB raw because it bundles that server.
+
+The baselines in `tests/next-build` were re-measured from a fresh build of this branch on current
+main, because main's own numbers no longer matched a fresh main build.
+
 ## Not done
 
 - The Vercel runtime-error group was not re-queried: the deployment is not part of this branch.
