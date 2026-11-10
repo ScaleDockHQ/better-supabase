@@ -655,6 +655,47 @@ describe("bundle", () => {
     }
   });
 
+  it("keeps the executor, query builder and account code out of a bundled proxy", async () => {
+    await mkdir(WORK, { recursive: true });
+    await copyFile(
+      join(PACKAGE, "tests/fixtures/generated.meta.js"),
+      join(WORK, "generated.meta.js"),
+    );
+
+    const file = join(WORK, "proxy-closure.js");
+    await writeFile(file, CONSUMERS["next proxy"]);
+
+    const bundle = await rolldown({
+      input: file,
+      platform: "neutral",
+      logLevel: "silent",
+      external: (id) =>
+        !id.startsWith(".") &&
+        !id.startsWith("/") &&
+        !id.startsWith("better-supabase"),
+    });
+
+    const { output } = await bundle.generate({ format: "esm" });
+    await bundle.close();
+
+    const source = output
+      .flatMap((item) => (item.type === "chunk" ? [item.code] : []))
+      .join("\n");
+
+    // The connection runtime, the PostgREST executor, the query builder and
+    // account deletion load only where a db is built (ADR 0635).
+    for (const marker of [
+      "does not support rpc()",
+      "PostgrestFilterBuilder",
+      "delete_my_account",
+      "x-bsb-actor",
+      "class Connector",
+      "installConnectionRuntime(",
+    ]) {
+      expect(source).not.toContain(marker);
+    }
+  });
+
   it("keeps /query framework-neutral", () => {
     const externals = closures.get("./query")?.externals ?? [];
     expect(

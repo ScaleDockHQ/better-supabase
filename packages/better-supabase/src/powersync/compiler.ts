@@ -9,8 +9,11 @@ import type { ListDefinition, ListQuery } from "../list/list-query.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 
 import { compileSqlite } from "../compile/sqlite.ts";
+import { provideConnectionRuntime } from "../core/define-runtime.ts";
 import { err, ok, toDbError } from "../core/result.ts";
 import { isQuerySpec } from "../core/spec.ts";
+
+provideConnectionRuntime();
 
 export const sqliteCompiler: Compiler<SqlitePlan> = {
   target: "sqlite",

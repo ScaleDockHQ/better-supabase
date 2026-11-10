@@ -11,7 +11,10 @@ import type { Db } from "../../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 
 import { userContext } from "../../auth/impersonation.ts";
+import { provideConnectionRuntime } from "../../core/define-runtime.ts";
 import { postgresExecutor } from "../../postgres/executor.ts";
+
+provideConnectionRuntime();
 
 /** The `withSupabase` context keys `withBetterDb` and `withBetterPostgres` read. */
 export interface SupabaseAuthContext {

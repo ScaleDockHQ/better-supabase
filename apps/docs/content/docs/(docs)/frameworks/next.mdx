@@ -143,6 +143,13 @@ and `postAuthPath(request, fallback)`, so `protect` doesn't import the larger
 `better-supabase/next` entry. It imports no
 Node built-in, so it runs wherever the Next.js proxy runs.
 
+The proxy reads only the definition's sessions part. It doesn't load the
+connection runtime (the PostgREST executor, the query builder and the
+repositories), which `definition.connect()` needs and which the client, the
+servers and the testing helpers install when they are imported. Code that calls
+`definition.connect()` without importing one of them throws a `TypeError` that
+names this.
+
 ### Ended sessions
 
 An access token stays valid until it expires, even after its session is

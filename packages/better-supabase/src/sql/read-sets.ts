@@ -5,6 +5,7 @@ import type { FunctionSpec, ReadSetGate } from "../core/spec.ts";
 import type { Operation } from "../ir/types.ts";
 
 import { compileSql, quoteIdent } from "../compile/sql.ts";
+import { provideConnectionRuntime } from "../core/define-runtime.ts";
 import {
   containsPlaceholder,
   hasPlaceholder,
@@ -15,6 +16,8 @@ import { ok } from "../core/result.ts";
 import { isFunctionSpec } from "../core/spec.ts";
 import { sqlString } from "../core/template.ts";
 import { temporalText } from "../core/temporal.ts";
+
+provideConnectionRuntime();
 
 /** A read set compiled to the SQL of its function. */
 export interface CompiledReadSet {

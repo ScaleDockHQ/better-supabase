@@ -3,6 +3,10 @@ import type { RequestContext } from "../core/plugin.ts";
 import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
 import type { TransactionOptions } from "./server-types.ts";
 
+import { provideConnectionRuntime } from "../core/define-runtime.ts";
+
+provideConnectionRuntime();
+
 class RolledBack extends Error {}
 
 function isFailedResult(value: unknown): boolean {

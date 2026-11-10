@@ -3,9 +3,12 @@ import type { ExecuteContext, Executor } from "../../core/executor.ts";
 import type { Operation } from "../../ir/types.ts";
 import type { Check, ConformanceReport } from "../conformance.ts";
 
+import { provideConnectionRuntime } from "../../core/define-runtime.ts";
 import { isList } from "../../core/guards.ts";
 import { ok } from "../../core/result.ts";
 import { conform, expect, same } from "../conformance.ts";
+
+provideConnectionRuntime();
 
 // oxlint-disable-next-line typescript/no-explicit-any -- the kit takes any configured client, and its type parameters are invariant
 export type AnySupabase = BetterSupabase<any, any, any, any>;
