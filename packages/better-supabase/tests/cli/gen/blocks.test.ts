@@ -8,6 +8,7 @@ import {
   blockConfigPath,
   emitBlockConfig,
   emitBlockConfigModule,
+  emitBlockReads,
   emitClientBlocks,
   schemaExtensions,
 } from "../../../src/cli/gen/blocks.ts";
@@ -521,8 +522,11 @@ describe("blocks.generated.ts", () => {
     expect(file?.path).toBe("app/lib/db/blocks.generated.ts");
     expect(blockConfigPath(config)).toBe("app/lib/db/blocks.generated.ts");
     expect(file?.contents).toContain(
-      'import {\n  blockRead,\n  type Events,\n} from "better-supabase/blocks";',
+      'import {\n  type Events,\n} from "better-supabase/blocks";',
     );
+    expect(file?.contents).toContain('export * from "./blocks.reads.ts";');
+    expect(file?.contents).not.toContain("blockRead");
+    expect(emitBlockReads(config)?.path).toBe("app/lib/db/blocks.reads.ts");
     expect(
       emitBlockConfigModule(config, { runtimeImport: "better-supabase" })
         ?.contents,
@@ -600,7 +604,7 @@ describe("blocks.generated.ts", () => {
   });
 });
 
-describe("block reads in blocks.generated.ts", () => {
+describe("block reads in blocks.reads.ts", () => {
   it("writes a typed read and its result type for each block that ships one", () => {
     const config = resolveConfig(
       {
@@ -615,8 +619,12 @@ describe("block reads in blocks.generated.ts", () => {
       "/project",
     );
 
-    const file = emitBlockConfig(config);
+    const file = emitBlockReads(config);
 
+    expect(file?.contents).toContain(
+      'import { blockRead } from "better-supabase/blocks";',
+    );
+    expect(file?.contents).not.toContain('from "./');
     expect(file?.contents).toContain("export const reads = {");
     expect(file?.contents).toContain(
       'board: blockRead<DealsBoardArgs, DealsBoardResult>("deal_board", { pipelineId: "pipeline" }, ["pipeline_stages", "deals"], "better_supabase")',
@@ -635,7 +643,7 @@ describe("block reads served from the app's views", () => {
   const tables = blockTables(config).byBlock;
 
   it("lists the views over a table a read lists", () => {
-    const file = emitBlockConfig(config, {
+    const file = emitBlockReads(config, {
       viewFanOut: {
         views: new Map([
           ["better_supabase.attachments", ["jobAttachments"]],
@@ -656,7 +664,7 @@ describe("block reads served from the app's views", () => {
   });
 
   it("writes the plain lists without views", () => {
-    expect(emitBlockConfig(config)?.contents).toContain(
+    expect(emitBlockReads(config)?.contents).toContain(
       '["attachments"], "better_supabase")',
     );
   });

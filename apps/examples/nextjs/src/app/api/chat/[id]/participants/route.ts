@@ -2,7 +2,7 @@ import { dbError, err } from "better-supabase";
 import * as v from "valibot";
 
 import { aiChat } from "../../../../../features/assistant/assistant-server";
-import { bsb } from "../../../../../lib/supabase/server";
+import { bsbShell as bsb } from "../../../../../lib/supabase/server-shell";
 
 const addBody = v.object({
   userId: v.pipe(v.string(), v.uuid()),

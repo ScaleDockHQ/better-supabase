@@ -1,5 +1,5 @@
 import { pipelineOverview } from "../../../../../lib/read-sets";
-import { bsb } from "../../../../../lib/supabase/server";
+import { bsbCore as bsb } from "../../../../../lib/supabase/server-core";
 
 /**
  * `GET /api/pipelines/:id/overview`: the pipeline board and the customer count
