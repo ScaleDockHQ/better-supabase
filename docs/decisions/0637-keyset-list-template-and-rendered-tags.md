@@ -58,13 +58,13 @@ indexes, and `idempotency` renders a partial unique index.
 Measured on the native stack with 200,000 risks in one tenant (`supabase/tests/scale/scale_list_keyset.test.sql`,
 `bsb.scale_rows` 200000):
 
-| Read                                         | Before | After  |
-| -------------------------------------------- | ------ | ------ |
-| `list_risks` first page of 20                | 24 ms  | 2 ms   |
-| `list_risks` page 10,000 by offset           | 70 ms  | 56 ms  |
-| `list_risks` page 10,000 by keyset           | n/a    | 0 ms   |
-| `list_risks` paged with a capped total       | n/a    | 1 ms   |
-| keyset walk of 400 pages of 500 rows         | n/a    | 1.8 s  |
+| Read                                   | Before | After |
+| -------------------------------------- | ------ | ----- |
+| `list_risks` first page of 20          | 24 ms  | 2 ms  |
+| `list_risks` page 10,000 by offset     | 70 ms  | 56 ms |
+| `list_risks` page 10,000 by keyset     | n/a    | 0 ms  |
+| `list_risks` paged with a capped total | n/a    | 1 ms  |
+| keyset walk of 400 pages of 500 rows   | n/a    | 1.8 s |
 
 The first page was a sort of the tenant's risks and is now an index read. The offset page gains only
 from the index, since it still skips every row. `list_meetings`, `list_inspections` and

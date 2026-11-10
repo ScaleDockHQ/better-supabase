@@ -52,7 +52,7 @@ const quote = (value: string): string => `"${value}"`;
 function arg(tag: BsbTag, name: string): string | undefined {
   const value = tag.args[name];
 
-  return typeof value === "string" ? value : undefined;
+  return value === true ? undefined : value;
 }
 
 function list(tag: BsbTag, name: string): string[] {
@@ -250,16 +250,23 @@ function listBlock(schema: string, table: string, tag: BsbTag): string {
   const tenantType = castType(arg(tag, "tenant-type") ?? "uuid", "list");
   const idColumn = identifier(arg(tag, "id") ?? "id", "id");
   const idType = castType(arg(tag, "id-type") ?? "uuid", "list");
-  const search = list(tag, "search").map((column) => identifier(column, "search"));
+
+  const search = list(tag, "search").map((column) =>
+    identifier(column, "search"),
+  );
 
   const filters = list(tag, "filter").map((entry) => {
     const [column = "", type] = entry.split(":");
     const named = identifier(column, "filter");
 
-    return { column: named, type: castType(type ?? typeOfColumn(named), "list") };
+    return {
+      column: named,
+      type: castType(type ?? typeOfColumn(named), "list"),
+    };
   });
 
   const sort = sorts(tag);
+
   const keys = [
     ...sort,
     ...(sort.some((each) => each.column === idColumn)
@@ -303,6 +310,7 @@ function listBlock(schema: string, table: string, tag: BsbTag): string {
     tenant === undefined
       ? "filters jsonb default '{}'::jsonb"
       : `tenant ${tenantType} default null, filters jsonb default '{}'::jsonb`;
+
   const signature = tenant === undefined ? "jsonb" : `${tenantType}, jsonb`;
 
   const searchVariable =
@@ -313,7 +321,9 @@ function listBlock(schema: string, table: string, tag: BsbTag): string {
 
   const indexKeys = [
     ...(tenant === undefined ? [] : [quote(tenant)]),
-    ...keys.map((key) => `${quote(key.column)}${key.dir === "desc" ? " desc" : ""}`),
+    ...keys.map(
+      (key) => `${quote(key.column)}${key.dir === "desc" ? " desc" : ""}`,
+    ),
   ];
 
   const indexes = [

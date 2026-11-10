@@ -1,16 +1,12 @@
 import { readFileSync } from "node:fs";
-
 import { describe, expect, it } from "vitest";
 
 import { keysetPredicate } from "../../src/sql/list-template.ts";
 import {
-  renderTagBlock,
-  setTagBlock,
-} from "../../src/sql/tag-statements.ts";
-import {
   setFeatureStatement,
   setTableFeature,
 } from "../../src/sql/table-features.ts";
+import { renderTagBlock, setTagBlock } from "../../src/sql/tag-statements.ts";
 
 const TABLE = "create table public.scale_items (id uuid primary key);\n";
 
@@ -174,9 +170,15 @@ describe("setFeatureStatement for a rendered tag", () => {
   });
 
   it("appends and removes a block by its markers", () => {
-    const sql = setTagBlock(TABLE, "idempotency", "-- @bsb-tag idempotency begin\nx\n-- @bsb-tag idempotency end");
+    const sql = setTagBlock(
+      TABLE,
+      "idempotency",
+      "-- @bsb-tag idempotency begin\nx\n-- @bsb-tag idempotency end",
+    );
 
     expect(sql).toContain("\nx\n");
-    expect(setTagBlock(sql, "idempotency", undefined)).not.toContain("idempotency");
+    expect(setTagBlock(sql, "idempotency", undefined)).not.toContain(
+      "idempotency",
+    );
   });
 });

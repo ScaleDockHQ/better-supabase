@@ -1,4 +1,5 @@
 import type { BsbTag } from "./bsb-tags.ts";
+import type { TagRenderOptions } from "./tag-statements.ts";
 
 import { commentOnTableSql, parseBsbComment, setBsbTag } from "./bsb-tags.ts";
 import {
@@ -6,7 +7,6 @@ import {
   renderTagBlock,
   setTagBlock,
 } from "./tag-statements.ts";
-import type { TagRenderOptions } from "./tag-statements.ts";
 
 /** The per-table features a `@bsb` tag turns on (ADR 0102). */
 export const TABLE_FEATURES = [
@@ -225,9 +225,10 @@ export function setFeatureStatement(
     // The tag's own arguments decide the statements, so they are read from the
     // comment the file carries.
     const comment = commentPattern(schema, table).exec(sql)?.[1];
-    const tag = parseBsbComment(comment?.replaceAll("''", "'") ?? null).tags.find(
-      (each) => each.name === feature,
-    );
+
+    const tag = parseBsbComment(
+      comment?.replaceAll("''", "'") ?? null,
+    ).tags.find((each) => each.name === feature);
 
     return setTagBlock(
       sql,
