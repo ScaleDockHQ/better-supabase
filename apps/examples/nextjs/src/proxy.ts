@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { permissionMatches } from "better-supabase/blocks/permissions";
 import {
+  createProxy,
   permissionsOf,
   postAuthPath,
   toSession,
@@ -17,7 +18,7 @@ import { env } from "@/env";
 import { requiredPermission } from "./features/navigation/nav-items";
 import { pricingFlags, signupWaitlist, VISITOR_COOKIE } from "./flags";
 import { localizedPath, routing } from "./i18n/routing";
-import { bsb } from "./lib/supabase/server";
+import { app } from "./lib/supabase/app";
 
 const intl = createMiddleware(routing);
 
@@ -139,39 +140,46 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   return;
 };
 
-export const proxy = (request: NextRequest) =>
-  bsb.proxy(request, {
-    // Adds the locale prefix (Accept-Language, then the NEXT_LOCALE cookie).
-    before: (req) =>
-      req.nextUrl.pathname.startsWith("/api/") ? undefined : intl(req),
-    protect,
-    after: (response, auth) => {
-      // Shared caches must never store a signed-in response.
-      if (auth.kind === "user") {
-        response.headers.append("vary", "cookie");
-      }
+// The proxy builds only the session runtime from the app definition, so it
+// loads neither the block set nor the data layer (ADR 0635).
+const handle = createProxy(app, {
+  debug: {
+    enabled: env.EXPOSE_TESTING_API === "1",
+    budget: { calls: 8, waves: 2 },
+    route: "/api/bs-stats",
+  },
+  // Adds the locale prefix (Accept-Language, then the NEXT_LOCALE cookie).
+  before: (req) =>
+    req.nextUrl.pathname.startsWith("/api/") ? undefined : intl(req),
+  protect,
+  after: (response, auth, request) => {
+    // Shared caches must never store a signed-in response.
+    if (auth.kind === "user") {
+      response.headers.append("vary", "cookie");
+    }
 
-      // The first request has no visitor id yet, so its rollouts use the
-      // organization; every later request keeps one bucket.
-      // next-intl's response writes its cookies through `response.cookies`,
-      // which drops a `set-cookie` header appended beside it.
-      if (
-        !request.cookies.has(VISITOR_COOKIE) &&
-        response instanceof NextResponse
-      ) {
-        response.cookies.set(VISITOR_COOKIE, crypto.randomUUID(), {
-          path: "/",
-          maxAge: 60 * 60 * 24 * 365,
-          sameSite: "lax",
-          httpOnly: true,
-          secure: true,
-        });
-      }
-    },
-    // The phases show whether a page load called Auth.
-    serverTiming:
-      env.NODE_ENV !== "production" || env.EXPOSE_TESTING_API === "1",
-  });
+    // The first request has no visitor id yet, so its rollouts use the
+    // organization; every later request keeps one bucket.
+    // next-intl's response writes its cookies through `response.cookies`,
+    // which drops a `set-cookie` header appended beside it.
+    if (
+      !request.cookies.has(VISITOR_COOKIE) &&
+      response instanceof NextResponse
+    ) {
+      response.cookies.set(VISITOR_COOKIE, crypto.randomUUID(), {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: "lax",
+        httpOnly: true,
+        secure: true,
+      });
+    }
+  },
+  // The phases show whether a page load called Auth.
+  serverTiming: env.NODE_ENV !== "production" || env.EXPOSE_TESTING_API === "1",
+});
+
+export const proxy = (request: NextRequest) => handle(request);
 
 export const config = {
   matcher: [

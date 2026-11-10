@@ -190,7 +190,11 @@ export function proxyHandler<C, P>(
     }
 
     if (proxyOptions.after) {
-      const replaced = await proxyOptions.after(response, resolution.auth);
+      const replaced = await proxyOptions.after(
+        response,
+        resolution.auth,
+        request,
+      );
 
       if (replaced) {
         response = resolution.apply(mutableResponse(replaced));

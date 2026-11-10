@@ -15,10 +15,13 @@ import { userContext } from "../auth/impersonation.ts";
 import { claimedTenant } from "../bindings/keys.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
+import { provideConnectionRuntime } from "../core/define-runtime.ts";
 import { postgrestExecutor } from "../core/postgrest-executor.ts";
 import { currentTenant } from "../core/tenant-source.ts";
 import { createQueries } from "../query/queries.ts";
 import { identityKey } from "../query/user-change.ts";
+
+provideConnectionRuntime();
 
 export interface AuthUser {
   readonly id: string;

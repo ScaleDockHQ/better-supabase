@@ -7,6 +7,7 @@ import { markSessionEnded } from "../../src/auth/ended.ts";
 import { writeSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { createNext } from "../../src/next/index.ts";
+import { createProxy } from "../../src/next/proxy/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -104,6 +105,27 @@ async function run(
 beforeEach(() => {
   auth.mockReset();
   auth.mockImplementation(renewed);
+});
+
+describe("createProxy", () => {
+  it("hands after the request and answers from the session runtime", async () => {
+    let seen: NextRequest | undefined;
+
+    const proxy = createProxy(createSupabase(schema), {
+      env,
+      auth: { jwks: signer.jwks, fetch: auth },
+      prefetchJwks: false,
+      after: (_response, _state, request) => {
+        seen = request;
+      },
+    });
+
+    const request = page(await expiring(3600));
+    const response = await proxy(request);
+
+    expect(response.status).toBeLessThan(400);
+    expect(seen).toBe(request);
+  });
 });
 
 describe("proxy fast path", () => {

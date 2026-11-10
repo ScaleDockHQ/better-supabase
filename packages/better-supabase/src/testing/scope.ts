@@ -13,10 +13,13 @@ import type {
 import type { LocalStack, TestUser } from "./as-user.ts";
 import type { ExactSeed, SeedFixtures } from "./seed.ts";
 
+import { provideConnectionRuntime } from "../core/define-runtime.ts";
 import { BetterSupabase } from "../core/define.ts";
 import { ENV_VARIABLES } from "../env/index.ts";
 import { internalsOf } from "./as-user.ts";
 import { order } from "./seed.ts";
+
+provideConnectionRuntime();
 
 /** What a `scopedSeed` builder receives for one test. */
 export interface Scope {

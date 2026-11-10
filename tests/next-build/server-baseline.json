@@ -1,4 +1,9 @@
 {
+  "(proxy)": {
+    "raw": 1234686,
+    "gzip": 369196,
+    "brotli": 297459
+  },
   "/.well-known/oauth-protected-resource/[...path]/route": {
     "raw": 796786,
     "gzip": 257182,

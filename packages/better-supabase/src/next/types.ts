@@ -139,11 +139,13 @@ export interface ProxyOptions<C = unknown, P = unknown> {
   readonly protectMethods?: true | readonly string[];
   /**
    * Post-processes the final response; return a new one to replace it. The
-   * session cookies and cache headers are added to a replacement too.
+   * session cookies and cache headers are added to a replacement too. It also
+   * receives the original request.
    */
   readonly after?: (
     response: Response,
     auth: AuthState<C, P>,
+    request: NextRequest,
   ) => Response | undefined | void | Promise<Response | undefined | void>;
   /**
    * Adds `Server-Timing` entries in ms: `bsb-proxy` (the whole proxy),

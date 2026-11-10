@@ -34,6 +34,7 @@ import { actClaim, userContext } from "../auth/impersonation.ts";
 import { sessionCookieName } from "../auth/session.ts";
 import { bindAuthorizer, requestMemo } from "../core/authorizer.ts";
 import { hooksApiProblem } from "../core/contracts/authorization-hooks.ts";
+import { provideConnectionRuntime } from "../core/define-runtime.ts";
 import { dbError } from "../core/errors.ts";
 import { postgrestExecutor } from "../core/postgrest-executor.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
@@ -65,6 +66,8 @@ import { serverSessions } from "./sessions.ts";
 import { supportOff } from "./support-off.ts";
 import { supportStorage } from "./support-storage.ts";
 import { serverTransaction } from "./transaction.ts";
+
+provideConnectionRuntime();
 
 /** The header `better_supabase.acting_member()` reads for a service caller. */
 const ACTOR_HEADER = "x-bsb-actor";

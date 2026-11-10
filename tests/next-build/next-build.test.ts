@@ -179,6 +179,9 @@ const SERVER_ENTRY = /\/(?:page|route)\.js$/;
 
 const SERVER_CHUNK = /R\.c\("([^"]+)"\)/g;
 
+/** The key of the proxy entry in the server baseline. */
+const PROXY = "(proxy)";
+
 /**
  * The server chunks each page and route handler loads when it starts, summed.
  * `page.js` lists them as `R.c("server/chunks/...")` before it evaluates the
@@ -206,6 +209,22 @@ async function serverRoutes(): Promise<Baseline> {
 
     // A chunk is read relative to `.next`, like the client's.
     result[`/${route}`] = await measure(chunks);
+  }
+
+  // The proxy is its own entry (`server/middleware.js`); it must stay on the
+  // session runtime (ADR 0635).
+  const proxy = join(NEXT, "server/middleware.js");
+
+  if (existsSync(proxy)) {
+    const source = await readFile(proxy, "utf-8");
+
+    result[PROXY] = await measure(
+      new Set(
+        [...source.matchAll(SERVER_CHUNK)].flatMap((match) =>
+          match[1] === undefined ? [] : [match[1]],
+        ),
+      ),
+    );
   }
 
   return result;

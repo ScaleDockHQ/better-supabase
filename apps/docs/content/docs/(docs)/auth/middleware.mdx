@@ -224,7 +224,7 @@ export const proxy = (request: NextRequest) =>
   bsb.proxy(request, {
     before: intl,
     protect: (auth, req) => (auth.kind === "user" ? undefined : toLogin(req)),
-    after: (response, auth) => {
+    after: (response, auth, request) => {
       if (auth.kind === "user") response.headers.set("x-user-id", auth.user.id);
     },
     serverTiming: true,
@@ -246,7 +246,7 @@ The order is:
    `before` already overrides (next-intl's locale header, for example) are
    kept, and the list is rebuilt, not replaced. Redirects get only
    `Set-Cookie`.
-5. `after(response, auth)` edits the response in place or returns a new one.
+5. `after(response, auth, request)` edits the response in place or returns a new one.
 
 With a valid token and nothing to merge, the proxy still returns
 `NextResponse.next()` without touching headers.
