@@ -1,4 +1,4 @@
-# 0633: Keep supports-color 11, ultracite 8.1.1 and Expo 58 together
+# 0634: Keep supports-color 11, ultracite 8.1.1 and Expo 58 together
 
 - Status: accepted
 - Date: 2026-11-10

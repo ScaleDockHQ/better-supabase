@@ -519,7 +519,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0630: Add db squash, env.map, a fetch-level PostgREST fake, asSignedInUser and two pgTAP helpers.
 - 0631: Add useOptimisticAction, onEnded, onRejoin, sharedPostgres, a verified ssl option and member reads.
 - 0632: Measure a 1,200 table profile in the type bench.
-- 0633: Keep supports-color 11, ultracite 8.1.1 and Expo 58 together.
+- 0634: Keep supports-color 11, ultracite 8.1.1 and Expo 58 together.
 
 ## Pre-release pins
 
