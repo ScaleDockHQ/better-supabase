@@ -270,6 +270,43 @@ quantity can't be ordered (`ORDERS_QUANTITY_INVALID`).
 conversion action: without a `create`, it calls `orders.fromQuote` on the
 `orders` client in the action's clients.
 
+### Drafts and holds
+
+Pass `draft: true` to `fromLines` or `fromQuote` to save the order as a
+`draft`. A draft holds no stock, has no payment window and records
+`order.drafted` instead of `order.placed`, so staff can prepare it. An
+`origin` or a quote still orders once. `confirmDraft`
+allocates its stock at `locationId` (the first location with stock by
+default), moves it to `confirmed` and records `order.placed`.
+`cancelOrder` cancels a draft that was never confirmed.
+
+```ts
+const { order } = await orders
+  .fromLines(organizationId, { currency: "EUR", lines, draft: true })
+  .orThrow();
+
+await orders.confirmDraft(order.id, { locationId: warehouse.id }).orThrow();
+```
+
+`hold` puts an order that waits for payment, or a confirmed one, on hold
+with an optional reason. A held order has the status `on_hold`: it can't be
+fulfilled and it doesn't expire, and it keeps its stock. `releaseHold` moves
+it back to the status it was held from. A paid order can't be held; refund
+it instead. A payment that arrives while an order is on hold is stored, and
+the order becomes paid only after you release the hold and the payment is
+recorded again.
+
+```ts
+await orders
+  .hold(order.id, { reason: "Waiting for credit approval" })
+  .orThrow();
+await orders.releaseHold(order.id).orThrow();
+```
+
+The orders table gains `held_at`, `held_from` and `hold_reason` columns, and
+`order.heldAt` and `order.holdReason` carry them. Both calls need
+`orders.manage`.
+
 ### Drop ship
 
 With the [inventory block](/docs/blocks/inventory#drop-ship) installed,
@@ -362,17 +399,19 @@ build both screens from this API.
 
 ## Events
 
-| Event                                          | When                                       |
-| ---------------------------------------------- | ------------------------------------------ |
-| `order.placed`                                 | `checkout` places the order                |
-| `order.paid`                                   | The captured amount reaches the total      |
-| `order.cancelled`                              | `cancelOrder` or an expired payment window |
-| `order.fulfilled`, `order.completed`           | Every unit is fulfilled, then delivered    |
-| `order.refunded`                               | A refund succeeds                          |
-| `fulfillment.shipped`, `fulfillment.delivered` | A fulfillment step                         |
-| `return.requested`, `return.received`          | A return step                              |
-| `order.prepared`                               | Every kitchen line is ready or served      |
-| `order.served`                                 | Every kitchen line is served               |
+| Event                                          | When                                                 |
+| ---------------------------------------------- | ---------------------------------------------------- |
+| `order.placed`                                 | `checkout` places the order, or a draft is confirmed |
+| `order.paid`                                   | The captured amount reaches the total                |
+| `order.cancelled`                              | `cancelOrder` or an expired payment window           |
+| `order.drafted`                                | A draft order is saved                               |
+| `order.hold_placed`, `order.hold_released`     | `hold`, `releaseHold`                                |
+| `order.fulfilled`, `order.completed`           | Every unit is fulfilled, then delivered              |
+| `order.refunded`                               | A refund succeeds                                    |
+| `fulfillment.shipped`, `fulfillment.delivered` | A fulfillment step                                   |
+| `return.requested`, `return.received`          | A return step                                        |
+| `order.prepared`                               | Every kitchen line is ready or served                |
+| `order.served`                                 | Every kitchen line is served                         |
 
 They are subject events on the `order` subject (`organizationId`,
 `subjectType` and `subjectId`), so the

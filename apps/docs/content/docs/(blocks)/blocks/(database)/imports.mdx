@@ -221,6 +221,14 @@ A quote or invoice whose number is already taken fails by default. Put
 number instead and reports `IMPORT_NUMBER_REASSIGNED` as a warning; an unknown
 value is `IMPORT_ITEM_INVALID`.
 
+An imported quote that is already stored is kept as imported. Put
+`update: "apply"` in the item's `data` to replace it: the import reopens a
+sent or decided quote for the line replacement, then restores the status,
+dates and answer in `data`, and applies the stored `taxLines` and `totals`
+again, with the same warnings as a first import. A table of your own that
+guards the quote `status` column with a trigger has to skip the change in
+import mode, with `better_supabase.importing()`.
+
 A state machine accepts any declared status on insert in import mode. It
 writes one history row from no status to the inserted status with the reason
 `imported`, and no `status.changed` event.

@@ -406,6 +406,38 @@ purchase order: saving or placing one fails with
 `PURCHASE_ORDER_SUPPLIER_BLOCKED`. Without contacts the module stores the pair
 and doesn't check it.
 
+### Tax lines
+
+Give a line a `taxRateBps` (2100 is 21 percent) and an optional `taxCode`,
+and saving the draft rebuilds the order's tax lines, one per code and rate:
+
+```ts
+await inventory
+  .savePurchaseOrder(organizationId, {
+    locationId: warehouse.id,
+    currency: "EUR",
+    lines: [
+      {
+        variantId,
+        quantity: 100,
+        unitCost: money(450n, "EUR"),
+        taxRateBps: 2100,
+        taxCode: "NL-21",
+      },
+    ],
+  })
+  .orThrow();
+
+const lines = await inventory.purchaseOrderTaxLines(order.id).orThrow();
+// [{ taxCode: "NL-21", taxRateBps: 2100, net: €450.00, tax: €94.50, gross: €544.50 }]
+```
+
+Each line's net is its quantity times its cost, rounded to a minor unit, and
+its tax is that net at the line's rate, rounded the same way. The tax lines
+add the lines up per code and rate; a line without a rate adds none. The
+table is `purchase_order_tax_lines`, readable by `inventory.read`. Receiving
+and cancelling leave the tax lines as they were saved.
+
 ### Receipts
 
 Every `receivePurchaseOrder` call writes one `inventory_receipts` row with an
