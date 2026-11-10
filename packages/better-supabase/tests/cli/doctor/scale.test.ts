@@ -664,6 +664,27 @@ describe("BS628 list cursor indexes", () => {
     expect(findings).toEqual([]);
   });
 
+  it("skips migrations and the files the blocks wrote", async () => {
+    const list = `
+      create or replace function app.list_cases()
+      returns jsonb language sql as $$
+        select 1 order by created_at desc, id desc
+      $$;
+    `;
+
+    const findings = await rule!.check({
+      sqlFiles: [
+        { path: "supabase/migrations/1_cases.sql", text: list },
+        {
+          path: "supabase/schemas/900_better_supabase_001_cases.sql",
+          text: `-- @bsb-block cases\n${list}`,
+        },
+      ],
+    } as unknown as DoctorContext);
+
+    expect(findings).toEqual([]);
+  });
+
   it("ignores a list that does not continue by created_at and id", async () => {
     const findings = await check(`
       create or replace function app.list_cases()
