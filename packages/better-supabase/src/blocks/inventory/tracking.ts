@@ -220,18 +220,25 @@ export interface InventoryTracking {
   }): AsyncResult<Allocation>;
   /**
    * Releases one open allocation: what it holds goes back to available and its
-   * backorder closes.
+   * backorder closes. A `quantity` below what the allocation has left releases
+   * only that much, backorder first, and shrinks the allocation.
    */
-  releaseAllocation(input: { allocationId: string }): AsyncResult<Allocation>;
+  releaseAllocation(input: {
+    allocationId: string;
+    quantity?: number | undefined;
+  }): AsyncResult<Allocation>;
   /**
    * Moves an open allocation to another document (a quote that became an
-   * order), keeping what it holds, and records `allocation.transferred`.
+   * order), keeping what it holds, and records `allocation.transferred`. A
+   * `quantity` below what the allocation has left moves only that much, held
+   * stock first, into a new allocation and resolves to that one.
    */
   transferAllocation(input: {
     allocationId: string;
     documentType: string;
     documentId: string;
     lineId?: string | undefined;
+    quantity?: number | undefined;
   }): AsyncResult<Allocation>;
   /** Releases a document's open allocations. Resolves to the number released. */
   releaseAllocations(input: {
@@ -454,9 +461,22 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
         { allocation: allocationId, quantity, detail: detailArg(detail) },
         allocationOf,
       ),
-    releaseAllocation: ({ allocationId }) =>
-      call("release_allocation", { allocation: allocationId }, allocationOf),
-    transferAllocation: ({ allocationId, documentType, documentId, lineId }) =>
+    releaseAllocation: ({ allocationId, quantity }) =>
+      call(
+        "release_allocation",
+        {
+          allocation: allocationId,
+          ...(quantity === undefined ? {} : { quantity }),
+        },
+        allocationOf,
+      ),
+    transferAllocation: ({
+      allocationId,
+      documentType,
+      documentId,
+      lineId,
+      quantity,
+    }) =>
       call(
         "transfer_allocation",
         {
@@ -464,6 +484,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
           document_type: documentType,
           document_id: documentId,
           line_id: lineId ?? null,
+          ...(quantity === undefined ? {} : { quantity }),
         },
         allocationOf,
       ),

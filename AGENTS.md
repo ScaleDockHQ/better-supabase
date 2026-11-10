@@ -528,6 +528,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0638: Shard unit tests by duration, and skip CI work a push did not change.
 - 0639: Keep a size baseline until the measurement leaves its slack.
 - 0648: Map the data of a bsb.action to another type with a third argument.
+- 0640: Read inventory levels and movements from the client, move allocations in parts, and read one contact by id.
 
 ## Pre-release pins
 
