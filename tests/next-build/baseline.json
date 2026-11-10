@@ -167,11 +167,11 @@
   "/[locale]/(app)/drive/[folderId]/page": {
     "raw": 1465981,
     "gzip": 464175,
-    "brotli": 405786
+    "brotli": 405751
   },
   "/[locale]/(app)/drive/page": {
     "raw": 1632531,
-    "gzip": 513371,
+    "gzip": 513369,
     "brotli": 448191
   },
   "/[locale]/(app)/field/day/page": {
@@ -332,7 +332,7 @@
   "/[locale]/(app)/projects/page": {
     "raw": 1936197,
     "gzip": 616715,
-    "brotli": 534555
+    "brotli": 534531
   },
   "/[locale]/(app)/qualifications/page": {
     "raw": 1299479,
@@ -561,7 +561,7 @@
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 905022,
-    "gzip": 292138,
+    "gzip": 292137,
     "brotli": 256227
   },
   "/[locale]/(auth)/forgot-password/page": {
@@ -571,13 +571,13 @@
   },
   "/[locale]/(auth)/invite/[token]/page": {
     "raw": 841213,
-    "gzip": 268978,
+    "gzip": 268976,
     "brotli": 235550
   },
   "/[locale]/(auth)/login/page": {
     "raw": 702957,
     "gzip": 221968,
-    "brotli": 193407
+    "brotli": 193406
   },
   "/[locale]/(auth)/mfa/page": {
     "raw": 708963,
@@ -596,13 +596,13 @@
   },
   "/[locale]/(auth)/reset-password/page": {
     "raw": 703011,
-    "gzip": 221983,
+    "gzip": 221982,
     "brotli": 193454
   },
   "/[locale]/(auth)/send/[token]/page": {
     "raw": 895418,
-    "gzip": 287255,
-    "brotli": 251924
+    "gzip": 287253,
+    "brotli": 251922
   },
   "/[locale]/(auth)/share/[token]/page": {
     "raw": 680102,
@@ -616,8 +616,8 @@
   },
   "/[locale]/(auth)/waitlist/page": {
     "raw": 907526,
-    "gzip": 293370,
-    "brotli": 257214
+    "gzip": 293369,
+    "brotli": 257212
   },
   "/[locale]/(public)/status/[slug]/page": {
     "raw": 666205,
