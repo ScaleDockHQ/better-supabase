@@ -1008,6 +1008,7 @@ const ENTRIES = {
       ),
       contentMapper: v.optional(v.boolean()),
       tableModules: v.optional(v.boolean()),
+      constants: v.optional(v.boolean()),
       types: v.optional(
         v.strictObject({
           tables: v.optional(

@@ -2838,6 +2838,9 @@
           "description": "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
           "default": true
         },
+        "constants": {
+          "type": "boolean"
+        },
         "types": {
           "type": "object",
           "properties": {

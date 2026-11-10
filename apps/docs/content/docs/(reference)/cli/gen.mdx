@@ -144,6 +144,16 @@ mapper's cache, and when the types change, a stamp file in
 `node_modules/.cache/better-supabase` that the editor watches, so [`dev`](/docs/cli/dev#watching)
 reloads the types in the editor too. `--check` checks the mapper-mode files.
 
+## Enum and column constants
+
+`gen.constants: true` writes two modules next to the generated module, and
+neither imports anything. `enums.ts` holds every enum and every CHECK value
+list as a constant array and its union type (`noteKindValues`, `NoteKind`), so a
+browser form or a script reads them without the runtime package. `columns.ts`
+holds one constant per table that maps each column's row name, in the
+configured casing, to its database name (`customersColumns.createdAt` is
+`"created_at"`), for `$client`, `queryRaw` and SQL. It is off by default.
+
 ## Table modules
 
 By default `gen` writes one module per table, `tables/<table>.ts`, next to the

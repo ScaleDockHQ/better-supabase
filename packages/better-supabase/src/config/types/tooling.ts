@@ -103,6 +103,14 @@ export interface GenConfig {
    */
   readonly tableModules?: boolean;
   /**
+   * Writes `enums.ts` and `columns.ts` next to `generated.ts`. `enums.ts` holds
+   * every enum and CHECK value list as a constant array and its union type.
+   * `columns.ts` holds one constant per table, mapping each column's row name
+   * to its database name. Neither imports anything, so a browser form or a
+   * script reads them without the runtime package. Defaults to `false`.
+   */
+  readonly constants?: boolean;
+  /**
    * Writes one module per block instance, `blocks/<instance>.ts`, with that
    * instance's config slice, and `blocks/permissions.ts` with the permission
    * keys. `blocks.config.ts` composes the slices for the server. A record file
