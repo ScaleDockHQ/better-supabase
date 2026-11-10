@@ -75,7 +75,7 @@ insert into out values ('terms', better_supabase.import_upsert_batch(current_set
 
 select is(
   (select result - 'errors' - 'dryRun' - 'warnings' from out where name = 'terms'),
-  '{"inserted":1,"updated":1,"unchanged":1,"conflicted":1}'::jsonb,
+  '{"inserted":1,"updated":1,"unchanged":1,"conflicted":1,"conflictKeys":["N60"]}'::jsonb,
   'newer input inserts the new term, updates the changed one, leaves the same one and conflicts the edited one'
 );
 select is(

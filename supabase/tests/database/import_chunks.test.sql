@@ -1,9 +1,9 @@
 -- Stored import chunks (ADR 0437): store, claim, complete and process give a
 -- worker batches that survive a retry. Processing a done chunk answers what it
 -- answered, a claimed chunk is not taken twice, a stale claim is taken over, a
--- failure leaves the chunk pending, and no API role can touch the table.
+-- failure leaves the chunk pending, a worker can mark a chunk failed, and no API role can touch the table.
 begin;
-select plan(13);
+select plan(17);
 
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
@@ -18,7 +18,7 @@ select is(
   true, 'a chunk is stored');
 select better_supabase.store_import_chunk(current_setting('bsb.run')::uuid, 'customer', 1,
   (select jsonb_agg(jsonb_build_object('key', 'c1-' || g, 'scope', '', 'data', jsonb_build_object('name', 'Chunk b' || g, 'kvk', 'c1' || g), 'refs', '{}'::jsonb)) from generate_series(1, 10) g));
-select is(better_supabase.import_chunk_progress(current_setting('bsb.run')::uuid), '{"pending": 2, "claimed": 0, "done": 0}'::jsonb, 'two chunks wait');
+select is(better_supabase.import_chunk_progress(current_setting('bsb.run')::uuid), '{"pending": 2, "claimed": 0, "done": 0, "failed": 0}'::jsonb, 'two chunks wait');
 
 select is(better_supabase.store_import_chunk(current_setting('bsb.run')::uuid, 'customer', 1, '[]'::jsonb), true, 'a pending chunk is replaced');
 select is((select jsonb_array_length(items) from better_supabase.import_chunks where chunk = 1 and run_id = current_setting('bsb.run')::uuid), 0, 'with the new items');
@@ -46,6 +46,13 @@ select throws_ok(
   format($$select better_supabase.process_import_chunk(%L::uuid, 'customer', 2)$$, current_setting('bsb.run')),
   '55000', null, 'a finished run refuses the chunk');
 select is((select status from better_supabase.import_chunks where run_id = current_setting('bsb.run')::uuid and chunk = 2), 'pending', 'the failed chunk stays pending');
+
+-- A worker that gives up marks the chunk failed; a queue sees it and stops retrying.
+select is(better_supabase.fail_import_chunk(current_setting('bsb.run')::uuid, 'customer', 2, 'the file is not a customer list'), true, 'a pending chunk is marked failed');
+select is(better_supabase.process_import_chunk(current_setting('bsb.run')::uuid, 'customer', 2),
+  '{"failed": true, "message": "the file is not a customer list"}'::jsonb, 'processing a failed chunk answers the failure');
+select is((better_supabase.import_chunk_progress(current_setting('bsb.run')::uuid) ->> 'failed')::int, 1, 'the progress counts the failed chunk');
+select is(better_supabase.store_import_chunk(current_setting('bsb.run')::uuid, 'customer', 2, '[]'::jsonb), true, 'storing a failed chunk again');
 
 reset role;
 set local role authenticated;

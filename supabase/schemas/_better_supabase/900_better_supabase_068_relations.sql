@@ -1,6 +1,6 @@
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:f32e47f935bb73279671e888eeb815531851fe40d12112d2fa88e9bd5c046f7d
+-- @bsb-hash sha256:51a0ec4ff170a73f4dc01f4575ce416460d98a2accfc0aeb35e9c0ba3ccffdc5
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,6 +20,7 @@ create table "better_supabase"."relations" (
   constraint bsb_relations_check check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
 create index relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_source_idx on "better_supabase"."relations" ("tenant_id", "source_type", "source_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
@@ -750,29 +751,61 @@ revoke execute on function "better_supabase"."relation_rollup"(uuid, text, text,
 grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) to authenticated, service_role;
 
 -- on with cascade: deleting a subject row deletes its relations rows.
-create or replace function "better_supabase"."relations_subject_deleted"()
+create or replace function "better_supabase"."relations_subject_deleted_product"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_type text := tg_argv[0];
-  v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_type text := 'product';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
 begin
-  delete from "better_supabase"."relations"
-  where ("source_type" = v_type and "source_id" = v_id)
-     or ("target_type" = v_type and "target_id" = v_id);
+  if v_tenant is null then
+    delete from "better_supabase"."relations" x
+  where ((x."source_type" = v_type and x."source_id" = v_id)
+     or (x."target_type" = v_type and x."target_id" = v_id));
+  else
+    delete from "better_supabase"."relations" x
+  where ((x."source_type" = v_type and x."source_id" = v_id)
+     or (x."target_type" = v_type and x."target_id" = v_id)) and x."tenant_id" = v_tenant::uuid;
+  end if;
   return null;
 end;
 $$;
-revoke execute on function "better_supabase"."relations_subject_deleted"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."relations_subject_deleted_product"() from public, anon, authenticated;
 create trigger "bsb_relations_product_cascade"
   after delete on "better_supabase"."products"
-  for each row execute function "better_supabase"."relations_subject_deleted"('product', 'id');
+  for each row execute function "better_supabase"."relations_subject_deleted_product"();
+
+create or replace function "better_supabase"."relations_subject_deleted_product_variant"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'product_variant';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."relations" x
+  where ((x."source_type" = v_type and x."source_id" = v_id)
+     or (x."target_type" = v_type and x."target_id" = v_id));
+  else
+    delete from "better_supabase"."relations" x
+  where ((x."source_type" = v_type and x."source_id" = v_id)
+     or (x."target_type" = v_type and x."target_id" = v_id)) and x."tenant_id" = v_tenant::uuid;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."relations_subject_deleted_product_variant"() from public, anon, authenticated;
 create trigger "bsb_relations_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
-  for each row execute function "better_supabase"."relations_subject_deleted"('product_variant', 'id');
+  for each row execute function "better_supabase"."relations_subject_deleted_product_variant"();
 
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.

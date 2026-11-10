@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:144201f03ab486fdf7f3d00a044b9a57b375eae3aa1e612ed0aff4792a602e97
+-- @bsb-hash sha256:a9a09fc4da4f37ecfb954007b7b5ae837866fccb253a8a7b27cd5616b730ceee
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,6 +26,7 @@ create table "better_supabase"."approval_requests" (
   "created_at" timestamptz not null default now()
 );
 create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_subject_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id");
 create index "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
@@ -1413,7 +1414,7 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:e2acde06b7e3b5903bd32575fcaeeb446fcf9270b72268755cf9c18a98adf0dc
+-- @bsb-hash sha256:a1861aa187891dc49052fcfc098cc4a65f3a34356dd810aa00d93da31dd266d3
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1438,6 +1439,7 @@ create table "better_supabase"."approval_requests" (
   "created_at" timestamptz not null default now()
 );
 create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_subject_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id");
 create index "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
@@ -3146,7 +3148,7 @@ rollback;
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:593194f6325271aebe3942d6d7905d7220cc413d55ef44fe9fd8b16ffe77c319
+-- @bsb-hash sha256:5fb4f5edd966d1589e5fb479ebf208e89893f82d958778f0bbe38047f5ec6cd3
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3176,6 +3178,7 @@ create table "app_private"."approval_requests" (
   "created_at" timestamptz not null default now()
 );
 create unique index "approval_requests_pending_idx" on "app_private"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_subject_idx" on "app_private"."approval_requests" ("subject_type", "subject_id");
 create index "approval_requests_tenant_idx" on "app_private"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "app_private"."approval_requests" enable row level security;
 revoke all on "app_private"."approval_requests" from public, anon, authenticated;
@@ -4563,7 +4566,7 @@ rollback;
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:29dfdee9c441388161bad3713588066ad28cab536f953871eadceced8aebccb8
+-- @bsb-hash sha256:81a3ba9529f4b73f6e553b4b9fdeaa30c97be8a6e75ee5aa606b2d9981a0f7f6
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4588,6 +4591,7 @@ create table "better_supabase"."approval_requests" (
   "created_at" timestamptz not null default now()
 );
 create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_subject_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id");
 create index "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
@@ -6167,7 +6171,7 @@ rollback;
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:fbf07d1c3e4c78dbb2ef12a3f6008aec0251883ef780c1e2ebf8b35b15c92440
+-- @bsb-hash sha256:dd06aada850853765eb60f8b956012ae1041a541b273f8846d74c61f4733dbb6
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6193,6 +6197,7 @@ alter table "better_supabase"."approval_requests" add column if not exists "crea
 alter table "better_supabase"."approval_requests" add column if not exists "fingerprint" text constraint bsb_approval_requests_fingerprint_check1 check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."approval_requests" add column if not exists "consumed_at" timestamptz;
 create unique index if not exists "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index if not exists "approval_requests_subject_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id");
 create index if not exists "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 grant select on "better_supabase"."approval_requests" to authenticated;
@@ -7572,7 +7577,7 @@ rollback;
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:b5cb8a9327fc1fd20735ae4eb94dbf45bfbf225f93d18cc43d516646ed94b226
+-- @bsb-hash sha256:9d16fd5b836e19c151b0027dc8078595cbd4b122f9dee4b43baf06068701ab15
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7597,6 +7602,7 @@ create table "better_supabase"."approval_requests" (
   "created_at" timestamptz not null default now()
 );
 create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_subject_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id");
 create index "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("org_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;

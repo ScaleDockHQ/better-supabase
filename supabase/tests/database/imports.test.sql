@@ -207,8 +207,8 @@ select is(
   (select better_supabase.import_upsert_batch(
     current_setting('bsb.run3')::uuid, 'customer', '[{"key":"c1","data":{"name":"Alpha 3","kvk":"1"}}]'::jsonb
   ) - 'errors' - 'dryRun'),
-  '{"inserted":0,"updated":0,"unchanged":0,"conflicted":1}'::jsonb,
-  'a target a user edited is a conflict'
+  '{"inserted":0,"updated":0,"unchanged":0,"conflicted":1,"conflictKeys":["c1"]}'::jsonb,
+  'a target a user edited is a conflict, and the batch names its key'
 );
 select is(
   (select count(*)::int from public.customers where name = 'Alpha 2'),

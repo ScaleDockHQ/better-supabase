@@ -483,6 +483,7 @@ declare
   v_updated integer := 0;
   v_unchanged integer := 0;
   v_conflicted integer := 0;
+  v_conflict_keys jsonb := '[]'::jsonb;
   v_errors jsonb := '[]'::jsonb;
   v_warnings jsonb := '[]'::jsonb;
   v_issue text;
@@ -606,6 +607,9 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
       end if;
 
       if v_issue = 'conflict' then
+        if jsonb_array_length(v_conflict_keys) < 100 then
+          v_conflict_keys := v_conflict_keys || to_jsonb(v_key);
+        end if;
         perform ${ctx.fn("import_note_issue")}(v_run_id, v_entity, v_key, 'conflict', 'IMPORT_CONFLICT', 'the subject changed after the last import');
       else
         perform ${ctx.fn("import_clear_issues")}(v_run_id, v_entity, v_key);
@@ -633,7 +637,7 @@ ${batched.length === 0 ? "" : "  v_pending jsonb[] := '{}';\n  v_calls jsonb[] :
 
   perform ${ctx.fn("import_note_warnings")}(v_run_id, v_entity, v_warnings);
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_conflict_keys) > 0 then jsonb_build_object('conflictKeys', v_conflict_keys) else '{}'::jsonb end || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 ${serviceGrant(`${ctx.fn("import_apply_batch")}(uuid, text, jsonb)`)}

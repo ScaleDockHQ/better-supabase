@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:89436be942e3f9412a2c7045e607d9c22aecf1b6e2d9600265f2b6db979e7b0f
+-- @bsb-hash sha256:8777735250c69dc5d5772d18cb0d4d9f6ef17a780a2528d792c0868ce6fdf10e
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,6 +25,7 @@ create table "better_supabase"."approval_requests" (
   "created_at" timestamptz not null default now()
 );
 create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
+create index "approval_requests_subject_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id");
 create index "approval_requests_tenant_idx" on "better_supabase"."approval_requests" ("tenant_id", "status", "created_at" desc);
 alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
@@ -2101,27 +2102,43 @@ revoke execute on function "better_supabase"."escalate_approvals"(integer) from 
 grant execute on function "better_supabase"."escalate_approvals"(integer) to service_role;
 
 -- on with cascade: deleting a subject row deletes its approvals rows.
-create or replace function "better_supabase"."approvals_subject_deleted"()
+create or replace function "better_supabase"."approvals_subject_deleted_product"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_type text := tg_argv[0];
-  v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_type text := 'product';
+  v_id text := old."id"::text;
 begin
   delete from "better_supabase"."approval_requests" r where r."subject_type" = v_type and r."subject_id" = v_id;
   return null;
 end;
 $$;
-revoke execute on function "better_supabase"."approvals_subject_deleted"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."approvals_subject_deleted_product"() from public, anon, authenticated;
 create trigger "bsb_approvals_product_cascade"
   after delete on "better_supabase"."products"
-  for each row execute function "better_supabase"."approvals_subject_deleted"('product', 'id');
+  for each row execute function "better_supabase"."approvals_subject_deleted_product"();
+
+create or replace function "better_supabase"."approvals_subject_deleted_product_variant"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'product_variant';
+  v_id text := old."id"::text;
+begin
+  delete from "better_supabase"."approval_requests" r where r."subject_type" = v_type and r."subject_id" = v_id;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."approvals_subject_deleted_product_variant"() from public, anon, authenticated;
 create trigger "bsb_approvals_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
-  for each row execute function "better_supabase"."approvals_subject_deleted"('product_variant', 'id');
+  for each row execute function "better_supabase"."approvals_subject_deleted_product_variant"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

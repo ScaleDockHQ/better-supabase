@@ -406,11 +406,14 @@ describe("notification subjects", () => {
     });
 
     expect(sql).toContain(
-      'create or replace function "better_supabase"."notifications_subject_deleted"()',
+      'create or replace function "better_supabase"."notifications_subject_deleted_time_off_request"()',
     );
     expect(sql).toContain(
-      "v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;",
+      'create or replace function "better_supabase"."notifications_subject_deleted_expense"()',
     );
+    expect(sql).toContain(`v_id text := old."id"::text;`);
+    expect(sql).toContain(`v_tenant text := old."organization_id"::text;`);
+    expect(sql).not.toContain("to_jsonb(old)");
     expect(sql).toContain(
       `  if v_tenant is null then
     delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
@@ -423,11 +426,11 @@ describe("notification subjects", () => {
     expect(sql).toContain(
       `create trigger "bsb_notifications_time-off-request_cascade"
   after delete on "app"."time_off_requests"
-  for each row execute function "better_supabase"."notifications_subject_deleted"('time-off-request', 'id', 'organization_id');`,
+  for each row execute function "better_supabase"."notifications_subject_deleted_time_off_request"();`,
     );
     expect(sql).toContain(
       `after delete on "public"."expenses"
-  for each row execute function "better_supabase"."notifications_subject_deleted"('expense', 'id');`,
+  for each row execute function "better_supabase"."notifications_subject_deleted_expense"();`,
     );
     expect(sql).not.toContain("bsb_notifications_invoice_cascade");
     expect(body()).not.toContain("notifications_subject_deleted");
@@ -474,9 +477,9 @@ describe("notification subjects", () => {
       },
     });
 
-    expect(untenanted).not.toContain("tg_argv[2]");
+    expect(untenanted).not.toContain("v_tenant text := old.");
     expect(untenanted).toContain(
-      `"notifications_subject_deleted"('task', 'id');`,
+      `execute function "better_supabase"."notifications_subject_deleted_task"();`,
     );
     expect(untenanted).toContain(
       `delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;`,

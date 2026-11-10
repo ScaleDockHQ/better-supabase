@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:77bd7a94717aa64d8e78a1f008c219d5ce36716463450e85d6dc2351c7767c15
+-- @bsb-hash sha256:4083f632b50579fce9d72a101b2365264217110878ceb07aff89dc3ed3583397
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21,6 +21,7 @@ create table "better_supabase"."relations" (
   constraint bsb_relations_check check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
 create index relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_source_idx on "better_supabase"."relations" ("tenant_id", "source_type", "source_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
@@ -446,7 +447,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:a47d7f9738293122687e106539b2eb2c570343f1bfc9ce067b6f6e8a57796b36
+-- @bsb-hash sha256:bfeaab37e5e174d6406cae1a4368408ccaf5ee78157765a32194074d9f1956c0
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -466,6 +467,7 @@ create table "better_supabase"."relations" (
   constraint bsb_relations_check check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
 create index relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_source_idx on "better_supabase"."relations" ("tenant_id", "source_type", "source_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
@@ -933,7 +935,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:526b88fd839f49bcd4f46a9542430a5720671740ba1efdcaf2d53a886da6f2ad
+-- @bsb-hash sha256:47390183d28c019245d4d0344a7823b283aab02354f26967604ff62a2d4177ef
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -958,6 +960,7 @@ create table "app_private"."relations" (
   constraint bsb_relations_check check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
 create index relations_target_idx on "app_private"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_source_idx on "app_private"."relations" ("tenant_id", "source_type", "source_id", "kind");
 alter table "app_private"."relations" enable row level security;
 revoke all on "app_private"."relations" from public, anon, authenticated;
 grant select on "app_private"."relations" to authenticated;
@@ -1383,7 +1386,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:0cb0d1961412bdb5f5a82e31ce38000fc07bf9017f5c671df09d9b3fb2351263
+-- @bsb-hash sha256:adb4a11cddf7fda4cf912c3b3bd5a96f3bb260d948c929eb503f46a7a1ed5605
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1403,6 +1406,7 @@ create table "better_supabase"."relations" (
   constraint bsb_relations_check check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
 create index relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index relations_source_idx on "better_supabase"."relations" ("tenant_id", "source_type", "source_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
@@ -1920,7 +1924,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:96fb4a9df38507a10f2825d5082566f4abcb994b241ef11624c1d9f3c2e87d97
+-- @bsb-hash sha256:19283caf0e950ab3f6ba9c077c59a043006e7430d54e51992ad05ea6b65f829f
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1937,6 +1941,7 @@ alter table "better_supabase"."relations" add column if not exists "data" jsonb 
 alter table "better_supabase"."relations" add column if not exists "created_by" uuid;
 alter table "better_supabase"."relations" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
+create index if not exists relations_source_idx on "better_supabase"."relations" ("tenant_id", "source_type", "source_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
@@ -2361,7 +2366,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:fa51bf51a8353a221f2564d5bda2d6859df4638ebf797e46e2c43b5bb1b46672
+-- @bsb-hash sha256:f83623819ede801d159732a1a3971e85db509291b7cba794ff89857299e9e14d
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2381,6 +2386,7 @@ create table "better_supabase"."relations" (
   constraint bsb_relations_check check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
 create index relations_target_idx on "better_supabase"."relations" ("org_id", "target_type", "target_id", "kind");
+create index relations_source_idx on "better_supabase"."relations" ("org_id", "source_type", "source_id", "kind");
 alter table "better_supabase"."relations" enable row level security;
 revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;

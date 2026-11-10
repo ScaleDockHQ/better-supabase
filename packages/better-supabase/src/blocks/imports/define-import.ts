@@ -211,6 +211,8 @@ async function failedBatch<T>(
 
 /** What `import_upsert_batch` answers for one batch. */
 export interface ImportBatchReply extends ImportBatchCounts {
+  /** The keys of the conflicted items, the first 100 of the batch. */
+  readonly conflictKeys?: readonly string[];
   readonly errors: readonly {
     readonly key: string | null;
     readonly code: string;

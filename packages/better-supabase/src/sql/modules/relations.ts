@@ -428,6 +428,7 @@ function build(ctx: BlockSqlContext): string {
   check (not (${sourceType} = ${targetType} and ${sourceId} = ${targetId}))
 );
 create index if not exists ${ctx.naming.rename("relations_target_idx")} on ${relations} (${tenant}, ${targetType}, ${targetId}, ${kind});
+create index if not exists ${ctx.naming.rename("relations_source_idx")} on ${relations} (${tenant}, ${sourceType}, ${sourceId}, ${kind});
 ${lockTable(relations, { read: true })}
 `
     : "";
@@ -435,9 +436,11 @@ ${lockTable(relations, { read: true })}
   const cascades = subjectCascades(
     ctx,
     list,
-    `delete from ${relations}
-  where (${sourceType} = v_type and ${sourceId} = v_id)
-     or (${targetType} = v_type and ${targetId} = v_id);`,
+    (tenantAnd) =>
+      `delete from ${relations} x
+  where ((x.${sourceType} = v_type and x.${sourceId} = v_id)
+     or (x.${targetType} = v_type and x.${targetId} = v_id))${tenantAnd("x", tenant)};`,
+    { tenant: true },
   );
 
   const symmetric = kinds

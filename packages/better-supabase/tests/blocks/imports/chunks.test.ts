@@ -100,7 +100,7 @@ describe("import chunks", () => {
   it("reads the progress counts", async () => {
     const imports = createImports({
       transport: transport({
-        import_chunk_progress: { pending: 2, claimed: 1, done: 5 },
+        import_chunk_progress: { pending: 2, claimed: 1, done: 5, failed: 1 },
       }),
     });
 
@@ -108,7 +108,28 @@ describe("import chunks", () => {
       pending: 2,
       claimed: 1,
       done: 5,
+      failed: 1,
     });
+  });
+
+  it("marks a chunk failed and reads a failed chunk back", async () => {
+    const imports = createImports({
+      transport: transport({
+        fail_import_chunk: true,
+        process_import_chunk: { failed: true, message: "bad file" },
+      }),
+    });
+
+    expect(
+      await imports.chunks
+        .fail({ runId: "r", entity: "customer", chunk: 1, message: "bad file" })
+        .orThrow(),
+    ).toBe(true);
+    expect(
+      await imports.chunks
+        .process({ runId: "r", entity: "customer", chunk: 1 })
+        .orThrow(),
+    ).toEqual({ status: "failed", message: "bad file" });
   });
 
   it("validates the job payload", () => {

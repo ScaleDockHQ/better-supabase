@@ -325,7 +325,7 @@ await db.$rpc("enqueue_import_chunks", {
 await runImportWorker({ imports, queue, concurrency: 4, signal });
 ```
 
-`chunks.process` claims the chunk, writes it with `upsertBatch` and marks it done in one transaction, so a failure leaves it pending, a done chunk answers what it answered, and a chunk another worker holds is skipped (a claim older than five minutes is taken over). `chunks.progress(runId)` returns `{ pending, claimed, done }`; call `runs.finish` once nothing is pending or claimed. `importChunkHandler(imports)` is the job handler for a worker you run yourself. The chunk rows go with the run and with a tenant purge.
+`chunks.process` claims the chunk, writes it with `upsertBatch` and marks it done in one transaction, so a failure leaves it pending, a done chunk answers what it answered, and a chunk another worker holds is skipped (a claim older than five minutes is taken over). `chunks.progress(runId)` returns `{ pending, claimed, done, failed }`; call `runs.finish` once nothing is pending or claimed. A worker that gives up on a chunk calls `chunks.fail({ runId, entity, chunk, message })`: the chunk is `failed`, `process` answers `{ status: "failed", message }` instead of retrying it, and storing the chunk again makes it pending. A batch that finds conflicts lists the keys of the first 100 in `conflictKeys`, next to the `conflicted` count. `importChunkHandler(imports)` is the job handler for a worker you run yourself. The chunk rows go with the run and with a tenant purge.
 
 ## Hooks
 
