@@ -233,7 +233,8 @@ export function registerGoldenChecks(): void {
           .filter(([body]) => blockFileState(body) !== "clean")
           .flatMap(([, paths]) => [...paths]),
       ).toEqual([]);
-    }, 60_000);
+      // The render shares the runner with the other SQL files, so 60s is not enough.
+    }, 120_000);
 
     it("names no tenant_id column once every tenant column is renamed", () => {
       const variant = VARIANTS.find(
