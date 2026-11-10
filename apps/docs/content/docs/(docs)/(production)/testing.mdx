@@ -60,6 +60,24 @@ supabase-js warns when its trace propagation option is on and the runtime
 has no OpenTelemetry tracing loaded. Test users switch it off; pass
 `{ tracePropagation: true }` to keep it.
 
+### Sign in through Auth
+
+`asSignedInUser(betterSupabase, { email, password }, stack)` takes the access
+token from the stack's Auth (`/auth/v1/token`, the password grant) instead of
+signing its own. The token carries what Auth puts there, including the claims
+a custom access token hook adds, and `claims` and `context` are read from it.
+The user must exist, for example from the seed. It throws a `TypeError` that
+names the email when Auth refuses.
+
+```ts
+import { asSignedInUser } from "better-supabase/testing";
+
+const alice = await asSignedInUser(betterSupabase, {
+  email: "alice@acme.test",
+  password: "password",
+});
+```
+
 `signLocalJwt(claims)` signs a token the same way without building
 repositories, for requests you send yourself.
 
@@ -511,6 +529,25 @@ client.requests.map((request) => request.path);
 
 It covers `from`, `rpc`, `schema`, the common filters, `.single()` and `.maybeSingle()`. A miss on `.single()` is `PGRST116`, as on a real server. Pass the client where a `SupabaseClient` is expected, with a cast in the test. Test tokens come from `signTestJwt` and `createTestSigner` (see [Signing key](#signing-key)).
 
+`createFakePostgrest(handler)` answers at the `fetch` level, so the real
+supabase-js client runs, with its URL building, headers and error handling.
+The handler takes the same request and returns the same reply as
+`createFakeClient`. Pass `fetch` to `createClient`'s `global.fetch` or to
+`asUser`'s `fetch` option, and read `requests` for what it saw. It answers
+`Prefer: count=exact` with a `Content-Range` header, and `.single()` with a
+406 and `PGRST116` unless exactly one row matches.
+
+```ts
+import { createClient } from "@supabase/supabase-js";
+import { createFakePostgrest } from "better-supabase/testing";
+
+const api = createFakePostgrest(() => ({ data: [{ id: "c1" }], count: 1 }));
+const supabase = createClient(url, key, { global: { fetch: api.fetch } });
+
+await supabase.from("customers").select("id", { count: "exact" });
+api.requests[0]?.query; // { select: "id" }
+```
+
 ## pgTAP
 
 `better-supabase add pgtap` writes
@@ -536,6 +573,8 @@ rollback;
 | `tests.authenticate_as(user_id, claims)`                | Switches to `authenticated` with the user's claims for the rest of the transaction                                  |
 | `tests.authenticate_as(email)`                          | The same for the user with that email address; fails when there is none                                             |
 | `tests.authenticate_as_issued(user_id, hook)`           | Runs the custom access token hook and signs in with the claims it adds; `hook` defaults to the one in `config.toml` |
+| `tests.act_as(role, user_id, claims)`                   | Switches to any role with the given `sub` and claims for the rest of the transaction                                |
+| `tests.visible_row_count(relation, filter)`             | Counts the rows the current role sees in a relation, with an optional `where` text; RLS applies                     |
 | `tests.authenticate_as_anon()`                          | Switches to `anon`                                                                                                  |
 | `tests.clear_authentication()`                          | Switches back to the test runner's role                                                                             |
 | `tests.every_table_has_rls(schema)`                     | Fails and lists every table in the schema without row level security (`tests.rls_enabled` is the same check)        |

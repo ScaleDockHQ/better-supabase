@@ -2226,14 +2226,14 @@ import { useExtracted, useFormatter } from "next-intl";
 import { createContext, use, useCallback, useMemo, useState } from "react";
 import * as v from "valibot";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 import type { Member } from "@/features/organization/organization-queries";
 
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -2295,7 +2295,7 @@ type MemberRow = Member & {
   readonly busy: boolean;
 };
 
-type MemberCell = CellContext<DataGridFeatures, MemberRow>;
+type MemberCell = CellContext<ReadOnlyGridFeatures, MemberRow>;
 
 const ALL_ROLES = "all";
 
@@ -2530,7 +2530,7 @@ export function MemberTable({
     [changeRole, removeMember],
   );
 
-  const columns: ColumnDef<DataGridFeatures, MemberRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, MemberRow>[] = [
     { id: "member", header: t("Member"), cell: MemberCellView, size: 280 },
     { accessorKey: "role", header: t("Role"), cell: RoleCell, size: 150 },
     { id: "teams", header: t("Teams"), cell: TeamsCell, size: 200 },
@@ -2565,7 +2565,7 @@ export function MemberTable({
     }));
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data,
     getRowId: (row) => row.userId,
@@ -9883,15 +9883,18 @@ npx shadcn add alert badge button card empty skeleton
  * with and whether they must sign in with SSO.
  */
 export async function SsoSettings() {
-  if (!can(await getPermissions(), "sso.manage")) {
-    forbidden();
-  }
-
-  const [t, format, result] = await Promise.all([
+  // `loadSettings` never rejects, so starting it with the permission check
+  // leaves no unhandled promise behind when the caller is refused.
+  const [permissions, t, format, result] = await Promise.all([
+    getPermissions(),
     getExtracted("sso"),
     getFormatter(),
     loadSettings(),
   ]);
+
+  if (!can(permissions, "sso.manage")) {
+    forbidden();
+  }
 
   if (result.kind === "error") {
     return (
@@ -10088,15 +10091,18 @@ npx shadcn add alert badge button card empty skeleton table
  * back to the previous one when the duration runs out.
  */
 export async function AccessRequestsInbox() {
-  if (!can(await getPermissions(), "access_requests.create")) {
-    forbidden();
-  }
-
-  const [t, format, result] = await Promise.all([
+  // The permission check and the read start together; `loadInbox` never
+  // rejects, so a refused caller leaves no unhandled promise behind.
+  const [permissions, t, format, result] = await Promise.all([
+    getPermissions(),
     getExtracted("accessRequests"),
     getFormatter(),
     loadInbox(),
   ]);
+
+  if (!can(permissions, "access_requests.create")) {
+    forbidden();
+  }
 
   if (result.kind === "error") {
     return (
@@ -10720,7 +10726,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -10732,8 +10738,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -10755,7 +10761,7 @@ import {
 
 import type { DocumentRegisterView, DocumentRow } from "../drive-queries";
 
-type DocumentCell = CellContext<DataGridFeatures, DocumentRow>;
+type DocumentCell = CellContext<ReadOnlyGridFeatures, DocumentRow>;
 
 function NumberCell({ row }: DocumentCell) {
   return (
@@ -10838,7 +10844,7 @@ function ReviewCell({ row }: DocumentCell) {
 function DocumentGrid({ documents }: { documents: readonly DocumentRow[] }) {
   const t = useExtracted("drive");
 
-  const columns: ColumnDef<DataGridFeatures, DocumentRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, DocumentRow>[] = [
     { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 110 },
     { accessorKey: "name", header: t("Document"), cell: NameCell, size: 260 },
     { accessorKey: "type", header: t("Type"), size: 110 },
@@ -10858,7 +10864,7 @@ function DocumentGrid({ documents }: { documents: readonly DocumentRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...documents],
     getRowId: (row) => row.id,
@@ -16159,7 +16165,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -16170,8 +16176,8 @@ import {
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -16199,7 +16205,7 @@ import type {
 
 import { GoalStatusBadge } from "./care-plan-editor";
 
-type EvaluationCell = CellContext<DataGridFeatures, CarePlanEvaluationRow>;
+type EvaluationCell = CellContext<ReadOnlyGridFeatures, CarePlanEvaluationRow>;
 
 function DateCell({ row }: EvaluationCell) {
   const format = useFormatter();
@@ -16236,7 +16242,7 @@ function EvaluationGrid({
 }) {
   const t = useExtracted("care-plans");
 
-  const columns: ColumnDef<DataGridFeatures, CarePlanEvaluationRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, CarePlanEvaluationRow>[] = [
     {
       accessorKey: "evaluatedAt",
       header: t("Date"),
@@ -16254,7 +16260,7 @@ function EvaluationGrid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...evaluations],
     getRowId: (row) => row.id,
@@ -17826,18 +17832,17 @@ async function retry() {
  * cart) with the same id, with its lines, totals and next steps.
  */
 export async function OrderDetail({ id }: { id: string }) {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "orders.read")) {
-    forbidden();
-  }
-
-  const [detail, t, format, locale] = await Promise.all([
+  const [permissions, detail, t, format, locale] = await Promise.all([
+    getPermissions(),
     getOrderDetail(id),
     getExtracted("shop"),
     getFormatter(),
     getLocale(),
   ]);
+
+  if (!can(permissions, "orders.read")) {
+    forbidden();
+  }
 
   if (detail.kind === "not-found") {
     notFound();
@@ -18158,7 +18163,11 @@ export async function KitchenDisplay({
 }: {
   query: Record<string, string | string[] | undefined>;
 }) {
-  const permissions = await getPermissions();
+  const [permissions, kitchen, t] = await Promise.all([
+    getPermissions(),
+    getKitchen(v.is(StationParam, query["station"]) ? query["station"] : null),
+    getExtracted("shop"),
+  ]);
 
   if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
@@ -18166,11 +18175,6 @@ export async function KitchenDisplay({
 
   const canPrepare =
     can(permissions, "orders.prepare") || can(permissions, "orders.manage");
-
-  const [kitchen, t] = await Promise.all([
-    getKitchen(v.is(StationParam, query["station"]) ? query["station"] : null),
-    getExtracted("shop"),
-  ]);
 
   if (kitchen.kind === "no-organization") {
     return null;
@@ -18610,28 +18614,27 @@ export async function CalendarView({
 }: {
   query: Record<string, string | string[] | undefined>;
 }) {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "calendar.read")) {
-    forbidden();
-  }
-
-  const [t, format] = await Promise.all([
-    getExtracted("calendar"),
-    getFormatter(),
-    io(),
-  ]);
-
-  const canWrite = can(permissions, "calendar.write");
-  const canManage = can(permissions, "calendar.manage");
   const first = firstOfMonth(query["month"], "UTC");
   const weeks = weeksOf(first);
   const from = weeks[0]?.[0] ?? first;
   const until = (weeks.at(-1)?.[6] ?? first).add({ days: 1 });
 
-  const month = await settle(() =>
-    loadCalendarMonth(from.toString(), until.toString()),
-  );
+  // `settle` never rejects, so the month loads next to the permission check
+  // and a refused caller leaves no unhandled promise behind.
+  const [permissions, t, format, month] = await Promise.all([
+    getPermissions(),
+    getExtracted("calendar"),
+    getFormatter(),
+    settle(() => loadCalendarMonth(from.toString(), until.toString())),
+    io(),
+  ]);
+
+  if (!can(permissions, "calendar.read")) {
+    forbidden();
+  }
+
+  const canWrite = can(permissions, "calendar.write");
+  const canManage = can(permissions, "calendar.manage");
 
   const monthKey = (date: Temporal.PlainDate) =>
     date.toPlainYearMonth().toString();
@@ -27099,7 +27102,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -27111,8 +27114,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -27141,7 +27144,7 @@ const TONE_VARIANT = {
   critical: "destructive",
 } as const satisfies Record<BandTone, string>;
 
-type RiskCell = CellContext<DataGridFeatures, RiskRow>;
+type RiskCell = CellContext<ReadOnlyGridFeatures, RiskRow>;
 
 function NumberCell({ row }: RiskCell) {
   return (
@@ -27220,7 +27223,7 @@ function ReviewCell({ row }: RiskCell) {
 function RiskGrid({ risks }: { risks: readonly RiskRow[] }) {
   const t = useExtracted("risks");
 
-  const columns: ColumnDef<DataGridFeatures, RiskRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, RiskRow>[] = [
     { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 100 },
     { accessorKey: "title", header: t("Risk"), cell: TitleCell, size: 260 },
     { accessorKey: "category", header: t("Category"), size: 140 },
@@ -27235,7 +27238,7 @@ function RiskGrid({ risks }: { risks: readonly RiskRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...risks],
     getRowId: (row) => row.id,
@@ -27996,7 +27999,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -28007,8 +28010,8 @@ import {
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -28033,7 +28036,7 @@ import type { InspectionRow, Loaded } from "../inspections-queries";
 
 import { InspectionStatusBadge, useKindLabel } from "./inspection-labels";
 
-type InspectionCell = CellContext<DataGridFeatures, InspectionRow>;
+type InspectionCell = CellContext<ReadOnlyGridFeatures, InspectionRow>;
 
 function PlannedCell({ row }: InspectionCell) {
   const t = useExtracted("inspections");
@@ -28095,7 +28098,7 @@ function CalendarGrid({
 }) {
   const t = useExtracted("inspections");
 
-  const columns: ColumnDef<DataGridFeatures, InspectionRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, InspectionRow>[] = [
     {
       accessorKey: "plannedStart",
       header: t("Planned"),
@@ -28120,7 +28123,7 @@ function CalendarGrid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...inspections],
     getRowId: (row) => row.id,
@@ -28459,7 +28462,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -28470,8 +28473,8 @@ import {
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -28496,7 +28499,7 @@ import type { Loaded, MeetingRow } from "../meetings-queries";
 
 import { MeetingStatusBadge, useKindLabel } from "./meeting-labels";
 
-type MeetingCell = CellContext<DataGridFeatures, MeetingRow>;
+type MeetingCell = CellContext<ReadOnlyGridFeatures, MeetingRow>;
 
 function StartsCell({ row }: MeetingCell) {
   const format = useFormatter();
@@ -28543,7 +28546,7 @@ function StatusCell({ row }: MeetingCell) {
 function AgendaGrid({ meetings }: { meetings: readonly MeetingRow[] }) {
   const t = useExtracted("meetings");
 
-  const columns: ColumnDef<DataGridFeatures, MeetingRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, MeetingRow>[] = [
     {
       accessorKey: "startsAt",
       header: t("Starts"),
@@ -28562,7 +28565,7 @@ function AgendaGrid({ meetings }: { meetings: readonly MeetingRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...meetings],
     getRowId: (row) => row.id,

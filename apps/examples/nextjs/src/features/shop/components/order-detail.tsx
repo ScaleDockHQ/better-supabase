@@ -58,18 +58,17 @@ async function retry() {
  * cart) with the same id, with its lines, totals and next steps.
  */
 export async function OrderDetail({ id }: { id: string }) {
-  const permissions = await getPermissions();
-
-  if (!can(permissions, "orders.read")) {
-    forbidden();
-  }
-
-  const [detail, t, format, locale] = await Promise.all([
+  const [permissions, detail, t, format, locale] = await Promise.all([
+    getPermissions(),
     getOrderDetail(id),
     getExtracted("shop"),
     getFormatter(),
     getLocale(),
   ]);
+
+  if (!can(permissions, "orders.read")) {
+    forbidden();
+  }
 
   if (detail.kind === "not-found") {
     notFound();

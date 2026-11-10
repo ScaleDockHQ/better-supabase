@@ -778,6 +778,11 @@ signed-in user changes. `invalidate` refetches the table's
 `queryClient` on `BetterSupabaseProvider`. The hook returns `joining`,
 `subscribed`, `closed` or `error`.
 
+Broadcast does not replay messages, so a tab that lost its connection misses
+what was sent meanwhile. `onRejoin` runs when the channel joins again after a
+drop, to refetch what changed, and `rejoinOnLoad: true` also runs it on the
+first join, so one handler loads the state on mount and after every reconnect.
+
 `<BetterSupabaseProvider realtime={...}>` makes `useBroadcast`,
 `usePresence`, `useLiveQuery` and `useLiveCount` join through another client.
 `useRealtimeRelay(url)` returns a [relay client](#without-a-browser-token)

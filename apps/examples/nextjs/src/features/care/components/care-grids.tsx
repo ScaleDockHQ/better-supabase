@@ -6,14 +6,14 @@ import type { ConsentStatus } from "better-supabase/blocks/consents";
 import { useTable } from "@tanstack/react-table";
 import { useExtracted, useFormatter } from "next-intl";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { useStatusLabel } from "@/features/customers/use-status-label";
@@ -26,10 +26,10 @@ function Grid<T extends { readonly id: string }>({
   columns,
 }: {
   rows: readonly T[];
-  columns: ColumnDef<DataGridFeatures, T>[];
+  columns: ColumnDef<ReadOnlyGridFeatures, T>[];
 }) {
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...rows],
     getRowId: (row) => row.id,
@@ -50,7 +50,7 @@ function Grid<T extends { readonly id: string }>({
   );
 }
 
-function ClientNameCell({ row }: CellContext<DataGridFeatures, ClientRow>) {
+function ClientNameCell({ row }: CellContext<ReadOnlyGridFeatures, ClientRow>) {
   return (
     <Link
       href={`/care/${row.original.id}`}
@@ -62,7 +62,9 @@ function ClientNameCell({ row }: CellContext<DataGridFeatures, ClientRow>) {
   );
 }
 
-function ClientStatusCell({ row }: CellContext<DataGridFeatures, ClientRow>) {
+function ClientStatusCell({
+  row,
+}: CellContext<ReadOnlyGridFeatures, ClientRow>) {
   const label = useStatusLabel();
   const { status } = row.original;
 
@@ -128,7 +130,9 @@ function useConsentStatusLabel(): (status: ConsentStatus) => string {
   };
 }
 
-function ConsentStatusCell({ row }: CellContext<DataGridFeatures, ConsentRow>) {
+function ConsentStatusCell({
+  row,
+}: CellContext<ReadOnlyGridFeatures, ConsentRow>) {
   const label = useConsentStatusLabel();
   const { status } = row.original;
 
@@ -159,11 +163,13 @@ function DateText({ value }: { value: string | null }) {
   );
 }
 
-function GrantedCell({ row }: CellContext<DataGridFeatures, ConsentRow>) {
+function GrantedCell({ row }: CellContext<ReadOnlyGridFeatures, ConsentRow>) {
   return <DateText value={row.original.grantedAt} />;
 }
 
-function ValidUntilCell({ row }: CellContext<DataGridFeatures, ConsentRow>) {
+function ValidUntilCell({
+  row,
+}: CellContext<ReadOnlyGridFeatures, ConsentRow>) {
   return <DateText value={row.original.validUntil} />;
 }
 
@@ -204,7 +210,7 @@ export function ConsentsGrid({
   );
 }
 
-function ReaderCell({ row }: CellContext<DataGridFeatures, AccessRow>) {
+function ReaderCell({ row }: CellContext<ReadOnlyGridFeatures, AccessRow>) {
   const t = useExtracted("care");
   const { reader, emergency } = row.original;
 
@@ -218,7 +224,7 @@ function ReaderCell({ row }: CellContext<DataGridFeatures, AccessRow>) {
   );
 }
 
-function ReadAtCell({ row }: CellContext<DataGridFeatures, AccessRow>) {
+function ReadAtCell({ row }: CellContext<ReadOnlyGridFeatures, AccessRow>) {
   const format = useFormatter();
   const { at } = row.original;
 
@@ -236,11 +242,11 @@ function MutedText({ value }: { value: string | null }) {
   return <span className="text-muted-foreground">{value ?? "-"}</span>;
 }
 
-function PurposeCell({ row }: CellContext<DataGridFeatures, AccessRow>) {
+function PurposeCell({ row }: CellContext<ReadOnlyGridFeatures, AccessRow>) {
   return <MutedText value={row.original.purpose} />;
 }
 
-function SourceCell({ row }: CellContext<DataGridFeatures, AccessRow>) {
+function SourceCell({ row }: CellContext<ReadOnlyGridFeatures, AccessRow>) {
   return <MutedText value={row.original.source} />;
 }
 

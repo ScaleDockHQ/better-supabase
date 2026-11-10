@@ -22,6 +22,33 @@ const holds = (
 ): boolean => readsHold(tracker.reads(), { layout, installed });
 
 describe("createReadTracker", () => {
+  it("records one answer for includes, so an unrelated element edit holds", () => {
+    const input = { cols: ["id", "name", "created_at"] };
+
+    const tracker = track(input, (view) =>
+      (view["cols"] as string[]).includes("name"),
+    );
+
+    expect(
+      tracker.reads().filter((read) => read.kind === "member"),
+    ).toHaveLength(1);
+    expect(holds(tracker, input)).toBe(true);
+    // Another column added, one removed: the answer for "name" is the same.
+    expect(
+      holds(tracker, { cols: ["id", "name", "extra", "created_at"] }),
+    ).toBe(true);
+    expect(holds(tracker, { cols: ["id", "created_at"] })).toBe(false);
+  });
+
+  it("records a missing member, so adding it invalidates", () => {
+    const tracker = track({ cols: ["id"] }, (view) =>
+      (view["cols"] as string[]).includes("name"),
+    );
+
+    expect(holds(tracker, { cols: ["id", "other"] })).toBe(true);
+    expect(holds(tracker, { cols: ["id", "name"] })).toBe(false);
+  });
+
   it("holds for the input it read and for changes it did not read", () => {
     const input = { a: { x: 1, y: 2 }, b: 3 };
     const tracker = track(input, (view) => (view["a"] as Input)["x"]);

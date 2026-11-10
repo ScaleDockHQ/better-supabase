@@ -557,6 +557,7 @@ export function resolveConfig(
       ...(config.env?.prefix === undefined
         ? {}
         : { prefix: config.env.prefix }),
+      ...(config.env?.map === undefined ? {} : { map: config.env.map }),
     },
     adapters: config.adapters ?? [],
     skills: config.skills ?? {},

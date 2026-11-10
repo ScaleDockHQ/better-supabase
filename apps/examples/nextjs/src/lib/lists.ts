@@ -19,4 +19,7 @@ export const customerList = defineListQuery(clientApp, customersTable, {
   defaultSort: "name",
   pageSize: 50,
   facetCounts: true,
+  // A tenant with many customers is not grouped whole: each facet counts at
+  // most 1,000 rows and the page flags a reached cap (ADR 0425).
+  facetCountMode: "capped",
 });

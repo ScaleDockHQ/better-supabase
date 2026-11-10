@@ -59,15 +59,18 @@ async function loadSettings(): Promise<
  * with and whether they must sign in with SSO.
  */
 export async function SsoSettings() {
-  if (!can(await getPermissions(), "sso.manage")) {
-    forbidden();
-  }
-
-  const [t, format, result] = await Promise.all([
+  // `loadSettings` never rejects, so starting it with the permission check
+  // leaves no unhandled promise behind when the caller is refused.
+  const [permissions, t, format, result] = await Promise.all([
+    getPermissions(),
     getExtracted("sso"),
     getFormatter(),
     loadSettings(),
   ]);
+
+  if (!can(permissions, "sso.manage")) {
+    forbidden();
+  }
 
   if (result.kind === "error") {
     return (

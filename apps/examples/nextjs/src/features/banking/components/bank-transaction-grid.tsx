@@ -9,14 +9,14 @@ import { useAction } from "better-supabase/react";
 import { useExtracted, useFormatter, useLocale } from "next-intl";
 import { createContext, use, useCallback, useMemo } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ import {
   matchBankTransaction,
 } from "../banking-actions";
 
-type TransactionCell = CellContext<DataGridFeatures, BankTransactionRow>;
+type TransactionCell = CellContext<ReadOnlyGridFeatures, BankTransactionRow>;
 
 interface Reconcile {
   readonly allowed: boolean;
@@ -211,7 +211,7 @@ export function BankTransactionGrid({
     [canReconcile, matchAction.pending, ignoreAction.pending, match, ignore],
   );
 
-  const columns: ColumnDef<DataGridFeatures, BankTransactionRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, BankTransactionRow>[] = [
     {
       accessorKey: "bookedOn",
       header: t("Booked"),
@@ -230,7 +230,7 @@ export function BankTransactionGrid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...transactions],
     getRowId: (row) => row.id,

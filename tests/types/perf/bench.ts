@@ -103,6 +103,10 @@ interface CheckTimes {
 const PROFILES = {
   default: { tables: 150, queried: 40, composite: false },
   centrakit: { tables: 250, queried: 40, composite: true },
+  // Nearer CentraKit's size: the real app checks at 346,000 to 405,000 types
+  // (ADR 0591), the 250 table profile at about 28,000 and this one at about
+  // 126,000 with ts7. It shows how the cost grows with the schema.
+  real: { tables: 1200, queried: 240, composite: true },
 } satisfies Readonly<Record<string, Profile>>;
 
 const TOLERANCE = 0.1;

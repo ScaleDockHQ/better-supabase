@@ -10,7 +10,7 @@ begin
   -- route looks up the owner a schedule runs as).
   if not ((select auth.role()) = 'service_role'
     or better_supabase.member_can((select auth.uid()), organization, 'members.read')) then
-    raise exception 'Not allowed to list members' using errcode = '42501';
+    raise exception 'Not allowed to list members' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   return query
   select m.user_id, r.key, p.full_name, coalesce(p.email, u.email::text), p.avatar_url, p.avatar_path, m.created_at

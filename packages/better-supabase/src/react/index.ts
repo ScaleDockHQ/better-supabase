@@ -22,7 +22,7 @@ export type {
   ProfileOf,
 } from "./hooks.ts";
 
-export { useAction, useActionForm } from "./actions.ts";
+export { useAction, useActionForm, useOptimisticAction } from "./actions.ts";
 
 export { createRecordProvider } from "./record.ts";
 
@@ -110,8 +110,10 @@ export type {
   ActionHandle,
   ActionInputOf,
   ActionResultOf,
+  OptimisticActionHandle,
   UseActionFormOptions,
   UseActionOptions,
+  UseOptimisticActionOptions,
 } from "./actions.ts";
 
 export { SessionProvider, useSession, useSupportSession } from "./session.ts";

@@ -55,6 +55,19 @@ export interface PostgresOptions {
    * `$POSTGRES_URL_NON_POOLING`, the first one set.
    */
   readonly connectionString?: string;
+  /**
+   * TLS for the connection. `true` verifies the server certificate against the
+   * system roots; an object passes `ca` (a PEM string or a list of them) and
+   * `rejectUnauthorized` (default `true`) to `pg`. `false` turns TLS off.
+   * Unset, `pg` follows the connection string. A string that sets `sslmode`
+   * wins over this option.
+   */
+  readonly ssl?:
+    | boolean
+    | {
+        readonly ca?: string | readonly string[];
+        readonly rejectUnauthorized?: boolean;
+      };
   /** An existing pool to run on instead of opening one. `end()` ends it. */
   readonly pool?: PgPool;
   readonly max?: number;
@@ -173,10 +186,18 @@ function roleOf(claims: SqlClaims): string {
   return role;
 }
 
-function openPool(options: PostgresOptions): PgPool {
-  const connectionString =
+/** The connection string `createPostgres` would use, or `undefined`. */
+export function connectionStringOf(
+  options: PostgresOptions,
+): string | undefined {
+  return (
     options.connectionString ??
-    CONNECTION_VARIABLES.map((name) => process.env[name]).find(Boolean);
+    CONNECTION_VARIABLES.map((name) => process.env[name]).find(Boolean)
+  );
+}
+
+function openPool(options: PostgresOptions): PgPool {
+  const connectionString = connectionStringOf(options);
 
   if (!connectionString) {
     throw new TypeError(
@@ -184,8 +205,25 @@ function openPool(options: PostgresOptions): PgPool {
     );
   }
 
+  const { ssl } = options;
+
   return new Pool({
     connectionString,
+    ...(ssl === undefined
+      ? {}
+      : {
+          ssl:
+            typeof ssl === "boolean"
+              ? ssl && { rejectUnauthorized: true }
+              : {
+                  rejectUnauthorized: ssl.rejectUnauthorized ?? true,
+                  ...(ssl.ca === undefined
+                    ? {}
+                    : {
+                        ca: typeof ssl.ca === "string" ? ssl.ca : [...ssl.ca],
+                      }),
+                },
+        }),
     max: options.max ?? 10,
     connectionTimeoutMillis: options.connectionTimeout ?? 10_000,
     idleTimeoutMillis: options.idleTimeout ?? 10_000,

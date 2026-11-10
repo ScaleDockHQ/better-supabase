@@ -6,14 +6,14 @@ import { useTable } from "@tanstack/react-table";
 import { useExtracted } from "next-intl";
 import * as v from "valibot";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ const StatusFilter = v.picklist(["active", "archived", "all"]);
 
 type StatusFilter = v.InferOutput<typeof StatusFilter>;
 
-type TeamCell = CellContext<DataGridFeatures, TeamRow>;
+type TeamCell = CellContext<ReadOnlyGridFeatures, TeamRow>;
 
 function NameCell({ row }: TeamCell) {
   return (
@@ -97,7 +97,7 @@ export function TeamsGrid({ teams }: { teams: readonly TeamRow[] }) {
     { value: "all", label: t("All teams") },
   ];
 
-  const columns: ColumnDef<DataGridFeatures, TeamRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, TeamRow>[] = [
     { accessorKey: "name", header: t("Name"), cell: NameCell, size: 200 },
     {
       accessorKey: "description",
@@ -123,7 +123,7 @@ export function TeamsGrid({ teams }: { teams: readonly TeamRow[] }) {
   );
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data,
     getRowId: (row) => row.id,

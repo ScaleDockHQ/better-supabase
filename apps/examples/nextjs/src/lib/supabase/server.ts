@@ -9,6 +9,7 @@ import { env } from "@/env";
 
 import { permissions } from "./blocks.generated";
 import { betterSupabase } from "./index";
+import { sharedCounters } from "./session-counters";
 
 const options: NextOptions = {
   debug: {
@@ -24,22 +25,6 @@ const options: NextOptions = {
   // `permissions` claim, and from `my_permissions` when the token can't say.
   authorizer: permissionsAuthorizer({ permissions, load: myPermissions }),
 };
-
-declare global {
-  var bsbExampleSessionCounters: { hits: number; misses: number } | undefined;
-}
-
-/**
- * Next.js bundles each route handler apart from the pages, so this module is
- * evaluated once per bundle and each bundle builds its own server and memo. One
- * counter per process makes `/api/bs-sessions` count the lookups the pages
- * make.
- */
-function sharedCounters(): { hits: number; misses: number } {
-  globalThis.bsbExampleSessionCounters ??= { hits: 0, misses: 0 };
-
-  return globalThis.bsbExampleSessionCounters;
-}
 
 const counters = sharedCounters();
 

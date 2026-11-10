@@ -86,7 +86,10 @@ warns when the file isn't in `.gitignore`, and when your Supabase CLI only
 prints legacy keys.
 `--out <file>` writes another file than
 `.env.local` (`env.output` in the config sets it for every run, and
-`env.prefix` the prefix), and
+`env.prefix` the prefix), `env.map` adds variables under the names your
+app reads (`{ SUPABASE_ANON_KEY: "SUPABASE_PUBLISHABLE_KEY" }`; a source is a
+variable `dev env` writes or a key of `supabase status -o json`, and `dev run`
+sets the mapped variables too), and
 `--status-file <file>` reads saved `supabase status -o json` output instead of running the
 Supabase CLI. Both paths must stay inside the project root: `dev env` refuses an
 absolute path elsewhere or one that climbs out with `..`, so the secret key

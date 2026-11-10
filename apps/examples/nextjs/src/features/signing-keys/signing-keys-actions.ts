@@ -5,6 +5,7 @@ import { ok } from "better-supabase";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { SIGNING_KEYS_TAG } from "./signing-keys-cache";
 import {
   organizationOwner,
   SIGNING_KEYS_PERMISSION,
@@ -27,7 +28,7 @@ export const rotateSigningKey = bsb.action(
       return rotated;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [SIGNING_KEYS_TAG]);
 
     return ok({ kid: rotated.data.kid, retired: rotated.data.retired });
   },

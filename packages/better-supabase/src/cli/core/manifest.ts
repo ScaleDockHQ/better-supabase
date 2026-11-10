@@ -673,6 +673,25 @@ export const COMMANDS: readonly CommandSpec[] = [
         ],
         effects: [{ kind: "database", access: "write" }],
       },
+      {
+        name: "squash",
+        description:
+          "Replaces the migrations with one baseline of the declarative schema, keeping the module extensions and the data migrations --keep names",
+        docs: "/docs/cli/db#squash",
+        examples: [
+          {
+            command: "better-supabase db squash --dry-run",
+            description: "Lists what it would remove and keep",
+          },
+          {
+            command:
+              "better-supabase db squash --keep reference_data,billing_plans --yes",
+            description:
+              "Writes one init migration and carries the two data migrations over",
+          },
+        ],
+        effects: [FILES],
+      },
     ],
   },
   {

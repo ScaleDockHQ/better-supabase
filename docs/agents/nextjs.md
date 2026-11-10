@@ -136,6 +136,13 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   (`features/members/components/member-table.tsx`). Inline cell renderers,
   context values built in render and fresh functions in deps all fail
   Oxlint.
+- A dynamic `import()` in a server module adds the async chunk loader to every
+  route that bundles it: one in `/api/outbox` and one in `flags.ts` grew every
+  route handler by about 1.3 KB raw. Measure `tests/next-build` before you
+  lazy-load server code (ADR 0615).
+- A grid that only displays rows uses `readOnlyGridFeatures`
+  (`data-grid-features-read-only.ts`); the full `dataGridFeatures` lives in its
+  own module, so import it only where a grid sorts, filters, pages or selects.
 - The commit hook runs `ultracite fix` on the staged files, and it fails
   with "No files found" when every staged file is lint-ignored (generated
   clients alone). Commit generated files with the change that needs them.

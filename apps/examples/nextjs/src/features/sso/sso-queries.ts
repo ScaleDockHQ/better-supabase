@@ -1,7 +1,10 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 
 import { bsb } from "@/lib/supabase/server";
+
+import { SSO_TAG } from "./sso-cache";
 
 export interface SsoDomainRow {
   readonly id: string;
@@ -36,6 +39,7 @@ function roleOf(value: string | undefined): "member" | "admin" | null {
 export async function loadSsoSettings(): Promise<SsoSettingsData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(SSO_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

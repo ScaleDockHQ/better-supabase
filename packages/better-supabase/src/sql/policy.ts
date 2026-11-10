@@ -155,8 +155,38 @@ const DOLLAR_TAG = /\$(?:[A-Za-z_]\w*)?\$/y;
  * match inside them. Offsets stay the same; line breaks stay.
  */
 export function maskSql(sql: string, options: MaskOptions = {}): string {
-  const special =
-    options.dollarBodies === "scan" ? /--|\/\*|['"]/g : /--|\/\*|['"$]/g;
+  const mode = options.dollarBodies === "scan" ? "scan" : "mask";
+  const memo = mode === "scan" ? SCAN_MEMO : MASK_MEMO;
+  const held = memo.get(sql);
+
+  if (held !== undefined) {
+    return held;
+  }
+
+  const masked = maskText(sql, mode);
+
+  // Only recent texts stay: one render masks a module's SQL several times
+  // (`readPolicies`, `readGrants`, `guardPolicies`) and then moves on.
+  if (sql.length <= MEMO_MAX_CHARS) {
+    memo.set(sql, masked);
+
+    const oldest = memo.keys().next();
+
+    if (memo.size > MEMO_ENTRIES && !oldest.done) {
+      memo.delete(oldest.value);
+    }
+  }
+
+  return masked;
+}
+
+const MEMO_ENTRIES = 24;
+const MEMO_MAX_CHARS = 2_000_000;
+const SCAN_MEMO = new Map<string, string>();
+const MASK_MEMO = new Map<string, string>();
+
+function maskText(sql: string, mode: "mask" | "scan"): string {
+  const special = mode === "scan" ? /--|\/\*|['"]/g : /--|\/\*|['"$]/g;
 
   const parts: string[] = [];
   let copied = 0;

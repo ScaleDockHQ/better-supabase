@@ -92,6 +92,32 @@ export function stackEnvValues(
 }
 
 /**
+ * Adds the variables `env.map` names. A source is a variable in `values` or a
+ * string key of the `supabase status` JSON; an unknown source returns the name
+ * so the caller can report it.
+ */
+export function applyEnvMap(
+  values: Readonly<Record<string, string>>,
+  status: StackStatus,
+  map: Readonly<Record<string, string>> | undefined,
+): { values: Record<string, string>; missing: string[] } {
+  const next = { ...values };
+  const missing: string[] = [];
+
+  for (const [name, source] of Object.entries(map ?? {})) {
+    const value = values[source] ?? text(status, source);
+
+    if (value === undefined) {
+      missing.push(`${name} (from ${source})`);
+    } else {
+      next[name] = value;
+    }
+  }
+
+  return { values: next, missing };
+}
+
+/**
  * A value safe to print: a URL shows its host and port (and a database URL its
  * database name), anything else a SHA-256 fingerprint. Never the value itself,
  * so keys and passwords stay out of logs.

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:0930172c99acf6a080f5eea436f379bb4e2f9d1a56074ed381b84bbc24236c77
+-- @bsb-hash sha256:68b6a10b9b273dd164d243f28597e29dc761b74b931942f74245f4bda80c68ee
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -884,7 +884,7 @@ begin
     select 1 from "better_supabase"."products" x
     where x."id" = v_id and x."tenant_id" = v_tenant and x."title" is not distinct from v_name
       and x."slug" is not distinct from v_slug
-      and x."price" is not distinct from coalesce(v_price, x."price")
+      
   ) and (v_sku is null or exists (
     select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
   )) then
@@ -899,19 +899,19 @@ begin
     v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
   end if;
   if v_id is null then
-    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
-    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
     returning "id", "updated_at" into v_id, v_updated;
   else
-    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
     where x."id" = v_id and x."tenant_id" = v_tenant
     returning x."updated_at" into v_updated;
   end if;
   if not exists (select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id) then
-    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode", "price")
-    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''));
   elsif v_sku is not null then
-    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode")
     where y."id" = (select y2."id" from "better_supabase"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
   end if;
   return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
@@ -3837,7 +3837,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:7a1e9ba079c167e3bce68464ae73ef115a22dd6272fed67aab77e1e8d5426710
+-- @bsb-hash sha256:9876f434c73a74b8ca9d990e775b881362619cc62e12fbf90ccbbe4331cc75bf
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4748,7 +4748,7 @@ begin
     select 1 from "better_supabase"."products" x
     where x."id" = v_id and x."tenant_id" = v_tenant and x."title" is not distinct from v_name
       and x."slug" is not distinct from v_slug
-      and x."price" is not distinct from coalesce(v_price, x."price")
+      
   ) and (v_sku is null or exists (
     select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
   )) then
@@ -4763,19 +4763,19 @@ begin
     v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
   end if;
   if v_id is null then
-    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
-    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
     returning "id", "updated_at" into v_id, v_updated;
   else
-    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
     where x."id" = v_id and x."tenant_id" = v_tenant
     returning x."updated_at" into v_updated;
   end if;
   if not exists (select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id) then
-    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode", "price")
-    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''));
   elsif v_sku is not null then
-    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode")
     where y."id" = (select y2."id" from "better_supabase"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
   end if;
   return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
@@ -7915,7 +7915,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:00574faef711bc81eff1ee80f967bc5e0b65c322569fa546a449479505515846
+-- @bsb-hash sha256:07af5d710737c70b688d73b18be3b01f02f4ca982fc3c9bec48f393c6592ec81
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8803,7 +8803,7 @@ begin
     select 1 from "app_private"."products" x
     where x."id" = v_id and x."tenant_id" = v_tenant and x."title" is not distinct from v_name
       and x."slug" is not distinct from v_slug
-      and x."price" is not distinct from coalesce(v_price, x."price")
+      
   ) and (v_sku is null or exists (
     select 1 from "app_private"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
   )) then
@@ -8818,19 +8818,19 @@ begin
     v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
   end if;
   if v_id is null then
-    insert into "app_private"."products" ("tenant_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
-    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    insert into "app_private"."products" ("tenant_id", "title", "slug", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
     returning "id", "updated_at" into v_id, v_updated;
   else
-    update "app_private"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    update "app_private"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
     where x."id" = v_id and x."tenant_id" = v_tenant
     returning x."updated_at" into v_updated;
   end if;
   if not exists (select 1 from "app_private"."product_variants" y where y."product_id" = v_id) then
-    insert into "app_private"."product_variants" ("tenant_id", "product_id", "sku", "barcode", "price")
-    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+    insert into "app_private"."product_variants" ("tenant_id", "product_id", "sku", "barcode")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''));
   elsif v_sku is not null then
-    update "app_private"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    update "app_private"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode")
     where y."id" = (select y2."id" from "app_private"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
   end if;
   return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
@@ -11756,7 +11756,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:b89e4829a5018593ec1e5f097145664ec83311e518ecdc8da4b13c9d3cc73f69
+-- @bsb-hash sha256:e0b0e3784dff33b8075144a703d7ac5c06be6ea5215d4e134527df518751c846
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12639,7 +12639,7 @@ begin
     select 1 from "better_supabase"."products" x
     where x."id" = v_id and x."tenant_id" = v_tenant and x."title" is not distinct from v_name
       and x."slug" is not distinct from v_slug
-      and x."price" is not distinct from coalesce(v_price, x."price")
+      
   ) and (v_sku is null or exists (
     select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
   )) then
@@ -12654,19 +12654,19 @@ begin
     v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
   end if;
   if v_id is null then
-    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
-    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    insert into "better_supabase"."products" ("tenant_id", "title", "slug", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
     returning "id", "updated_at" into v_id, v_updated;
   else
-    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
     where x."id" = v_id and x."tenant_id" = v_tenant
     returning x."updated_at" into v_updated;
   end if;
   if not exists (select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id) then
-    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode", "price")
-    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+    insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "barcode")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''));
   elsif v_sku is not null then
-    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode")
     where y."id" = (select y2."id" from "better_supabase"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
   end if;
   return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
@@ -20074,7 +20074,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:089fecc7c40aea217fb64b2afae274ee0117e8bcb0fd6fcc3b7ef2ac694ab155
+-- @bsb-hash sha256:1a928e4730eb81a899f444f189a9168e27cec6ac5cf23ee9fa7d8ce5c0ee781e
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20957,7 +20957,7 @@ begin
     select 1 from "better_supabase"."products" x
     where x."id" = v_id and x."org_id" = v_tenant and x."title" is not distinct from v_name
       and x."slug" is not distinct from v_slug
-      and x."price" is not distinct from coalesce(v_price, x."price")
+      
   ) and (v_sku is null or exists (
     select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id and y."sku" is not distinct from v_sku
   )) then
@@ -20972,19 +20972,19 @@ begin
     v_slug := left(v_slug, 40) || '-' || left(coalesce(import_product.item ->> 'key', 'item'), 8);
   end if;
   if v_id is null then
-    insert into "better_supabase"."products" ("org_id", "title", "slug", "price", "manufacturer", "model", "tax_code")
-    values (v_tenant, v_name, v_slug, v_price, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
+    insert into "better_supabase"."products" ("org_id", "title", "slug", "manufacturer", "model", "tax_code")
+    values (v_tenant, v_name, v_slug, nullif(btrim(v_data ->> 'manufacturer'), ''), nullif(btrim(v_data ->> 'model'), ''), nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''))
     returning "id", "updated_at" into v_id, v_updated;
   else
-    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "price" = coalesce(v_price, x."price"), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
+    update "better_supabase"."products" x set "title" = v_name, "slug" = v_slug, "updated_at" = now(), "manufacturer" = coalesce(nullif(btrim(v_data ->> 'manufacturer'), ''), x."manufacturer"), "model" = coalesce(nullif(btrim(v_data ->> 'model'), ''), x."model"), "tax_code" = coalesce(nullif(coalesce(import_product.item -> 'resolved' ->> 'tax', v_data ->> 'taxCode'), ''), x."tax_code")
     where x."id" = v_id and x."org_id" = v_tenant
     returning x."updated_at" into v_updated;
   end if;
   if not exists (select 1 from "better_supabase"."product_variants" y where y."product_id" = v_id) then
-    insert into "better_supabase"."product_variants" ("org_id", "product_id", "sku", "barcode", "price")
-    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''), v_price);
+    insert into "better_supabase"."product_variants" ("org_id", "product_id", "sku", "barcode")
+    values (v_tenant, v_id, coalesce(v_sku, v_slug), nullif(btrim(v_data ->> 'ean'), ''));
   elsif v_sku is not null then
-    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode"), "price" = coalesce(v_price, y."price")
+    update "better_supabase"."product_variants" y set "sku" = v_sku, "barcode" = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y."barcode")
     where y."id" = (select y2."id" from "better_supabase"."product_variants" y2 where y2."product_id" = v_id order by y2."created_at" limit 1);
   end if;
   return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);
