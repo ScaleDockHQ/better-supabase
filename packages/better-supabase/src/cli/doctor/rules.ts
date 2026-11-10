@@ -42,6 +42,7 @@ import { ENV_RULES } from "./env.ts";
 import { ERROR_CODE_RULES } from "./error-codes.ts";
 import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
+import { IMPORT_GUARD_RULES } from "./import-guard.ts";
 import { LITE_RULES } from "./lite.ts";
 import { LIVE_STATE_RULES } from "./live-state-rules.ts";
 import { LIVE_RULES } from "./live.ts";
@@ -1130,6 +1131,7 @@ export const RULES: readonly Rule[] = [
   ...ENV_RULES,
   ...SEED_RULES,
   ...SEARCH_KEY_RULES,
+  ...IMPORT_GUARD_RULES,
   ...WIRING_RULES,
   ...STACK_RULES,
 ].toSorted((a, b) => byCodePoint(a.code, b.code));

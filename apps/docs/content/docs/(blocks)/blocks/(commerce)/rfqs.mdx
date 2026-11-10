@@ -127,3 +127,19 @@ functions. In custom mode you implement them over your own tables.
 ## Award the best quote
 
 `awardBest({ rfqId, location })` compares the quotes and awards the cheapest one that covers every line, creating the draft purchase order. It fails with the hint `RFQ_NO_COMPLETE_QUOTE` when no supplier quoted every line.
+
+## Paging a list
+
+`listRfqs` still takes `offset`. For a deep list, `rfqPage` pages by keyset and
+returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
+`after`, and set `total: true` to count up to `totalCap` rows (ADR 0642).
+
+```ts
+const first = await rfqs.rfqPage({ limit: 50, total: true }).orThrow();
+
+if (first.hasMore) {
+  const next = await rfqs
+    .rfqPage({ limit: 50, after: first.nextCursor })
+    .orThrow();
+}
+```

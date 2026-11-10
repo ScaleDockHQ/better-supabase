@@ -318,6 +318,13 @@ export {
   subscribeAuthzVersions,
 } from "./authz-versions.ts";
 
+export { observedFetch } from "./observed-fetch.ts";
+
+export type {
+  ObservedFetchCall,
+  ObservedFetchOptions,
+} from "./observed-fetch.ts";
+
 export {
   AUTHZ_EVENT,
   AUTHZ_TOPIC,

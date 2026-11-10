@@ -76,9 +76,6 @@ export interface ContactDetailData extends ContactSummary {
 
 const PAGE = 200;
 
-/** How many pages `loadContact` scans before it calls a contact missing. */
-const MAX_PAGES = 10;
-
 /** The first 200 companies and the first 200 people, by name. */
 export async function loadContacts(): Promise<
   readonly ContactSummary[] | null
@@ -119,10 +116,7 @@ export async function loadContacts(): Promise<
   ].toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
-/**
- * One company or person, `undefined` when it is gone or hidden. The parties
- * block has no read by id, so this pages through the lists by name.
- */
+/** One company or person, `undefined` when it is gone or hidden. */
 export async function loadContact(
   id: string,
 ): Promise<ContactDetailData | undefined | null> {
@@ -136,105 +130,69 @@ export async function loadContact(
   }
 
   const { contacts: parties } = db.$blocks;
-  let companyCursor: { name: string; id: string } | undefined;
 
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const companies = await parties
-      .listCompanies({
-        organizationId: tenant,
-        ...(companyCursor
-          ? { limit: PAGE, cursor: companyCursor }
-          : { limit: PAGE }),
-      })
-      .orThrow();
+  const [company, person] = await Promise.all([
+    parties.getCompany(id).orThrow(),
+    parties.getPerson(id).orThrow(),
+  ]);
 
-    const company = companies.items.find((item) => item.id === id);
+  if (company) {
+    const [people, everyone] = await Promise.all([
+      parties.peopleOf(company.id).orThrow(),
+      parties.listPeople({ organizationId: tenant, limit: PAGE }).orThrow(),
+    ]);
 
-    if (company) {
-      const [people, everyone] = await Promise.all([
-        parties.peopleOf(company.id).orThrow(),
-        parties.listPeople({ organizationId: tenant, limit: PAGE }).orThrow(),
-      ]);
+    const linked = new Set(people.map((member) => member.id));
 
-      const linked = new Set(people.map((person) => person.id));
-
-      return {
-        id: company.id,
-        kind: "company",
-        name: company.name,
-        lifecycle: company.lifecycle,
-        detail: company.domain ?? null,
-        supplierStatus: company.supplierStatus ?? null,
-        email: null,
-        phone: null,
-        title: null,
-        domain: company.domain ?? null,
-        website: company.website ?? null,
-        people: people.map((person) => ({
-          id: person.id,
-          name: person.name,
-          email: person.email ?? null,
-          title: person.title ?? null,
-          role: person.role ?? null,
-          primary: person.primary,
+    return {
+      id: company.id,
+      kind: "company",
+      name: company.name,
+      lifecycle: company.lifecycle,
+      detail: company.domain ?? null,
+      supplierStatus: company.supplierStatus ?? null,
+      email: null,
+      phone: null,
+      title: null,
+      domain: company.domain ?? null,
+      website: company.website ?? null,
+      people: people.map((member) => ({
+        id: member.id,
+        name: member.name,
+        email: member.email ?? null,
+        title: member.title ?? null,
+        role: member.role ?? null,
+        primary: member.primary,
+      })),
+      candidates: everyone.items
+        .filter((candidate) => !linked.has(candidate.id))
+        .map((candidate) => ({
+          id: candidate.id,
+          kind: "person",
+          name: candidate.name,
+          lifecycle: candidate.lifecycle,
+          detail: candidate.email ?? null,
+          supplierStatus: candidate.supplierStatus ?? null,
         })),
-        candidates: everyone.items
-          .filter((person) => !linked.has(person.id))
-          .map((person) => ({
-            id: person.id,
-            kind: "person",
-            name: person.name,
-            lifecycle: person.lifecycle,
-            detail: person.email ?? null,
-            supplierStatus: person.supplierStatus ?? null,
-          })),
-      };
-    }
-
-    if (!companies.next) {
-      break;
-    }
-
-    companyCursor = companies.next;
+    };
   }
 
-  let personCursor: { name: string; id: string } | undefined;
-
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const people = await parties
-      .listPeople({
-        organizationId: tenant,
-        ...(personCursor
-          ? { limit: PAGE, cursor: personCursor }
-          : { limit: PAGE }),
-      })
-      .orThrow();
-
-    const person = people.items.find((item) => item.id === id);
-
-    if (person) {
-      return {
-        id: person.id,
-        kind: "person",
-        name: person.name,
-        lifecycle: person.lifecycle,
-        detail: person.email ?? null,
-        supplierStatus: person.supplierStatus ?? null,
-        email: person.email ?? null,
-        phone: person.phone ?? null,
-        title: person.title ?? null,
-        domain: null,
-        website: null,
-        people: [],
-        candidates: [],
-      };
-    }
-
-    if (!people.next) {
-      break;
-    }
-
-    personCursor = people.next;
+  if (person) {
+    return {
+      id: person.id,
+      kind: "person",
+      name: person.name,
+      lifecycle: person.lifecycle,
+      detail: person.email ?? null,
+      supplierStatus: person.supplierStatus ?? null,
+      email: person.email ?? null,
+      phone: person.phone ?? null,
+      title: person.title ?? null,
+      domain: null,
+      website: null,
+      people: [],
+      candidates: [],
+    };
   }
 
   return undefined;

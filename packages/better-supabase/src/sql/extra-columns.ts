@@ -2,13 +2,6 @@ import type { ExtraColumn } from "./context.ts";
 
 import { sqlIdent } from "../core/template.ts";
 
-/** Whether the app's files add a column to any table. */
-function hasAppColumns(source: {
-  readonly appColumns?: Readonly<Record<string, readonly unknown[]>>;
-}): boolean {
-  return Object.keys(source.appColumns ?? {}).length > 0;
-}
-
 /**
  * The columns the app's files make fields of a block's table: those not in
  * `skip`, marked `app` so the block doesn't add them. They are the columns an
@@ -27,10 +20,6 @@ function appExtraColumns(
   table: () => { readonly schema: string; readonly name: string },
   skip: ReadonlySet<string>,
 ): readonly ExtraColumn[] {
-  if (!hasAppColumns(source)) {
-    return [];
-  }
-
   const { schema, name } = table();
   const key = `${schema}.${name}`;
 
@@ -71,7 +60,16 @@ export function resolveExtraColumns(
 ): readonly ExtraColumn[] {
   const { known, table } = input;
 
-  if (known === undefined || !hasAppColumns(input.source)) {
+  if (known === undefined) {
+    return [];
+  }
+
+  // Look up this table's own entry before anything else: a read of the map's
+  // keys would make every module with extra columns depend on which other
+  // tables the app's files alter (ADR 0638).
+  const { schema, name } = input.tableName(table);
+
+  if ((input.source.appColumns?.[`${schema}.${name}`] ?? []).length === 0) {
     return [];
   }
 
