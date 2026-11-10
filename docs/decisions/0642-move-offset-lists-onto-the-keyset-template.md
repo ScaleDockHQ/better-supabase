@@ -45,3 +45,8 @@ in the performance plan. The usage rights and maintenance plan lists sort on nul
 
 The four lists seek into their index at any depth instead of reading the skipped rows. The generated SQL
 of four modules grows by the template's declarations, which the golden files show.
+
+The four keyset lists add server code to the routes that import the blocks. The raw server baseline
+of 141 routes in `tests/next-build/server-baseline.json` rose by about 880 bytes each (0.03 percent
+of a route); the numbers are re-measured from a fresh build of this branch. The guard in
+`next-build.test.ts` is unchanged.
