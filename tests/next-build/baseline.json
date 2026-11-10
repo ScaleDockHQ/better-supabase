@@ -532,7 +532,7 @@
   "/[locale]/(app)/work/grid/page": {
     "raw": 1427965,
     "gzip": 451673,
-    "brotli": 393154
+    "brotli": 393179
   },
   "/[locale]/(app)/work/page": {
     "raw": 1497377,
