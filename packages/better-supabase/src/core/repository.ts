@@ -800,7 +800,25 @@ export function createRepository(
           : undefined,
     });
 
-    const result = await run(op, args);
+    const countMode = cursorCount(args);
+
+    // A later page counts apart from its rows, so the page and the count run together.
+    const [result, separate] = await Promise.all([
+      run(op, args),
+      countMode !== undefined && after !== undefined
+        ? run(
+            selectOp(args, {
+              selection: { columns: [], includes: [] },
+              orderBy: [],
+              limit: undefined,
+              offset: undefined,
+              count: countMode,
+              head: true,
+            }),
+            args,
+          )
+        : undefined,
+    ]);
 
     if (!result.ok) {
       return result;
@@ -808,27 +826,14 @@ export function createRepository(
 
     let total = result.data.count;
     let capped = result.data.capped;
-    const countMode = cursorCount(args);
 
-    if (countMode !== undefined && after !== undefined) {
-      const counted = await run(
-        selectOp(args, {
-          selection: { columns: [], includes: [] },
-          orderBy: [],
-          limit: undefined,
-          offset: undefined,
-          count: countMode,
-          head: true,
-        }),
-        args,
-      );
-
-      if (!counted.ok) {
-        return counted;
+    if (separate !== undefined) {
+      if (!separate.ok) {
+        return separate;
       }
 
-      total = counted.data.count;
-      capped = counted.data.capped;
+      total = separate.data.count;
+      capped = separate.data.capped;
     }
 
     const rows = result.data.rows.slice(0, size);
