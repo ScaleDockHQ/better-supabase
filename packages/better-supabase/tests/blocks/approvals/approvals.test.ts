@@ -362,7 +362,7 @@ describe("approvals client", () => {
       }),
       consume_approval: () => ({
         ...REQUEST,
-        status: "approved",
+        status: "consumed",
         consumedAt: "2026-10-03T00:00:00Z",
       }),
       list_approval_policies: () => [
@@ -420,6 +420,7 @@ describe("approvals client", () => {
       .orThrow();
 
     expect(consumed.consumedAt?.toString()).toBe("2026-10-03T00:00:00Z");
+    expect(consumed.status).toBe("consumed");
     expect(consumed.mode).toBe("authorize");
     await approvals.consume({ id: "r1" }).orThrow();
 

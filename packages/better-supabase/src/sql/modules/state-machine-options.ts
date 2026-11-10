@@ -7,6 +7,7 @@ import { templateRowsOf } from "../template-rows-sql.ts";
 import { workflowOf } from "./state-machine-lifecycle.ts";
 
 const NAME = /^[a-z][a-z0-9_]*$/;
+const FUNCTION = /^([a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*$/;
 const ID_TYPE = /^[a-z][a-z0-9_ ]{0,62}$/;
 
 export interface Machine {
@@ -21,6 +22,10 @@ export interface Machine {
   readonly transitions: Readonly<Record<string, readonly string[]>>;
   /** Transitions only an approved request of the approvals module may make. */
   readonly requiresApproval: Readonly<Record<string, readonly string[]>>;
+  /** The column the trigger sets to `now()` when a record enters a status. */
+  readonly stamps: Readonly<Record<string, string>>;
+  /** The checks a transition must pass, besides the edge itself. */
+  readonly guards: readonly Guard[];
   /** Writes a timeline row (label snapshot, display order, cleared_at). */
   readonly stages: boolean;
   /** Keeps a `subject_lifecycles` row: pause, flags and the pinned version. */
@@ -54,6 +59,18 @@ export interface Machine {
    * block creates the table, because this module is installed first.
    */
   readonly contributed?: true;
+}
+
+/**
+ * `options.machines.<name>.guards.<from>.<to>`: a permission key the caller
+ * must hold in the record's tenant, a function of the record's row that must
+ * return true, or both.
+ */
+export interface Guard {
+  readonly from: string;
+  readonly to: string;
+  readonly permission?: string;
+  readonly check?: string;
 }
 
 /** An app table that keeps a machine's history. */
@@ -229,6 +246,20 @@ function machine(
     }
   }
 
+  const known = (status: string): boolean =>
+    workflow !== undefined ||
+    status === initial ||
+    Object.hasOwn(edges, status) ||
+    Object.values(edges).some((to) => to.includes(status));
+
+  const stamps = stampsOf(record["stamps"], `${where}.stamps`, known);
+
+  const guards = guardsOf(
+    record["guards"],
+    `${where}.guards`,
+    (from, to) => workflow !== undefined || edges[from]?.includes(to) === true,
+  );
+
   const idType = record["idType"];
 
   if (
@@ -297,6 +328,8 @@ function machine(
     initial,
     transitions: edges,
     requiresApproval: gated,
+    stamps,
+    guards,
     stages: record["stages"] === true,
     lifecycle,
     version,
@@ -355,6 +388,89 @@ function edgesOf(
   }
 
   return edges;
+}
+
+function objectOf(value: unknown, where: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(`${where} must be an object`);
+  }
+
+  return Object.fromEntries(Object.entries(value));
+}
+
+function stampsOf(
+  value: unknown,
+  where: string,
+  known: (status: string) => boolean,
+): Record<string, string> {
+  const stamps: Record<string, string> = {};
+
+  for (const [status, column] of Object.entries(objectOf(value ?? {}, where))) {
+    if (!known(status)) {
+      throw new TypeError(`${where}: ${status} is not a status`);
+    }
+
+    if (typeof column !== "string" || !NAME.test(column)) {
+      throw new TypeError(`${where}.${status} must be a column name`);
+    }
+
+    stamps[status] = column;
+  }
+
+  return stamps;
+}
+
+function guardsOf(
+  value: unknown,
+  where: string,
+  allowed: (from: string, to: string) => boolean,
+): Guard[] {
+  return Object.entries(objectOf(value ?? {}, where)).flatMap(
+    ([from, targets]) =>
+      Object.entries(objectOf(targets, `${where}.${from}`)).map(
+        ([to, entry]): Guard => {
+          const at = `${where}.${from}.${to}`;
+
+          if (!allowed(from, to)) {
+            throw new TypeError(
+              `${at}: ${from} to ${to} is not an allowed transition`,
+            );
+          }
+
+          const { permission, check, ...rest } = objectOf(entry, at);
+
+          if (
+            Object.keys(rest).length > 0 ||
+            (permission === undefined && check === undefined)
+          ) {
+            throw new TypeError(`${at} takes permission, check or both`);
+          }
+
+          if (
+            permission !== undefined &&
+            (typeof permission !== "string" || permission === "")
+          ) {
+            throw new TypeError(`${at}.permission must be a permission key`);
+          }
+
+          if (
+            check !== undefined &&
+            (typeof check !== "string" || !FUNCTION.test(check))
+          ) {
+            throw new TypeError(
+              `${at}.check must be a function name such as public.can_send_quote`,
+            );
+          }
+
+          return {
+            from,
+            to,
+            ...(permission === undefined ? {} : { permission }),
+            ...(check === undefined ? {} : { check }),
+          };
+        },
+      ),
+  );
 }
 
 /** A list of distinct strings, or an empty list when unset. */

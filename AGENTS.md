@@ -528,6 +528,9 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0649: Observe the server's Supabase requests with a fetch wrapper.
 - 0650: Build contexts from one entry union and guard cron routes with cronHandler.
   ||||||| 504f283a61
+  ||||||| d5d7d7ff26
+- 0638: Shard unit tests by duration, and skip CI work a push did not change.
+- 0639: Keep a size baseline until the measurement leaves its slack.
 - 0648: Map the data of a bsb.action to another type with a third argument.
 
 ## Pre-release pins
