@@ -123,7 +123,7 @@ await templates.versions
 await templates.versions.publish(fork.id).orThrow();
 ```
 
-`versions.upsert` updates the open draft, or opens the next version when the last one is published; a template has at most one draft. `versions.publish` publishes the draft (`TEMPLATE_NO_DRAFT` when there is none) and records `template.published`. Published versions don't change, so an application always points at the exact body it used. `get` returns the template with its newest published version and its draft, bodies included; `versions.list` lists them without bodies.
+`versions.upsert` updates the open draft, or opens the next version when the last one is published; a template has at most one draft. `versions.publish` publishes the draft (`TEMPLATE_NO_DRAFT` when there is none) and records `template.published`. Published versions don't change, so an application always points at the exact body it used. `get` returns the template with its newest published version and its draft, bodies included; `getMany(ids)` reads many templates the same way in one call, in the order you ask, and leaves out the ones the caller can't read. `versions.list` lists them without bodies.
 
 ## Applying a template
 

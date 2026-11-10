@@ -268,7 +268,37 @@ begin
   );
 end;
 $$;
-${userGrant(`${fn("list_ai_run_steps")}(uuid)`)}`;
+${userGrant(`${fn("list_ai_run_steps")}(uuid)`)}
+
+-- The first per_run steps of many runs in one read, each run's steps in the
+-- order they started. A run that is missing or in a chat the caller cannot
+-- read is left out instead of failing the batch.
+create or replace function ${fn("list_ai_run_steps_for")}(runs uuid[], per_run integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with readable_chats as materialized (
+    select c.chat
+    from (
+      select distinct x.${r.chat} as chat from ${t.runs} x where x.${r.id} = any (list_ai_run_steps_for.runs)
+    ) c
+    where ${fn("ai_chat_can_read")}(c.chat)
+  ),
+  ranked as (
+    select x.*, row_number() over (partition by x.${s.run} order by x.${s.startedAt}, x.${s.id}) as step_rank
+    from ${t.steps} x
+    join ${t.runs} r on r.${r.id} = x.${s.run}
+    where x.${s.run} = any (list_ai_run_steps_for.runs)
+      and r.${r.chat} in (select chat from readable_chats)
+  )
+  select coalesce(jsonb_agg(${stepJson(ctx, "x")} order by x.${s.run}, x.step_rank), '[]'::jsonb)
+  from ranked x
+  where x.step_rank <= greatest(coalesce(list_ai_run_steps_for.per_run, 50), 1)
+$$;
+${userGrant(`${fn("list_ai_run_steps_for")}(uuid[], integer)`)}`;
 }
 
 function harness(ctx: BlockSqlContext, names: AiChatNames): string {

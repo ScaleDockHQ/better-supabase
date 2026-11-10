@@ -59,6 +59,8 @@ const config: KnipConfig = {
       ignore: [
         "tests/fixtures/generated*.ts",
         "tests/fixtures/database.types.ts",
+        // topic-policies.test.ts copies this file into a temp project by name.
+        "tests/cli/fixtures/topics/broadcast-topic.mjs",
       ],
       // Peers of @supabase/config, which src/cli/supabase-toml.ts loads lazily,
       // and @next/playwright and @supabase/lite, which src/testing/instant.ts,

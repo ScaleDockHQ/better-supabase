@@ -487,6 +487,27 @@ as $$
 $$;
 ${userGrant(`${fn("template_get")}(uuid)`)}
 
+-- Many templates with their newest published version and draft in one read,
+-- in the order requested. One the caller can't read has no entry.
+create or replace function ${fn("templates_get_many")}(template_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(${templateJson("x")} || jsonb_build_object(
+    'published', (select ${versionJson("y", true)} from ${ver} y
+      where y.${cv("template")} = x.${ct("id")} and y.${cv("publishedAt")} is not null
+      order by y.${cv("version")} desc limit 1),
+    'draft', (select ${versionJson("y", true)} from ${ver} y
+      where y.${cv("template")} = x.${ct("id")} and y.${cv("publishedAt")} is null))
+    order by array_position(templates_get_many.template_ids, x.${ct("id")})), '[]'::jsonb)
+  from ${t} x
+  where x.${ct("id")} = any (templates_get_many.template_ids)
+$$;
+${userGrant(`${fn("templates_get_many")}(uuid[])`)}
+
 create or replace function ${fn("remove_template")}(template_id uuid)
 returns boolean
 language plpgsql
@@ -862,6 +883,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "template_get", args: ["uuid"], returns: "jsonb" },
+    { name: "templates_get_many", args: ["uuid[]"], returns: "jsonb" },
     { name: "remove_template", args: ["uuid"], returns: "boolean" },
     { name: "save_template_draft", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "publish_template_version", args: ["uuid"], returns: "jsonb" },

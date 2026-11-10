@@ -606,6 +606,23 @@ end;
 $$;
 ${userGrant(`${fn("get_care_plan")}(uuid)`)}
 
+-- Many plans, each with its problems, goals, actions and evaluations, in the
+-- order requested. A plan that is missing or that the caller cannot read has
+-- no entry.
+create or replace function ${fn("get_care_plans")}(plan_ids uuid[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(${fn("care_plan_json")}(x.${p("id")}) order by array_position(get_care_plans.plan_ids, x.${p("id")})), '[]'::jsonb)
+  from ${plans} x
+  where x.${p("id")} = any (get_care_plans.plan_ids)
+    and ${q.visible("x")}
+$$;
+${userGrant(`${fn("get_care_plans")}(uuid[])`)}
+
 -- A client's plans the caller reads, the newest version first, without
 -- their problems. include_archived adds the archived ones.
 create or replace function ${fn("list_care_plans")}(subject_type text, subject_id text, include_archived boolean default false)

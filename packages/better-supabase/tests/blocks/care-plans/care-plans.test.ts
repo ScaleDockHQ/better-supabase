@@ -304,6 +304,18 @@ describe("createCarePlans", () => {
     ]);
   });
 
+  it("reads many plans in one call", async () => {
+    const t = fieldsTransport({
+      get_care_plans: () => [PLAN, { ...PLAN, id: "p2" }],
+    });
+
+    const plans = createCarePlans({ transport: t });
+    const read = await plans.getMany(["p1", "p2"]).orThrow();
+
+    expect(read.map((plan) => plan.id)).toEqual(["p1", "p2"]);
+    expect(t.calls).toEqual([["get_care_plans", { plan_ids: ["p1", "p2"] }]]);
+  });
+
   it("publishes, archives, reads and lists plans", async () => {
     const t = fieldsTransport({
       publish_care_plan: () => PLAN,

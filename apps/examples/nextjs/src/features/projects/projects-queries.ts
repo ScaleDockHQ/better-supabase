@@ -242,9 +242,9 @@ export async function getProjectHistory(
 
   const { versions } = db;
 
-  const loaded = await Promise.all(
-    bindings.versions.data.map((version) => versions.get(version.id).orThrow()),
-  );
+  const loaded = await versions
+    .getMany(bindings.versions.data.map((version) => version.id))
+    .orThrow();
 
   return loaded.map((version) => ({
     id: version.id,

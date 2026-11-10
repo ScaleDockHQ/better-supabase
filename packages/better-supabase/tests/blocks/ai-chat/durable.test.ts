@@ -79,6 +79,11 @@ const ANSWERS: Record<string, unknown> = {
   attach_ai_run: true,
   record_ai_run_step: stepRow,
   list_ai_run_steps: [stepRow],
+  list_ai_run_steps_for: [
+    stepRow,
+    { ...stepRow, id: "s2", run_id: "r2" },
+    { ...stepRow, id: "s3", run_id: "r1", step_key: "plan" },
+  ],
   list_pending_ai_tool_approvals: [approvalRow],
   load_ai_harness_session: sessionRow,
   save_ai_harness_session: sessionRow,
@@ -189,6 +194,23 @@ describe("ai-chat runs", () => {
     expect(lastArgs(server)).toEqual({ run: "r1", step: { key: "plan" } });
     expect(await runs.steps.list("r1").orThrow()).toHaveLength(1);
     expect(lastArgs(user)).toEqual({ run: "r1" });
+  });
+
+  it("lists the steps of many runs in one call", async () => {
+    const { runs, user } = fake();
+
+    const steps = await runs.steps
+      .listFor({ runIds: ["r1", "r2"], limit: 20 })
+      .orThrow();
+
+    expect(steps.map((step) => [step.runId, step.key])).toEqual([
+      ["r1", stepRow.step_key],
+      ["r2", stepRow.step_key],
+      ["r1", "plan"],
+    ]);
+    expect(user).toHaveBeenCalledOnce();
+
+    expect(lastArgs(user)).toEqual({ runs: ["r1", "r2"], per_run: 20 });
   });
 
   it("reads the approval inbox with chat titles", async () => {
