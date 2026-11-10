@@ -815,3 +815,29 @@ const status = useBroadcast(
   { client: supabase, queryClient },
 );
 ```
+
+### On the topic
+
+A topic can also name the tables it broadcasts. `broadcast` on `defineTopic` takes the same entries as a
+config trigger without `topic` (`table`, `values`, `events`, `event`, `payload`, `when`, `columns`,
+`functionSchema`), and `upgrade` writes one trigger per entry to the `realtime.policies` output, after
+the policies and the config triggers. The topic then holds its policies and its triggers in one place.
+
+```ts title="src/realtime/topics.ts"
+import { defineTopic } from "better-supabase/realtime";
+
+export const quotesTopic = defineTopic("organization:{organizationId}:quotes", {
+  broadcast: [
+    { table: "public.quotes", event: "quote.changed" },
+    {
+      table: "public.quote_lines",
+      events: ["insert", "update"],
+      when: { changed: ["status"] },
+    },
+  ],
+});
+```
+
+`upgrade` fails with the topic's template and the entry's position when an entry is invalid, and when a
+trigger calls `better_supabase.broadcast_topic()` without `realtime-tables` in `blocks`. An entry that
+sends to more than one topic stays in `database.realtime.triggers`, which takes `topics`.

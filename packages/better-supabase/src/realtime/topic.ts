@@ -123,6 +123,12 @@ export interface TopicOptions<
   /** Let clients broadcast on the topic, not only receive. Defaults to `false`. */
   readonly send?: boolean;
   /**
+   * Tables whose row changes the topic broadcasts. `better-supabase upgrade`
+   * writes one trigger per entry to `realtime.policies.file`, so the topic
+   * holds its policies and its triggers together. Needs `realtime.policies`.
+   */
+  readonly broadcast?: readonly TopicBroadcast[];
+  /**
    * Presence: authorizes it in the policies and adds `track` and `onPresence`
    * to subscriptions. Pass a schema to validate the states this client tracks
    * and the ones it receives. Defaults to `false`.
@@ -396,6 +402,21 @@ export interface TopicTriggerOptions<
   readonly columns?: readonly string[];
 }
 
+/**
+ * A table whose row changes a topic broadcasts, declared on the topic
+ * (`broadcast` in `defineTopic`). `better-supabase upgrade` writes its trigger
+ * next to the topic's policies, as `topic.trigger(table, options)` would.
+ */
+export interface TopicBroadcast extends Omit<
+  TopicTriggerOptions<string>,
+  "values"
+> {
+  /** `table` or `schema.table`. */
+  readonly table: string;
+  /** The column or lookup per placeholder. Defaults to snake_case columns. */
+  readonly values?: Readonly<Record<string, TopicTriggerValue>>;
+}
+
 /** A row change sent with `payload: "row"`. */
 export interface RowChange<R> {
   readonly operation: "INSERT" | "UPDATE" | "DELETE";
@@ -442,6 +463,8 @@ export interface Topic<
   readonly presenceSchema: StandardSchemaV1 | undefined;
   /** Payload schemas per event, as given to `defineTopic`. */
   readonly events: E;
+  /** The tables the topic broadcasts, as given to `defineTopic`. */
+  readonly broadcasts: readonly TopicBroadcast[];
   /** Whether clients may broadcast on the topic (the `send` option). */
   readonly clientSend: boolean;
   /** The instance permission's key, when the topic has one. */
@@ -993,6 +1016,7 @@ export function defineTopic<
     // SAFETY: `schemas` is `options.events`, or `{}` when E is the empty default.
     events: schemas as E,
     clientSend: options.send ?? false,
+    broadcasts: options.broadcast ?? [],
     permission: permission?.key,
     status: topicStatus({ private: isPrivate }),
     topic: topicOf,

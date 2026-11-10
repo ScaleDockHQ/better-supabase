@@ -587,18 +587,18 @@ function readLines(
 /**
  * The constants app code references by name, from the config: permission keys,
  * role names, block events, entity URLs, realtime topics, bucket paths, and the
- * settings and meter keys.
+ * settings and meter keys. The composed reads come apart, because they go to
+ * `blocks.reads.ts`, which imports no block.
  */
 export function nameConstantLines(
   config: NamesConfig,
   entries: Readonly<Record<string, GeneratedBlock>>,
   fanOut?: ViewFanOut,
-): NameConstantLines {
+): NameConstantLines & { readonly reads: NameConstantLines } {
   const events = eventLines(entries);
-  const reads = readLines(entries, fanOut);
 
   return {
-    specifiers: [...events.specifiers, ...reads.specifiers],
+    specifiers: events.specifiers,
     imports: events.imports,
     lines: [
       ...roleLines(config, entries),
@@ -607,7 +607,7 @@ export function nameConstantLines(
       ...topicLines(entries),
       ...pathLines(config),
       ...keyUnionLines(config),
-      ...reads.lines,
     ],
+    reads: readLines(entries, fanOut),
   };
 }

@@ -5,7 +5,7 @@ import type { FunctionSpec, ReadSetGate } from "../core/spec.ts";
 import type { Operation } from "../ir/types.ts";
 
 import { compileSql, quoteIdent } from "../compile/sql.ts";
-import { provideConnectionRuntime } from "../core/define-runtime.ts";
+import { provideConnectionRuntime } from "../core/define-runtime-full.ts";
 import {
   containsPlaceholder,
   hasPlaceholder,

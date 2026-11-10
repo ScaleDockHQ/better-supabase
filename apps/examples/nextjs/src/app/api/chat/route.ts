@@ -4,7 +4,7 @@ import {
   assistant,
   assistantContext,
 } from "../../../features/assistant/assistant-server";
-import { bsb } from "../../../lib/supabase/server";
+import { bsbShell as bsb } from "../../../lib/supabase/server-shell";
 
 /** `POST /api/chat`: stores the user's message and streams the answer. */
 export const POST = bsb.route(

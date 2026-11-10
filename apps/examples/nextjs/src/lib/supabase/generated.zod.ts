@@ -1416,11 +1416,13 @@ export const workCenterInput: z.ZodType<{ name?: string; assetId?: string | null
   archived: z.boolean().exactOptional(),
 }).meta({ title: "WorkCenterInput" });
 
-export const bankAccountInput: z.ZodType<{ name?: string; iban?: string | null; bic?: string | null; currency?: string; journalId?: string | null; archived?: boolean; fields?: Json }> = z.object({
+export const bankAccountInput: z.ZodType<{ name?: string; iban?: string | null; bic?: string | null; currency?: string; holder?: string | null; primary?: boolean; journalId?: string | null; archived?: boolean; fields?: Json }> = z.object({
   name: z.string().min(1).max(200).exactOptional(),
   iban: z.string().max(42).nullable().meta({ description: "Checked against its ISO 13616 check digits; spaces are dropped." }).exactOptional(),
   bic: z.string().max(11).nullable().exactOptional(),
   currency: z.string().min(3).max(3).exactOptional(),
+  holder: z.string().max(200).nullable().exactOptional(),
+  primary: z.boolean().meta({ description: "Clears the flag on the organization's other accounts in the same currency." }).exactOptional(),
   journalId: z.guid().nullable().meta({ description: "An accounting journal of type bank or cash." }).exactOptional(),
   archived: z.boolean().exactOptional(),
   fields: z.json().meta({ description: "The extra columns, keyed by database name." }).exactOptional(),

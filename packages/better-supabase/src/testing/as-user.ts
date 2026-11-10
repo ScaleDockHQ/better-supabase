@@ -10,7 +10,7 @@ import type { BetterPostgres } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { SigningJwk, TestJwtClaims } from "./jwt.ts";
 
-import { provideConnectionRuntime } from "../core/define-runtime.ts";
+import { provideConnectionRuntime } from "../core/define-runtime-full.ts";
 import { ENV_VARIABLES } from "../env/index.ts";
 import { postgresExecutor } from "../postgres/executor.ts";
 import { signTestJwt, signTestJwtWithKey } from "./jwt.ts";

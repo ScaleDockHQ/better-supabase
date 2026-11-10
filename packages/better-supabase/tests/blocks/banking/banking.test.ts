@@ -27,6 +27,8 @@ const ACCOUNT = {
   iban: "NL91ABNA0417164300",
   bic: null,
   currency: "EUR",
+  holder: null,
+  primary: false,
   journalId: "j1",
   archivedAt: null,
   createdAt: AT,
@@ -151,6 +153,33 @@ describe("createBanking", () => {
     ).toBe(false);
     expect(t.calls).toHaveLength(1);
     expect((await banking.accounts()).ok).toBe(false);
+  });
+
+  it("sends the holder and primary flag and reads them back", async () => {
+    const t = fieldsTransport({
+      save_bank_account: () => ({
+        ...ACCOUNT,
+        holder: "Acme BV",
+        primary: true,
+      }),
+      list_bank_accounts: () => [ACCOUNT],
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+
+    const saved = await banking
+      .saveAccount({ input: { holder: "Acme BV", primary: true } })
+      .orThrow();
+
+    expect(saved).toMatchObject({ holder: "Acme BV", primary: true });
+    expect(t.calls[0]?.[1]).toMatchObject({
+      input: { holder: "Acme BV", primary: true },
+    });
+
+    const [plain] = await banking.accounts().orThrow();
+
+    expect(plain).toMatchObject({ primary: false });
+    expect(plain).not.toHaveProperty("holder");
   });
 
   it("saves and lists bank accounts", async () => {

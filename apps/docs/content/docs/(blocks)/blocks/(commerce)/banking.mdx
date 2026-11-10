@@ -54,6 +54,12 @@ The IBAN must pass its check digits, or the call fails with
 `BANK_ACCOUNT_INVALID`. With accounting installed, `journalId` names the
 bank journal its rules book to.
 
+An account can name its `holder`, as the bank prints it on a statement, and can
+be `primary`. Each organization has at most one active primary account per
+currency: setting `primary: true` clears the flag on its other accounts in the
+same currency, and archiving a primary account clears its own. Read the flag
+from `BankAccount.primary`.
+
 `parseMt940(text)` and `parseCamt053(xml)` read a statement file into
 `ParsedBankStatement`s, one per statement in the file. `parseMt940` has no
 dependency. `parseCamt053` reads camt.053.001.02 to .001.08 and loads

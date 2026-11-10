@@ -11,7 +11,7 @@ import type { Db } from "../../core/repository-types.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 
 import { userContext } from "../../auth/impersonation.ts";
-import { provideConnectionRuntime } from "../../core/define-runtime.ts";
+import { provideConnectionRuntime } from "../../core/define-runtime-full.ts";
 import { postgresExecutor } from "../../postgres/executor.ts";
 
 provideConnectionRuntime();

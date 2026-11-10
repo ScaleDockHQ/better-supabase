@@ -1021,6 +1021,7 @@ const ENTRIES = {
           tables: v.optional(
             v.strictObject({ only: v.optional(v.array(v.string())) }),
           ),
+          also: v.optional(v.array(v.string())),
         }),
       ),
       blockModules: v.optional(v.boolean()),
