@@ -346,7 +346,7 @@ create constraint trigger bsb_document_freeze
   after update of ${i("status")} on ${t}
   deferrable initially deferred
   for each row
-  when (${draft} and ${issued})
+  when (${draft} and ${issued} and not (${ctx.importing()}))
   execute function ${ctx.fn("freeze_issued_invoice")}();
 `;
 }
