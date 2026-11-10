@@ -64,6 +64,7 @@ const APPROVAL_BADGE: Record<
   rejected: "destructive-light",
   cancelled: "secondary",
   expired: "secondary",
+  consumed: "success-light",
 };
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
@@ -113,6 +114,7 @@ export async function DriveExplorer({
     rejected: t("Rejected"),
     cancelled: t("Approval cancelled"),
     expired: t("Approval expired"),
+    consumed: t("Approved"),
   };
 
   return (

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
--- @bsb-block approvals@5 managed
--- @bsb-hash sha256:d099e8387b35c83ef08c599ce95fa11f6a1b365dfafedb7a8fc13d81cb83dd4b
+-- @bsb-block approvals@6 managed
+-- @bsb-hash sha256:e412ad331bd2df6e40f1e6d21f4eecbf7dfc4fa34d554c362cc6c39006deaf9d
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,7 +14,7 @@ create table "better_supabase"."approval_requests" (
   "action" text not null,
   "policy" jsonb not null,
   "step" integer not null default 0 constraint bsb_approval_requests_step_check check ("step" >= 0),
-  "status" text not null default 'pending' constraint bsb_approval_requests_status_check check ("status" in ('pending', 'approved', 'rejected', 'cancelled', 'expired')),
+  "status" text not null default 'pending' constraint bsb_approval_requests_status_check check ("status" in ('pending', 'approved', 'rejected', 'cancelled', 'expired', 'consumed')),
   "requested_by" uuid,
   "reason" text constraint bsb_approval_requests_reason_check check ("reason" is null or length("reason") <= 2000),
   "payload" jsonb not null default '{}'::jsonb,
@@ -23,7 +23,8 @@ create table "better_supabase"."approval_requests" (
   "decided_at" timestamptz,
   "fingerprint" text constraint bsb_approval_requests_fingerprint_check check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$'),
   "consumed_at" timestamptz,
-  "created_at" timestamptz not null default now()
+  "created_at" timestamptz not null default now(),
+  constraint "bsb_approval_requests_consumed_check" check (("status" = 'consumed') = ("consumed_at" is not null))
 );
 create unique index "approval_requests_pending_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id", "action") where "status" = 'pending';
 create index "approval_requests_subject_idx" on "better_supabase"."approval_requests" ("subject_type", "subject_id");
@@ -591,7 +592,7 @@ begin
   if v_req."fingerprint" is distinct from consume_approval.fingerprint then
     raise exception 'the request changed after it was approved; ask for approval again' using errcode = '22023', hint = 'APPROVAL_FINGERPRINT_MISMATCH';
   end if;
-  update "better_supabase"."approval_requests" r set "consumed_at" = now()
+  update "better_supabase"."approval_requests" r set "status" = 'consumed', "consumed_at" = now()
     where r."id" = v_req."id" returning * into v_req;
   null;
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
@@ -1188,7 +1189,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select x."status" = 'approved' from "better_supabase"."approval_requests" x
+    select x."status"::text in ('approved', 'consumed') from "better_supabase"."approval_requests" x
     where x."subject_type" = is_approved.subject_type and x."subject_id" = is_approved.subject_id and x."action" = is_approved.action
     order by x."created_at" desc limit 1
   ), false)
@@ -1359,14 +1360,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."approval_items" as r
 -- ==== data supabase/better-supabase-data/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block-data approvals
--- @bsb-hash sha256:808fa3d8e5e1a963abc95ce2789ce9a6074e03d82b1fdae1566c8a6d03e1230e
+-- @bsb-hash sha256:99b9b2dbc91ec8b0d2e7c4e2ec1ff86092b404317dd47de7132a871a8f490cb9
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('approvals', 5, 'managed')
+values ('approvals', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 

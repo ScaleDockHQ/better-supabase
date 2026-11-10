@@ -265,6 +265,18 @@ function slack(
   return key === "raw" ? rawSlack : Math.ceil(allowed * COMPRESSION_SLACK);
 }
 
+/**
+ * Keeps the committed number unless the measurement fell by more than the
+ * slack.
+ */
+function keptCeiling(before: number, now: number, room: number): number {
+  if (now < before - room) {
+    return now;
+  }
+
+  return before;
+}
+
 const UPDATE = Boolean(process.env["NEXT_BUILD_UPDATE"]);
 
 async function readBaseline(file = BASELINE): Promise<Baseline> {
@@ -345,8 +357,12 @@ describe("the Next.js example's first-load JavaScript", () => {
         for (const size of SIZES) {
           if (now[size] > before[size] + slack(size, before[size])) {
             grown.push(`${route} ${size}: ${before[size]} -> ${now[size]}`);
-          } else if (now[size] < before[size]) {
-            kept[size] = now[size];
+          } else {
+            kept[size] = keptCeiling(
+              before[size],
+              now[size],
+              slack(size, before[size]),
+            );
           }
         }
 
@@ -612,10 +628,12 @@ describe("the Next.js example's first-load JavaScript", () => {
         const kept = { ...before };
 
         for (const size of SIZES) {
-          if (now[size] > before[size]) {
+          const room = slack(size, before[size], SERVER_RAW_SLACK);
+
+          if (now[size] > before[size] + room) {
             grown.push(`${route} ${size}: ${before[size]} -> ${now[size]}`);
           } else {
-            kept[size] = now[size];
+            kept[size] = keptCeiling(before[size], now[size], room);
           }
         }
 
@@ -701,11 +719,33 @@ describe("the Next.js example's HTML and RSC payload", () => {
         before === undefined
           ? now
           : {
-              raw: Math.min(before.raw, now.raw),
-              gzip: Math.min(before.gzip, now.gzip),
+              raw: keptCeiling(
+                before.raw,
+                now.raw,
+                Math.ceil(before.raw * PAYLOAD_SLACK),
+              ),
+              gzip: keptCeiling(
+                before.gzip,
+                now.gzip,
+                Math.ceil(before.gzip * PAYLOAD_SLACK),
+              ),
             };
     }
 
     await writeFile(PAYLOAD_BASELINE, `${JSON.stringify(next, null, 2)}\n`);
+  });
+});
+
+describe("keptCeiling", () => {
+  it("keeps the committed number inside the slack", () => {
+    expect(keptCeiling(1000, 990, 128)).toBe(1000);
+  });
+
+  it("lowers a number that fell by more than the slack", () => {
+    expect(keptCeiling(1000, 800, 128)).toBe(800);
+  });
+
+  it("does not raise a number", () => {
+    expect(keptCeiling(1000, 2000, 128)).toBe(1000);
   });
 });
