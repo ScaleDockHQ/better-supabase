@@ -65,6 +65,8 @@ export const RETENTION_CONTRACT: readonly BlockSqlContractFunction[] = [
   { name: "retention_for", args: ["text", "text"], returns: "interval" },
   { name: "retention_floor", args: ["text"], returns: "interval" },
   { name: "is_held", args: ["text", "text"], returns: "boolean" },
+  { name: "retention_for_memo", args: ["text", "text"], returns: "interval" },
+  { name: "is_held_memo", args: ["text", "text"], returns: "boolean" },
   {
     name: "retention_cutoff",
     args: ["text", "interval"],
@@ -239,6 +241,53 @@ as $$
   )
 $$;
 
+-- retention_for and is_held for a purge's where clause: answered once per
+-- tenant and statement, kept in a transaction-local setting under the
+-- statement's timestamp, so a purge of a million rows asks the policy tables once
+-- per tenant instead of once per row. A later statement in the same transaction
+-- reads the tables again.
+create or replace function ${fn("retention_for_memo")}(kind text, tenant text default null)
+returns interval
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  v_key text := 'rf' || md5(statement_timestamp()::text || retention_for_memo.kind || coalesce(retention_for_memo.tenant, ''));
+  v_memo text := better_supabase.memo_get(v_key);
+  v_keep interval;
+begin
+  if v_memo is not null then
+    return nullif(v_memo, '-')::interval;
+  end if;
+  v_keep := ${fn("retention_for")}(retention_for_memo.kind, retention_for_memo.tenant);
+  perform better_supabase.memo_set(v_key, coalesce(v_keep::text, '-'));
+  return v_keep;
+end;
+$$;
+
+create or replace function ${fn("is_held_memo")}(kind text, tenant text default null)
+returns boolean
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  v_key text := 'ih' || md5(statement_timestamp()::text || is_held_memo.kind || coalesce(is_held_memo.tenant, ''));
+  v_memo text := better_supabase.memo_get(v_key);
+  v_held boolean;
+begin
+  if v_memo is not null then
+    return v_memo = 't';
+  end if;
+  v_held := ${fn("is_held")}(is_held_memo.kind, is_held_memo.tenant);
+  perform better_supabase.memo_set(v_key, case when v_held then 't' else 'f' end);
+  return v_held;
+end;
+$$;
+
 -- Before when every tenant's rows of a kind may go, so a purge can drop a
 -- whole partition: null while any hold covers the kind, else the longest
 -- policy or the fallback, whichever keeps more.
@@ -377,6 +426,8 @@ $$;
 revoke execute on function ${fn("retention_for")}(text, text) from public, anon, authenticated;
 revoke execute on function ${fn("retention_floor")}(text) from public, anon, authenticated;
 revoke execute on function ${fn("is_held")}(text, text) from public, anon, authenticated;
+revoke execute on function ${fn("retention_for_memo")}(text, text) from public, anon, authenticated;
+revoke execute on function ${fn("is_held_memo")}(text, text) from public, anon, authenticated;
 revoke execute on function ${fn("retention_cutoff")}(text, interval) from public, anon, authenticated;
 revoke execute on function ${fn("set_retention_policy")}(text, interval, ${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("remove_retention_policy")}(text, ${id}, text) from public, anon, authenticated;
@@ -387,6 +438,8 @@ revoke execute on function ${fn("list_legal_holds")}(boolean) from public, anon,
 grant execute on function ${fn("retention_for")}(text, text) to service_role;
 grant execute on function ${fn("retention_floor")}(text) to service_role;
 grant execute on function ${fn("is_held")}(text, text) to service_role;
+grant execute on function ${fn("retention_for_memo")}(text, text) to service_role;
+grant execute on function ${fn("is_held_memo")}(text, text) to service_role;
 grant execute on function ${fn("retention_cutoff")}(text, interval) to service_role;
 grant execute on function ${fn("set_retention_policy")}(text, interval, ${id}, text) to service_role;
 grant execute on function ${fn("remove_retention_policy")}(text, ${id}, text) to service_role;

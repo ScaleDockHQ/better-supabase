@@ -30,6 +30,57 @@ describe("reactions module", () => {
     expect(sql).not.toContain("'inbox_message'");
   });
 
+  it("compares an inferred uuid id inside its own branch, guarded by the id's shape", () => {
+    const sql = sqlOf(["reactions"], "reactions", {
+      subjects: { doc: { table: "public.docs" } },
+      uuidColumns: { "public.docs": ["id"] },
+    });
+
+    const policy = sql.slice(sql.indexOf("create policy"));
+
+    expect(policy).toContain(
+      `when 'doc' then exists (select 1 from "public"."docs" s where s."id" = (case when `,
+    );
+    expect(policy).toContain(
+      `then ("better_supabase"."reactions"."subject_id")::uuid end)`,
+    );
+  });
+
+  it("finds a uuid id column the registry names, in a table without a schema", () => {
+    const sql = sqlOf(["reactions"], "reactions", {
+      subjects: { doc: { table: "docs", id: "doc_id" } },
+      uuidColumns: { "public.docs": ["doc_id"] },
+    });
+
+    expect(sql).toContain(`s."doc_id" = (case when `);
+  });
+
+  it("refuses a malformed subject entry", () => {
+    const render = (entry: Record<string, unknown>) =>
+      sqlOf(["reactions"], "reactions", {
+        // SAFETY: the test passes entries the types refuse.
+        subjects: { doc: entry } as never,
+      });
+
+    expect(() => render({ table: "docs", idType: "UUID!" })).toThrow(
+      /must be a type name/u,
+    );
+    expect(() => render({ table: "docs", idType: 5 })).toThrow(
+      /must be a string/u,
+    );
+    expect(() => render({})).toThrow(/needs a table/u);
+  });
+
+  it("keeps the text comparison when the schema files do not declare a uuid id", () => {
+    const sql = sqlOf(["reactions"], "reactions", {
+      subjects: { doc: { table: "public.docs" } },
+      uuidColumns: { "public.other": ["id"] },
+    });
+
+    expect(sql).toContain(`s."id"::text = `);
+    expect(sql).not.toContain("::uuid end)");
+  });
+
   it("sees messages (and so comments and inbox messages) through their own policies", () => {
     const modules = ["reactions", "messaging", "comments", "inbox"];
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { dbError, err, ok } from "better-supabase";
+import { deleteAccount } from "better-supabase/server/account";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
@@ -120,6 +121,6 @@ export const deleteMyAccount = bsb.action(
       return err(dbError("unauthorized", "Sign in to delete your account"));
     }
 
-    return bsb.deleteAccount(auth.user.id, { buckets: [avatars] });
+    return deleteAccount(bsb, auth.user.id, { buckets: [avatars] });
   },
 );

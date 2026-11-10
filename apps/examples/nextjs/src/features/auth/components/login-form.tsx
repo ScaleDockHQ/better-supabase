@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { isLocalizedRoute, Link } from "@/i18n/navigation";
+import { localizedPath } from "@/i18n/routing";
 
 import { signInWithPassword } from "../auth-actions";
 
@@ -59,10 +60,12 @@ export function LoginForm() {
       const { redirectTo, mfa } = result.data;
 
       const target = mfa
-        ? `/${locale}/mfa?next=${encodeURIComponent(redirectTo)}`
+        ? `${localizedPath(locale, "/mfa")}?next=${encodeURIComponent(redirectTo)}`
         : redirectTo;
 
-      router.replace(isLocalizedRoute(target) ? target : `/${locale}`);
+      router.replace(
+        isLocalizedRoute(target) ? target : localizedPath(locale, "/"),
+      );
 
       return { email, error: null };
     },

@@ -1,6 +1,6 @@
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:4f766634bc038234db7f707671df145ee263797a964a60c683928ac540d2037a
+-- @bsb-hash sha256:3a4405c33bd517a0013dc3f35addb30774bc0c474fbcba482c1bebd198223190
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -563,8 +563,8 @@ begin
     select "id" from "better_supabase"."workflow_runs"
     where "status" in ('completed', 'failed', 'cancelled')
       and (coalesce("completed_at", "updated_at") < now() - least(coalesce(older_than, interval '30 days'), "better_supabase"."retention_floor"('workflow_runs'))
-      and coalesce("completed_at", "updated_at") < now() - coalesce("better_supabase"."retention_for"('workflow_runs', ("tenant_id")::text), coalesce(older_than, interval '30 days'))
-      and not "better_supabase"."is_held"('workflow_runs', ("tenant_id")::text))
+      and coalesce("completed_at", "updated_at") < now() - coalesce("better_supabase"."retention_for_memo"('workflow_runs', ("tenant_id")::text), coalesce(older_than, interval '30 days'))
+      and not "better_supabase"."is_held_memo"('workflow_runs', ("tenant_id")::text))
     limit greatest(coalesce(batch, 1000), 1)
   )
   delete from "better_supabase"."workflow_runs" x using doomed where x."id" = doomed."id";

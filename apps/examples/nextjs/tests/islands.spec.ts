@@ -19,7 +19,7 @@ interface SessionStats {
 }
 
 async function signIn(page: Page): Promise<void> {
-  await page.goto("/en/login");
+  await page.goto("/login");
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -112,7 +112,7 @@ test("a page load makes one bootstrap call and at most one verification", async 
   page,
 }) => {
   const before = await sessionStats(page.request);
-  const response = await page.goto("/en/islands");
+  const response = await page.goto("/islands");
 
   await expect(island(page, "email")).toBeVisible();
   await expect(island(page, "customers")).toBeVisible();
@@ -133,7 +133,7 @@ test("a page load makes one bootstrap call and at most one verification", async 
 });
 
 test("the islands shell renders under the instant lock", async ({ page }) => {
-  await page.goto("/en/customers");
+  await page.goto("/customers");
   const link = page.getByRole("link", { name: "Islands", exact: true });
 
   await expect(link.first()).toBeVisible();
@@ -141,7 +141,7 @@ test("the islands shell renders under the instant lock", async ({ page }) => {
   await expectInstant(page, {
     during: async () => {
       await link.first().click();
-      await page.waitForURL((url) => url.pathname === "/en/islands");
+      await page.waitForURL((url) => url.pathname === "/islands");
     },
     visible: [page.getByRole("heading", { name: "Islands", exact: true })],
   });
@@ -154,7 +154,7 @@ test("a version bump refreshes the islands in the background", async ({
 }) => {
   const joined = authzJoined(page);
 
-  await page.goto("/en/islands");
+  await page.goto("/islands");
   await expect(island(page, "version-value")).toBeVisible();
   // Realtime doesn't replay a broadcast sent before the join.
   await joined;
@@ -192,16 +192,15 @@ test("a second instance serves the remote entry and both drop it on evict", asyn
   page,
 }) => {
   await expect
-    .poll(
-      async () => (await page.request.get(`${SECOND_ORIGIN}/en/login`)).ok(),
-      { timeout: 120_000 },
-    )
+    .poll(async () => (await page.request.get(`${SECOND_ORIGIN}/login`)).ok(), {
+      timeout: 120_000,
+    })
     .toBe(true);
 
-  await page.goto("/en/islands?scope=remote");
+  await page.goto("/islands?scope=remote");
   const first = await cachedAt(page);
 
-  const response = await page.goto(`${SECOND_ORIGIN}/en/islands?scope=remote`);
+  const response = await page.goto(`${SECOND_ORIGIN}/islands?scope=remote`);
 
   expect(await cachedAt(page)).toBe(first);
 
@@ -217,15 +216,15 @@ test("a second instance serves the remote entry and both drop it on evict", asyn
   await page.getByRole("button", { name: "Evict my cached views" }).click();
   await expect.poll(() => cachedAt(page), { timeout: 10_000 }).not.toBe(first);
 
-  await page.goto("/en/islands?scope=remote");
+  await page.goto("/islands?scope=remote");
   expect(await cachedAt(page)).not.toBe(first);
 });
 
 test("a signed-in user on the sign-in page goes to ?next=", async ({
   page,
 }) => {
-  await page.goto("/en/login?next=/en/islands");
-  await page.waitForURL((url) => url.pathname === "/en/islands");
+  await page.goto("/login?next=/islands");
+  await page.waitForURL((url) => url.pathname === "/islands");
   await expect(
     page.getByRole("heading", { name: "Islands", exact: true }),
   ).toBeVisible();

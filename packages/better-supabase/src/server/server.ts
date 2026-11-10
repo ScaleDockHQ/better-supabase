@@ -1,21 +1,15 @@
 import type { JWTClaims, UserClaims } from "@supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getEnv, pipeline, seedContext } from "@supabase/middleware";
+import { pipeline, seedContext } from "@supabase/middleware";
 
-import type {
-  AuthResolution,
-  AuthState,
-  VerifiedUser,
-} from "../auth/resolve.ts";
-import type { SessionEncoding } from "../auth/session.ts";
+import type { AuthResolution, AuthState } from "../auth/resolve.ts";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthzVersionCache, RequestMemo } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { PostgrestClientLike } from "../core/postgrest-executor.ts";
 import type { Db } from "../core/repository-types.ts";
-import type { BetterSupabaseEnv, EnvSource } from "../env/index.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 import type { SessionOptions, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
@@ -27,7 +21,6 @@ import type {
   AdminDb,
   BetterServer,
   ContextOptions,
-  ResolveRequestOptions,
   ServerContext,
   ServerKeys,
   ServerOptions,
@@ -38,9 +31,7 @@ import type { AccountTransport } from "./suspend-account.ts";
 import { authContext } from "../auth/context.ts";
 import { contextClaims, narrowCap } from "../auth/delegation.ts";
 import { actClaim, userContext } from "../auth/impersonation.ts";
-import { prefetchJwks, resolveAuth } from "../auth/resolve.ts";
 import { sessionCookieName } from "../auth/session.ts";
-import { processSessionMemo } from "../auth/snapshot.ts";
 import { bindAuthorizer, requestMemo } from "../core/authorizer.ts";
 import { hooksApiProblem } from "../core/contracts/authorization-hooks.ts";
 import { dbError } from "../core/errors.ts";
@@ -48,18 +39,16 @@ import { postgrestExecutor } from "../core/postgrest-executor.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { StatsRecorder } from "../core/stats.ts";
 import { credentialProviderOf } from "../credentials/provider.ts";
-import { loadEnv } from "../env/index.ts";
+import { ACCOUNT_PARTS, accountClient } from "./account-parts.ts";
 import { serverAudit } from "./audit.ts";
 import { bootstrapSchema, serverBootstrap } from "./bootstrap.ts";
 import { createClients } from "./clients.ts";
 import { delegationCap, ticketSubject } from "./delegation.ts";
-import { deleteAccount } from "./delete-account.ts";
 import { withServerContext } from "./entries/context.ts";
 import { CALL, callOf, registerCore, shareCore } from "./entries/core.ts";
 import { withSession } from "./entries/session.ts";
 import { withSupport } from "./entries/support.ts";
 import { withTenant } from "./entries/tenant.ts";
-import { liteBackend } from "./lite.ts";
 import { refusingExecutor } from "./refusing-executor.ts";
 import {
   DEFAULT_PIN_MS,
@@ -70,19 +59,12 @@ import {
   withPrimaryPin,
 } from "./replicas.ts";
 import { requestIdPolicy, sessionWith } from "./request-ids.ts";
-import { defaultPrefetchJwks } from "./respond.ts";
 import { TENANT_HEADER } from "./server-types.ts";
+import { sessionsRuntime } from "./sessions-runtime.ts";
 import { serverSessions } from "./sessions.ts";
 import { supportOff } from "./support-off.ts";
 import { supportStorage } from "./support-storage.ts";
-import {
-  accountClient,
-  endSessions,
-  lastSignIns,
-  suspendAccount,
-} from "./suspend-account.ts";
 import { serverTransaction } from "./transaction.ts";
-import { countVerifications } from "./verify-count.ts";
 
 /** The header `better_supabase.acting_member()` reads for a service caller. */
 const ACTOR_HEADER = "x-bsb-actor";
@@ -92,36 +74,6 @@ const APPROVAL_PATTERN = /^[A-Za-z0-9._:;,@/+=-]{1,256}$/;
 /** A scope's request ids plus the approval id the client resumes with. */
 interface ScopeIds extends RequestIds {
   readonly approval?: string;
-}
-
-/** The environment as `getEnv` resolves it, one variable at a time. */
-const RUNTIME_ENV: EnvSource = new Proxy<EnvSource>(
-  {},
-  {
-    get: (_target, key) => (typeof key === "string" ? getEnv(key) : undefined),
-  },
-);
-
-/**
- * `options.env` as given when it is loaded already, parsed when it is a
- * variable map (never merged with the runtime's), else the runtime's.
- */
-function envOf(env: ServerOptions["env"]): BetterSupabaseEnv {
-  if (env === undefined) {
-    return loadEnv(RUNTIME_ENV);
-  }
-
-  return isLoadedEnv(env) ? env : loadEnv(env);
-}
-
-/**
- * An `EnvSource` holds only strings, so a `URL` in `jwksUrl` means a loaded
- * env.
- */
-function isLoadedEnv(
-  env: BetterSupabaseEnv | EnvSource,
-): env is BetterSupabaseEnv {
-  return env.jwksUrl instanceof URL;
 }
 
 /**
@@ -169,23 +121,10 @@ export function createServer<
       ? {}
       : { credentials: credentialProviderOf(options.credentials) };
 
-  let loaded: BetterSupabaseEnv | undefined;
-
-  const env = (): BetterSupabaseEnv => (loaded ??= envOf(options.env));
-
-  const lite = liteBackend(options, env);
-
-  if (
-    lite === undefined &&
-    (options.prefetchJwks ?? defaultPrefetchJwks()) &&
-    options.auth?.jwks === undefined
-  ) {
-    try {
-      void prefetchJwks({ ...options.auth, env: env() });
-    } catch {
-      // No environment yet (a build step): the first request loads it.
-    }
-  }
+  const { env, lite, verifiedTokens, resolve } = sessionsRuntime(
+    betterSupabase,
+    options,
+  );
 
   const {
     executorOptions,
@@ -717,89 +656,6 @@ export function createServer<
       scopeIds(request, contextOptions),
     );
 
-  /** The one verified-token memo: the proxy, contexts and `getClaims` share it. */
-  const verifiedTokens =
-    options.sessions === false
-      ? undefined
-      : processSessionMemo<VerifiedUser>(
-          (user) => user.expiresAt,
-          options.sessions,
-        );
-
-  const resolve = async (
-    request: Request,
-    resolveOptions: ResolveRequestOptions & {
-      readonly encode?: SessionEncoding;
-    } = {},
-  ): Promise<AuthResolution<C, P>> => {
-    const claims = options.auth?.claims ?? betterSupabase.claimsSchema;
-    const { endedSession } = resolveOptions;
-    const userMetadata = betterSupabase.userMetadataSchema;
-
-    const counted = countVerifications(resolveOptions.onVerify);
-
-    const resolved = await resolveAuth(request, {
-      logger: betterSupabase.events.logger,
-      ...(verifiedTokens ? { memo: verifiedTokens } : {}),
-      ...(lite ? lite.auth() : options.auth),
-      ...(claims ? { claims } : {}),
-      ...(userMetadata ? { userMetadata } : {}),
-      env: env(),
-      ...(resolveOptions.refresh === undefined
-        ? {}
-        : { refresh: resolveOptions.refresh }),
-      ...(resolveOptions.cookies === undefined
-        ? {}
-        : { cookies: resolveOptions.cookies }),
-      ...(resolveOptions.verifySession ? { verifySession: true } : {}),
-      ...(endedSession ? { endedSession } : {}),
-      ...(resolveOptions.leeway === undefined
-        ? {}
-        : { leeway: resolveOptions.leeway }),
-      ...(resolveOptions.onTiming ? { onTiming: resolveOptions.onTiming } : {}),
-      onVerify: counted.onVerify,
-      ...(resolveOptions.encode === undefined
-        ? {}
-        : {
-            cookie: { ...options.auth?.cookie, encode: resolveOptions.encode },
-          }),
-      onRefresh: (event) => {
-        options.auth?.onRefresh?.(event);
-        betterSupabase.events.emit("refresh", event);
-      },
-    });
-
-    // The claims schema's output is merged into every verified user's claims,
-    // and the userMetadata schema's output is the profile.
-    // SAFETY: the resolver ran the claims and userMetadata schemas, so resolved
-    // has their output types.
-    const resolution = resolved as AuthResolution<C, P>;
-
-    if (betterSupabase.events.has("auth")) {
-      const { auth } = resolution;
-      betterSupabase.events.emit("auth", {
-        verifications: counted.count(),
-        source:
-          auth.kind === "user"
-            ? auth.source === "cookie"
-              ? "cookie"
-              : "bearer"
-            : auth.kind === "secret" || auth.kind === "apiKey"
-              ? "bearer"
-              : "none",
-        ok: auth.kind !== "invalid",
-        ...(auth.kind === "user"
-          ? { userId: auth.user.id, rawSource: auth.source }
-          : {}),
-        ...(auth.kind === "none" || auth.kind === "invalid"
-          ? { reason: auth.reason }
-          : {}),
-      });
-    }
-
-    return resolution;
-  };
-
   /**
    * One context per request and `refresh`/`cookies` pair: Server Components ask
    * repeatedly.
@@ -990,42 +846,13 @@ export function createServer<
       }) as AdminDb<M, F, E, B>;
     },
     support,
-    deleteAccount: (userId, deleteOptions) =>
-      deleteAccount(betterSupabase, serviceClient, userId, {
-        ...(options.postgres ? { sql: options.postgres.admin } : {}),
-        ...deleteOptions,
-      }).map((deleted) => {
-        audit.account("account.deleted", userId, { removed: deleted.removed });
-
-        return deleted;
-      }),
-    endSessions: (userId) =>
-      endSessions(accountTransport(), userId).map((ended) => {
-        audit.account("account.sessions_ended", userId, { ended: ended.ended });
-
-        return ended;
-      }),
-    lastSignIns: (userIds) => lastSignIns(accountTransport(), userIds),
-    suspendAccount: (userId, suspendOptions) =>
-      suspendAccount(
-        serviceClient,
-        accountTransport(),
-        userId,
-        suspendOptions,
-      ).map((suspended) => {
-        audit.account(
-          suspended.suspended ? "account.suspended" : "account.unsuspended",
-          userId,
-          {
-            ended: suspended.ended,
-            ...(suspendOptions.duration === undefined
-              ? {}
-              : { duration: suspendOptions.duration }),
-          },
-        );
-
-        return suspended;
-      }),
+    [ACCOUNT_PARTS]: {
+      betterSupabase,
+      service: serviceClient,
+      sql: options.postgres?.admin,
+      transport: accountTransport,
+      audit,
+    },
     actingAs: (userId, claims = {}, impersonation) => {
       const full: SqlClaims = {
         role: "authenticated",

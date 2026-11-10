@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:c2688f493e7a4d3b66b421973c5d2e9e834950691bec63eed66cf0cb2ab674a8
+-- @bsb-hash sha256:0375003478f22c69e3a4ef9dc1fc78577864014eab6ad2a9b3b792d3551cc562
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1386,11 +1386,11 @@ begin
       select t.v from t where t.v is not null
     loop
       exit when purged >= batch;
-      continue when "better_supabase"."is_held"('audit', (v_tenant)::text);
+      continue when "better_supabase"."is_held_memo"('audit', (v_tenant)::text);
       -- Not a literal name, so plpgsql_check passes without the hook.
       execute format('select %s($1)', to_regprocedure('"public"."audit_retention"(uuid)')::oid::regproc)
         into v_older using v_tenant;
-      v_older := coalesce(v_older, coalesce("better_supabase"."retention_for"('audit', (v_tenant)::text), older_than));
+      v_older := coalesce(v_older, coalesce("better_supabase"."retention_for_memo"('audit', (v_tenant)::text), older_than));
       with deleted as (
         delete from "centrakit"."audit_logs"
         where "id" in (
@@ -1410,8 +1410,8 @@ begin
         where "id" in (
           select l."id" from "centrakit"."audit_logs" l
           where l."organization_id" is null and (l."occurred_at" < now() - least(older_than, "better_supabase"."retention_floor"('audit'))
-      and l."occurred_at" < now() - coalesce("better_supabase"."retention_for"('audit', (null)::text), older_than)
-      and not "better_supabase"."is_held"('audit', (null)::text))
+      and l."occurred_at" < now() - coalesce("better_supabase"."retention_for_memo"('audit', (null)::text), older_than)
+      and not "better_supabase"."is_held_memo"('audit', (null)::text))
           order by l."occurred_at"
           limit batch - purged
         )
@@ -1426,8 +1426,8 @@ begin
       where "id" in (
         select l."id" from "centrakit"."audit_logs" l
         where (l."occurred_at" < now() - least(older_than, "better_supabase"."retention_floor"('audit'))
-      and l."occurred_at" < now() - coalesce("better_supabase"."retention_for"('audit', (l."organization_id")::text), older_than)
-      and not "better_supabase"."is_held"('audit', (l."organization_id")::text))
+      and l."occurred_at" < now() - coalesce("better_supabase"."retention_for_memo"('audit', (l."organization_id")::text), older_than)
+      and not "better_supabase"."is_held_memo"('audit', (l."organization_id")::text))
           and (not for_tenant or l."organization_id" is not distinct from purge_audit_log.tenant)
         order by l."occurred_at"
         limit greatest(batch - purged, 0)

@@ -34,6 +34,14 @@ export interface Subject {
    */
   readonly idType?: string;
   /**
+   * Set when `idType` was inferred from the schema files rather than
+   * configured: the comparison then casts only an id that has the type's shape,
+   * so a malformed stored id reads as not found instead of raising. The
+   * comparison stays outside the `case`, so the id column's index still serves
+   * it.
+   */
+  readonly idInferred?: boolean;
+  /**
    * The subject's tenant column, default `organization_id`. `false` for a
    * subject without a tenant (a user's own records), where the subject table's
    * policies alone decide, in modules that allow it.
@@ -66,12 +74,19 @@ const BASE_KEYS = new Set([
 
 const ID_TYPE: RegExp = /^[a-z][a-z0-9_ ]{0,62}$/;
 
+const UUID_PATTERN =
+  "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
+
 /** `s.<id> = <value>`, comparing on the id column's own type when it is known. */
 export function subjectIdMatches(subject: Subject, value: string): string {
   const column = `s.${sqlIdent(subject.id ?? "id")}`;
 
-  return subject.idType === undefined
-    ? `${column}::text = ${value}`
+  if (subject.idType === undefined) {
+    return `${column}::text = ${value}`;
+  }
+
+  return subject.idInferred === true && subject.idType === "uuid"
+    ? `${column} = (case when ${value} ~* '${UUID_PATTERN}' then (${value})::uuid end)`
     : `${column} = (${value})::${subject.idType}`;
 }
 

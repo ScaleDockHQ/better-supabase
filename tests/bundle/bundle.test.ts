@@ -619,6 +619,42 @@ describe("bundle", () => {
     expect(session.startsWith('"use client";')).toBe(true);
   });
 
+  it("builds the proxy from the session runtime only", async () => {
+    const seen = new Set<string>();
+    let source = "";
+
+    const walk = async (file: string): Promise<void> => {
+      if (seen.has(file)) {
+        return;
+      }
+
+      seen.add(file);
+
+      const text = await readFile(file, "utf-8");
+      source += text;
+
+      for (const match of text.matchAll(IMPORT_SPECIFIER)) {
+        const specifier = match[1] ?? "";
+
+        if (specifier.startsWith(".")) {
+          await walk(resolve(dirname(file), specifier));
+        }
+      }
+    };
+
+    await walk(join(PACKAGE, "dist/next/proxy/index.js"));
+
+    // The server's actor header, delete-account RPC and PostgREST builder
+    // belong to createServer, which the proxy must not pull in.
+    for (const marker of [
+      "x-bsb-actor",
+      "delete_my_account",
+      "PostgrestFilterBuilder",
+    ]) {
+      expect(source).not.toContain(marker);
+    }
+  });
+
   it("keeps /query framework-neutral", () => {
     const externals = closures.get("./query")?.externals ?? [];
     expect(

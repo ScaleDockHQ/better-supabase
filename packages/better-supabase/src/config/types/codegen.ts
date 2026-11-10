@@ -87,6 +87,18 @@ export interface FunctionConfig {
    * null.
    */
   readonly notNull?: true | readonly string[];
+  /**
+   * The result type of a function that returns `json` or `jsonb`, like
+   * `gen.json` for a column. `schema` names a Standard Schema export
+   * (`"./path.ts#name"`): the result is typed from it and validated at runtime,
+   * as the `@bsb returns` comment tag does. `type` writes a type expression and
+   * `import` names an exported type (`"./path.ts#Type"`). A config entry wins
+   * over the tag.
+   */
+  readonly returns?:
+    | { readonly schema: string }
+    | { readonly type: string }
+    | { readonly import: string };
 }
 
 /** Claim names shared by the SQL modules, codegen and the runtime defaults. */

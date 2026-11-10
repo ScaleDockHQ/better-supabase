@@ -351,6 +351,12 @@ export interface BlockSqlLayout {
    */
   readonly declaredTables?: readonly string[];
   /**
+   * `schema.table` to the columns the app's schema files declare as `uuid`. A
+   * subject read policy compares a subject whose id column is listed here on
+   * the column's own type, inside the branch for its subject type.
+   */
+  readonly uuidColumns?: Readonly<Record<string, readonly string[]>>;
+  /**
    * `schema.table` of each table the app already has, to the schema file that
    * creates it or `database`. A block leaves these tables alone and adds only
    * the columns it needs, and an app table refuses their names.

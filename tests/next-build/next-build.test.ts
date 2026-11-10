@@ -8,6 +8,7 @@ const APP = resolve(import.meta.dirname, "../../apps/examples/nextjs");
 const NEXT = join(APP, ".next");
 const BASELINE = resolve(import.meta.dirname, "baseline.json");
 const SERVER_BASELINE = resolve(import.meta.dirname, "server-baseline.json");
+const PAYLOAD_BASELINE = resolve(import.meta.dirname, "payload-baseline.json");
 
 /**
  * The three sizes a visitor pays for: minified, gzip and brotli (Vercel serves
@@ -607,4 +608,85 @@ describe("the Next.js example's first-load JavaScript", () => {
     },
     120_000,
   );
+});
+
+/**
+ * The prerendered HTML and RSC payload of the sign-in page and two `(app)`
+ * routes: what a visitor downloads before any script runs. `/login` carries the
+ * message catalog its client islands read.
+ */
+const PAYLOAD_FILES = [
+  "en/login.html",
+  "en/login.rsc",
+  "en/customers.html",
+  "en/projects.html",
+] as const;
+
+/** A byte count may move by this share between builds before the test fails. */
+const PAYLOAD_SLACK = 0.01;
+
+async function payloadSizes(): Promise<
+  Record<string, { raw: number; gzip: number }>
+> {
+  const sizes: Record<string, { raw: number; gzip: number }> = {};
+
+  for (const file of PAYLOAD_FILES) {
+    const bytes = await readFile(join(NEXT, "server", "app", file));
+    sizes[file] = { raw: bytes.length, gzip: gzipSync(bytes).length };
+  }
+
+  return sizes;
+}
+
+describe("the Next.js example's HTML and RSC payload", () => {
+  it.skipIf(UPDATE)("never grows past the baseline", async () => {
+    const current = await payloadSizes();
+
+    // SAFETY: the file is written by the update below.
+    const baseline = JSON.parse(
+      await readFile(PAYLOAD_BASELINE, "utf-8"),
+    ) as typeof current;
+
+    const grown = Object.entries(current).flatMap(([file, size]) =>
+      (["raw", "gzip"] as const).flatMap((key) => {
+        const allowed = Math.ceil(baseline[file]![key] * (1 + PAYLOAD_SLACK));
+
+        return size[key] > allowed
+          ? [`${file} ${key}: ${allowed} -> ${size[key]}`]
+          : [];
+      }),
+    );
+
+    expect(grown, "the HTML or RSC payload grew").toEqual([]);
+  });
+
+  // The update lowers a number or adds a file. It never raises one.
+  it.runIf(UPDATE)("lowers the baseline", async () => {
+    const current = await payloadSizes();
+
+    // SAFETY: the file is written by this update.
+    const stored = existsSync(PAYLOAD_BASELINE)
+      ? (JSON.parse(
+          await readFile(PAYLOAD_BASELINE, "utf-8"),
+        ) as typeof current)
+      : {};
+
+    const previous: typeof current = stored;
+
+    const next: typeof current = {};
+
+    for (const [file, now] of Object.entries(current)) {
+      const before = previous[file];
+
+      next[file] =
+        before === undefined
+          ? now
+          : {
+              raw: Math.min(before.raw, now.raw),
+              gzip: Math.min(before.gzip, now.gzip),
+            };
+    }
+
+    await writeFile(PAYLOAD_BASELINE, `${JSON.stringify(next, null, 2)}\n`);
+  });
 });

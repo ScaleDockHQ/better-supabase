@@ -320,3 +320,59 @@ that [doctor reports as BS238](/docs/cli/doctor#bs238). See
 [Your own schemas](/docs/blocks/own-schemas#fill-the-owner-with-db-backfill).
 
 Side effects: Writes to the database.
+
+## partition
+
+```bash
+pnpm better-supabase db partition audit --dry-run
+pnpm better-supabase db partition audit --batch-size 100000
+```
+
+`db partition audit` moves an audit log that was created before the audit
+block's `options.partitioned` was turned on onto monthly partitions, while the
+app keeps writing. Set the option, run `better-supabase gen`, and apply the
+migration first: it adds the `convert_audit_log_to_partitioned` procedure the
+command calls. The procedure builds the partitioned table beside the old one,
+copies the rows in id batches (each batch commits), and then takes one short
+lock that blocks writes but not reads to copy the last rows, swap the names
+and move the grants, policies and triggers. The old table stays as
+`<name>_unpartitioned` until you run the command again with `--drop-old`. A run
+that stops can start again; it resumes from the rows already copied.
+
+| Flag               | Effect                                                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `--batch-size <n>` | Rows copied per transaction (default 50000).                                                  |
+| `--drop-old`       | Drops the unpartitioned copy after the swap.                                                  |
+| `--dry-run`        | Checks that the procedure exists and changes nothing.                                         |
+| `--stack <name>`   | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
+
+Side effects: Writes to the database.
+
+## verify
+
+```bash
+pnpm better-supabase db verify
+pnpm better-supabase db verify --write-tests
+```
+
+`db verify` reads the security facts of the database for the schemas in your
+config: whether row level security is on, the grants and policies of each
+table, and the `search_path` of each security definer function. It reports
+what `verifyCatalog` finds (a table readable by `anon` through a policy that is
+only `true`, a write grant to `anon`, a grant to `PUBLIC`, a definer function
+without a `search_path`) and exits 1 on an error. It only reads the database.
+
+With `--write-tests`, it also writes the access matrix as one pgTAP file per
+persona (anon, signed in without a membership, member of tenant A, member of
+tenant B, read-only support and the service role) to `--dir`, by default
+`supabase/tests/database`. Memberships belong to your app, so the member
+personas carry no setup SQL: add the rows and claims they need before you rely
+on those files.
+
+| Flag             | Effect                                                                                        |
+| ---------------- | --------------------------------------------------------------------------------------------- |
+| `--write-tests`  | Writes the pgTAP access matrix files.                                                         |
+| `--dir <path>`   | The folder of those files (default `supabase/tests/database`).                                |
+| `--stack <name>` | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
+
+Side effects: Reads the database, writes files with `--write-tests`.

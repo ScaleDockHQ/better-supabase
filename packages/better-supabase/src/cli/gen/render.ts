@@ -25,6 +25,7 @@ import {
   generatorBlocks,
   schemaExtensions,
 } from "./blocks.ts";
+import { emitConstants } from "./constants.ts";
 import { deprecationWarnings } from "./deprecations.ts";
 import {
   emitMeta,
@@ -240,6 +241,10 @@ export async function render(
 
   if (modules) {
     files.push(...emitTableModules(model, modules, config, runtime));
+  }
+
+  if (config.gen.constants === true) {
+    files.push(...emitConstants(model, config.output));
   }
 
   // Clients read the app's view over a block table, so no hooks read the table.

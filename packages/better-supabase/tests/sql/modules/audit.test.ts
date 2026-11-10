@@ -311,10 +311,10 @@ describe("audit module", () => {
       `"better_supabase"."retention_cutoff"('audit', older_than)) p`,
     );
     expect(sql).toContain(
-      `"better_supabase"."is_held"('audit', (v_tenant)::text)`,
+      `"better_supabase"."is_held_memo"('audit', (v_tenant)::text)`,
     );
     expect(sql).toContain(
-      `"better_supabase"."retention_for"('audit', (l."tenant_id")::text), older_than)`,
+      `"better_supabase"."retention_for_memo"('audit', (l."tenant_id")::text), older_than)`,
     );
   });
 

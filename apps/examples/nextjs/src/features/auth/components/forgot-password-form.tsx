@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
+import { localizedPath } from "@/i18n/routing";
 import { loadBrowserClient } from "@/lib/supabase/load-client";
 
 type State =
@@ -39,7 +40,7 @@ export function ForgotPasswordForm() {
       const { supabase } = await loadBrowserClient();
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/${locale}/reset-password`,
+        redirectTo: `${window.location.origin}${localizedPath(locale, "/reset-password")}`,
       });
 
       return error ? { error: error.message, email } : { sent: true };

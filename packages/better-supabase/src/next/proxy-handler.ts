@@ -25,10 +25,20 @@ import {
   shouldCheckSession,
 } from "./support.ts";
 
+/** The session surface of a server: all the proxy reads from one. */
+export type ProxySessions<C, P> =
+  // oxlint-disable-next-line typescript/no-explicit-any -- the proxy reads only the session surface of any server
+  Pick<BetterServer<any, any, any, C, P, any, any>, "resolve"> & {
+    readonly sessions: Pick<
+      // oxlint-disable-next-line typescript/no-explicit-any -- as above
+      BetterServer<any, any, any, C, P, any, any>["sessions"],
+      "seed"
+    >;
+  };
+
 /** What the proxy needs from the server and the request's bookkeeping. */
 export interface ProxyHandlerInput<C, P> {
-  // oxlint-disable-next-line typescript/no-explicit-any -- the proxy reads only the session surface of any server
-  readonly base: BetterServer<any, any, any, C, P, any, any>;
+  readonly base: ProxySessions<C, P>;
   readonly logger: Logger;
   readonly collector: CollectorView | undefined;
   readonly statsHeader: string;
@@ -128,7 +138,9 @@ export function proxyHandler<C, P>(
         request,
         logger,
       )) ??
-      (runsProtect
+      // A redirect from `before` (a locale prefix, say) passes through the proxy
+      // again, so `protect` runs on its target, not on this request.
+      (runsProtect && !(early !== undefined && isRedirect(early))
         ? await proxyOptions.protect?.(resolution.auth, request)
         : undefined);
 

@@ -2777,7 +2777,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:6f534ca7ff893c359da9e8e772ec551524d00eecf47fc337113839b87c9a943a
+-- @bsb-hash sha256:0dc5578b2daed7496b4c3f1772e30d4bd77942bf314b8e775bddcfdc6e13d4e8
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4834,7 +4834,7 @@ begin
   with doomed as (
     select x."id" from "better_supabase"."ai_chats" x
     where x."is_temporary" and x."expires_at" <= now()
-      and not "better_supabase"."is_held"('ai_chats', (x."tenant_id")::text)
+      and not "better_supabase"."is_held_memo"('ai_chats', (x."tenant_id")::text)
     limit greatest(coalesce(purge_ai_chats.batch, 1000), 1)
   )
   delete from "better_supabase"."ai_chats" c using doomed where c."id" = doomed."id";

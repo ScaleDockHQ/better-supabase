@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:80f9824d94a2b028d89bcad8b69db38c5ce0fe408a166f82c8fe973cd7e7201f
+-- @bsb-hash sha256:753e00a09f752ab16275837a2edb11de9bf8494c69835e8f73a1d8191c8d8831
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -526,7 +526,7 @@ create trigger "bsb_search_customer_index"
   after insert or delete or update of "id", "organization_id", "name", "archived_at" on "public"."customers"
   for each row execute function "better_supabase"."search_index_row"('customer', 'id');
 create trigger "bsb_search_drive_node_index"
-  after insert or delete or update on "better_supabase"."drive_nodes"
+  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."search_index_row"('drive_node', 'id');
 create trigger "bsb_search_project_index"
   after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"

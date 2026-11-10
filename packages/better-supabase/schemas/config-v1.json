@@ -1753,6 +1753,12 @@
                 "required": ["view", "key"],
                 "additionalProperties": false
               },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "watch": {
                 "type": "array",
                 "items": {
@@ -2832,6 +2838,9 @@
           "description": "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
           "default": true
         },
+        "constants": {
+          "type": "boolean"
+        },
         "types": {
           "type": "object",
           "properties": {
@@ -3153,6 +3162,40 @@
                   }
                 ],
                 "description": "true for the whole result, or the returns table columns that are never null."
+              },
+              "returns": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "schema": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["schema"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["type"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "import": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["import"],
+                    "additionalProperties": false
+                  }
+                ]
               }
             },
             "additionalProperties": false

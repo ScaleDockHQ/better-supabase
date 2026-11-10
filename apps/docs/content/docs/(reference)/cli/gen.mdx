@@ -144,6 +144,16 @@ mapper's cache, and when the types change, a stamp file in
 `node_modules/.cache/better-supabase` that the editor watches, so [`dev`](/docs/cli/dev#watching)
 reloads the types in the editor too. `--check` checks the mapper-mode files.
 
+## Enum and column constants
+
+`gen.constants: true` writes two modules next to the generated module, and
+neither imports anything. `enums.ts` holds every enum and every CHECK value
+list as a constant array and its union type (`noteKindValues`, `NoteKind`), so a
+browser form or a script reads them without the runtime package. `columns.ts`
+holds one constant per table that maps each column's row name, in the
+configured casing, to its database name (`customersColumns.createdAt` is
+`"created_at"`), for `$client`, `queryRaw` and SQL. It is off by default.
+
 ## Table modules
 
 By default `gen` writes one module per table, `tables/<table>.ts`, next to the
@@ -437,6 +447,14 @@ stored`) or an identity column `always` is in `Row` and typed `?: never` in
   a column the function doesn't return fails `gen` the same way. Doctor's
   [BS338](/docs/cli/doctor#bs338) lists the config entries a tag could
   replace.
+
+  A function that returns `json` or `jsonb` takes its result type from the
+  config too, the way `gen.json` does for a column. `returns: { schema:
+"./invoice.ts#InvoiceTotal" }` names a Standard Schema export: the result is
+  typed from it and checked at runtime, as the `@bsb returns` comment tag does.
+  `returns: { import: "./types.ts#InvoiceTotal" }` imports a type, and
+  `returns: { type: "{ total: number }" }` writes one. The config wins over the
+  tag.
 
   Postgres has no syntax for `not null` on a `returns table` column, and the
   catalog records none, so `gen` can't infer it from the function body. Two

@@ -5,13 +5,9 @@ import type { PresetCatalog } from "../../preset/index.ts";
 import type { AppColumns, emitBlockConfig } from "./blocks.ts";
 
 import { PRESET_CATALOG } from "../../preset/index.ts";
-import {
-  blockConfigEntries,
-  camelOf,
-  instanceMapLines,
-  renamedBlockLines,
-} from "./blocks.ts";
+import { blockConfigEntries, instanceMapLines } from "./blocks.ts";
 import { GENERATED_HEADER } from "./emit.ts";
+import { camelOf, renamedBlockLines } from "./renamed-blocks.ts";
 import { q, runtimeSubpath } from "./shared.ts";
 
 /** `blocks.<name>.ts`, next to `blocks.config.ts`. */

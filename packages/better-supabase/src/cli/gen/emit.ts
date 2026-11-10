@@ -361,14 +361,14 @@ const RESERVED_EXPORTS = [
 ];
 
 /** An enum or a CHECK's value list: a constant and the union type of it. */
-interface ValueList {
+export interface ValueList {
   readonly constant: string;
   readonly typeName: string;
   readonly values: readonly string[];
   readonly source: string;
 }
 
-function valueLists(model: Model): ValueList[] {
+export function valueLists(model: Model): ValueList[] {
   const lists: ValueList[] = model.enums.map((entry) => ({
     constant: entry.constant,
     typeName: entry.typeName,

@@ -89,6 +89,8 @@ create index "tasks_assignee_id_idx" on "public"."tasks" ("assignee_id");
 
 create index "tasks_project_id_idx" on "public"."tasks" ("project_id");
 
+create index "tasks_project_id_organization_id_idx" on "public"."tasks" ("project_id", "organization_id");
+
 create index "tasks_status_rank_idx" on "public"."tasks" ("status", "rank");
 
 create index "tasks_organization_id_rank_idx" on "public"."tasks" ("organization_id", "rank");

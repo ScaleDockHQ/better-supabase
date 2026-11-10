@@ -653,6 +653,13 @@ const FLAT = {
       v.string(),
       v.strictObject({
         notNull: v.optional(v.union([v.literal(true), strings])),
+        returns: v.optional(
+          v.union([
+            v.strictObject({ schema: v.string() }),
+            v.strictObject({ type: v.string() }),
+            v.strictObject({ import: v.string() }),
+          ]),
+        ),
       }),
     ),
   ),
@@ -1001,6 +1008,7 @@ const ENTRIES = {
       ),
       contentMapper: v.optional(v.boolean()),
       tableModules: v.optional(v.boolean()),
+      constants: v.optional(v.boolean()),
       types: v.optional(
         v.strictObject({
           tables: v.optional(

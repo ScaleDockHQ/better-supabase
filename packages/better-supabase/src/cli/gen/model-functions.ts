@@ -215,21 +215,43 @@ export function buildFunctions(
         }
       }
 
-      const tagged = returnsTag(fn.comment);
+      const given = configFor(config.functions, fn.schema, fn.name)?.returns;
       let returnsSchema: string | undefined;
 
-      if (tagged !== undefined) {
-        const [from, name] = tagged.split("#");
+      if (given !== undefined && !("schema" in given)) {
+        if ("type" in given) {
+          returns = given.type;
+        } else {
+          const [from, name] = given.import.split("#");
 
-        if (!from || !name) {
-          throw new TypeError(
-            `@bsb returns on ${fn.schema}.${fn.name} must look like "./path.ts#schemaName"`,
-          );
+          if (!from || !name) {
+            throw new TypeError(
+              `functions.${fn.name}.returns.import must look like "./path.ts#TypeName"`,
+            );
+          }
+
+          ctx.jsonImports.set(name, { name, from });
+          returns = name;
         }
+      } else {
+        const tagged =
+          given === undefined ? returnsTag(fn.comment) : given.schema;
 
-        ctx.jsonImports.set(name, { name, from, value: true });
-        returnsSchema = name;
-        returns = `StandardSchemaV1.InferOutput<typeof ${name}>`;
+        if (tagged !== undefined) {
+          const [from, name] = tagged.split("#");
+
+          if (!from || !name) {
+            throw new TypeError(
+              given === undefined
+                ? `@bsb returns on ${fn.schema}.${fn.name} must look like "./path.ts#schemaName"`
+                : `functions.${fn.name}.returns.schema must look like "./path.ts#schemaName"`,
+            );
+          }
+
+          ctx.jsonImports.set(name, { name, from, value: true });
+          returnsSchema = name;
+          returns = `StandardSchemaV1.InferOutput<typeof ${name}>`;
+        }
       }
 
       return {

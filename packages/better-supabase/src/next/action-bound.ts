@@ -6,7 +6,6 @@ import type { CachedOptions } from "./types.ts";
 import { methodOf } from "../blocks/block-method.ts";
 import { readSetTables } from "../core/read-set.ts";
 import { validate } from "../core/standard.ts";
-import { tableTags } from "./cache.ts";
 
 /**
  * The validated bound arguments of an action, or the arguments as they are
@@ -51,7 +50,6 @@ export function blockActionOf(
       fn: (input: never, ctx: never) => Promise<Result<unknown>>,
     ) => unknown;
   },
-  invalidate: (tags: readonly string[]) => void,
   client: (ctx: never) => object,
   method: string,
   options: {
@@ -59,6 +57,7 @@ export function blockActionOf(
     readonly invalidates?: readonly string[];
   },
 ): never {
+  // `invalidates` stays in the options: `action` drops the tags after a success.
   // SAFETY: the options are the action options `blockAction` was given.
   const run = host.action(options as never, async (input, ctx) => {
     const call = methodOf(client(ctx), method);
@@ -68,14 +67,6 @@ export function blockActionOf(
     const args = (options.args?.(input, ctx) ?? [input]) as readonly unknown[];
 
     const result = await call(...args);
-
-    if (result.ok && options.invalidates) {
-      invalidate(
-        options.invalidates.flatMap((table) =>
-          tableTags(table, { tenant: "*" }),
-        ),
-      );
-    }
 
     return result;
   });

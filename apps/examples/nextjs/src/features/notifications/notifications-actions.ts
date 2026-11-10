@@ -79,3 +79,24 @@ export const loadNotifications = bsb.action(
     return items.ok ? ok(items.data.map(toNotificationRow)) : items;
   },
 );
+
+/** Marks some of the caller's notifications read. */
+export const markRead = bsb.action(
+  {
+    input: v.object({
+      ids: v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(100)),
+    }),
+    requireTenant: true,
+  },
+  async ({ ids }, { tenant, db }) => {
+    const updated = await db.notifications.markRead({ tenant, ids });
+
+    if (!updated.ok) {
+      return updated;
+    }
+
+    refresh();
+
+    return ok(updated.data.count);
+  },
+);

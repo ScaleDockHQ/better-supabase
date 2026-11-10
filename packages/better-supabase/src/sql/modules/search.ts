@@ -108,6 +108,7 @@ function watchedColumns(subject: RegisteredSubject): readonly string[] {
     ...(own ? (config.search?.body ?? []) : []),
     own ? config.search?.description : undefined,
     own ? config.search?.exclude : undefined,
+    ...(own ? [] : (config.search.columns ?? [])),
     config.deletedAt,
     typeof config.template === "string"
       ? config.template
@@ -312,7 +313,9 @@ function triggerSql(fn: string, subject: RegisteredSubject): string {
   const update =
     subject.config.search?.from === undefined
       ? `update of ${watchedColumns(subject).map(sqlIdent).join(", ")}`
-      : "update";
+      : subject.config.search.columns === undefined
+        ? "update"
+        : `update of ${watchedColumns(subject).map(sqlIdent).join(", ")}`;
 
   return `drop trigger if exists ${trigger} on ${subject.qualified};
 create trigger ${trigger}

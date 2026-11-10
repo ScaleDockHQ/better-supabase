@@ -500,6 +500,15 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0598: Read the audit log and the inbox through the passed filters, with capped counts.
 - 0599: Check import mode in the document freeze trigger's when clause.
 - 0600: Filter subject cascade deletes on the tenant.
+- 0601: Convert the audit log to monthly partitions with a procedure.
+- 0602: Index tenant references on the foreign key's columns.
+- 0603: Route the example with localePrefix as-needed.
+- 0604: Account helpers take the server as their first argument.
+- 0605: Write each renamed block to its own module, and measure before making blocks lazy.
+- 0606: Inline the subject check in the reaction read policies.
+- 0607: Ask the policy tables once per tenant in a purge.
+- 0608: Build the proxy from the session runtime.
+- 0609: Infer a uuid subject id in the inline read policies.
 
 ## Pre-release pins
 

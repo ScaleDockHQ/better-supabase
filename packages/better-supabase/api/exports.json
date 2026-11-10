@@ -1631,6 +1631,22 @@
       "SuspendAccountResult"
     ]
   },
+  "./server/account": {
+    "values": [
+      "deleteAccount",
+      "endSessions",
+      "lastSignIns",
+      "suspendAccount"
+    ],
+    "types": [
+      "DeleteAccountOptions",
+      "DeleteAccountResult",
+      "EndSessionsResult",
+      "LastSignIn",
+      "SuspendAccountOptions",
+      "SuspendAccountResult"
+    ]
+  },
   "./server/csv": {
     "values": [
       "csvColumns",
@@ -1950,8 +1966,11 @@
       "isRedirect",
       "mutableResponse",
       "overrideRequestHeaders",
+      "permissionsOf",
+      "postAuthPath",
       "serverTimingValue",
-      "syncMiddlewareSetCookie"
+      "syncMiddlewareSetCookie",
+      "toSession"
     ],
     "types": [
       "NextOptions",

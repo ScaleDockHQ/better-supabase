@@ -118,6 +118,9 @@ const config: KnipConfig = {
         // The composite actions are the runnable example the docs link to; no
         // page calls them yet.
         "src/features/composites/composites-actions.ts",
+        // The docs recipes read these files; the pages use the server-rendered versions.
+        "src/features/audit/components/audit-log-table.tsx",
+        "src/features/notifications/components/notification-list.tsx",
         // The usage billing action is the example the usage docs link to.
         "src/features/billing/billing-actions.ts",
       ],

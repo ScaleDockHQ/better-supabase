@@ -4,7 +4,8 @@ import type { BetterSupabase } from "../../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
 import type { NextOptions, ProxyOptions } from "../types.ts";
 
-import { createServer } from "../../server/server.ts";
+import { sessionsRuntime } from "../../server/sessions-runtime.ts";
+import { serverSessions } from "../../server/sessions.ts";
 import { proxyHandler } from "../proxy-handler.ts";
 import { proxyRuntime } from "../proxy-runtime.ts";
 
@@ -15,6 +16,10 @@ export {
   serverTimingValue,
   syncMiddlewareSetCookie,
 } from "../proxy.ts";
+
+export { permissionsOf, toSession } from "../../auth/view.ts";
+
+export { postAuthPath } from "../sign-in.ts";
 
 export type { NextOptions, ProxyOptions } from "../types.ts";
 
@@ -41,7 +46,18 @@ export function createProxy<
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: NextOptions & ProxyOptions<C, P> = {},
 ): (request: NextRequest) => Promise<Response> {
-  const base = createServer(betterSupabase, options);
+  const runtime = sessionsRuntime(betterSupabase, options);
+
+  const { sessions } = serverSessions({
+    resolve: runtime.resolve,
+    memo: runtime.verifiedTokens,
+    versions: undefined,
+    contextFor: () => {
+      throw new Error("The proxy has no request context");
+    },
+  });
+
+  const base = { resolve: runtime.resolve, sessions };
 
   const { collector, statsHeader, statsRoute, flushAfter } = proxyRuntime(
     betterSupabase,

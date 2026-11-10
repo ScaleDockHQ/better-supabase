@@ -1,6 +1,6 @@
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:a1fe887b6eba2683c89550815868055f3731073ff7e7c4e5f50890891881f4eb
+-- @bsb-hash sha256:98959fd18ae9961a8ba37062f8c75879720e42622b5a221cfe87aa131fe15edf
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -514,7 +514,7 @@ begin
   for v_batch in
     select t."batch_id" from "better_supabase"."trash_items" t
     where t."depth" = 0 and t."purge_at" <= now()
-      and not "better_supabase"."is_held"('trash', (t."tenant_id")::text)
+      and not "better_supabase"."is_held_memo"('trash', (t."tenant_id")::text)
     order by t."purge_at"
     limit greatest(coalesce(purge_expired_trash.max_batches, 100), 1)
   loop

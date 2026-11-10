@@ -892,6 +892,44 @@ describe("createNext", () => {
     ]);
   });
 
+  it("invalidates after a successful action only, and awaits an async result mapper", async () => {
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+
+    const save = bsb.action(
+      {
+        input: v.object({ fail: v.boolean() }),
+        invalidates: ["notes"],
+        result: async (outcome) => {
+          await Promise.resolve();
+
+          return outcome.ok ? { ...outcome, data: { mapped: true } } : outcome;
+        },
+      },
+      (input) => {
+        if (input.fail) {
+          throw new DbException(dbError("conflict", "Taken"));
+        }
+
+        return "saved";
+      },
+    );
+
+    mocks.updateTag.mockReset();
+    expect(await save({ fail: true })).toMatchObject({ ok: false });
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+
+    expect(await save({ fail: false })).toMatchObject({
+      ok: true,
+      data: { mapped: true },
+    });
+    expect(mocks.updateTag.mock.calls.map(([tag]) => tag)).toEqual([
+      "bsb:notes",
+      "bsb:notes@*",
+    ]);
+  });
+
   it("runs actions with validation, FormData and serializable results", async () => {
     const save = bsb.action(
       {

@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:fa3fd29bc43abee355074013601be724a3420885ac30fda0a4efaaf2db87c459
+-- @bsb-hash sha256:118b9159e04712768e46ecf0a7a4817cd333564b978bae16c32270bad876d9ec
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -379,8 +379,8 @@ begin
     where "id" in (
       select v."id" from "centrakit"."webhook_deliveries" v
       where (v."created_at" < now() - least(purge_webhook_deliveries.older_than, "better_supabase"."retention_floor"('webhook_deliveries'))
-      and v."created_at" < now() - coalesce("better_supabase"."retention_for"('webhook_deliveries', (v."organization_id")::text), purge_webhook_deliveries.older_than)
-      and not "better_supabase"."is_held"('webhook_deliveries', (v."organization_id")::text))
+      and v."created_at" < now() - coalesce("better_supabase"."retention_for_memo"('webhook_deliveries', (v."organization_id")::text), purge_webhook_deliveries.older_than)
+      and not "better_supabase"."is_held_memo"('webhook_deliveries', (v."organization_id")::text))
         and (
           v."status" in ('completed', 'canceled')
           or (purge_webhook_deliveries.include_dead and v."status" = 'dead_lettered')

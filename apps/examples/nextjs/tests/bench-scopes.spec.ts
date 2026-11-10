@@ -13,7 +13,7 @@ interface SessionStats {
 }
 
 async function signIn(page: Page): Promise<void> {
-  await page.goto("/en/login");
+  await page.goto("/login");
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -33,7 +33,7 @@ async function load(page: Page, variant: "plain" | "session") {
   const before = await page.request.get("/api/bs-sessions");
   const start: SessionStats = await before.json();
 
-  await page.goto(`/en/bench/scopes?variant=${variant}`);
+  await page.goto(`/bench/scopes?variant=${variant}`);
   // React streams each Suspense boundary into a hidden `div` before it swaps
   // the content into the list, so the id briefly exists twice; scope to the list.
   await expect(

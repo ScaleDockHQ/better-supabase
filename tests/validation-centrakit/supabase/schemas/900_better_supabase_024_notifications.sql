@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:9df33a0d60de09f30f158935db92fb7fb611fc927f5db0ddde042afe23b7d86a
+-- @bsb-hash sha256:0cb987d92cd39ec030477e28b48f2175c081243d9594548a8af36b4f7cef7d50
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1458,8 +1458,8 @@ begin
   where "id" in (
     select ev."id" from "centrakit"."notification_events" ev
     where (ev."created_at" < now() - least(coalesce(older_than, '90 days'), "better_supabase"."retention_floor"('notifications'))
-      and ev."created_at" < now() - coalesce("better_supabase"."retention_for"('notifications', (ev."organization_id")::text), coalesce(older_than, '90 days'))
-      and not "better_supabase"."is_held"('notifications', (ev."organization_id")::text))
+      and ev."created_at" < now() - coalesce("better_supabase"."retention_for_memo"('notifications', (ev."organization_id")::text), coalesce(older_than, '90 days'))
+      and not "better_supabase"."is_held_memo"('notifications', (ev."organization_id")::text))
     order by ev."created_at"
     limit coalesce(batch, 10000)
   );

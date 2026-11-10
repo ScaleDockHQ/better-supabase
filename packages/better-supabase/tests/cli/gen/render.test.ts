@@ -291,3 +291,83 @@ describe("render with gen.blockModules", () => {
     expect(files.some((file) => file.path.includes("/blocks/"))).toBe(false);
   });
 });
+
+describe("render with gen.blockModules and renamed instances", () => {
+  const renamed: BetterSupabaseConfig = {
+    blocks: {
+      pipelines: {},
+      tasks: { names: { task: "todo" } },
+      tickets: {
+        block: "tasks",
+        entities: { task: "ticket" },
+        uses: { pipelines: "pipelines" },
+      },
+    },
+  };
+
+  it("writes one module per renamed instance, importing only the names it uses", async () => {
+    const { files } = await render(
+      resolveConfig(
+        { ...renamed, gen: { tableModules: false, blockModules: true } },
+        "/app",
+      ),
+      await loadFixtureSnapshot(),
+    );
+
+    const todos = files.find((file) =>
+      file.path.endsWith("blocks/tasks-block.ts"),
+    )?.contents;
+
+    const tickets = files.find((file) =>
+      file.path.endsWith("blocks/tickets-block.ts"),
+    )?.contents;
+
+    const barrel = files.find((file) =>
+      file.path.endsWith("blocks.generated.ts"),
+    )?.contents;
+
+    expect(todos).toContain("export const todosBlock = renameBlock(");
+    expect(tickets).toContain("export const ticketsBlock = renameBlock(");
+    expect(tickets).not.toContain("todosBlock");
+    expect(barrel).toContain('export * from "./blocks/tickets-block.ts";');
+  });
+});
+
+describe("render with gen.constants", () => {
+  const config = resolveConfig(
+    {
+      ...base,
+      gen: { constants: true, tableModules: false, blockModules: false },
+    },
+    "/app",
+  );
+
+  it("writes enums.ts and columns.ts next to the generated module, with no import", async () => {
+    const snapshot = await loadFixtureSnapshot();
+    const { files } = await render(config, snapshot);
+    const enums = files.find((file) => file.path.endsWith("/enums.ts"));
+    const columns = files.find((file) => file.path.endsWith("/columns.ts"));
+
+    expect(enums?.path).toBe("src/lib/supabase/enums.ts");
+    expect(enums?.contents).toMatch(/export const \w+Values = \[/u);
+    expect(enums?.contents).toMatch(
+      /export type \w+ = \(typeof \w+Values\)\[number\];/u,
+    );
+    expect(enums?.contents).not.toMatch(/^import /mu);
+    expect(columns?.contents).toContain("export const customersColumns = {");
+    expect(columns?.contents).toContain('"id": "id",');
+    expect(columns?.contents).toContain("as const;");
+    expect(columns?.contents).not.toMatch(/^import /mu);
+  });
+
+  it("writes nothing extra by default", async () => {
+    const snapshot = await loadFixtureSnapshot();
+
+    const { files } = await render(
+      resolveConfig({ ...base, gen: { tableModules: false } }, "/app"),
+      snapshot,
+    );
+
+    expect(files.some((file) => file.path.endsWith("/enums.ts"))).toBe(false);
+  });
+});

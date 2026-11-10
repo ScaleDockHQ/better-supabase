@@ -707,8 +707,26 @@ legal hold covers audit entries, when an `audit_retention` hook exists, or
 for one tenant.
 
 The option applies when the module creates the log. An existing log stays
-as it is, and `better-supabase doctor` reports it as BS335; move its rows
-into a partitioned copy yourself. An adopted log is never partitioned.
+as it is, and `better-supabase doctor` reports it as BS335. With the option
+on, `upgrade` also writes the procedure
+`better_supabase.convert_audit_log_to_partitioned(batch_size, drop_old)`,
+which moves the existing log onto partitions while it keeps taking writes.
+Run it with `call` outside a transaction block, as the service role:
+
+```sql
+call better_supabase.convert_audit_log_to_partitioned(50000);
+```
+
+It builds the partitioned table and its indexes beside the old one, copies
+the rows in committed batches by id, then takes a short lock that blocks
+writes but not reads, copies the rows written since, swaps the names and
+moves the grants, policies and triggers. The old table stays as
+`audit_events_unpartitioned` until you call it with `drop_old => true`. The
+unique idempotency index gains `occurred_at`, because a partitioned key must
+include the partition column. Run it again after a failure and it resumes
+from the rows already copied. On 5.0M entries with writes running, it took
+30 seconds, and no entry written meanwhile was lost. An adopted log is never
+partitioned.
 
 ## Hash chain
 
