@@ -107,6 +107,7 @@ describe("blocks.generated.ts", () => {
                   transitions: { draft: ["sent"], sent: ["accepted"] },
                 },
                 change_request: { column: "status", workflow: "changes" },
+                legacy: "not a machine",
               },
             },
           },

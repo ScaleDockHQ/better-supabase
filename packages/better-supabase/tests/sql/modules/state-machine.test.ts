@@ -531,6 +531,56 @@ describe("state machine", () => {
     expect(sql).toContain(`v_next := array_remove(v_next, 'sent');`);
   });
 
+  it("checks only the permission of a guard without a function, and empties next while paused", () => {
+    const sql = sqlOf({
+      "state-machine": {
+        options: {
+          machines: {
+            quote: {
+              ...quote,
+              lifecycle: true,
+              stamps: { draft: "drafted_at" },
+              guards: { draft: { sent: { permission: "quotes.send" } } },
+            },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain("STATE_TRANSITION_FORBIDDEN");
+    expect(sql).not.toContain("STATE_GUARD_FAILED");
+    expect(sql).toContain(
+      `if new."status"::text = 'draft' and new."drafted_at" is null`,
+    );
+    expect(sql).toContain(`if v_paused then
+        v_next := '{}'::text[];`);
+  });
+
+  it("accepts stamps and guards on a workflow machine", () => {
+    const sql = sqlOf(
+      {
+        "state-machine": {
+          options: {
+            machines: {
+              change: {
+                table: "public.changes",
+                column: "status",
+                workflow: "changes",
+                stamps: { approved: "approved_at" },
+                guards: { review: { approved: { check: "approve_ok" } } },
+              },
+            },
+          },
+        },
+      },
+      ["workflow-editor"],
+    );
+
+    expect(sql).toContain(`new."approved_at" := now();`);
+    expect(sql).toContain(`coalesce("public"."approve_ok"(new), false)`);
+    expect(sql).toContain("-> 'transitions' -> v_status");
+  });
+
   it("returns the statuses a record may move to from status_state", () => {
     const sql = sqlOf({
       "state-machine": { options: { machines: { quote } } },
@@ -562,6 +612,41 @@ describe("state machine", () => {
       "an empty guard",
       { guards: { draft: { sent: {} } } },
       "takes permission, check or both",
+    ],
+    [
+      "guards that are not an object",
+      { guards: ["draft"] },
+      "guards must be an object",
+    ],
+    [
+      "a guard with an unknown key",
+      { guards: { draft: { sent: { role: "admin" } } } },
+      "takes permission, check or both",
+    ],
+    [
+      "a guard target list that is not an object",
+      { guards: { draft: "sent" } },
+      "guards.draft must be an object",
+    ],
+    [
+      "a guard function that is not a string",
+      { guards: { draft: { sent: { check: 1 } } } },
+      "check must be a function name",
+    ],
+    [
+      "stamps that are not an object",
+      { stamps: "sent_at" },
+      "stamps must be an object",
+    ],
+    [
+      "an empty permission key",
+      { guards: { draft: { sent: { permission: "" } } } },
+      "permission must be a permission key",
+    ],
+    [
+      "a stamp on the initial status that is not a string",
+      { stamps: { draft: 1 } },
+      "stamps.draft must be a column name",
     ],
     [
       "a guard function that is not a name",
