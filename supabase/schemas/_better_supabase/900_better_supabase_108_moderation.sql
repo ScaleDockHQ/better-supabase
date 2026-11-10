@@ -1,6 +1,6 @@
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:a5dcd3b539abc3de9fe1361fa0bf6f1fc4717afa202ae103d6bf2d30149d4142
+-- @bsb-hash sha256:90d4ab327e4a8d1034be23c49fd10ba0b6c1e866656e051981a05ce2c832c481
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ create table "better_supabase"."moderation_statements" (
   constraint bsb_moderation_statements_check check ("legal_ground" is not null or "terms_ground" is not null)
 );
 create index "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);
-create index "moderation_statements_tenant_idx" on "better_supabase"."moderation_statements" ("tenant_id", "created_at" desc);
+create index "moderation_statements_tenant_idx" on "better_supabase"."moderation_statements" ("tenant_id", "created_at" desc, "id" desc);
 
 -- Notices of illegal content (DSA Article 16).
 create table "better_supabase"."moderation_notices" (
@@ -142,7 +142,7 @@ create table "better_supabase"."moderation_appeals" (
 create unique index "moderation_appeals_open_statement_idx" on "better_supabase"."moderation_appeals" ("statement_id") where "status" = 'open' and "statement_id" is not null;
 create unique index "moderation_appeals_open_notice_idx" on "better_supabase"."moderation_appeals" ("notice_id") where "status" = 'open' and "notice_id" is not null;
 create index "moderation_appeals_appellant_idx" on "better_supabase"."moderation_appeals" ("appellant_id");
-create index "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc);
+create index "moderation_appeals_tenant_idx" on "better_supabase"."moderation_appeals" ("tenant_id", "created_at" desc, "id" desc);
 
 alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;

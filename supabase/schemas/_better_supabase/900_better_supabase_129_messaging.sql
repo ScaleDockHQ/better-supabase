@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:707ccfa819530b2b1e0b04a0f779c77af7594142d2fab6b56f8b028511256877
+-- @bsb-hash sha256:403227e5c74040fba54a4fd3aaff05a98e2bb5542cc06218c908964874ea9257
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -114,6 +114,7 @@ create table "better_supabase"."messages" (
   constraint bsb_messages_check check (("thread_id" is null) = ("parent_id" is null))
 );
 create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_conversation_all_idx on "better_supabase"."messages" ("conversation_id");
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
@@ -235,6 +236,23 @@ begin
     where c."id" = new."conversation_id";
   end if;
   if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."archived_at" is distinct from old."archived_at") then
+    -- A reply that is sent live and not deleted adds to the root's rollup in
+    -- place. A delete, a restore or a reply sent before the newest one asks the
+    -- replies again (ADR 0639).
+    if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
+      update "better_supabase"."messages" r set
+        "reply_count" = r."reply_count" + 1,
+        "last_reply_at" = greatest(r."last_reply_at", new."sent_at"),
+        "reply_user_ids" = case
+          when new."author_id" is null or new."author_id" = any (r."reply_user_ids") or cardinality(r."reply_user_ids") >= 3 then r."reply_user_ids"
+          else r."reply_user_ids" || new."author_id"
+        end
+      where r."id" = new."thread_id"
+        and (r."last_reply_at" is null or r."last_reply_at" <= new."sent_at");
+      if found then
+        return null;
+      end if;
+    end if;
     update "better_supabase"."messages" r set
       "reply_count" = (select count(*) from "better_supabase"."messages" x where x."thread_id" = r."id" and x."sent_at" is not null and x."archived_at" is null),
       "last_reply_at" = (select max(x."sent_at") from "better_supabase"."messages" x where x."thread_id" = r."id" and x."archived_at" is null),

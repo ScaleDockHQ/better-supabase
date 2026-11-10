@@ -198,6 +198,7 @@ ${lock("members")}`,
   check ((${ms("thread")} is null) = (${ms("parent")} is null))
 );
 create index if not exists ${idx("messaging_messages_conversation_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is null or ${ms("broadcast")};
+create index if not exists ${idx("messaging_messages_conversation_all_idx")} on ${t("messages")} (${ms("conversation")});
 create index if not exists ${idx("messaging_messages_thread_idx")} on ${t("messages")} (${ms("thread")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is not null;
 create index if not exists ${idx("messaging_messages_parent_idx")} on ${t("messages")} (${ms("parent")}) where ${ms("parent")} is not null;
 create index if not exists ${idx("messaging_messages_author_idx")} on ${t("messages")} (${ms("author")});${
@@ -398,6 +399,23 @@ begin
     where c.${cv("id")} = new.${ms("conversation")};
   end if;
   if new.${ms("thread")} is not null and (tg_op = 'INSERT' or old.${ms("sentAt")} is null or new.${ms("deletedAt")} is distinct from old.${ms("deletedAt")}) then
+    -- A reply that is sent live and not deleted adds to the root's rollup in
+    -- place. A delete, a restore or a reply sent before the newest one asks the
+    -- replies again (ADR 0639).
+    if new.${ms("deletedAt")} is null and (tg_op = 'INSERT' or old.${ms("sentAt")} is null) then
+      update ${t("messages")} r set
+        ${ms("replyCount")} = r.${ms("replyCount")} + 1,
+        ${ms("lastReplyAt")} = greatest(r.${ms("lastReplyAt")}, new.${ms("sentAt")}),
+        ${ms("replyUsers")} = case
+          when new.${ms("author")} is null or new.${ms("author")} = any (r.${ms("replyUsers")}) or cardinality(r.${ms("replyUsers")}) >= 3 then r.${ms("replyUsers")}
+          else r.${ms("replyUsers")} || new.${ms("author")}
+        end
+      where r.${ms("id")} = new.${ms("thread")}
+        and (r.${ms("lastReplyAt")} is null or r.${ms("lastReplyAt")} <= new.${ms("sentAt")});
+      if found then
+        return null;
+      end if;
+    end if;
     update ${t("messages")} r set
       ${ms("replyCount")} = (select count(*) from ${t("messages")} x where x.${ms("thread")} = r.${ms("id")} and x.${ms("sentAt")} is not null and x.${ms("deletedAt")} is null),
       ${ms("lastReplyAt")} = (select max(x.${ms("sentAt")}) from ${t("messages")} x where x.${ms("thread")} = r.${ms("id")} and x.${ms("deletedAt")} is null),

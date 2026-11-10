@@ -6,7 +6,7 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { DealNames } from "./deals-functions.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -20,6 +20,7 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { searchColumnSql } from "../search-column.ts";
 import { fail, lockTable, schemaPreamble, triggerGrant } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
+import { registryReadable } from "./attachments-app.ts";
 import { DEAL_COLUMNS, dealFunctions } from "./deals-functions.ts";
 import { DEAL_READS } from "./deals-reads.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -153,7 +154,11 @@ function names(
   return `${sqlString(`{${list.join(",")}}`)}::text[]`;
 }
 
-function tables(ctx: BlockSqlContext, n: DealNames): string {
+function tables(
+  ctx: BlockSqlContext,
+  n: DealNames,
+  layout: BlockSqlLayout,
+): string {
   if (!ctx.manages) {
     return "";
   }
@@ -162,7 +167,15 @@ function tables(ctx: BlockSqlContext, n: DealNames): string {
   const d = (column: string): string => c("deals", column);
   const k = (column: string): string => c("contacts", column);
   const m = (column: string): string => c("members", column);
-  const canSubject = ctx.of("subjects").fn("can_subject");
+
+  // The policy inlines the subject check over the contact's columns (ADR 0639);
+  // a contact type no subject registers keeps can_subject. Deals are not read
+  // through contacts, so the two policies don't recurse.
+  const contactReadable = registryReadable(ctx, layout, "deals", {
+    type: `${t("contacts")}.${k("contactType")}`,
+    id: `${t("contacts")}.${k("contactId")}`,
+    tenant: `${t("contacts")}.${k("tenant")}`,
+  });
 
   const visible = n.readAll
     ? ctx.scope.check(d("tenant"), n.read)
@@ -294,7 +307,7 @@ ${lockTable(t("members"), { read: true })}
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
 ${renderPolicy(makePolicy({ table: t("deals"), name: ctx.naming.rename("deals_read"), command: "select", roles: ["authenticated"], using: visible }), { target: t("deals") })}
-${renderPolicy(makePolicy({ table: t("contacts"), name: ctx.naming.rename("deal_contacts_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("deals")} x where x.${d("id")} = ${k("deal")}) and ${canSubject}(${k("contactType")}, ${k("contactId")}, 'read')` }), { target: t("contacts") })}
+${renderPolicy(makePolicy({ table: t("contacts"), name: ctx.naming.rename("deal_contacts_read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("deals")} x where x.${d("id")} = ${k("deal")}) and ${contactReadable}` }), { target: t("contacts") })}
 ${renderPolicy(makePolicy({ table: t("members"), name: ctx.naming.rename("deal_members_read"), command: "select", roles: ["authenticated"], using: `${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.read)}` }), { target: t("members") })}
 `;
 }
@@ -439,7 +452,7 @@ for each row execute function better_supabase.${guardName}();
 `;
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -469,7 +482,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Deals on pipelines: an amount in minor units, a company and contacts, a
 -- forecast call, close-date slips, a next step and line items.
-${tables(ctx, n)}${guard(ctx, n)}${dealFunctions(ctx, n)}`;
+${tables(ctx, n, layout)}${guard(ctx, n)}${dealFunctions(ctx, n)}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
