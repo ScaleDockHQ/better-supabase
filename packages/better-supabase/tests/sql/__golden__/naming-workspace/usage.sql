@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:e6852040add08649f839262461368bffd0f128c08e6f332e85ed9b47cf53d96f
+-- @bsb-hash sha256:5719753888bd30239b1e49dcff64ca65947de382a0c27686e428b0f1dffda536
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -241,9 +241,10 @@ as $$
   select '{}'::jsonb
 $$;
 
--- { meter, used, limit, remaining, unlimited, period, resets_at }; limit and
--- remaining are null without a quota and for an unlimited one. Needs usage.read,
--- like usage_overview.
+-- { meter, used, limit, remaining, unlimited, period, resets_at, starts_at }.
+-- limit and remaining are null without a quota and for an unlimited one. The
+-- quota, the window and the used sum are one query. Needs usage.read, like
+-- usage_overview.
 create or replace function "better_supabase"."usage_status"(tenant uuid, meter text)
 returns jsonb
 language plpgsql
@@ -251,30 +252,98 @@ stable
 security definer
 set search_path = ''
 as $$
-declare
-  quota record;
-  used numeric;
-  win record;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
-  select * into quota from "better_supabase"."usage_quota"(tenant, meter);
-  select * into win from "better_supabase"."usage_window"(tenant, coalesce(quota.period, 'month'));
-  used := "better_supabase"."usage_used"(tenant, meter, coalesce(quota.period, 'month'));
-  return jsonb_build_object(
-    'meter', meter,
-    'used', used,
-    'limit', quota.quota_limit,
-    'remaining', case when quota.quota_limit is null then null else greatest(quota.quota_limit - used, 0) end,
-    'unlimited', quota.period is not null and quota.quota_limit is null,
-    'period', coalesce(quota.period, 'month'),
-    'resets_at', win.ends_at,
-    'starts_at', win.starts_at
-  ) || coalesce("better_supabase"."usage_meters"() -> meter, '{}'::jsonb);
+  return (
+    with quota as (
+      select q."limit" as quota_limit, q."period" as period
+      from "better_supabase"."usage_quotas" q
+      where q."meter" = usage_status.meter
+        and (q."tenant_id" = usage_status.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+      order by (q."tenant_id" is not null) desc, q."limit" desc nulls first
+      limit 1
+    ),
+    win as (
+      select w.starts_at, w.ends_at
+      from "better_supabase"."usage_window"(usage_status.tenant, coalesce((select quota.period from quota), 'month')) w
+    ),
+    used as (
+      select coalesce(sum(c."value"), 0)::numeric as used
+      from "better_supabase"."usage_counters" c
+      cross join win w
+      where c."tenant_id" = usage_status.tenant
+        and c."meter" = usage_status.meter
+        and c."day" >= (w.starts_at at time zone 'utc')::date
+        and c."day" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
+    )
+    select jsonb_build_object(
+      'meter', usage_status.meter,
+      'used', (select used.used from used),
+      'limit', (select quota.quota_limit from quota),
+      'remaining', case
+        when (select quota.quota_limit from quota) is null then null
+        else greatest((select quota.quota_limit from quota) - (select used.used from used), 0)
+      end,
+      'unlimited', (select quota.period from quota) is not null and (select quota.quota_limit from quota) is null,
+      'period', coalesce((select quota.period from quota), 'month'),
+      'resets_at', (select win.ends_at from win),
+      'starts_at', (select win.starts_at from win)
+    ) || coalesce("better_supabase"."usage_meters"() -> usage_status.meter, '{}'::jsonb)
+  );
 end;
 $$;
 
+-- { used, limit, remaining, resets_at } for one meter, without the catalog.
+create or replace function "better_supabase"."usage_remaining"(tenant uuid, meter text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then
+    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
+  end if;
+  return (
+    with quota as (
+      select q."limit" as quota_limit, q."period" as period
+      from "better_supabase"."usage_quotas" q
+      where q."meter" = usage_remaining.meter
+        and (q."tenant_id" = usage_remaining.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+      order by (q."tenant_id" is not null) desc, q."limit" desc nulls first
+      limit 1
+    ),
+    win as (
+      select w.starts_at, w.ends_at
+      from "better_supabase"."usage_window"(usage_remaining.tenant, coalesce((select quota.period from quota), 'month')) w
+    ),
+    used as (
+      select coalesce(sum(c."value"), 0)::numeric as used
+      from "better_supabase"."usage_counters" c
+      cross join win w
+      where c."tenant_id" = usage_remaining.tenant
+        and c."meter" = usage_remaining.meter
+        and c."day" >= (w.starts_at at time zone 'utc')::date
+        and c."day" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
+    )
+    select jsonb_build_object(
+      'used', (select used.used from used),
+      'limit', (select quota.quota_limit from quota),
+      'remaining', case
+        when (select quota.quota_limit from quota) is null then null
+        else greatest((select quota.quota_limit from quota) - (select used.used from used), 0)
+      end,
+      'resets_at', (select win.ends_at from win)
+    )
+  );
+end;
+$$;
+
+-- One row per meter: the quota resolved once, the window once per distinct
+-- period, and the counters summed in one grouped join. The catalog is read once.
 create or replace function "better_supabase"."usage_overview"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -287,8 +356,7 @@ begin
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg("better_supabase"."usage_status"(usage_overview.tenant, m.meter) order by m.meter), '[]'::jsonb)
-    from (
+    with meters as (
       select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
       union
       select q."meter" from "better_supabase"."usage_quotas" q
@@ -297,7 +365,65 @@ begin
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
       where c."tenant_id" = usage_overview.tenant
-    ) m
+    ),
+    quota as (
+      select distinct on (q."meter")
+        q."meter" as meter,
+        q."limit" as quota_limit,
+        q."period" as period
+      from "better_supabase"."usage_quotas" q
+      join meters m on m.meter = q."meter"
+      where q."tenant_id" = usage_overview.tenant
+        or (q."tenant_id" is null and (q."plan" = '*'))
+      order by q."meter", (q."tenant_id" is not null) desc, q."limit" desc nulls first
+    ),
+    chosen as (
+      select m.meter,
+        quota.quota_limit,
+        quota.period as quota_period,
+        coalesce(quota.period, 'month') as period
+      from meters m
+      left join quota on quota.meter = m.meter
+    ),
+    win as (
+      select p.period, w.starts_at, w.ends_at
+      from (select distinct chosen.period from chosen) p
+      cross join lateral "better_supabase"."usage_window"(usage_overview.tenant, p.period) w
+    ),
+    used as (
+      select ch.meter, coalesce(sum(c."value"), 0)::numeric as used
+      from chosen ch
+      join win w on w.period = ch.period
+      left join "better_supabase"."usage_counters" c
+        on c."tenant_id" = usage_overview.tenant
+        and c."meter" = ch.meter
+        and c."day" >= (w.starts_at at time zone 'utc')::date
+        and c."day" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
+      group by ch.meter
+    ),
+    catalog as (
+      select "better_supabase"."usage_meters"() as meters
+    )
+    select coalesce(jsonb_agg(
+      jsonb_build_object(
+        'meter', ch.meter,
+        'used', u.used,
+        'limit', ch.quota_limit,
+        'remaining', case
+          when ch.quota_limit is null then null
+          else greatest(ch.quota_limit - u.used, 0)
+        end,
+        'unlimited', ch.quota_period is not null and ch.quota_limit is null,
+        'period', ch.period,
+        'resets_at', w.ends_at,
+        'starts_at', w.starts_at
+      ) || coalesce(catalog.meters -> ch.meter, '{}'::jsonb)
+      order by ch.meter
+    ), '[]'::jsonb)
+    from chosen ch
+    join used u on u.meter = ch.meter
+    join win w on w.period = ch.period
+    cross join catalog
   );
 end;
 $$;
@@ -633,6 +759,7 @@ grant execute on function "better_supabase"."usage_meters"() to anon, authentica
 revoke execute on function "better_supabase"."usage_quota"(uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."usage_used"(uuid, text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."usage_status"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."usage_remaining"(uuid, text) from public, anon;
 revoke execute on function "better_supabase"."usage_overview"(uuid) from public, anon;
 grant execute on function "better_supabase"."usage_overview"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."within_quota"(uuid, text, bigint) from public, anon;
@@ -649,6 +776,7 @@ grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, 
 grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."usage_remaining"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."within_quota"(uuid, text, bigint) to authenticated, service_role;
 grant execute on function "better_supabase"."record_usage"(uuid, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."consume_quota"(uuid, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;

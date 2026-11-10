@@ -27,6 +27,7 @@ export function useErrorMessage(): (error: DbError) => string {
     multiple_rows: exists,
     rate_limited: t("Too many requests. Wait a moment and try again."),
     quota_exceeded: t("Your plan's limit is reached. Upgrade to continue."),
+    truncated: t("The list was cut off. Ask for a page instead."),
     validation: fields,
     check: fields,
     not_null: fields,

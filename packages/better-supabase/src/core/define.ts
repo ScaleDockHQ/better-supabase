@@ -42,6 +42,7 @@ import { blocksPrototype } from "./db-blocks.ts";
 import { dbDecoder } from "./db-decode.ts";
 import { searchTable } from "./db-search.ts";
 import { storageOf } from "./db-storage.ts";
+import { ensureFunctions, lazyRepository, runSpec } from "./define-lazy.ts";
 import { NO_PLUGINS, isExecutor, keptPlugins } from "./define-plugins.ts";
 import { definitionEvents } from "./diagnostics.ts";
 import { DbException, dbError } from "./errors.ts";
@@ -49,12 +50,7 @@ import { EventHub, errorEvent } from "./events.ts";
 import { openGates } from "./gates.ts";
 import { orderPlugins } from "./plugin.ts";
 import { postgrestExecutor } from "./postgrest-executor.ts";
-import {
-  bindParams,
-  checkParams,
-  containsPlaceholder,
-  isReadSet,
-} from "./read-set.ts";
+import { bindParams, checkParams, isReadSet } from "./read-set.ts";
 import { createRepository } from "./repository.ts";
 import { AsyncResult, err, ok, withErrorMapper } from "./result.ts";
 import { decodeRpcResult, rpcFunction, rpcSelect } from "./rpc-result.ts";
@@ -559,6 +555,7 @@ export class BetterSupabase<
       errorMappers,
       now: this.#now(),
       maxRows: this.options.maxRows ?? 1000,
+      truncation: this.options.truncation ?? "error",
       truncatedTables: this.#truncatedTables,
       tuning,
     });
@@ -1021,8 +1018,20 @@ export class BetterSupabase<
         return repository;
       }
 
-      // SAFETY: the prototype only defines getters for keys of meta.tables.
-      const table = this.meta.tables[key]!;
+      const table = this.meta.tables[key];
+
+      if (table === undefined) {
+        const load = this.meta.tableLoaders?.[key];
+
+        if (load === undefined) {
+          throw new TypeError(`better-supabase: unknown table "${key}"`);
+        }
+
+        return lazyRepository(this.meta, state, key, load, build, (table) => {
+          this.registerTable(table);
+        });
+      }
+
       repository = this.#repository(state.runner, key, table, state.plugins);
 
       if (throwAs) {
@@ -1041,7 +1050,10 @@ export class BetterSupabase<
 
     this.#build = build;
 
-    for (const key of Object.keys(this.meta.tables)) {
+    for (const key of new Set([
+      ...Object.keys(this.meta.tables),
+      ...Object.keys(this.meta.tableLoaders ?? {}),
+    ])) {
       this.#defineTable(tables, key);
     }
 
@@ -1151,53 +1163,6 @@ function mapThrows(method: AnyMethod, throwAs: ThrowMapper): AnyMethod {
   };
 }
 
-function runSpec(
-  db: Record<string, unknown>,
-  spec: unknown,
-  signal: AbortSignal | undefined,
-): AsyncResult<unknown> {
-  if (!isQuerySpec(spec)) {
-    return AsyncResult.err(
-      dbError(
-        "invalid_request",
-        "db.$run() expects a QuerySpec from betterSupabase.spec",
-      ),
-    );
-  }
-
-  // SAFETY: isQuerySpec checked the spec, so db[spec.table] is a repository or undefined.
-  const repository = db[spec.table] as
-    | Record<string, (...args: unknown[]) => AsyncResult<unknown>>
-    | undefined;
-
-  const method = repository?.[spec.method];
-
-  if (!method) {
-    return AsyncResult.err(
-      dbError("invalid_request", `Unknown table "${spec.table}" in QuerySpec`),
-    );
-  }
-
-  if (containsPlaceholder(spec.args)) {
-    return AsyncResult.err(
-      dbError(
-        "invalid_request",
-        "This spec comes from a read set and still holds placeholders; run it with db.$many(readSet, params)",
-      ),
-    );
-  }
-
-  const args = [...spec.args];
-
-  if (signal) {
-    const index = spec.method === "get" ? 1 : 0;
-    // SAFETY: the options argument of a repository method is an object or undefined.
-    args[index] = { ...(args[index] as object | undefined), signal };
-  }
-
-  return method(...args);
-}
-
 function rpc(
   meta: SchemaMeta,
   executor: Executor,
@@ -1227,6 +1192,8 @@ function rpc(
   const args = given === undefined ? undefined : encodeArguments(given);
 
   return AsyncResult.from(async () => {
+    await ensureFunctions(meta);
+
     if (!executor.rpc) {
       return err(
         dbError(

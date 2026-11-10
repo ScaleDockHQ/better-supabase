@@ -88,6 +88,11 @@
       "types": "./dist/client/index.d.ts",
       "default": "./dist/client/index.js"
     },
+    "./client/lite": {
+      "@better-supabase/source": "./src/client/lite.ts",
+      "types": "./dist/client/lite.d.ts",
+      "default": "./dist/client/lite.js"
+    },
     "./client/native": {
       "@better-supabase/source": "./src/client/native/index.ts",
       "types": "./dist/client/native/index.d.ts",
@@ -1548,6 +1553,10 @@
         "types": "./dist/client/index.d.ts",
         "default": "./dist/client/index.js"
       },
+      "./client/lite": {
+        "types": "./dist/client/lite.d.ts",
+        "default": "./dist/client/lite.js"
+      },
       "./client/native": {
         "types": "./dist/client/native/index.d.ts",
         "default": "./dist/client/native/index.js"
@@ -2739,12 +2748,14 @@
     "@powersync/common": "catalog:",
     "@solidjs/start": "catalog:",
     "@supabase-labs/middleware-openfeature": "catalog:",
+    "@supabase/auth-js": "catalog:",
     "@supabase/config": "catalog:",
     "@supabase/lite": "catalog:",
     "@supabase/mcp-server-supabase": "catalog:",
     "@supabase/pg-delta": "catalog:",
     "@supabase/pg-topo": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
+    "@supabase/realtime-js": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@sveltejs/kit": "catalog:",
     "@t3-oss/env-core": "catalog:",
@@ -2840,12 +2851,14 @@
     "@powersync/common": "catalog:peers",
     "@solidjs/start": "catalog:peers",
     "@supabase-labs/middleware-openfeature": "catalog:peers",
+    "@supabase/auth-js": "catalog:peers",
     "@supabase/config": "catalog:peers",
     "@supabase/lite": "catalog:peers",
     "@supabase/mcp-server-supabase": "catalog:peers",
     "@supabase/pg-delta": "catalog:peers",
     "@supabase/pg-topo": "catalog:peers",
     "@supabase/postgrest-typegen": "catalog:peers",
+    "@supabase/realtime-js": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
     "@sveltejs/kit": "catalog:peers",
     "@tanstack/query-core": "catalog:peers",
@@ -2892,6 +2905,12 @@
   },
   "peerDependenciesMeta": {
     "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@supabase/auth-js": {
+      "optional": true
+    },
+    "@supabase/realtime-js": {
       "optional": true
     },
     "@ai-sdk/mcp": {

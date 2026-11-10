@@ -19,13 +19,15 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
-import {
-  registeredIdMatches,
-  registeredSubjects,
-  urlExpression,
-} from "../subject-registry.ts";
+import { registeredSubjects } from "../subject-registry.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
 import { OPERATIONS } from "./permissions-model.ts";
+import {
+  knownColumnType,
+  refreshBranch,
+  typedEqual,
+  typedIn,
+} from "./search-keys.ts";
 
 const NAMES: BlockSqlNames = {
   hooks: ["before_search_document_index", "after_search_document_index"],
@@ -121,58 +123,6 @@ function watchedColumns(subject: RegisteredSubject): readonly string[] {
   ];
 }
 
-function refreshBranch(subject: RegisteredSubject, described: boolean): string {
-  const { config } = subject;
-  const title = config.search?.title ?? config.title ?? "";
-  const body = config.search?.body ?? [];
-  const from = config.search?.from;
-  const source = from === undefined ? "s" : "f";
-
-  const bodySql =
-    body.length === 0
-      ? "null"
-      : `nullif(concat_ws(E'\\n', ${body.map((name) => `${source}.${sqlIdent(name)}::text`).join(", ")}), '')`;
-
-  const url =
-    config.url === undefined ? "null" : urlExpression(config.url, "s");
-
-  const deleted =
-    config.deletedAt === undefined
-      ? ""
-      : `\n        and s.${sqlIdent(config.deletedAt)} is null`;
-
-  const template =
-    typeof config.template === "string"
-      ? config.template
-      : config.template?.column;
-
-  const templated =
-    template === undefined
-      ? ""
-      : `\n        and s.${sqlIdent(template)} is null`;
-
-  const exclude = config.search?.exclude;
-
-  const excluded =
-    exclude === undefined
-      ? ""
-      : `\n        and (${source}.${sqlIdent(exclude)} is null or ${source}.${sqlIdent(exclude)}::text = 'false')`;
-
-  const description = config.search?.description;
-
-  const join =
-    from === undefined
-      ? ""
-      : `\n        join ${quotedTable(from.view)} f on f.${sqlIdent(from.key)}::text = s.${subject.id}::text`;
-
-  return `    when ${sqlString(subject.type)} then
-      select s.${subject.tenant ?? sqlIdent("organization_id")}, ${source}.${sqlIdent(title)}::text, ${bodySql}, ${url}${described ? `, ${description === undefined ? "null" : `${source}.${sqlIdent(description)}::text`}` : ""}
-        into v_tenant, v_title, v_body, v_url${described ? ", v_description" : ""}
-        from ${subject.qualified} s${join}
-        where ${registeredIdMatches(subject, "search_refresh.subject_id")}${deleted}${templated}${excluded};
-      v_found := found;`;
-}
-
 /** One `search.watch` entry of a subject, with where its trigger is created. */
 interface WatchEntry {
   readonly subject: RegisteredSubject;
@@ -208,15 +158,24 @@ function watchEntries(subjects: readonly RegisteredSubject[]): WatchEntry[] {
 }
 
 /** A watch trigger and its function, for a table that exists when this runs. */
-function watchTrigger(ctx: BlockSqlContext, entry: WatchEntry): string {
+function watchTrigger(
+  ctx: BlockSqlContext,
+  entry: WatchEntry,
+  layout: BlockSqlLayout,
+): string {
   const { subject, watched, index } = entry;
+  const notes: string[] = [];
 
   const fn = ctx.fn(
     `search_watch_${subjectTypeIdent(subject.type)}_${String(index)}`,
   );
 
-  const trigger = sqlIdent(
-    `bsb_search_${subjectTypeIdent(subject.type)}_watch_${String(index)}`.slice(
+  const base = `bsb_search_${subjectTypeIdent(subject.type)}_watch_${String(index)}`;
+
+  const trigger = sqlIdent(base.slice(0, 63));
+
+  const updateTrigger = sqlIdent(
+    (base.length + 2 <= 63 ? `${base}_u` : `${base.slice(0, 61)}_u`).slice(
       0,
       63,
     ),
@@ -227,32 +186,77 @@ function watchTrigger(ctx: BlockSqlContext, entry: WatchEntry): string {
   const hops = watched.through ?? [];
   const enqueue = ctx.fn("search_enqueue");
 
-  const columns =
-    watched.columns === undefined
-      ? undefined
-      : [...new Set([watched.key, ...watched.columns])];
+  const columns = [...new Set([watched.key, ...(watched.columns ?? [])])];
 
-  const values = (row: "old" | "new"): string =>
-    hops.reduce(
-      (previous, hop, at) =>
-        `select h${String(at)}.${sqlIdent(hop.to)}::text from ${quotedTable(hop.table)} h${String(at)} where h${String(at)}.${sqlIdent(hop.from)}::text in (${previous})`,
-      `select ${row}.${key}::text`,
-    );
+  const columnType = (relation: string, column: string): string | undefined =>
+    knownColumnType(layout, subject, relation, column);
 
-  const refresh = (row: "old" | "new"): string =>
-    watched.via === undefined && hops.length === 0
-      ? `perform ${enqueue}(${sqlString(subject.type)}, ${row}.${key}::text);`
-      : `for v_id in ${
-          watched.via === undefined
-            ? values(row)
-            : hops.length === 0
-              ? `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text = ${row}.${key}::text`
-              : `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text in (${values(row)})`
-        } loop
+  const values = (row: "old" | "new"): string => {
+    let query = `select ${row}.${key}`;
+    let currentType = columnType(watched.table, watched.key);
+
+    for (const [at, hop] of hops.entries()) {
+      const fromType = columnType(hop.table, hop.from);
+
+      query = `select h${String(at)}.${sqlIdent(hop.to)} from ${quotedTable(hop.table)} h${String(at)} where ${typedIn(
+        `h${String(at)}.${sqlIdent(hop.from)}`,
+        fromType,
+        query,
+        currentType,
+        `${subject.type} watch ${hop.table}.${hop.from}`,
+        subject,
+        notes,
+      )}`;
+      currentType = columnType(hop.table, hop.to);
+    }
+
+    return query;
+  };
+
+  const refresh = (row: "old" | "new"): string => {
+    if (watched.via === undefined && hops.length === 0) {
+      return `perform ${enqueue}(${sqlString(subject.type)}, ${row}.${key}::text);`;
+    }
+
+    const ids =
+      watched.via === undefined
+        ? `select v.value::text from (${values(row)}) v(value)`
+        : hops.length === 0
+          ? `select s.${subject.id}::text from ${subject.qualified} s where ${typedEqual(
+              `s.${sqlIdent(watched.via)}`,
+              columnType(`${subject.schema}.${subject.table}`, watched.via),
+              `${row}.${key}`,
+              columnType(watched.table, watched.key),
+              `${subject.type} watch ${watched.table}.${watched.key}`,
+              subject,
+              notes,
+            )}`
+          : `select s.${subject.id}::text from ${subject.qualified} s where ${typedIn(
+              `s.${sqlIdent(watched.via)}`,
+              columnType(`${subject.schema}.${subject.table}`, watched.via),
+              values(row),
+              columnType(
+                hops.at(-1)?.table ?? watched.table,
+                hops.at(-1)?.to ?? watched.key,
+              ),
+              `${subject.type} watch ${watched.table}.${watched.key}`,
+              subject,
+              notes,
+            )}`;
+
+    return `for v_id in ${ids} loop
       perform ${enqueue}(${sqlString(subject.type)}, v_id);
     end loop;`;
+  };
 
-  return `
+  const changed = columns
+    .map(
+      (column) =>
+        `old.${sqlIdent(column)} is distinct from new.${sqlIdent(column)}`,
+    )
+    .join(" or ");
+
+  return `${notes.join("\n")}
 -- A change in ${watched.table} re-indexes the ${subject.type} it points at.
 create or replace function ${fn}()
 returns trigger
@@ -274,8 +278,12 @@ end;
 $$;
 revoke execute on function ${fn}() from public, anon, authenticated;
 drop trigger if exists ${trigger} on ${table};
-create trigger ${trigger} after insert or delete or ${columns === undefined ? "update" : `update of ${columns.map(sqlIdent).join(", ")}`} on ${table}
-  for each row execute function ${fn}();`;
+drop trigger if exists ${updateTrigger} on ${table};
+create trigger ${trigger} after insert or delete on ${table}
+  for each row execute function ${fn}();
+create trigger ${updateTrigger} after update of ${columns.map(sqlIdent).join(", ")} on ${table}
+  for each row when (${changed})
+  execute function ${fn}();`;
 }
 
 /**
@@ -294,7 +302,7 @@ function watchTriggers(
   return watchEntries(subjects)
     .filter((entry) => !isWatchedAppTable(ctx, entry))
     .filter((entry) => !later.has(quotedTable(entry.watched.table)))
-    .map((entry) => watchTrigger(ctx, entry))
+    .map((entry) => watchTrigger(ctx, entry, layout))
     .join("\n");
 }
 
@@ -361,6 +369,7 @@ function triggers(
 export function ownerSearchTriggers(
   search: BlockSqlContext,
   owner: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): string {
   if (search.mode === "custom" || owner.mode === "custom") {
     return "";
@@ -384,7 +393,7 @@ export function ownerSearchTriggers(
         !isWatchedAppTable(search, entry) &&
         tables.has(quotedTable(entry.watched.table)),
     )
-    .map((entry) => watchTrigger(search, entry));
+    .map((entry) => watchTrigger(search, entry, layout));
 
   return [...index, ...watch].join("\n\n");
 }
@@ -394,7 +403,10 @@ export function ownerSearchTriggers(
  * entry, which the app tables file adds once the tables exist. `ctx` is the
  * search module's context.
  */
-export function appTableSearchTriggers(ctx: BlockSqlContext): string {
+export function appTableSearchTriggers(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -409,7 +421,7 @@ export function appTableSearchTriggers(ctx: BlockSqlContext): string {
 
   const watch = watchEntries(subjects)
     .filter((entry) => isWatchedAppTable(ctx, entry))
-    .map((entry) => watchTrigger(ctx, entry));
+    .map((entry) => watchTrigger(ctx, entry, layout));
 
   return [...index, ...watch].join("\n\n");
 }
@@ -813,12 +825,16 @@ ${renderPolicy(makePolicy({ table: docs, name: "search_documents_read", command:
 `
     : "";
 
+  const notes: string[] = [];
+
   const cases =
     subjects.length === 0
       ? "    when '' then null;"
-      : subjects.map((subject) => refreshBranch(subject, described)).join("\n");
+      : subjects
+          .map((subject) => refreshBranch(subject, described, layout, notes))
+          .join("\n");
 
-  return `${schemaPreamble(ctx)}
+  return `${notes.length === 0 ? "" : `${notes.join("\n")}\n`}${schemaPreamble(ctx)}
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
 ${tables}

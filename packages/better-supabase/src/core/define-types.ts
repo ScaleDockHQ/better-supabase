@@ -58,9 +58,12 @@ export interface SupabaseOptions {
   /**
    * PostgREST's `db-max-rows`: the most rows one read returns. An unbounded
    * `list` that returns this many sets `truncated` on the `query` event and
-   * logs a warning once per table. Defaults to 1000, the hosted default.
+   * logs a warning once per table. `truncation: "error"` (the default) returns
+   * a `truncated` error instead, after one probe row confirms the list was cut.
+   * `"warn"` keeps the rows.
    */
   readonly maxRows?: number;
+  readonly truncation?: "error" | "warn";
   /**
    * The longest query string one PostgREST read sends, like supabase-js
    * `db.urlLengthLimit`. Longer reads are split along their longest `in` list.

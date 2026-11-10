@@ -2674,6 +2674,13 @@ To keep employees, give the table its own primary key, drop the `not null` on
 the user column and add unique indexes on `(team_id, user_id)` and
 `(team_id, employee_id)`.
 
+### BS632
+
+**Warning: a search key comparison mixes column types.** Search joins a source
+view and follows watch keys on the columns' own type. When the live catalog
+gives the two columns different types, the comparison stays text and cannot use
+the key's index. Make the columns the same type.
+
 ### BS612
 
 **Info: the proxy re-syncs session cookies with `setAll`.** Since 0.40 the library's own cookie handling in `bsb.proxy` writes them. Remove the callback.

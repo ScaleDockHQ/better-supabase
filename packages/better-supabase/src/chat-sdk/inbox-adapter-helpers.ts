@@ -59,6 +59,7 @@ const CHAT_ERROR_CODES: Readonly<Record<DbErrorKind, string>> = {
   max_affected: "CONFLICT",
   rate_limited: "RATE_LIMITED",
   quota_exceeded: "RATE_LIMITED",
+  truncated: "PAYLOAD_TOO_LARGE",
   unsupported: "NOT_IMPLEMENTED",
   unexpected: "UNEXPECTED",
 };

@@ -216,7 +216,10 @@ export type Specs<M extends AnyModels, E> = {
 export function createSpecs(meta: SchemaMeta): Record<string, unknown> {
   const specs: Record<string, unknown> = {};
 
-  for (const table of Object.keys(meta.tables)) {
+  for (const table of new Set([
+    ...Object.keys(meta.tables),
+    ...Object.keys(meta.tableLoaders ?? {}),
+  ])) {
     const methods: Record<string, unknown> = {};
 
     for (const method of READ_METHODS) {

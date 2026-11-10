@@ -1265,7 +1265,10 @@ export function appTablesFiles(
       .filter((part) => part !== "")
       .join("\n\n"),
     installed.includes("search")
-      ? appTableSearchTriggers(moduleContext("search", layout, installed))
+      ? appTableSearchTriggers(
+          moduleContext("search", layout, installed),
+          layout,
+        )
       : "",
     installed.includes("bulk-actions") && tables[0]
       ? appTableSetSql(

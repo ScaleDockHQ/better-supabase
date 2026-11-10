@@ -2509,7 +2509,7 @@ export interface BlockNameRegistry {
       readonly "billed": "tenant" | "periodStart" | "periodEnd" | "invoice" | "billedAt";
       readonly "quotas": "id" | "tenant" | "plan" | "meter" | "limit" | "period" | "createdAt";
     };
-    readonly functions: "consume_quota" | "mark_usage_reported" | "purge_usage_events" | "purge_usage_history" | "record_usage" | "record_usage_batch" | "remove_usage_quota" | "set_usage_quota" | "unreported_usage" | "usage_breakdown" | "usage_history" | "usage_meters" | "usage_overview" | "usage_quota" | "usage_status" | "usage_used" | "usage_window" | "usage_window_start" | "within_quota";
+    readonly functions: "consume_quota" | "mark_usage_reported" | "purge_usage_events" | "purge_usage_history" | "record_usage" | "record_usage_batch" | "remove_usage_quota" | "set_usage_quota" | "unreported_usage" | "usage_breakdown" | "usage_history" | "usage_meters" | "usage_overview" | "usage_quota" | "usage_remaining" | "usage_status" | "usage_used" | "usage_window" | "usage_window_start" | "within_quota";
     readonly actions: "read" | "record";
     readonly hooks: "usage_billing_period";
     readonly entities: {};

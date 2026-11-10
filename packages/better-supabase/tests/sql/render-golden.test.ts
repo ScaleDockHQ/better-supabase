@@ -75,6 +75,32 @@ const VARIANTS: readonly Variant[] = [
       ),
     }),
   },
+  {
+    name: "searched subject",
+    applies: (module) => module === "search",
+    modules: () => ["search"],
+    layout: () => ({
+      subjects: {
+        customer: {
+          table: "public.customers",
+          idType: "uuid",
+          title: "name",
+          search: {
+            title: "label",
+            from: { view: "public.customer_search", key: "customer_id" },
+            watch: [
+              {
+                table: "public.orders",
+                key: "id",
+                via: "customer_id",
+                columns: ["title"],
+              },
+            ],
+          },
+        },
+      },
+    }),
+  },
 ];
 
 /** Modules that refuse a renamed column on a table they create or keep in Vault. */

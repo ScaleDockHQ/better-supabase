@@ -60,6 +60,7 @@ import { REALTIME_RULES } from "./realtime.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
+import { SEARCH_KEY_RULES } from "./search-keys.ts";
 import { SEED_RULES } from "./seeds.ts";
 import {
   catalogOf,
@@ -1128,6 +1129,7 @@ export const RULES: readonly Rule[] = [
   ...APP_TABLE_SCOPE_RULES,
   ...ENV_RULES,
   ...SEED_RULES,
+  ...SEARCH_KEY_RULES,
   ...WIRING_RULES,
   ...STACK_RULES,
 ].toSorted((a, b) => byCodePoint(a.code, b.code));

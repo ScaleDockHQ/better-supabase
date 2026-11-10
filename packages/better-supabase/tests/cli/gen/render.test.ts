@@ -179,8 +179,37 @@ describe("render with gen.tableModules", () => {
     expect(main).not.toContain("generated.meta.js");
     expect(main).not.toContain("./tables/");
     expect(schema).toContain("export const schema");
+    expect(schema).toContain("tableLoaders");
+    expect(schema).toContain('import("./tables/customers.ts")');
+    expect(schema).not.toContain('from "./tables/customers.ts"');
+    expect(files.map((file) => file.path)).toContain(
+      "src/lib/supabase/generated.functions.js",
+    );
+    expect(
+      files.find((file) => file.path.endsWith("generated.meta.js"))?.contents,
+    ).toContain('"functions": {}');
+  });
+
+  it("imports every table up front when the server schema is eager", async () => {
+    const snapshot = await loadFixtureSnapshot();
+
+    const { files } = await render(
+      resolveConfig(
+        { ...base, gen: { tableModules: true, serverTables: "eager" } },
+        "/app",
+      ),
+      snapshot,
+    );
+
+    const schema = files.find((file) =>
+      file.path.endsWith("generated-schema.ts"),
+    )?.contents;
+
     expect(schema).toContain("/*#__PURE__*/ defineSchema({ ...meta, tables }");
     expect(schema).toContain('from "./tables/customers.ts"');
+    expect(
+      files.some((file) => file.path.endsWith("generated.functions.js")),
+    ).toBe(false);
   });
 
   it("makes every hook read through its table module", async () => {

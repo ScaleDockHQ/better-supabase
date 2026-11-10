@@ -847,7 +847,13 @@ begin
       end if;
     end loop;
   end if;
-  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run.${r("errors")}, '[]'::jsonb)) > 0 or v_counts::text like '%"conflicted":%') then
+  if v_outcome = 'completed' and (
+    jsonb_array_length(coalesce(v_run.${r("errors")}, '[]'::jsonb)) > 0
+    or exists (
+      select 1 from jsonb_each(coalesce(v_counts, '{}'::jsonb)) v_entity_counts(key, value)
+      where coalesce((v_entity_counts.value ->> 'conflicted')::integer, 0) > 0
+    )
+  ) then
     v_outcome := 'completed_with_issues';
   end if;
 
