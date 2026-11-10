@@ -18,6 +18,7 @@ import {
 } from "./blocks.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { docComment, importStatement, sortImports } from "./layout.ts";
+import { renamedBlockPath } from "./renamed-blocks.ts";
 import { prop, q } from "./shared.ts";
 
 type RecordsConfig = Pick<
@@ -172,16 +173,24 @@ function recordFile(
     ? []
     : ["blockConfig", ...(extras.permissions ? ["permissions"] : [])];
 
-  const fromGenerated = blocks
-    .filter((block) => block.from === undefined)
-    .map((b) => b.local)
-    .toSorted((a, b) => a.localeCompare(b));
+  // With `gen.blockModules` a renamed block is its own module: a record
+  // imports its blocks and never `blocks.generated.ts`, which pulls in every
+  // block (ADR 0605).
+  const renamedBlocks = blocks.filter((block) => block.from === undefined);
+
+  const fromGenerated = split
+    ? []
+    : renamedBlocks.map((b) => b.local).toSorted((a, b) => a.localeCompare(b));
 
   const imports = sortImports([
     'import { defineRecordType } from "better-supabase/records";',
     ...blocks.flatMap((block) =>
       block.from === undefined
-        ? []
+        ? split
+          ? [
+              `import { ${block.local} } from ${q(importPath(path, renamedBlockPath(config, block.name)))};`,
+            ]
+          : []
         : [`import { ${block.local} } from ${q(block.from)};`],
     ),
     ...(extras.access === undefined

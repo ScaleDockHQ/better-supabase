@@ -139,6 +139,11 @@
       "types": "./dist/server/accounts/index.d.ts",
       "default": "./dist/server/accounts/index.js"
     },
+    "./server/account": {
+      "@better-supabase/source": "./src/server/account/index.ts",
+      "types": "./dist/server/account/index.d.ts",
+      "default": "./dist/server/account/index.js"
+    },
     "./server/csv": {
       "@better-supabase/source": "./src/server/csv/index.ts",
       "types": "./dist/server/csv/index.d.ts",
@@ -1583,6 +1588,10 @@
       "./server/accounts": {
         "types": "./dist/server/accounts/index.d.ts",
         "default": "./dist/server/accounts/index.js"
+      },
+      "./server/account": {
+        "types": "./dist/server/account/index.d.ts",
+        "default": "./dist/server/account/index.js"
       },
       "./server/csv": {
         "types": "./dist/server/csv/index.d.ts",

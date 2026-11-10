@@ -503,6 +503,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0601: Convert the audit log to monthly partitions with a procedure.
 - 0602: Index tenant references on the foreign key's columns.
 - 0603: Route the example with localePrefix as-needed.
+- 0604: Account helpers take the server as their first argument.
+- 0605: Write each renamed block to its own module, and measure before making blocks lazy.
 
 ## Pre-release pins
 

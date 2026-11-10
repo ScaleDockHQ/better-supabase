@@ -6,6 +6,7 @@ import type { MutationNotice } from "../../src/core/events.ts";
 
 import { createSupabase } from "../../src/core/define.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
+import { deleteAccount } from "../../src/server/account/index.ts";
 import { createServer } from "../../src/server/server.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -134,7 +135,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
   });
 
   it("returns a conflict naming BS406 while a foreign key blocks the delete", async () => {
-    const result = await server.deleteAccount(userId);
+    const result = await deleteAccount(server, userId);
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "conflict", table: "auth.users" },
@@ -173,7 +174,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
           add foreign key (user_id) references auth.users (id) on delete cascade;
       `);
 
-      const result = await withPostgres.deleteAccount(userId, {
+      const result = await deleteAccount(withPostgres, userId, {
         buckets: [documents],
       });
 
@@ -204,7 +205,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
     const notices: MutationNotice[] = [];
     const off = betterSupabase.on("mutation", (notice) => notices.push(notice));
 
-    const result = await server.deleteAccount(userId, {
+    const result = await deleteAccount(server, userId, {
       buckets: [documents, shared, logos],
       cascades: ["customers"],
     });
@@ -242,7 +243,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
   });
 
   it("succeeds on a retry for a user that no longer exists", async () => {
-    expect(await server.deleteAccount(userId)).toMatchObject({
+    expect(await deleteAccount(server, userId)).toMatchObject({
       ok: true,
       data: { userId },
     });

@@ -24,6 +24,7 @@ const entries = [
   "contract/index",
   "server/index",
   "server/accounts/index",
+  "server/account/index",
   "server/csv/index",
   "server/rate-limit/index",
   "postgres/index",

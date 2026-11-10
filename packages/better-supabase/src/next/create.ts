@@ -50,6 +50,7 @@ import { isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
 import { EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
+import { ACCOUNT_PARTS } from "../server/account-parts.ts";
 import { adapterBase } from "../server/adapter-base.ts";
 import { bearerRequest, handle } from "../server/adapter.ts";
 import {
@@ -420,27 +421,14 @@ export function createNext<
     contextFromSession,
     resolve: resolveAtRequest,
     evictSession,
-    deleteAccount: ((userId, deleteOptions) =>
-      base.deleteAccount(userId, deleteOptions).map((result) => {
+    [ACCOUNT_PARTS]: {
+      ...base[ACCOUNT_PARTS],
+      // An account change drops the user's cached reads and session memo.
+      after: (userId: string) => {
         invalidateAll(userTags(userId));
         forget(userId);
-
-        return result;
-      })) satisfies BetterServer<M, F, E, C, P, B>["deleteAccount"],
-    endSessions: ((userId) =>
-      base.endSessions(userId).map((result) => {
-        invalidateAll(userTags(userId));
-        forget(userId);
-
-        return result;
-      })) satisfies BetterServer<M, F, E, C, P, B>["endSessions"],
-    suspendAccount: ((userId, suspendOptions) =>
-      base.suspendAccount(userId, suspendOptions).map((result) => {
-        invalidateAll(userTags(userId));
-        forget(userId);
-
-        return result;
-      })) satisfies BetterServer<M, F, E, C, P, B>["suspendAccount"],
+      },
+    },
   });
 
   const flows = authFlows<C, P>({

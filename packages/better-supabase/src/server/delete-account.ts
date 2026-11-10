@@ -155,7 +155,7 @@ export function deleteAccount<
   E,
   C,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C>,
+  betterSupabase: Pick<BetterSupabase<M, D, F, E, C>, "events">,
   service: SupabaseClient | (() => SupabaseClient),
   userId: string,
   options: DeleteAccountOptions = {},

@@ -5,6 +5,7 @@ import type { BetterPostgres } from "../../src/postgres/pool.ts";
 
 import { createSupabase } from "../../src/core/define.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
+import { endSessions } from "../../src/server/account/index.ts";
 import { SERVER_EVENT_SOURCE, serverAudit } from "../../src/server/audit.ts";
 import { createServer } from "../../src/server/server.ts";
 import { supportSessions } from "../../src/server/support.ts";
@@ -50,7 +51,7 @@ describe("the server's audit sink", () => {
   it("records ended sessions and support denials as CloudEvents", async () => {
     const sent: CloudEvent[] = [];
     const { server } = setup({ send: (events) => void sent.push(...events) });
-    expect((await server.endSessions(USER).orThrow()).ended).toBe(2);
+    expect((await endSessions(server, USER).orThrow()).ended).toBe(2);
     await server.support.start(
       {
         kind: "user",
@@ -86,7 +87,7 @@ describe("the server's audit sink", () => {
       .spyOn(betterSupabase.events.logger, "error")
       .mockReturnValue(undefined);
 
-    expect((await server.endSessions(USER)).ok).toBe(true);
+    expect((await endSessions(server, USER)).ok).toBe(true);
     await server.events.settled();
     expect(error).toHaveBeenCalledWith("audit sink failed", expect.anything());
   });

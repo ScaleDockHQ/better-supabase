@@ -5,40 +5,11 @@ import {
   blockRead,
   defineEvents,
   event,
-  type EventRenamesOf,
   type Events,
-  renameBlock,
-  type RenamedEvents,
-  type RenamedType,
 } from "better-supabase/blocks";
 import { blockConfig } from "./blocks.config.ts";
-import {
-  type ChecklistItem as DefaultChecklistItem,
-  type ChecklistItemInput as DefaultChecklistItemInput,
-  type Iteration as DefaultIteration,
-  type Project as DefaultProject,
-  type Task as DefaultTask,
-  type TaskChange as DefaultTaskChange,
-  type TaskChangeResult as DefaultTaskChangeResult,
-  type TaskChecklistOptimisticAction as DefaultTaskChecklistOptimisticAction,
-  type TaskField as DefaultTaskField,
-  type TaskFromConversationClients as DefaultTaskFromConversationClients,
-  type TaskFromConversationOptions as DefaultTaskFromConversationOptions,
-  type TaskInput as DefaultTaskInput,
-  type TaskListOptions as DefaultTaskListOptions,
-  type TaskNode as DefaultTaskNode,
-  type TaskRecurrence as DefaultTaskRecurrence,
-  type TaskRecurrenceSinkOptions as DefaultTaskRecurrenceSinkOptions,
-  type Tasks as DefaultTasks,
-  type TaskSetResult as DefaultTaskSetResult,
-  type TasksEvents as DefaultTasksEvents,
-  type TaskState as DefaultTaskState,
-  type TaskUpdateOptions as DefaultTaskUpdateOptions,
-  type TaskWatcher as DefaultTaskWatcher,
-  type TaskWatchLevel as DefaultTaskWatchLevel,
-  type TaskWindow as DefaultTaskWindow,
-  tasksBlock as defaultTasksBlock,
-} from "better-supabase/blocks/tasks";
+import { workItemsBlock, type WorkItemsEvents } from "./blocks/tasks-block.ts";
+import { facilitiesBlock, type FacilitiesEvents } from "./blocks/facilities-block.ts";
 import type { AccessRequestsEvents } from "better-supabase/blocks/access-requests";
 import type { AccountingEvents } from "better-supabase/blocks/accounting";
 import type { AgentsEvents } from "better-supabase/blocks/agents";
@@ -321,156 +292,8 @@ import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks
 export { blockConfig };
 /** The permission keys, re-exported from `blocks.config.ts`. @public */
 export { permissions, type PermissionKey } from "./blocks.config.ts";
-
-type TasksRenames = (typeof blockConfig)["tasks"]["names"]["entities"];
-type TasksRenamesEvents = EventRenamesOf<(typeof blockConfig)["tasks"]["names"]>;
-
-/**
- * The `tasks` block under the names `blocks.tasks.entities` gives it.
- * @public
- */
-export const workItemsBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);
-
-/** @public */
-export type ChecklistItem = RenamedType<DefaultChecklistItem, TasksRenames>;
-
-/** @public */
-export type ChecklistItemInput = RenamedType<DefaultChecklistItemInput, TasksRenames>;
-
-/** @public */
-export type Iteration = RenamedType<DefaultIteration, TasksRenames>;
-
-/** @public */
-export type Project = RenamedType<DefaultProject, TasksRenames>;
-
-/** @public */
-export type WorkItem<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, TasksRenames>;
-
-/** @public */
-export type WorkItemChange<F extends object = Record<never, never>> = RenamedType<DefaultTaskChange<F>, TasksRenames>;
-
-/** @public */
-export type WorkItemChangeResult = RenamedType<DefaultTaskChangeResult, TasksRenames>;
-
-/** @public */
-export type WorkItemChecklistOptimisticAction = RenamedType<DefaultTaskChecklistOptimisticAction, TasksRenames>;
-
-/** @public */
-export type WorkItemField = RenamedType<DefaultTaskField, TasksRenames>;
-
-/** @public */
-export type WorkItemFromConversationClients = RenamedType<DefaultTaskFromConversationClients, TasksRenames>;
-
-/** @public */
-export type WorkItemFromConversationOptions = RenamedType<DefaultTaskFromConversationOptions, TasksRenames>;
-
-/** @public */
-export type WorkItemInput<F extends object = Record<never, never>> = RenamedType<DefaultTaskInput<F>, TasksRenames>;
-
-/** @public */
-export type WorkItemListOptions = RenamedType<DefaultTaskListOptions, TasksRenames>;
-
-/** @public */
-export type WorkItemNode = RenamedType<DefaultTaskNode, TasksRenames>;
-
-/** @public */
-export type WorkItemRecurrence = RenamedType<DefaultTaskRecurrence, TasksRenames>;
-
-/** @public */
-export type WorkItemRecurrenceSinkOptions = RenamedType<DefaultTaskRecurrenceSinkOptions, TasksRenames>;
-
-/** @public */
-export type WorkItems<F extends object = Record<never, never>> = RenamedType<DefaultTasks<F>, TasksRenames>;
-
-/** @public */
-export type WorkItemSetResult = RenamedType<DefaultTaskSetResult, TasksRenames>;
-
-/** @public */
-export type WorkItemsEvents = RenamedEvents<DefaultTasksEvents, TasksRenamesEvents>;
-
-/** @public */
-export type WorkItemState = RenamedType<DefaultTaskState, TasksRenames>;
-
-/** @public */
-export type WorkItemUpdateOptions = RenamedType<DefaultTaskUpdateOptions, TasksRenames>;
-
-/** @public */
-export type WorkItemWatcher = RenamedType<DefaultTaskWatcher, TasksRenames>;
-
-/** @public */
-export type WorkItemWatchLevel = RenamedType<DefaultTaskWatchLevel, TasksRenames>;
-
-/** @public */
-export type WorkItemWindow = RenamedType<DefaultTaskWindow, TasksRenames>;
-
-type FacilitiesRenames = (typeof blockConfig)["facilities"]["names"]["entities"];
-type FacilitiesRenamesEvents = EventRenamesOf<(typeof blockConfig)["facilities"]["names"]>;
-
-/**
- * The `tasks` block under the names `blocks.facilities.entities` gives it.
- * @public
- */
-export const facilitiesBlock = renameBlock(defaultTasksBlock, blockConfig["facilities"].names);
-
-/** @public */
-export type MaintenanceRequest<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestChange<F extends object = Record<never, never>> = RenamedType<DefaultTaskChange<F>, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestChangeResult = RenamedType<DefaultTaskChangeResult, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestChecklistOptimisticAction = RenamedType<DefaultTaskChecklistOptimisticAction, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestField = RenamedType<DefaultTaskField, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestFromConversationClients = RenamedType<DefaultTaskFromConversationClients, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestFromConversationOptions = RenamedType<DefaultTaskFromConversationOptions, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestInput<F extends object = Record<never, never>> = RenamedType<DefaultTaskInput<F>, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestListOptions = RenamedType<DefaultTaskListOptions, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestNode = RenamedType<DefaultTaskNode, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestRecurrence = RenamedType<DefaultTaskRecurrence, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestRecurrenceSinkOptions = RenamedType<DefaultTaskRecurrenceSinkOptions, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequests<F extends object = Record<never, never>> = RenamedType<DefaultTasks<F>, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestSetResult = RenamedType<DefaultTaskSetResult, FacilitiesRenames>;
-
-/** @public */
-export type FacilitiesEvents = RenamedEvents<DefaultTasksEvents, FacilitiesRenamesEvents>;
-
-/** @public */
-export type MaintenanceRequestState = RenamedType<DefaultTaskState, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestUpdateOptions = RenamedType<DefaultTaskUpdateOptions, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestWatcher = RenamedType<DefaultTaskWatcher, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestWatchLevel = RenamedType<DefaultTaskWatchLevel, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestWindow = RenamedType<DefaultTaskWindow, FacilitiesRenames>;
+export * from "./blocks/tasks-block.ts";
+export * from "./blocks/facilities-block.ts";
 
 /**
  * Every installed block instance with a client, under its key, for
