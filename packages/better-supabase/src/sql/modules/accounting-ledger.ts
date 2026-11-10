@@ -465,7 +465,7 @@ begin
     for v_index in 0..11 loop
       insert into ${periods} (${p("tenant")}, ${p("fiscalYear")}, ${p("number")}, ${p("startsOn")}, ${p("endsOn")})
       values (ensure_import_periods.tenant, v_year, v_index + 1, (v_start + make_interval(months => v_index))::date,
-        ((v_start + make_interval(months => v_index + 1)) - 1)::date);
+        (v_start + make_interval(months => v_index + 1))::date - 1);
     end loop;
   end if;
   if ensure_import_periods.close_historical then
