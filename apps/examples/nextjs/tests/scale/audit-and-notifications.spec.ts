@@ -52,9 +52,14 @@ test.describe("@scale audit log", () => {
     await page.getByRole("combobox", { name: "Actor" }).click();
     await page.getByRole("option").nth(1).click();
     await page.waitForURL(/actor=/);
-    await expect(page.getByTestId("audit-events")).toBeVisible();
+    await expect(page.getByTestId("audit-events").first()).toBeVisible();
 
-    await page.getByTestId("audit-events").locator("tbody a").first().click();
+    await page
+      .getByTestId("audit-events")
+      .first()
+      .locator("tbody a")
+      .first()
+      .click();
     await page.waitForURL(/entry=/);
     await expect(page.getByRole("dialog")).toBeVisible();
   });

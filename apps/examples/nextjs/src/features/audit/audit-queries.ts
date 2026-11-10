@@ -74,7 +74,7 @@ export async function getAuditPage(
   organizationId: string,
   filters: AuditFilters,
 ): Promise<AuditPageData> {
-  const { db } = await bsb.cached();
+  const { db } = await bsb.context();
 
   const list = listOf(organizationId, filters);
   const cursor = cursorOf(filters.before);
@@ -101,7 +101,7 @@ export async function getAuditTotal(
   organizationId: string,
   filters: AuditFilters,
 ): Promise<number> {
-  const { db } = await bsb.cached();
+  const { db } = await bsb.context();
 
   const page = await db.audit
     .list({
@@ -125,7 +125,7 @@ export interface AuditFacets {
 export async function getAuditFacets(
   organizationId: string,
 ): Promise<AuditFacets> {
-  const { db } = await bsb.cached();
+  const { db } = await bsb.context();
 
   const [members, types] = await Promise.all([
     getMembers(organizationId),
@@ -145,7 +145,7 @@ export async function getAuditFacets(
 export async function getAuditEntry(
   entryId: string,
 ): Promise<AuditRecord | null> {
-  const { db } = await bsb.cached();
+  const { db } = await bsb.context();
 
   return db.audit.get(entryId).orThrow();
 }

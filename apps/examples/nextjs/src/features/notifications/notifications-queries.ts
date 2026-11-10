@@ -44,7 +44,7 @@ export async function getNotificationPage(
   tenant: string,
   filters: NotificationFilters,
 ): Promise<NotificationPageData> {
-  const { db } = await bsb.cached();
+  const { db } = await bsb.context();
   const cursor = cursorOf(filters.before);
 
   const options: PageArgs = {

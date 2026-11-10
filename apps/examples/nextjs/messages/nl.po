@@ -11416,6 +11416,11 @@ msgid "Counting…"
 msgstr "Tellen…"
 
 #: src/features/notifications/components/unread-badge.tsx
+msgctxt "notifications.AgdpYI"
+msgid "99+ unread"
+msgstr "99+ ongelezen"
+
+#: src/features/notifications/components/unread-badge.tsx
 msgctxt "notifications.94cCzv"
 msgid "{count, number} unread"
 msgstr "{count, number} ongelezen"

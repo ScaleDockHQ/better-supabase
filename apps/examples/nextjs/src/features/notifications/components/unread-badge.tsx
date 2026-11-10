@@ -81,7 +81,9 @@ export function UnreadSummary() {
     <p className="text-sm text-muted-foreground" data-testid="unread-summary">
       {count === undefined
         ? t("Counting…")
-        : t("{count, number} unread", { count })}
+        : count >= 100
+          ? t("99+ unread")
+          : t("{count, number} unread", { count })}
     </p>
   );
 }
