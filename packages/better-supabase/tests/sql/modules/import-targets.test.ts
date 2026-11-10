@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const imports = (targets: unknown): string | undefined =>
   moduleBody("imports", { modules: { imports: { options: { targets } } } });
@@ -63,6 +63,35 @@ describe("import target options", () => {
     ).toThrow(/refs\.Bad Field/);
     expect(() => imports({ item: { ...valid, refs: { sku: 1 } } })).toThrow(
       /refs\.sku/,
+    );
+  });
+});
+
+describe("an app target with a block's entity", () => {
+  const target = {
+    subjectType: "contact_method",
+    write: "public.import_contact_method",
+  };
+
+  const render = (entry: object): string =>
+    renderBlocks(["contacts", "imports"], {
+      modules: {
+        imports: { options: { targets: { contact_method: entry } } },
+        contacts: {},
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+  it("names the clash and the replaces option", () => {
+    expect(() => render(target)).toThrow(
+      /already imports "contact_method"\. Set `replaces: true`/,
+    );
+  });
+
+  it("renders the app's target with replaces", () => {
+    expect(render({ ...target, replaces: true })).toContain(
+      "import_contact_method",
     );
   });
 });

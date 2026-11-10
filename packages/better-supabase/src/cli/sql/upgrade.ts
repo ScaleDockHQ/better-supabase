@@ -249,7 +249,13 @@ export async function upgrade(
     ...(written.error === undefined
       ? {}
       : { error: written.error, errorCode: "file_conflict" as const }),
-    data,
+    // The problems are in the files this run replaced; a dry run still lists them.
+    data:
+      dryRun || written.error !== undefined
+        ? data
+        : Object.fromEntries(
+            Object.entries(data).filter(([key]) => key !== "problems"),
+          ),
     next: [await nextStep(config)],
   };
 }

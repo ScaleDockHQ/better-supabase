@@ -122,6 +122,32 @@ describe("columnPins", () => {
     });
   });
 
+  it("pins a block whose config still carries options 0.58 removed", () => {
+    const report = columnPins(
+      {
+        blocks: {
+          drive: {
+            ...drive,
+            options: { extraColumns: { label: "text" }, uniqueNumber: false },
+          },
+        },
+        instances: {
+          files: {
+            name: "files",
+            block: "drive",
+            config: { ...drive, options: { nodeExtraColumns: {} } },
+          },
+        },
+      } as never,
+      NAMING_RENAMES,
+      driveTable,
+      { "public.drive_nodes": ["id", "tenant_id", "deleted_at"] },
+    );
+
+    expect(report.review).toEqual([]);
+    expect(report.pins.map((pin) => pin.block)).toEqual(["drive", "files"]);
+  });
+
   it("reports a block whose context refuses the config", () => {
     const report = columnPins(
       { blocks: { drive: { tables: { notATable: "public.x" } } } },

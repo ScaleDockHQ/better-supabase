@@ -323,6 +323,72 @@ describe("codemod extra-columns", () => {
     }
   });
 
+  it("loads the config as naming rewrites it, so one run renames the columns", async () => {
+    const configFile = join(root, "better-supabase.config.ts");
+
+    await writeFile(
+      configFile,
+      `const defineConfig = (config) => config;\nexport default defineConfig({ gen: { output: "src/generated.ts" } });\n`,
+    );
+
+    const result = await runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      configFile,
+      new CliError("config_invalid", "gen.output: renamed"),
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.code).toBe(0);
+    expect(result.output).not.toContain("The config did not load");
+    expect(await readFile(configFile, "utf-8")).toContain("file:");
+    expect(
+      (await readdir(root)).filter((name) => name.includes(".codemod-")),
+    ).toEqual([]);
+  });
+
+  it("keeps naming config_invalid when the rewritten config still fails", async () => {
+    const configFile = join(root, "better-supabase.config.ts");
+
+    await writeFile(
+      configFile,
+      `const defineConfig = (config) => config;\nexport default defineConfig({ gen: { output: "src/generated.ts" }, nope: 1 });\n`,
+    );
+
+    const result = await runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      configFile,
+      new CliError("config_invalid", "bad config"),
+    );
+
+    expect(result.code).toBe(2);
+    expect(result.errorCode).toBe("config_invalid");
+  });
+
+  it("fails owned-columns with config_invalid when the blocks don't render", async () => {
+    const configFile = join(root, "bsb.config.ts");
+
+    await writeFile(configFile, "export default {};\n");
+
+    await expect(
+      runCodemod(
+        {
+          ...resolveConfig({ blocks: { drive: {} } }, root),
+          blocks: { drive: { tables: { notATable: "public.x" } } },
+        },
+        parseCommandArgs(codemodCommand("owned-columns"), ["owned-columns"]),
+        undefined,
+        configFile,
+      ),
+    ).rejects.toMatchObject({
+      code: "config_invalid",
+      message: expect.stringContaining("codemod owned-columns` again"),
+    });
+  });
+
   it("fails a project codemod with config_invalid when the config did not load", async () => {
     await expect(
       runCodemod(

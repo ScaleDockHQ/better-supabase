@@ -1,7 +1,7 @@
 import type { ResolvedConfig } from "../config/index.ts";
 import type { NamingRename } from "./codemod-naming.ts";
 
-import { moduleContext, SQL_MODULES } from "../sql/index.ts";
+import { LEGACY_OPTION, moduleContext, SQL_MODULES } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import { closing as closingBrace } from "./codemod-config.ts";
 import { isRecord } from "./guards.ts";
@@ -143,6 +143,28 @@ function targets(config: {
   return list;
 }
 
+/**
+ * `block` without the options 0.58 removed (`extraColumns` and its prefixed
+ * forms, `uniqueNumber`). They name no table or column, and later codemods move
+ * them, so a pin does not wait for them.
+ */
+function withoutRemovedOptions<T extends { readonly options?: unknown }>(
+  block: T,
+): T {
+  if (!isRecord(block.options)) {
+    return block;
+  }
+
+  return {
+    ...block,
+    options: Object.fromEntries(
+      Object.entries(block.options).filter(
+        ([key]) => !LEGACY_OPTION.test(key) && key !== "uniqueNumber",
+      ),
+    ),
+  };
+}
+
 function historyPins(
   target: PinTarget,
   ownColumns: Readonly<Record<string, readonly string[]>>,
@@ -207,9 +229,23 @@ export function columnPins(
   ];
 
   const layout = {
-    modules: config.blocks,
+    modules: Object.fromEntries(
+      Object.entries(config.blocks).map(([key, block]) => [
+        key,
+        block === undefined ? block : withoutRemovedOptions(block),
+      ]),
+    ),
     ownTables,
-    ...(config.instances === undefined ? {} : { instances: config.instances }),
+    ...(config.instances === undefined
+      ? {}
+      : {
+          instances: Object.fromEntries(
+            Object.entries(config.instances).map(([key, instance]) => [
+              key,
+              { ...instance, config: withoutRemovedOptions(instance.config) },
+            ]),
+          ),
+        }),
   };
 
   for (const target of list) {

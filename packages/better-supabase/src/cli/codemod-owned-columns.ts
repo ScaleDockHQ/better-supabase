@@ -9,6 +9,7 @@ import { ownedColumns, renderBlocks, SQL_MODULES } from "../sql/index.ts";
 import { schemasDirOf } from "./codemod-extra-columns.ts";
 import { columnPins, pinReview } from "./codemod-naming-pins.ts";
 import { NAMING_RENAMES } from "./codemod-naming.ts";
+import { CliError } from "./core/errors.ts";
 import { ownLayout, snapshotColumnTypes } from "./sql-layout.ts";
 import { layoutFor } from "./sql/providers.ts";
 
@@ -228,14 +229,11 @@ export function ownedColumnsCodemod(): Codemod {
 
         columns = kept;
       } catch (error) {
-        return {
-          files: [],
-          review: [
-            {
-              message: `The blocks don't render for this project yet (${error instanceof Error ? error.message : String(error)}), so no columns were found. Run \`better-supabase upgrade\` first and fix what it reports.`,
-            },
-          ],
-        };
+        throw new CliError(
+          "config_invalid",
+          `The blocks don't render for this project yet (${error instanceof Error ? error.message : String(error)}), so no columns were found. Fix what it names (\`better-supabase codemod extra-columns\` and \`better-supabase codemod config\` move removed options), then run \`better-supabase codemod owned-columns\` again.`,
+          { cause: error },
+        );
       }
 
       return {

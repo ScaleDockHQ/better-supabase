@@ -358,6 +358,7 @@ describe("argument renames", () => {
         'import { workItemId } from "./x";',
         "await tasks.assign({ workItemId: id, userId });",
         "await tasks.move({ workItemId });",
+        "await tasks.archive({ workItemId: taskId });",
         "call(a, workItemId, b);",
         "const { workItemId } = event.data;",
         "log(event.data.workItemId);",
@@ -371,6 +372,7 @@ describe("argument renames", () => {
         'import { workItemId } from "./x";',
         "await tasks.assign({ taskId: id, userId });",
         "await tasks.move({ taskId: workItemId });",
+        "await tasks.archive({ taskId });",
         "call(a, workItemId, b);",
         "const { taskId: workItemId } = event.data;",
         "log(event.data.taskId);",
@@ -392,6 +394,8 @@ describe("block references", () => {
         "const c = db.$blocks.bulk.run();",
         "const d = other.timeTracking;",
         '// blocks["time-tracking"] stays in a comment',
+        'defineBlocks(blockConfig, { "time-tracking": blocks["time-tracking"].with({}) });',
+        'const e = { "time-tracking": other["time-tracking"] };',
         "",
       ].join("\n"),
     );
@@ -404,6 +408,8 @@ describe("block references", () => {
         "const c = db.$blocks.bulkActions.run();",
         "const d = other.timeTracking;",
         '// blocks["time-tracking"] stays in a comment',
+        'defineBlocks(blockConfig, { "time-entries": blocks["time-entries"].with({}) });',
+        'const e = { "time-tracking": other["time-tracking"] };',
         "",
       ].join("\n"),
     );
