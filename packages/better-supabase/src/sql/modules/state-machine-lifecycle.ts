@@ -270,6 +270,8 @@ export interface WorkflowState {
   readonly steps: string;
   readonly progress: string;
   readonly json: string;
+  /** The statuses the pinned graph allows from `v_status`. */
+  readonly next: string;
 }
 
 export function workflowState(
@@ -290,5 +292,6 @@ export function workflowState(
     progress:
       "case when v_step is null then null when cardinality(v_order) = 1 then 1 else round((v_step - 1)::numeric / (cardinality(v_order) - 1), 4) end",
     json: `, 'workflow', ${sqlString(item.workflow)}, 'workflowVersionId', ${version}`,
+    next: `coalesce(array(select jsonb_array_elements_text(${ctx.fn(GRAPH_FN)}(${version}) -> 'transitions' -> v_status)), '{}'::text[])`,
   };
 }

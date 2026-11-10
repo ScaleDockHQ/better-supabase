@@ -73,7 +73,8 @@ export type ApprovalStatus =
   | "approved"
   | "rejected"
   | "cancelled"
-  | "expired";
+  | "expired"
+  | "consumed";
 
 /**
  * `confirm`: the requester may approve their own request, as a second look.
@@ -557,6 +558,7 @@ const STATUSES: readonly ApprovalStatus[] = [
   "rejected",
   "cancelled",
   "expired",
+  "consumed",
 ];
 
 const DECISIONS: readonly ApprovalDecision["decision"][] = [

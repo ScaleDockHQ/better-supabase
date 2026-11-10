@@ -62,8 +62,9 @@ comments. Put these in a hand-written migration instead:
 A generated schema file never holds a `do` block a diff could replace. A repair
 for an older install is written only when `ctx.rerunnable` is set, and a
 statement that changes rows goes to the module's `data`.
-`tests/sql/static-ddl.test.ts` counts what is left (ADR 0400); the count only
-falls, and `UPDATE_PRACTICES=1` rewrites the baseline after a drop.
+`tests/sql/static-ddl.test.ts` counts what is left (ADR 0400). A count may not
+grow. A lower count does not need a new baseline. `UPDATE_PRACTICES=1`
+tightens the ceiling when you want the drop recorded.
 
 pg-delta also loads `supabase/schemas/_custom/` into its shadow database and
 then rejects any managed table that has rows, so `_custom/` can't hold data
