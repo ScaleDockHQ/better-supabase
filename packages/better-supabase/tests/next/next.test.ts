@@ -930,6 +930,61 @@ describe("createNext", () => {
     ]);
   });
 
+  it("maps the data of a successful action to another type, after invalidating", async () => {
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+
+    const save = bsb.action(
+      {
+        input: v.object({ fail: v.boolean(), bad: v.boolean() }),
+        invalidates: ["notes"],
+      },
+      (input) => {
+        if (input.fail) {
+          throw new DbException(dbError("conflict", "Taken"));
+        }
+
+        return { id: 7 };
+      },
+      async (row) => {
+        await Promise.resolve();
+
+        return `note-${String(row.id)}`;
+      },
+    );
+
+    mocks.updateTag.mockReset();
+    expect(await save({ fail: true, bad: false })).toMatchObject({ ok: false });
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+
+    expect(await save({ fail: false, bad: false })).toEqual({
+      ok: true,
+      data: "note-7",
+      error: null,
+    });
+    expect(mocks.updateTag).toHaveBeenCalledTimes(2);
+  });
+
+  it("turns a DbException from the mapper into the action's error", async () => {
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+
+    const save = bsb.action(
+      {},
+      () => 1,
+      () => {
+        throw new DbException(dbError("conflict", "Mapped"));
+      },
+    );
+
+    expect(await save(undefined as never)).toMatchObject({
+      ok: false,
+      error: { kind: "conflict" },
+    });
+  });
+
   it("runs actions with validation, FormData and serializable results", async () => {
     const save = bsb.action(
       {

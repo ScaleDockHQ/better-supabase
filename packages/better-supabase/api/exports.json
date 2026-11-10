@@ -1878,6 +1878,7 @@
     "types": [
       "Aal",
       "Access",
+      "ActionMapper",
       "ActionOptions",
       "ActionParams",
       "ActionResult",
