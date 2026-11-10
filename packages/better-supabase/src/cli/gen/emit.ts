@@ -286,13 +286,34 @@ function compactJson(meta: Readonly<Record<string, unknown>>): string {
 /** Function metadata as its own module, loaded on the first `rpc` call. */
 export function emitFunctions(
   functions: Readonly<Record<string, unknown>>,
+  types = "./generated.functions.d.ts",
 ): string {
+  return [
+    GENERATED_HEADER,
+    // Deno does not pick up a sibling .d.ts without this pragma.
+    `// @ts-self-types="${types}"`,
+    "/* oxlint-disable */",
+    "/* eslint-disable */",
+    "",
+    `export default ${compactJson(functions)};`,
+    "",
+  ].join("\n");
+}
+
+/**
+ * The declaration of `generated.functions.js`, so a project without `allowJs`
+ * reads `SchemaMeta["functions"]` and not an implicit `any`.
+ */
+export function emitFunctionsTypes(runtime = "better-supabase"): string {
   return [
     GENERATED_HEADER,
     "/* oxlint-disable */",
     "/* eslint-disable */",
     "",
-    `export default ${compactJson(functions)};`,
+    `import type { SchemaMeta } from ${q(runtime)};`,
+    "",
+    'declare const functions: SchemaMeta["functions"];',
+    "export default functions;",
     "",
   ].join("\n");
 }
@@ -852,7 +873,7 @@ export function emitSchemaModule(
     "/* oxlint-disable */",
     "/* eslint-disable */",
     "",
-    `import { defineSchema, type SchemaMeta, ${extended ? "type ExtensionsOf, " : ""}type Schema } from ${q(runtime)};`,
+    `import { defineSchema, ${options.lazyServerTables === true ? "type SchemaMeta, " : ""}${extended ? "type ExtensionsOf, " : ""}type Schema } from ${q(runtime)};`,
     `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
     `import ${extended ? "{ extensions, " : "{ "}type ${types.join(", type ")} } from ${q(options.generated)};`,
   ];

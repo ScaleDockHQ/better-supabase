@@ -71,6 +71,7 @@
   },
   "gen": {
     "casing": "camel",
+    "serverTables": "eager",
     "file": "src/generated.ts",
     "readSets": ["src/latency.ts", "src/customer-detail.ts"]
   }

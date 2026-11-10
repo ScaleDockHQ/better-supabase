@@ -2,6 +2,7 @@ import { defineReadSet, createSupabase } from "better-supabase";
 import { defineListQuery } from "better-supabase/list";
 
 import { schema } from "./generated-schema.ts";
+import { customersTable } from "./tables/customers.ts";
 
 export const betterSupabase = createSupabase(schema);
 
@@ -10,7 +11,7 @@ export const betterSupabase = createSupabase(schema);
  * contact count and latest update of a location, in two requests that run in
  * parallel. The original service ran up to six sequential queries.
  */
-export const customerOverview = defineListQuery(betterSupabase, "customers", {
+export const customerOverview = defineListQuery(betterSupabase, customersTable, {
   search: ["companyName", "sortName", "billingEmail"],
   facets: { status: "status", business: "isBusiness" },
   sorts: {

@@ -29,6 +29,7 @@ import { emitConstants } from "./constants.ts";
 import { deprecationWarnings } from "./deprecations.ts";
 import {
   emitFunctions,
+  emitFunctionsTypes,
   emitMeta,
   emitModule,
   emitRuntime,
@@ -192,6 +193,10 @@ export async function render(
           {
             path: metaFiles.js.replace(/\.meta\.js$/, ".functions.js"),
             contents: emitFunctions(model.meta.functions),
+          },
+          {
+            path: metaFiles.js.replace(/\.meta\.js$/, ".functions.d.ts"),
+            contents: emitFunctionsTypes(runtime.runtimeImport),
           },
         ]
       : []),
