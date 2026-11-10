@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:4b5e38f55852bdb471ef14999924b6735d7f1a7a7a092ae0cc151fd132a71cea
+-- @bsb-hash sha256:94c69a0b0dc73455ce8bed58bd232fa382521ee608c5eb0deb2dc3ec53375e1e
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,7 +80,7 @@ create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
 
 create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false));
 
 -- The time minutes of working time after start: business hours on the
 -- configured weekdays in the configured time zone, or plain minutes.
@@ -446,7 +446,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."sla_clocks" as restr
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."sla_clocks" as restrictive
   for insert to public

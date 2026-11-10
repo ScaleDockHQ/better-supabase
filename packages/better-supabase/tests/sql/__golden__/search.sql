@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:65de98b429273cb437c6ba7e314c3309c303a27a6d5c3d3ac185f152d1ca6207
+-- @bsb-hash sha256:c328562bbcfeca2cb4e00ed1091b80919fbf60680325e83a93a729b15907f72f
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -154,8 +154,10 @@ grant execute on function "better_supabase"."search_reindex"(text) to service_ro
 -- Runs as its caller (the definer trigger functions and import_upsert_batch
 -- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
--- key once in better_supabase.search_dirty (a transaction-local setting, one
--- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+-- key once, one line per key, in one of 256 transaction-local settings
+-- (better_supabase.search_dirty_<hash>) so search_refresh_dirty indexes it
+-- once at the end of the batch. A setting holds a 256th of the keys: one text
+-- setting rewrote the whole list on every note.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
@@ -165,12 +167,13 @@ as $$
 #variable_conflict use_column
 declare
   v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
+  v_name text := 'better_supabase.search_dirty_' || (hashtext(v_key) & 255)::text;
   v_dirty text;
 begin
   if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
-    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    v_dirty := coalesce(current_setting(v_name, true), '');
     if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
-      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\n', true);
+      perform set_config(v_name, v_dirty || v_key || E'\n', true);
     end if;
   else
     perform "better_supabase"."search_refresh"(search_enqueue.subject_type, search_enqueue.subject_id);
@@ -189,13 +192,21 @@ set search_path = ''
 as $$
 declare
   v_count integer := 0;
-  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_bucket integer;
+  v_name text;
+  v_dirty text;
   v_line text;
 begin
-  perform set_config('better_supabase.search_dirty', '', true);
-  for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
-    if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
-      v_count := v_count + 1;
+  for v_bucket in 0..255 loop
+    v_name := 'better_supabase.search_dirty_' || v_bucket::text;
+    v_dirty := coalesce(current_setting(v_name, true), '');
+    if v_dirty <> '' then
+      perform set_config(v_name, '', true);
+      for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
+        if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
+          v_count := v_count + 1;
+        end if;
+      end loop;
     end if;
   end loop;
   return v_count;
@@ -452,7 +463,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:f27c041a096769294c9819d062dbd0b37b7dfbdc7df6c195f488cbbd09d5cdf0
+-- @bsb-hash sha256:108820c557843dc1f855418633cea054c5a52b5664a4ac7561a49d8d0727ab12
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -605,8 +616,10 @@ grant execute on function "better_supabase"."search_reindex"(text) to service_ro
 -- Runs as its caller (the definer trigger functions and import_upsert_batch
 -- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
--- key once in better_supabase.search_dirty (a transaction-local setting, one
--- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+-- key once, one line per key, in one of 256 transaction-local settings
+-- (better_supabase.search_dirty_<hash>) so search_refresh_dirty indexes it
+-- once at the end of the batch. A setting holds a 256th of the keys: one text
+-- setting rewrote the whole list on every note.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
@@ -616,12 +629,13 @@ as $$
 #variable_conflict use_column
 declare
   v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
+  v_name text := 'better_supabase.search_dirty_' || (hashtext(v_key) & 255)::text;
   v_dirty text;
 begin
   if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
-    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    v_dirty := coalesce(current_setting(v_name, true), '');
     if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
-      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\n', true);
+      perform set_config(v_name, v_dirty || v_key || E'\n', true);
     end if;
   else
     perform "better_supabase"."search_refresh"(search_enqueue.subject_type, search_enqueue.subject_id);
@@ -640,13 +654,21 @@ set search_path = ''
 as $$
 declare
   v_count integer := 0;
-  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_bucket integer;
+  v_name text;
+  v_dirty text;
   v_line text;
 begin
-  perform set_config('better_supabase.search_dirty', '', true);
-  for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
-    if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
-      v_count := v_count + 1;
+  for v_bucket in 0..255 loop
+    v_name := 'better_supabase.search_dirty_' || v_bucket::text;
+    v_dirty := coalesce(current_setting(v_name, true), '');
+    if v_dirty <> '' then
+      perform set_config(v_name, '', true);
+      for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
+        if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
+          v_count := v_count + 1;
+        end if;
+      end loop;
     end if;
   end loop;
   return v_count;
@@ -915,7 +937,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:47fd397e8cf11625f44ff75e3182e4691949823ba2ec4b840456dd971a8f285a
+-- @bsb-hash sha256:4bef24316d6650f4930a7fc3a807fa744c8cc9b8dc593c50bc2b443df190ea1d
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1073,8 +1095,10 @@ grant execute on function "app_private"."search_reindex"(text) to service_role;
 -- Runs as its caller (the definer trigger functions and import_upsert_batch
 -- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
--- key once in better_supabase.search_dirty (a transaction-local setting, one
--- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+-- key once, one line per key, in one of 256 transaction-local settings
+-- (better_supabase.search_dirty_<hash>) so search_refresh_dirty indexes it
+-- once at the end of the batch. A setting holds a 256th of the keys: one text
+-- setting rewrote the whole list on every note.
 create or replace function "app_private"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
@@ -1084,12 +1108,13 @@ as $$
 #variable_conflict use_column
 declare
   v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
+  v_name text := 'better_supabase.search_dirty_' || (hashtext(v_key) & 255)::text;
   v_dirty text;
 begin
   if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
-    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    v_dirty := coalesce(current_setting(v_name, true), '');
     if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
-      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\n', true);
+      perform set_config(v_name, v_dirty || v_key || E'\n', true);
     end if;
   else
     perform "app_private"."search_refresh"(search_enqueue.subject_type, search_enqueue.subject_id);
@@ -1108,13 +1133,21 @@ set search_path = ''
 as $$
 declare
   v_count integer := 0;
-  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_bucket integer;
+  v_name text;
+  v_dirty text;
   v_line text;
 begin
-  perform set_config('better_supabase.search_dirty', '', true);
-  for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
-    if "app_private"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
-      v_count := v_count + 1;
+  for v_bucket in 0..255 loop
+    v_name := 'better_supabase.search_dirty_' || v_bucket::text;
+    v_dirty := coalesce(current_setting(v_name, true), '');
+    if v_dirty <> '' then
+      perform set_config(v_name, '', true);
+      for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
+        if "app_private"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
+          v_count := v_count + 1;
+        end if;
+      end loop;
     end if;
   end loop;
   return v_count;
@@ -1371,7 +1404,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:b5e233ccc53e22d821c6cd4616e947f8c7e881a4afeb9b2b0377aec339315353
+-- @bsb-hash sha256:b0e237e095677fd61a3023652fc3c4c4073930cb4ae64959085b40326e5b3c7b
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1524,8 +1557,10 @@ grant execute on function "better_supabase"."search_reindex"(text) to service_ro
 -- Runs as its caller (the definer trigger functions and import_upsert_batch
 -- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
--- key once in better_supabase.search_dirty (a transaction-local setting, one
--- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+-- key once, one line per key, in one of 256 transaction-local settings
+-- (better_supabase.search_dirty_<hash>) so search_refresh_dirty indexes it
+-- once at the end of the batch. A setting holds a 256th of the keys: one text
+-- setting rewrote the whole list on every note.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
@@ -1535,12 +1570,13 @@ as $$
 #variable_conflict use_column
 declare
   v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
+  v_name text := 'better_supabase.search_dirty_' || (hashtext(v_key) & 255)::text;
   v_dirty text;
 begin
   if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
-    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    v_dirty := coalesce(current_setting(v_name, true), '');
     if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
-      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\n', true);
+      perform set_config(v_name, v_dirty || v_key || E'\n', true);
     end if;
   else
     perform "better_supabase"."search_refresh"(search_enqueue.subject_type, search_enqueue.subject_id);
@@ -1559,13 +1595,21 @@ set search_path = ''
 as $$
 declare
   v_count integer := 0;
-  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_bucket integer;
+  v_name text;
+  v_dirty text;
   v_line text;
 begin
-  perform set_config('better_supabase.search_dirty', '', true);
-  for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
-    if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
-      v_count := v_count + 1;
+  for v_bucket in 0..255 loop
+    v_name := 'better_supabase.search_dirty_' || v_bucket::text;
+    v_dirty := coalesce(current_setting(v_name, true), '');
+    if v_dirty <> '' then
+      perform set_config(v_name, '', true);
+      for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
+        if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
+          v_count := v_count + 1;
+        end if;
+      end loop;
     end if;
   end loop;
   return v_count;
@@ -1904,7 +1948,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:a106caf83d4f986ba001c0031e06ff2f45b0f1d308687ff3a8273e5d9dc380e7
+-- @bsb-hash sha256:740b9ef807adebb5683af26f9af1ca2b522a3c599b63faf82fc76bda7489b7f7
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2054,8 +2098,10 @@ grant execute on function "better_supabase"."search_reindex"(text) to service_ro
 -- Runs as its caller (the definer trigger functions and import_upsert_batch
 -- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
--- key once in better_supabase.search_dirty (a transaction-local setting, one
--- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+-- key once, one line per key, in one of 256 transaction-local settings
+-- (better_supabase.search_dirty_<hash>) so search_refresh_dirty indexes it
+-- once at the end of the batch. A setting holds a 256th of the keys: one text
+-- setting rewrote the whole list on every note.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
@@ -2065,12 +2111,13 @@ as $$
 #variable_conflict use_column
 declare
   v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
+  v_name text := 'better_supabase.search_dirty_' || (hashtext(v_key) & 255)::text;
   v_dirty text;
 begin
   if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
-    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    v_dirty := coalesce(current_setting(v_name, true), '');
     if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
-      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\n', true);
+      perform set_config(v_name, v_dirty || v_key || E'\n', true);
     end if;
   else
     perform "better_supabase"."search_refresh"(search_enqueue.subject_type, search_enqueue.subject_id);
@@ -2089,13 +2136,21 @@ set search_path = ''
 as $$
 declare
   v_count integer := 0;
-  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_bucket integer;
+  v_name text;
+  v_dirty text;
   v_line text;
 begin
-  perform set_config('better_supabase.search_dirty', '', true);
-  for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
-    if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
-      v_count := v_count + 1;
+  for v_bucket in 0..255 loop
+    v_name := 'better_supabase.search_dirty_' || v_bucket::text;
+    v_dirty := coalesce(current_setting(v_name, true), '');
+    if v_dirty <> '' then
+      perform set_config(v_name, '', true);
+      for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
+        if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
+          v_count := v_count + 1;
+        end if;
+      end loop;
     end if;
   end loop;
   return v_count;
@@ -2352,7 +2407,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:5200a6728746fcc299397e2f558e121dd78fcf99b14ebac5589fd5dbce76cd11
+-- @bsb-hash sha256:bd53dee11b36611e519ff4a33b8277c04cdd88a6d5b56ffe1b10796496c5d699
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2505,8 +2560,10 @@ grant execute on function "better_supabase"."search_reindex"(text) to service_ro
 -- Runs as its caller (the definer trigger functions and import_upsert_batch
 -- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
--- key once in better_supabase.search_dirty (a transaction-local setting, one
--- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+-- key once, one line per key, in one of 256 transaction-local settings
+-- (better_supabase.search_dirty_<hash>) so search_refresh_dirty indexes it
+-- once at the end of the batch. A setting holds a 256th of the keys: one text
+-- setting rewrote the whole list on every note.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
@@ -2516,12 +2573,13 @@ as $$
 #variable_conflict use_column
 declare
   v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
+  v_name text := 'better_supabase.search_dirty_' || (hashtext(v_key) & 255)::text;
   v_dirty text;
 begin
   if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
-    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    v_dirty := coalesce(current_setting(v_name, true), '');
     if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
-      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\n', true);
+      perform set_config(v_name, v_dirty || v_key || E'\n', true);
     end if;
   else
     perform "better_supabase"."search_refresh"(search_enqueue.subject_type, search_enqueue.subject_id);
@@ -2540,13 +2598,21 @@ set search_path = ''
 as $$
 declare
   v_count integer := 0;
-  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_bucket integer;
+  v_name text;
+  v_dirty text;
   v_line text;
 begin
-  perform set_config('better_supabase.search_dirty', '', true);
-  for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
-    if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
-      v_count := v_count + 1;
+  for v_bucket in 0..255 loop
+    v_name := 'better_supabase.search_dirty_' || v_bucket::text;
+    v_dirty := coalesce(current_setting(v_name, true), '');
+    if v_dirty <> '' then
+      perform set_config(v_name, '', true);
+      for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
+        if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
+          v_count := v_count + 1;
+        end if;
+      end loop;
     end if;
   end loop;
   return v_count;
@@ -2803,7 +2869,7 @@ on conflict (name) do update
 -- ==== searched subject: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:05908b8c0bcf2b35e6caf6e62aaeb9bf9e7fefffc0078c67fceb90aa880c36f7
+-- @bsb-hash sha256:9492f7fc821524604a7b6fac75e3cfdf7ce5c303996a695ef5edcfbd47125d6c
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2969,8 +3035,10 @@ grant execute on function "better_supabase"."search_reindex"(text) to service_ro
 -- Runs as its caller (the definer trigger functions and import_upsert_batch
 -- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
--- key once in better_supabase.search_dirty (a transaction-local setting, one
--- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+-- key once, one line per key, in one of 256 transaction-local settings
+-- (better_supabase.search_dirty_<hash>) so search_refresh_dirty indexes it
+-- once at the end of the batch. A setting holds a 256th of the keys: one text
+-- setting rewrote the whole list on every note.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
@@ -2980,12 +3048,13 @@ as $$
 #variable_conflict use_column
 declare
   v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
+  v_name text := 'better_supabase.search_dirty_' || (hashtext(v_key) & 255)::text;
   v_dirty text;
 begin
   if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
-    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    v_dirty := coalesce(current_setting(v_name, true), '');
     if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
-      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\n', true);
+      perform set_config(v_name, v_dirty || v_key || E'\n', true);
     end if;
   else
     perform "better_supabase"."search_refresh"(search_enqueue.subject_type, search_enqueue.subject_id);
@@ -3004,13 +3073,21 @@ set search_path = ''
 as $$
 declare
   v_count integer := 0;
-  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_bucket integer;
+  v_name text;
+  v_dirty text;
   v_line text;
 begin
-  perform set_config('better_supabase.search_dirty', '', true);
-  for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
-    if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
-      v_count := v_count + 1;
+  for v_bucket in 0..255 loop
+    v_name := 'better_supabase.search_dirty_' || v_bucket::text;
+    v_dirty := coalesce(current_setting(v_name, true), '');
+    if v_dirty <> '' then
+      perform set_config(v_name, '', true);
+      for v_line in select l from string_to_table(v_dirty, E'\n') l where l <> '' loop
+        if "better_supabase"."search_refresh"(split_part(v_line, E'\x1f', 1), split_part(v_line, E'\x1f', 2)) then
+          v_count := v_count + 1;
+        end if;
+      end loop;
     end if;
   end loop;
   return v_count;

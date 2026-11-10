@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:02d5cdb115fb6a0ff39b3c88bf0df9d699b35ab721a8ad3fa392fc648b6e4d86
+-- @bsb-hash sha256:22329c83c73882508f1bb021dfceee8ac5adec6cc5ec4de7d8dbdcffa3903971
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,7 +79,7 @@ grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
 create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false));
 create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
@@ -1291,7 +1291,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" a
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public

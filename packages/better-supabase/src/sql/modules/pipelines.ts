@@ -5,12 +5,13 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { Names } from "./pipelines-bindings.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { extraFieldsArg, lockTable, schemaPreamble } from "../shared.ts";
+import { registryReadable } from "./attachments-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { pipelineBindings } from "./pipelines-bindings.ts";
 import { pipelineSeeds } from "./pipelines-seeds.ts";
@@ -173,7 +174,11 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-function tables(ctx: BlockSqlContext, names: Names): string {
+function tables(
+  ctx: BlockSqlContext,
+  names: Names,
+  layout: BlockSqlLayout,
+): string {
   if (!ctx.manages) {
     return "";
   }
@@ -230,7 +235,6 @@ ${read("transitions")}
     : "";
 
   const h = (column: string): string => c("history", column);
-  const canSubject = ctx.of("subjects").fn("can_subject");
 
   return `
 create table if not exists ${t("pipelines")} (
@@ -283,7 +287,7 @@ create index if not exists ${ctx.naming.rename("pipeline_stage_history_pipeline_
 create unique index if not exists ${ctx.naming.rename("pipeline_stage_history_open_idx")} on ${t("history")} (${h("subjectType")}, ${h("subjectId")}) where ${h("exitedAt")} is null;
 ${lockTable(t("history"), { read: true })}
 -- A history row is visible to whoever can read its record.
-${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeline_stage_history_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read')` }), { target: t("history") })}
+${renderPolicy(makePolicy({ table: t("history"), name: ctx.naming.rename("pipeline_stage_history_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(h("tenant"), names.read)} and ${registryReadable(ctx, layout, "pipelines", { type: `${t("history")}.${h("subjectType")}`, id: `${t("history")}.${h("subjectId")}`, tenant: `${t("history")}.${h("tenant")}` })}` }), { target: t("history") })}
 `;
 }
 
@@ -312,7 +316,7 @@ function rowJson(ctx: BlockSqlContext, table: string, alias: string): string {
 const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("pipelines", ["stages", "fields"]);
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -335,7 +339,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with
 -- a category that maps to a fixed outcome, a stage history and board totals.
-${tables(ctx, names)}${defaultPipeline(ctx, names, bindings)}
+${tables(ctx, names, layout)}${defaultPipeline(ctx, names, bindings)}
 ${bindings.map((binding) => stageTrigger(ctx, names, binding)).join("\n")}
 ${manageFunctions(ctx, names, bindings)}${readFunctions(ctx.idType, names, bindings)}`;
 }

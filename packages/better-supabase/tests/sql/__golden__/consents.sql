@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:dea795bf83e8c530123aaf78faf0bc18b8870fc0c62c0f9a2f83c03ba0845592
+-- @bsb-hash sha256:8bc02c7c5dff6f5e584c5db62bafab3b98e982058a38052461860d3b85d8b849
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,7 +67,7 @@ grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
 create policy bsb_consents_read on "better_supabase"."consents"
   for select to authenticated
-  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()));
 
 
 -- A signal a browser or consent platform sent for a record: the Sec-GPC header,
@@ -980,7 +980,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."consents" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()))
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."consents" as restrictive
   for insert to public
@@ -1042,7 +1042,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:8e77051e85f69a18afe77d9e540c58f1b814f89980d930cda39522ea86fb6ec9
+-- @bsb-hash sha256:a87cb77a0804e22e9a4bcf5dcb09fe14d0ab289f4d6af2adcdbc2aca5f23619d
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1108,7 +1108,7 @@ grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
 create policy bsb_consents_read on "better_supabase"."consents"
   for select to authenticated
-  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()));
 
 
 -- A signal a browser or consent platform sent for a record: the Sec-GPC header,
@@ -2230,7 +2230,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."consents" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()))
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."consents" as restrictive
   for insert to public
@@ -2304,7 +2304,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:60c4966a4f2c23e7dc4fa5d30f007e4ef92cbabe4666e50574c77b895f4476db
+-- @bsb-hash sha256:cacce6abf1af95215153524f9a39a2b41d9c341be86f04afd512aaae63fcc0d8
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2375,7 +2375,7 @@ grant select on "app_private"."consents" to authenticated;
 grant all on "app_private"."consents" to service_role;
 create policy bsb_consents_read on "app_private"."consents"
   for select to authenticated
-  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("app_private"."consents"."subject_type", "app_private"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()));
 
 
 -- A signal a browser or consent platform sent for a record: the Sec-GPC header,
@@ -3288,7 +3288,7 @@ create policy bsb_tenant_scope_select on "app_private"."consents" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()))
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("app_private"."consents"."subject_type", "app_private"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "app_private"."consents" as restrictive
   for insert to public
@@ -3350,7 +3350,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:ea91126dda9f90641a3160a85166bf1444f96b8474bcf97ea463caa4f1689735
+-- @bsb-hash sha256:1750e163140c0d40b5e5f6d11e0b1e995c54c33043d202f08428d9b5f02e3996
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3416,7 +3416,7 @@ grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
 create policy bsb_consents_read on "better_supabase"."consents"
   for select to authenticated
-  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()));
 
 
 -- A signal a browser or consent platform sent for a record: the Sec-GPC header,
@@ -4329,7 +4329,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."consents" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()))
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."consents" as restrictive
   for insert to public
@@ -4521,7 +4521,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:5fd5269ca94209d3bbf45cc5eaa82670d670a3623cd94a299e893ea24129c532
+-- @bsb-hash sha256:64b87de1674a2775152daaced360b5bc7aaf595798a6c7b3b4f6f139d4779b79
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4578,7 +4578,7 @@ grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
 create policy bsb_consents_select on "better_supabase"."consents"
   for select to authenticated
-  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()));
 
 
 -- A signal a browser or consent platform sent for a record: the Sec-GPC header,
@@ -5486,7 +5486,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."consents" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()))
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."consents" as restrictive
   for insert to public
@@ -5548,7 +5548,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:b191684b1d67dea503c794e5885dd3c72a5505c66317b3159825e96901503454
+-- @bsb-hash sha256:044d80f90c5bd3216247e96bbcf622f84733101b4083ddd28cb81038068c276e
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5614,7 +5614,7 @@ grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
 create policy bsb_consents_read on "better_supabase"."consents"
   for select to authenticated
-  using (("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()));
+  using (("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()));
 
 
 -- A signal a browser or consent platform sent for a record: the Sec-GPC header,
@@ -6527,7 +6527,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."consents" as restric
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or (("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "grantor_id" = (select auth.uid()))
+    or (("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."consents"."subject_type", "better_supabase"."consents"."subject_id", 'read'), false)) or "grantor_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."consents" as restrictive
   for insert to public

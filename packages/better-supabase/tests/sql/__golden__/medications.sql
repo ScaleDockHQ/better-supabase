@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:a5d93167825320d40f578c235f19168a5c0b4f0e08e24a8e7660ce3ab1f59f27
+-- @bsb-hash sha256:59e50852433e8488f2b67280904efbef617748e90a4d58a266792b2af059aeb0
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,7 +79,7 @@ grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
 create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false));
 create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
@@ -1273,7 +1273,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" a
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public
@@ -1319,7 +1319,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:f62df57dee39991ac0a6401902f4c0255aca9244786a1859273ef9cd680f4a1f
+-- @bsb-hash sha256:a3aeb1703c9fe5ae43d01d314428a75804e00960313665762c890f4aa4839ca0
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1397,7 +1397,7 @@ grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
 create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false));
 create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
@@ -2716,7 +2716,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" a
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public
@@ -2767,7 +2767,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:335447f08875f174f304a693dcf10ccf429f873d80acd0e68e3d935ec994a5be
+-- @bsb-hash sha256:16e8a608b22e9992abf438162546a7f442fea5ec0f6771cfabb8bab258909644
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2850,7 +2850,7 @@ grant select on "app_private"."medication_orders" to authenticated;
 grant all on "app_private"."medication_orders" to service_role;
 create policy bsb_medication_orders_read on "app_private"."medication_orders"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("app_private"."medication_orders"."subject_type", "app_private"."medication_orders"."subject_id", 'read'), false));
 create policy bsb_medications_read on "app_private"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
@@ -4044,7 +4044,7 @@ create policy bsb_tenant_scope_select on "app_private"."medication_orders" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("app_private"."medication_orders"."subject_type", "app_private"."medication_orders"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "app_private"."medication_orders" as restrictive
   for insert to public
@@ -4090,7 +4090,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:3042792ccf089542e7b77c53590567ab28f71645d329c0485c45fbfe990d328c
+-- @bsb-hash sha256:80dcfe7ea3ce02b5584feb76c0d88004c2cfd867731b20925d6a0f590d3be9cc
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4168,7 +4168,7 @@ grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
 create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false));
 create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
@@ -5362,7 +5362,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" a
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public
@@ -5559,7 +5559,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:44d1ded7c0434761b01185421e0ed568db987aff72eee137f3681242002a8abd
+-- @bsb-hash sha256:e1c971aa2e21104b68f8ea1e32b03bb76f9dd9f71404708d1822a160410a4df8
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5623,7 +5623,7 @@ grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
 create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false));
 create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
@@ -6811,7 +6811,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" a
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public
@@ -6857,7 +6857,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:ae9c02f2f7ec604668ffabf1c1d6ea98f66ca4542f505093901e7ff54a37dc5a
+-- @bsb-hash sha256:0a1c0d2f2a3ca69da42135d479e5ee1e49caca12994af2b770a5f57fe070fe6b
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6935,7 +6935,7 @@ grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
 create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("org_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false));
 create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('medications.read')));
@@ -8129,7 +8129,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."medication_orders" a
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("org_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."medication_orders"."subject_type", "better_supabase"."medication_orders"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."medication_orders" as restrictive
   for insert to public

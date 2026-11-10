@@ -499,6 +499,33 @@ ${userGrant(`${fn(name)}(${ctx.idType}, text, text, uuid, text, uuid, integer, t
 `;
 }
 
+function getFunction(
+  ctx: BlockSqlContext,
+  names: PartyNames,
+  kind: Kind,
+): string {
+  const spec = SPEC[kind];
+  const { t, c, fn } = names;
+  const col = (logical: string): string => c(spec.table, logical);
+  const name = kind === "company" ? "get_company" : "get_person";
+
+  return `
+-- One active ${kind} by id, or null when it is archived, missing or hidden by
+-- row level security.
+create or replace function ${fn(name)}(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${partyJson(ctx, kind, "x")} from ${t(spec.table)} x
+  where x.${col("id")} = ${name}.id and x.${col("archivedAt")} is null
+$$;
+${userGrant(`${fn(name)}(uuid)`)}
+`;
+}
+
 export function partyFunctions(
   ctx: BlockSqlContext,
   names: PartyNames,
@@ -601,7 +628,7 @@ begin
 end;
 $$;
 ${userGrant(`${fn("remove_company_person")}(uuid, uuid)`)}
-${mergeFunction(ctx, names, "company")}${mergeFunction(ctx, names, "person")}${listFunction(ctx, names, "company")}${listFunction(ctx, names, "person")}
+${mergeFunction(ctx, names, "company")}${mergeFunction(ctx, names, "person")}${listFunction(ctx, names, "company")}${listFunction(ctx, names, "person")}${getFunction(ctx, names, "company")}${getFunction(ctx, names, "person")}
 -- The people of a company with their role, primary contact first.
 create or replace function ${fn("company_people_of")}(company uuid)
 returns jsonb

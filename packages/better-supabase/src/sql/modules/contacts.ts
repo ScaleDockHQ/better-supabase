@@ -546,6 +546,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "merge_people", args: ["uuid", "uuid"], returns: "jsonb" },
     { name: "list_companies", args: LIST_ARGS, returns: "jsonb" },
     { name: "list_people", args: LIST_ARGS, returns: "jsonb" },
+    { name: "get_company", args: ["uuid"], returns: "jsonb" },
+    { name: "get_person", args: ["uuid"], returns: "jsonb" },
     { name: "company_people_of", args: ["uuid"], returns: "jsonb" },
     { name: "list_person_identities", args: ["uuid"], returns: "jsonb" },
     { name: "save_payment_term", args: ["{id}", "jsonb"], returns: "jsonb" },

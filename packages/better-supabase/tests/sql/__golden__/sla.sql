@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:da59877d6ae687332456b70cf502948c5caf93c079e64427da2bce366f36707d
+-- @bsb-hash sha256:358b93d2f01feffb886776399bd808b9e5296738558915c5a358581a129a0af4
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,7 +80,7 @@ create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
 
 create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false));
 
 -- The time minutes of working time after start: business hours on the
 -- configured weekdays in the configured time zone, or plain minutes.
@@ -446,7 +446,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."sla_clocks" as restr
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."sla_clocks" as restrictive
   for insert to public
@@ -476,7 +476,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:51e95e12b880833b178c2772602f54e66af397e138294f93f2ba94fba429efea
+-- @bsb-hash sha256:bacd234b8efb1517f871b7b77aba1d9dd0f14f52acb1887222a1d370d5bb510b
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -555,7 +555,7 @@ create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
 
 create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false));
 
 -- The time minutes of working time after start: business hours on the
 -- configured weekdays in the configured time zone, or plain minutes.
@@ -963,7 +963,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."sla_clocks" as restr
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."sla_clocks" as restrictive
   for insert to public
@@ -996,7 +996,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:2f8a5c14cd4ba9e9d6ea4b92997d99bc7f28ea549b3ac2e6a7898059bb5beb6e
+-- @bsb-hash sha256:b2b9ec7638caefc5740f51ca170168be26363f0a9437aee619c7660cba44de02
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1080,7 +1080,7 @@ create policy bsb_sla_escalations_read on "app_private"."sla_escalations"
 
 create policy bsb_sla_clocks_read on "app_private"."sla_clocks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("app_private"."sla_clocks"."subject_type", "app_private"."sla_clocks"."subject_id", 'read'), false));
 
 -- The time minutes of working time after start: business hours on the
 -- configured weekdays in the configured time zone, or plain minutes.
@@ -1446,7 +1446,7 @@ create policy bsb_tenant_scope_select on "app_private"."sla_clocks" as restricti
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("app_private"."sla_clocks"."subject_type", "app_private"."sla_clocks"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "app_private"."sla_clocks" as restrictive
   for insert to public
@@ -1476,7 +1476,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:dfd97da59917e152f617c153ecb09f97e3f7ab28dc5a0d7e0a8e57f4dc640c44
+-- @bsb-hash sha256:d9521b63c1ba0682e2f683489385d955d9bde76f8e58602d527c545aa8dd887c
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1555,7 +1555,7 @@ create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
 
 create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false));
 
 -- The time minutes of working time after start: business hours on the
 -- configured weekdays in the configured time zone, or plain minutes.
@@ -1921,7 +1921,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."sla_clocks" as restr
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."sla_clocks" as restrictive
   for insert to public
@@ -2011,7 +2011,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:973f6a81144ba9f87df3b13c08549c6986d56a4af57c3c4970c8823db6bcd8a8
+-- @bsb-hash sha256:0a15e3c8a6f3a4be6f69bad91768d06a1d5028e56c73edc73bb5ac105a604241
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2083,7 +2083,7 @@ create policy bsb_sla_escalations_select on "better_supabase"."sla_escalations"
 
 create policy bsb_sla_clocks_select on "better_supabase"."sla_clocks"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false));
 
 -- The time minutes of working time after start: business hours on the
 -- configured weekdays in the configured time zone, or plain minutes.
@@ -2449,7 +2449,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."sla_clocks" as restr
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."sla_clocks" as restrictive
   for insert to public
@@ -2479,7 +2479,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:0751d03dc58de942c4f1907cca9a881644c6e1c50416ac850e33ec5f8b5b0356
+-- @bsb-hash sha256:7e5bfb97192b5e122b3f2e5927c84b7d75ef489cad266a9fcdf98f479c668307
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2558,7 +2558,7 @@ create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
 
 create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("org_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false));
 
 -- The time minutes of working time after start: business hours on the
 -- configured weekdays in the configured time zone, or plain minutes.
@@ -2924,7 +2924,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."sla_clocks" as restr
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("org_id" in (select better_supabase.tenant_ids_with('sla.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."sla_clocks"."subject_type", "better_supabase"."sla_clocks"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."sla_clocks" as restrictive
   for insert to public

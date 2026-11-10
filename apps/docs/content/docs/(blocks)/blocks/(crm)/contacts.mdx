@@ -152,6 +152,8 @@ await db.contacts
 
 ## Search and pages
 
+`getCompany(id)` and `getPerson(id)` read one active record by id and return `null` when it is archived, missing or hidden from the caller, in one call instead of paging a list.
+
 `listCompanies` and `listPeople` return the active records by name, 50 per page (at most 200). `search` matches the name and the domain or email, and `lifecycle` and `ownerId` filter. Pass the page's `next` as `cursor` for the next page:
 
 ```ts

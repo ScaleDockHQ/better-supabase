@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:d0f027e81b13f86f3b92caebdca45de94919addd7f27530336ba9324d92a070d
+-- @bsb-hash sha256:9befc857704609502d1ebb8c20f4d3561db893af98b2646e76db15165263bac5
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -797,6 +797,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) from public, anon;
 grant execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) to authenticated, service_role;
+
+-- One active company by id, or null when it is archived, missing or hidden by
+-- row level security.
+create or replace function "better_supabase"."get_company"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") from "better_supabase"."companies" x
+  where x."id" = get_company.id and x."archived_at" is null
+$$;
+revoke execute on function "better_supabase"."get_company"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_company"(uuid) to authenticated, service_role;
+
+-- One active person by id, or null when it is archived, missing or hidden by
+-- row level security.
+create or replace function "better_supabase"."get_person"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") from "better_supabase"."people" x
+  where x."id" = get_person.id and x."archived_at" is null
+$$;
+revoke execute on function "better_supabase"."get_person"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_person"(uuid) to authenticated, service_role;
 
 -- The people of a company with their role, primary contact first.
 create or replace function "better_supabase"."company_people_of"(company uuid)

@@ -88,6 +88,7 @@ describe("search sources beyond the record's row", () => {
     const sql = sqlOf();
 
     expect(sql).toContain("better_supabase.search_deferred");
+    expect(sql).toContain("better_supabase.search_dirty_");
     expect(sql).toContain("search_refresh_dirty");
     expect(sql).toContain("is distinct from (excluded");
   });

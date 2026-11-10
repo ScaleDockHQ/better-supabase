@@ -2,10 +2,11 @@ import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { installedTables, laterTables } from "../later-tables.ts";
 import { quotedTable, SERVICE_CALLER } from "../shared.ts";
-import { subjectReadable } from "../subjects.ts";
+import { subjectReadable, subjectsOption } from "../subjects.ts";
 
 /**
  * A row of `table` as JSON under the module's default column names, which the
@@ -221,6 +222,8 @@ export function inlineSubjectReadable(
     readonly live?: boolean;
     /** Skip the `type is null` guard of a column that is not null. */
     readonly typeNotNull?: boolean;
+    /** The record team check of a type, or-ed with its permission. */
+    readonly team?: (type: string, id: string) => string | undefined;
   } = {},
 ): string {
   if (subjects.length === 0) {
@@ -252,6 +255,7 @@ export function inlineSubjectReadable(
     {
       guest: options.guest ?? true,
       ...(options.live === true ? { live: true } : {}),
+      ...(options.team === undefined ? {} : { team: options.team }),
       tenantColumn: true,
       fallback,
     },
@@ -260,4 +264,61 @@ export function inlineSubjectReadable(
   return options.typeNotNull === true
     ? readable
     : `(${columns.type} is null or ${readable})`;
+}
+
+/**
+ * The policy form of `can_subject(type, id, 'read')` over the row's columns for
+ * a table whose rows name any registered record (ADR 0606): the registry's
+ * subjects inline, the types a later module's table holds through
+ * `can_subject`. A type whose record team holds the read action also lets the
+ * team in, through `is_subject_member`. The columns are qualified with their
+ * table, so a subject's own `tenant_id` can't capture the row's.
+ */
+export function registryReadable(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+  module: string,
+  columns: {
+    readonly type: string;
+    readonly id: string;
+    readonly tenant: string;
+  },
+): string {
+  const canSubject = ctx.of("subjects").fn("can_subject");
+  const fallback = `coalesce(${canSubject}(${columns.type}, ${columns.id}, 'read'), false)`;
+
+  const inline = subjectsOption(ctx, ["deletedAt", "team"], {
+    registryOnly: true,
+  });
+
+  const members = new Set(
+    inline.flatMap(([type, subject]) => {
+      const { team } = subject.extra;
+
+      return isRecord(team) &&
+        Array.isArray(team["actions"]) &&
+        team["actions"].includes("read")
+        ? [type]
+        : [];
+    }),
+  );
+
+  // Without a type to inline, the function answers for all of them.
+  return inline.length === 0
+    ? fallback
+    : inlineSubjectReadable(
+        ctx,
+        layout,
+        inline,
+        { ...columns, fallback },
+        {
+          module,
+          guest: false,
+          typeNotNull: true,
+          team: (type, id) =>
+            members.has(type)
+              ? `${ctx.of("subjects").fn("is_subject_member")}(${sqlString(type)}, ${id})`
+              : undefined,
+        },
+      );
 }

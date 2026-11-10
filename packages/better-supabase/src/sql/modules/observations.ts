@@ -5,7 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -17,6 +17,7 @@ import {
   registerPartitions,
   schemaPreamble,
 } from "../shared.ts";
+import { registryReadable } from "./attachments-app.ts";
 import { observationFunctions } from "./observations-functions.ts";
 import { observationReads } from "./observations-reads.ts";
 import {
@@ -155,14 +156,13 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-function tables(ctx: BlockSqlContext): string {
+function tables(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const definitions = ctx.table("definitions");
   const observations = ctx.table("observations");
   const d = (column: string): string => ctx.col("definitions", column);
   const o = (column: string): string => ctx.col("observations", column);
   const read = ctx.permission("read", moduleOperations("observations").read);
   const partitioned = observationsPartitioned(ctx);
-  const canSubject = ctx.of("subjects").fn("can_subject");
 
   const forms = observationForms(ctx) ? ctx.of("forms") : undefined;
 
@@ -300,11 +300,11 @@ create index if not exists ${name("observations", "replaces_idx")} on ${observat
 create index if not exists ${name("observations", "submission_idx")} on ${observations} (${o("submission")}) where ${o("submission")} is not null;
 create ${partitioned ? "" : "unique "}index if not exists ${name("observations", "external_key")} on ${observations} (${o("tenant")}, ${o("externalId")}) where ${o("externalId")} is not null;
 ${lockModuleTable(ctx, "observations", { read: true })}
-${readPolicy("observations", `${ctx.scope.check(o("tenant"), read)} and coalesce(${canSubject}(${o("subjectType")}, ${o("subjectId")}, 'read'), false)`)}${partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(observations)}` : ""}
+${readPolicy("observations", `${ctx.scope.check(o("tenant"), read)} and ${registryReadable(ctx, layout, "observations", { type: `${observations}.${o("subjectType")}`, id: `${observations}.${o("subjectId")}`, tenant: `${observations}.${o("tenant")}` })}`)}${partitioned ? `\n\n${MONTHLY_PARTITIONS}\n${registerPartitions(observations)}` : ""}
 `;
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -315,7 +315,7 @@ function build(ctx: BlockSqlContext): string {
 -- Observations: typed measurements of a record (vital signs, scores, lab
 -- values) against definitions with a unit, a code and ranges that flag
 -- them, with amendments and entered-in-error corrections kept as history.
-${tables(ctx)}${observationFunctions(ctx)}${observationReads(ctx)}${observationSubmissions(ctx)}`;
+${tables(ctx, layout)}${observationFunctions(ctx)}${observationReads(ctx)}${observationSubmissions(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
