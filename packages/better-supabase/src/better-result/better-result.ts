@@ -345,12 +345,18 @@ function view(db: DbLike, convert: Convert): object {
       return cached;
     }
 
-    const wrapped = Object.fromEntries(
-      Object.entries(target).map(([key, value]) => [
-        key,
-        typeof value === "function" ? call(target, value, key) : value,
-      ]),
-    );
+    // A proxy, because the repository of a table the server loads on first
+    // use (ADR 0611) has no own methods to list.
+    const wrapped: object = new Proxy(target, {
+      get(source, prop) {
+        // SAFETY: a repository is an object of methods keyed by name.
+        const value = (source as Record<PropertyKey, unknown>)[prop];
+
+        return typeof prop === "string" && typeof value === "function"
+          ? call(source, value, prop)
+          : value;
+      },
+    });
 
     repositories.set(target, wrapped);
 

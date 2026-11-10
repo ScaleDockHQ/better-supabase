@@ -24,6 +24,7 @@ describe.skipIf(!source)("row caps against the local stack", () => {
 
   const betterSupabase = createSupabase(schema, {
     maxRows: 1000,
+    truncation: "warn",
     logger: { debug() {}, info() {}, warn() {}, error() {} },
   });
 
@@ -73,6 +74,24 @@ describe.skipIf(!source)("row caps against the local stack", () => {
     expect(capped).toHaveLength(1000);
     expect(page).toHaveLength(1000);
     expect(seen).toEqual([true, false]);
+  });
+
+  it("returns a truncated error for a cut read by default", async () => {
+    const strict = createSupabase(schema, {
+      maxRows: 1000,
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+    }).connect(
+      createClient(url, secretKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      }),
+    );
+
+    const cut = await strict.tags.list({
+      select: ["id"],
+      where: { name: { startsWith: PREFIX } },
+    });
+
+    expect(cut.ok ? "ok" : cut.error.kind).toBe("truncated");
   });
 
   it("orders by the primary key so repeated reads agree", async () => {

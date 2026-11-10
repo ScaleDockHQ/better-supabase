@@ -191,7 +191,7 @@ Install `@supabase/auth-js` and `@supabase/realtime-js`. Cookie sessions stay on
 ```ts
 import { createLiteBrowserClient } from "better-supabase/client/lite";
 
-const browser = createLiteBrowserClient(url, key);
+const bsb = createLiteBrowserClient(url, key);
 ```
 
 The generated `hooks.ts` does this for every `gen.hooks` framework (React, Vue,

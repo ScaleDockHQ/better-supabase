@@ -1,12 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:8aba899a2134121ac83eb9154a0c02227802cb8f40de99ae1baf96b96ef7ee0f
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-hash sha256:acc398a25d0c500020d734d27b6458bc345a0cbdf812ea47f955ef4fef8f78f4
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.1.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.1.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -523,12 +523,12 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:8aba899a2134121ac83eb9154a0c02227802cb8f40de99ae1baf96b96ef7ee0f
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-hash sha256:acc398a25d0c500020d734d27b6458bc345a0cbdf812ea47f955ef4fef8f78f4
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.1.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.1.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -1045,8 +1045,8 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:65c4ebfe06806935dc3375083f36b4c5b5150e777322ebd60208486d5ce94ac4
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-hash sha256:f41c90623b2fb3b218536fc30146deb9cfaa485f2826a7b60af784cba616aabe
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1055,7 +1055,7 @@ grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
--- The Workflow SDK World's tables (@workflow/world-postgres 5.1.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.1.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -1572,12 +1572,12 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:fd348ff4922d092e46c59dfdb9efbaccb504c7ee850458e6eb8d33c031b41112
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-hash sha256:e6e09abbe6f814dd20a18acddc1039f9f19508d4285d7c000a16f3eb624752e7
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.1.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.1.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;

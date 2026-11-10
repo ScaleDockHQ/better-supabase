@@ -376,7 +376,7 @@ describe("run", () => {
     expect(stderr.filter((line) => line !== "Ready\n")).toHaveLength(1);
     expect(stderr[0]).toContain("500");
     expect(stdout).toEqual([
-      "Created src/lib/supabase/database.types.ts\nCreated src/lib/supabase/generated.ts\nCreated src/lib/supabase/generated.meta.js\nCreated src/lib/supabase/generated.meta.d.ts\nCreated src/lib/supabase/generated-schema.ts\nGenerated 0 tables.\n",
+      "Created src/lib/supabase/database.types.ts\nCreated src/lib/supabase/generated.ts\nCreated src/lib/supabase/generated.meta.js\nCreated src/lib/supabase/generated.meta.d.ts\nCreated src/lib/supabase/generated.functions.js\nCreated src/lib/supabase/generated.functions.d.ts\nCreated src/lib/supabase/generated-schema.ts\nGenerated 0 tables.\n",
     ]);
     expect(
       api.calls.filter((call) => call.body?.includes("t_enums")).length,

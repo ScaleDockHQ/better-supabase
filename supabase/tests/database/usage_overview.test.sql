@@ -3,7 +3,7 @@
 begin;
 select plan(2);
 
-insert into better_supabase.usage_quotas (tenant_id, meter, quota_limit, period)
+insert into better_supabase.usage_quotas (tenant_id, meter, "limit", period)
 values ('00000000-0000-4000-8000-000000000001', 'api_calls', 10, 'month');
 
 insert into better_supabase.usage_counters (tenant_id, meter, day, value)
@@ -20,7 +20,7 @@ select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
 select is(
   (better_supabase.usage_remaining('00000000-0000-4000-8000-000000000001', 'api_calls') ->> 'remaining')::numeric,
-  6,
+  6::numeric,
   'one meter reports used against its quota'
 );
 

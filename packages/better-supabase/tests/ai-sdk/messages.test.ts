@@ -157,6 +157,29 @@ describe("fromUIMessage", () => {
     });
   });
 
+  it("keeps a steering message as a data part with its parts", () => {
+    const message = fromUIMessage({
+      id: "u2",
+      role: "user",
+      parts: [
+        {
+          type: "steering-message",
+          id: "s1",
+          parts: [{ type: "text", text: "use the second plan" }],
+        },
+      ],
+    });
+
+    expect(message.parts).toEqual([
+      {
+        type: "data",
+        name: "ui.steering-message",
+        id: "s1",
+        data: { parts: [{ type: "text", text: "use the second plan" }] },
+      },
+    ]);
+  });
+
   it("drops unknown parts and non-object metadata", () => {
     const message = fromUIMessage({
       id: "u1",

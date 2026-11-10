@@ -1,6 +1,8 @@
 /** The part of React Native's `AppState` that `autoRefreshOnForeground` uses. */
 export interface AppStateLike {
-  readonly currentState: string;
+  // React Native 0.88 types `currentState` as `string | null | undefined`
+  // before the first state is known.
+  readonly currentState?: string | null | undefined;
   addEventListener(
     type: "change",
     listener: (state: string) => void,

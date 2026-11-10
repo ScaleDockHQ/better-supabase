@@ -141,6 +141,7 @@ function consumerOf<Q extends QueueSchemas, C>(
   const handler: CallbackHandler = async (message, metadata) => {
     const queue = metadata.topicName;
     // SAFETY: an unknown topic reads undefined, which the next line rejects.
+    // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0634: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
     const run = options.handlers[queue as Extract<keyof Q, string>];
 
     if (run === undefined) {

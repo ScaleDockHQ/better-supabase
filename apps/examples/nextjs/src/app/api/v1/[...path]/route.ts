@@ -1,4 +1,6 @@
 import { API_BASE_PATH, apiResources } from "@/features/api/api-resources";
+import { loadTables } from "@/features/api/load-tables";
+import { betterSupabaseCore } from "@/lib/supabase/core";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -7,6 +9,8 @@ import { bsb } from "@/lib/supabase/server";
  * blocks. Paths outside the map answer 404 before auth resolves. The document
  * is at `/api/v1/openapi.json`.
  */
+await loadTables(betterSupabaseCore, Object.keys(apiResources));
+
 export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(apiResources, {
   basePath: API_BASE_PATH,
 });

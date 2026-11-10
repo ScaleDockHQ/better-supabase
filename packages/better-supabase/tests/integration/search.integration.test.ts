@@ -329,7 +329,13 @@ grant select on search_src_it.customers to authenticated;`);
                 view: "search_src_it.customer_sources",
                 key: "customer_id",
               },
-              watch: [{ table: "search_src_it.contacts", key: "customer_id" }],
+              watch: [
+                {
+                  table: "search_src_it.contacts",
+                  key: "customer_id",
+                  columns: ["full_name"],
+                },
+              ],
             },
           },
         },

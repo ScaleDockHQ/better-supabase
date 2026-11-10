@@ -88,6 +88,7 @@ describe("blockTables", () => {
     expect(tables.byBlock["tags"]?.["taggings"]?.table).toBe(
       "better_supabase.taggings",
     );
+    // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0633: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
     expect(tables.byBlock["labels"]?.["taggings"]?.columns["tag"]).toBe(
       "label_id",
     );

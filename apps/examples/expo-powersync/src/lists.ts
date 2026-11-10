@@ -1,6 +1,7 @@
 import { defineListQuery } from "better-supabase/list";
 
 import { betterSupabase } from "./lib/supabase";
+import { customersTable } from "./lib/supabase/tables/customers";
 
 /**
  * One definition for both readers: PostgREST in web loaders, SQLite on the
@@ -18,13 +19,13 @@ const customerQuery = {
 } as const;
 
 /** Web loaders page by number and show a total. */
-export const customerList = defineListQuery(betterSupabase, "customers", {
+export const customerList = defineListQuery(betterSupabase, customersTable, {
   ...customerQuery,
   pagination: "offset",
 });
 
 /** The device list continues after the last row, so a later page stays cheap. */
-export const customerCursor = defineListQuery(betterSupabase, "customers", {
+export const customerCursor = defineListQuery(betterSupabase, customersTable, {
   ...customerQuery,
   pagination: "cursor",
 });

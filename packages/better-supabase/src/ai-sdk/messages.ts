@@ -294,6 +294,17 @@ function fromPart(part: UIPart): AiMessagePart[] {
       ];
     }
 
+    case "steering-message": {
+      return [
+        {
+          type: "data",
+          name: "ui.steering-message",
+          id: part.id,
+          data: { parts: part.parts.flatMap(fromPart) },
+        },
+      ];
+    }
+
     default: {
       if (part.type.startsWith("data-") && "data" in part) {
         return [

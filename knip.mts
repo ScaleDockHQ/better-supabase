@@ -103,6 +103,9 @@ const config: KnipConfig = {
         "src/components/reui/**",
         "src/lib/supabase/records/**",
         "src/lib/supabase/hooks.ts",
+        // The zod and nuqs generators write every table, used or not.
+        "src/lib/supabase/generated.zod.ts",
+        "src/lib/supabase/generated.nuqs.ts",
         // `gen.serverBlocks` writes `<name>Instances` and `<name>Blocks` for each set (ADR 0542).
         "src/lib/supabase/blocks.core.ts",
         // Copied from the registry, which knip checks as entries.
@@ -133,6 +136,7 @@ const config: KnipConfig = {
         ...exampleIgnore,
         "src/lib/supabase/generated-schema.ts",
         "src/lib/supabase/generated.meta.js",
+        "src/lib/supabase/generated.functions.js",
         "src/lib/supabase/tables/**",
       ],
     },

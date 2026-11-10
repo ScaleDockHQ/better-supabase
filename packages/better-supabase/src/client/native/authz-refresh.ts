@@ -48,7 +48,8 @@ export interface NativeAuthzRefreshOptions extends AuthzTopicOptions {
   readonly onError?: (error: Error) => void;
 }
 
-const isActive = (state: string): boolean => state === "active";
+const isActive = (state: string | null | undefined): boolean =>
+  state === "active";
 
 /**
  * Follows the app's foreground: subscribes while active and drops the channel

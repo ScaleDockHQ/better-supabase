@@ -48,7 +48,7 @@ export function knownColumnType(
 }
 
 /** `text` and `varchar` compare the same way, so a mismatch is a real one. */
-export function sqlTypeKey(type: string): string {
+function sqlTypeKey(type: string): string {
   const flat = type.toLowerCase().replaceAll(/\s+/g, " ").trim();
 
   if (

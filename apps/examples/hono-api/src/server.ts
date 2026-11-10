@@ -2,12 +2,13 @@ import { createHono } from "better-supabase/hono";
 import { defineListQuery } from "better-supabase/list";
 
 import { betterSupabase } from "./lib/supabase";
+import { customersTable } from "./lib/supabase/tables/customers";
 import { partnerApi } from "./marketplace";
 import { authorize, jwks, token } from "./oauth";
 
 const bsb = createHono(betterSupabase);
 
-const customers = defineListQuery(betterSupabase, "customers", {
+const customers = defineListQuery(betterSupabase, customersTable, {
   search: ["name"],
   facets: { status: "status" },
   sorts: { name: { name: "asc" }, newest: { createdAt: "desc" } },

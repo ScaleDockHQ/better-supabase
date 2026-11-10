@@ -13,12 +13,14 @@ peer as BS601.
 | Peer                                    | Range                     | Needed by                                                                                                                        |
 | --------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `@supabase/supabase-js`                 | `^2.118.0`                | Everything (required)                                                                                                            |
+| `@supabase/auth-js`                     | `^2.118.0`                | `better-supabase/client/lite`: Auth in the browser without the PostgREST client                                                  |
+| `@supabase/realtime-js`                 | `^2.118.0`                | `better-supabase/client/lite`: Realtime in the browser without the PostgREST client                                              |
 | `@supabase/pg-delta`                    | `>=1.0.0-alpha.60 <1.0.0` | The CLI: `db diff` plans the migration                                                                                           |
 | `@supabase/pg-topo`                     | `>=1.0.0-alpha.8 <1.0.0`  | The CLI: pg-delta orders the schema files                                                                                        |
 | `@supabase/postgrest-typegen`           | `>=0.6.0 <0.7`            | The CLI: `gen` and `doctor`                                                                                                      |
 | `pg`                                    | `>=8.15 <9`               | The CLI's database commands, `better-supabase/postgres`, `better-supabase/workflow-sdk/world`                                    |
 | `oxfmt`                                 | `>=0.66.0 <1`             | The CLI, to format `database.types.ts`                                                                                           |
-| `@supabase/config`                      | `>=0.9.0 <0.12`           | The CLI, to read `supabase/config.toml` (it falls back to its own parser)                                                        |
+| `@supabase/config`                      | `>=0.9.0 <2`              | The CLI, to read `supabase/config.toml` (it falls back to its own parser)                                                        |
 | `@supabase/lite`                        | `>=0.11.0 <0.12`          | `liteStack()` in `better-supabase/testing`, and the CLI's `gen` and `doctor` on a Supabase Lite project                          |
 | `@supabase/mcp-server-supabase`         | `>=0.13.0 <0.15`          | `supabaseMcp` in `better-supabase/ai-sdk/mcp` and `supabaseMcpHandler` in `better-supabase/mcp/sdk`                              |
 | `undici`                                | `>=7.30.1 <9`             | `keepAliveFetch` in `better-supabase/node` ([Node](/docs/frameworks/node))                                                       |
