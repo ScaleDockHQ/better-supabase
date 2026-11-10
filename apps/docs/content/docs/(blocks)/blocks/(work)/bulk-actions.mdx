@@ -203,3 +203,22 @@ const result = await bulk
 result.failed; // rows that raised
 result.results; // [{ id, ok, error: { code, message, sqlstate } | null }]
 ```
+
+## Selection and progress on the client
+
+`createBulkSelectionController` keeps the checked rows of a table and runs an action on them. Pass `run`, a server action that calls `bulk.apply(...)` with the rows, and optionally `watch`, which follows a background run (for example by subscribing to the `topic` it returns):
+
+```ts
+import { createBulkSelectionController } from "better-supabase/blocks/bulk-actions";
+
+const selection = createBulkSelectionController({
+  run: ({ rows, action, args }) =>
+    applyBulk({ subjectType: "task", rows, action, args }),
+  watch: (started, onProgress) => subscribeProgress(started.topic, onProgress),
+});
+
+selection.actions.toggle(taskId);
+await selection.actions.run("tags.set", { add: [urgentTagId] });
+```
+
+`getSnapshot()` has `selected`, `pending`, `outcome`, `progress` and `error`. A run that worked for every row clears the selection; a run with failures keeps only the failed rows selected, so the next `run` retries them. Run it in a framework with `useBlockController` (see [Block controllers](/docs/frontend/block-controllers)).

@@ -7560,7 +7560,8 @@
     "values": [
       "bulkActionsBlock",
       "bulkActionsEvents",
-      "createBulkActions"
+      "createBulkActions",
+      "createBulkSelectionController"
     ],
     "types": [
       "BuiltInBulkAction",
@@ -7576,6 +7577,10 @@
       "BulkRowResult",
       "BulkRows",
       "BulkRun",
+      "BulkSelectionActions",
+      "BulkSelectionController",
+      "BulkSelectionOptions",
+      "BulkSelectionSnapshot",
       "BulkStarted",
       "BulkStatus"
     ]
@@ -8473,6 +8478,7 @@
   },
   "./blocks/pipelines": {
     "values": [
+      "createBoardController",
       "createPipelines",
       "dbTransport",
       "extendBlock",
@@ -8487,6 +8493,13 @@
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
+      "BoardActions",
+      "BoardCard",
+      "BoardController",
+      "BoardLane",
+      "BoardMove",
+      "BoardOptions",
+      "BoardSnapshot",
       "Pipeline",
       "PipelineColumn",
       "PipelineHealth",
