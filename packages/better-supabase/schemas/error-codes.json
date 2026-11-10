@@ -5175,6 +5175,10 @@
     "message": "the machine has no such flag"
   },
   {
+    "code": "STATE_GUARD_FAILED",
+    "message": "the record does not meet the condition for that status change"
+  },
+  {
     "code": "STATE_HISTORY_APP",
     "message": "the app keeps this machine"
   },
@@ -5205,6 +5209,10 @@
   {
     "code": "STATE_SUBJECT_NOT_FOUND",
     "message": "no such record, or the caller can"
+  },
+  {
+    "code": "STATE_TRANSITION_FORBIDDEN",
+    "message": "the caller may not make that status change"
   },
   {
     "code": "STATE_TRANSITION_INVALID",

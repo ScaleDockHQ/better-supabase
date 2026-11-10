@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:9020e0194132be27c577f6982ed4f983f4db290eb85945f9c84a926201dcf65d
+-- @bsb-hash sha256:92c3eb613c9dda89df93e7018a9e47c87026f11f316a5a29640fcbb1401d4895
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,6 +87,7 @@ create table "better_supabase"."maintenance_plans" (
   )
 );
 create index "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
+create index "maintenance_plans_list_idx" on "better_supabase"."maintenance_plans" ("tenant_id", (coalesce("next_due_at", 'infinity'::timestamptz)), "id");
 create index "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
 create index "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
 create index "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
@@ -132,6 +133,7 @@ create table "better_supabase"."maintenance_calibrations" (
   constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_list_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "performed_at" desc, "id");
 create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
@@ -648,7 +650,8 @@ $$;
 revoke execute on function "better_supabase"."record_calibration"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."record_calibration"(uuid, jsonb) to authenticated, service_role;
 
--- Calibrations, newest first. filters is { assetId, dueBefore, limit, offset }.
+-- Calibrations, newest first. filters is { assetId, dueBefore, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_calibrations"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -660,28 +663,64 @@ as $$
 declare
   v_filters jsonb := coalesce(list_calibrations.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due timestamptz := (v_filters ->> 'dueBefore')::timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_calibrations.tenant is not null and coalesce(better_supabase.can('tenant', list_calibrations.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'assetId', y."asset_id", 'instrument', y."instrument", 'performedAt', y."performed_at", 'dueAt', y."due_at", 'result', y."result", 'reference', y."reference", 'performedBy', y."performed_by", 'qualifications', to_jsonb(y."qualifications")) order by y."performed_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'assetId', x."asset_id", 'instrument', x."instrument", 'performedAt', x."performed_at", 'dueAt', x."due_at", 'result', x."result", 'reference', x."reference", 'performedBy', x."performed_by", 'qualifications', to_jsonb(x."qualifications")) as j, jsonb_build_array((x."performed_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."maintenance_calibrations" x
       where x."tenant_id" = list_calibrations.tenant
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-        and (not v_filters ? 'dueBefore' or x."due_at" <= (v_filters ->> 'dueBefore')::timestamptz)
-      order by x."performed_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+        and (v_after is null or (x."performed_at" <= (v_after ->> 0)::timestamptz and ((x."performed_at" < (v_after ->> 0)::timestamptz) or (x."performed_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."performed_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_calibrations" x
+      where x."tenant_id" = list_calibrations.tenant
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_calibrations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_calibrations"(uuid, jsonb) to authenticated, service_role;
 
 -- Plans of an organization, soonest due first. filters is { status, kind,
--- assetId, due: true, limit, offset }. Each plan carries its parts and whether
+-- assetId, due: true, limit, after, offset, paged, total, totalCap }. Each plan carries its parts and whether
 -- it is due now.
 create or replace function "better_supabase"."list_maintenance_plans"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -694,14 +733,34 @@ as $$
 declare
   v_filters jsonb := coalesce(list_maintenance_plans.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_kind text := nullif(v_filters ->> 'kind', '');
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due boolean := (v_filters ->> 'due')::boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_maintenance_plans.tenant is not null and coalesce(better_supabase.can('tenant', list_maintenance_plans.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(y.view order by y.due_first, y.id)
-    from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
     'due', x."status" = 'active' and x."work_order_id" is null and (
       (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
       or (x."kind" = 'meter' and exists (
@@ -712,17 +771,58 @@ begin
     'parts', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
       from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
-    ), '[]'::jsonb)) as view, x."id" as id, x."next_due_at" as due_first
-      from "better_supabase"."maintenance_plans" x
+    ), '[]'::jsonb)) as j, jsonb_build_array((coalesce(x."next_due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."maintenance_plans" x
       where x."tenant_id" = list_maintenance_plans.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-      order by x."next_due_at" nulls last, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-    where (v_filters ->> 'due') is distinct from 'true' or (y.view ->> 'due')::boolean
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+        and (v_after is null or (coalesce(x."next_due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."next_due_at", 'infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_plans" x
+      where x."tenant_id" = list_maintenance_plans.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_maintenance_plans"(uuid, jsonb) from public, anon;
@@ -829,7 +929,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:fa82f149aea614a78ed8ca4d0a631597263071b4aaa2aab263d68b2e59728328
+-- @bsb-hash sha256:01830838edcc50513889ed1eeb8235358883cbcc767fcb68d09611708b9ce05a
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -915,6 +1015,7 @@ create table "better_supabase"."maintenance_plans" (
   )
 );
 create index "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
+create index "maintenance_plans_list_idx" on "better_supabase"."maintenance_plans" ("tenant_id", (coalesce("next_due_at", 'infinity'::timestamptz)), "id");
 create index "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
 create index "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
 create index "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
@@ -960,6 +1061,7 @@ create table "better_supabase"."maintenance_calibrations" (
   constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_list_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "performed_at" desc, "id");
 create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
@@ -1526,7 +1628,8 @@ $$;
 revoke execute on function "better_supabase"."record_calibration"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."record_calibration"(uuid, jsonb) to authenticated, service_role;
 
--- Calibrations, newest first. filters is { assetId, dueBefore, limit, offset }.
+-- Calibrations, newest first. filters is { assetId, dueBefore, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_calibrations"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1538,28 +1641,64 @@ as $$
 declare
   v_filters jsonb := coalesce(list_calibrations.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due timestamptz := (v_filters ->> 'dueBefore')::timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_calibrations.tenant is not null and coalesce(better_supabase.can('tenant', list_calibrations.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'assetId', y."asset_id", 'instrument', y."instrument", 'performedAt', y."performed_at", 'dueAt', y."due_at", 'result', y."result", 'reference', y."reference", 'performedBy', y."performed_by", 'qualifications', to_jsonb(y."qualifications")) order by y."performed_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'assetId', x."asset_id", 'instrument', x."instrument", 'performedAt', x."performed_at", 'dueAt', x."due_at", 'result', x."result", 'reference', x."reference", 'performedBy', x."performed_by", 'qualifications', to_jsonb(x."qualifications")) as j, jsonb_build_array((x."performed_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."maintenance_calibrations" x
       where x."tenant_id" = list_calibrations.tenant
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-        and (not v_filters ? 'dueBefore' or x."due_at" <= (v_filters ->> 'dueBefore')::timestamptz)
-      order by x."performed_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+        and (v_after is null or (x."performed_at" <= (v_after ->> 0)::timestamptz and ((x."performed_at" < (v_after ->> 0)::timestamptz) or (x."performed_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."performed_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_calibrations" x
+      where x."tenant_id" = list_calibrations.tenant
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_calibrations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_calibrations"(uuid, jsonb) to authenticated, service_role;
 
 -- Plans of an organization, soonest due first. filters is { status, kind,
--- assetId, due: true, limit, offset }. Each plan carries its parts and whether
+-- assetId, due: true, limit, after, offset, paged, total, totalCap }. Each plan carries its parts and whether
 -- it is due now.
 create or replace function "better_supabase"."list_maintenance_plans"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -1572,14 +1711,34 @@ as $$
 declare
   v_filters jsonb := coalesce(list_maintenance_plans.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_kind text := nullif(v_filters ->> 'kind', '');
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due boolean := (v_filters ->> 'due')::boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_maintenance_plans.tenant is not null and coalesce(better_supabase.can('tenant', list_maintenance_plans.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(y.view order by y.due_first, y.id)
-    from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
     'due', x."status" = 'active' and x."work_order_id" is null and (
       (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
       or (x."kind" = 'meter' and exists (
@@ -1590,17 +1749,58 @@ begin
     'parts', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
       from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
-    ), '[]'::jsonb)) as view, x."id" as id, x."next_due_at" as due_first
-      from "better_supabase"."maintenance_plans" x
+    ), '[]'::jsonb)) as j, jsonb_build_array((coalesce(x."next_due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."maintenance_plans" x
       where x."tenant_id" = list_maintenance_plans.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-      order by x."next_due_at" nulls last, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-    where (v_filters ->> 'due') is distinct from 'true' or (y.view ->> 'due')::boolean
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+        and (v_after is null or (coalesce(x."next_due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."next_due_at", 'infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_plans" x
+      where x."tenant_id" = list_maintenance_plans.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_maintenance_plans"(uuid, jsonb) from public, anon;
@@ -1879,7 +2079,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:4df77f00efc93a2b4ca97c2da7291e0a993a3d9cdb69c8c8ca4fc5ff18f100fa
+-- @bsb-hash sha256:525a9cd934172cf63120189a7203ad8c62547b04f4fdc2bddd9ba86bc8e63a52
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1970,6 +2170,7 @@ create table "app_private"."maintenance_plans" (
   )
 );
 create index "maintenance_plans_tenant_idx" on "app_private"."maintenance_plans" ("tenant_id", "status", "next_due_at");
+create index "maintenance_plans_list_idx" on "app_private"."maintenance_plans" ("tenant_id", (coalesce("next_due_at", 'infinity'::timestamptz)), "id");
 create index "maintenance_plans_asset_idx" on "app_private"."maintenance_plans" ("tenant_id", "asset_id");
 create index "maintenance_plans_meter_idx" on "app_private"."maintenance_plans" ("tenant_id", "meter_id");
 create index "maintenance_plans_work_order_idx" on "app_private"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
@@ -2015,6 +2216,7 @@ create table "app_private"."maintenance_calibrations" (
   constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "app_private"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_list_idx" on "app_private"."maintenance_calibrations" ("tenant_id", "performed_at" desc, "id");
 create index "maintenance_calibrations_due_idx" on "app_private"."maintenance_calibrations" ("tenant_id", "due_at");
 alter table "app_private"."maintenance_calibrations" enable row level security;
 revoke all on "app_private"."maintenance_calibrations" from public, anon, authenticated;
@@ -2531,7 +2733,8 @@ $$;
 revoke execute on function "app_private"."record_calibration"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."record_calibration"(uuid, jsonb) to authenticated, service_role;
 
--- Calibrations, newest first. filters is { assetId, dueBefore, limit, offset }.
+-- Calibrations, newest first. filters is { assetId, dueBefore, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "app_private"."list_calibrations"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2543,28 +2746,64 @@ as $$
 declare
   v_filters jsonb := coalesce(list_calibrations.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due timestamptz := (v_filters ->> 'dueBefore')::timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_calibrations.tenant is not null and coalesce(better_supabase.can('tenant', list_calibrations.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'assetId', y."asset_id", 'instrument', y."instrument", 'performedAt', y."performed_at", 'dueAt', y."due_at", 'result', y."result", 'reference', y."reference", 'performedBy', y."performed_by", 'qualifications', to_jsonb(y."qualifications")) order by y."performed_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'assetId', x."asset_id", 'instrument', x."instrument", 'performedAt', x."performed_at", 'dueAt', x."due_at", 'result', x."result", 'reference', x."reference", 'performedBy', x."performed_by", 'qualifications', to_jsonb(x."qualifications")) as j, jsonb_build_array((x."performed_at")::text, (x."id")::text) as k
     from (
       select * from "app_private"."maintenance_calibrations" x
       where x."tenant_id" = list_calibrations.tenant
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-        and (not v_filters ? 'dueBefore' or x."due_at" <= (v_filters ->> 'dueBefore')::timestamptz)
-      order by x."performed_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+        and (v_after is null or (x."performed_at" <= (v_after ->> 0)::timestamptz and ((x."performed_at" < (v_after ->> 0)::timestamptz) or (x."performed_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."performed_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."maintenance_calibrations" x
+      where x."tenant_id" = list_calibrations.tenant
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_calibrations"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."list_calibrations"(uuid, jsonb) to authenticated, service_role;
 
 -- Plans of an organization, soonest due first. filters is { status, kind,
--- assetId, due: true, limit, offset }. Each plan carries its parts and whether
+-- assetId, due: true, limit, after, offset, paged, total, totalCap }. Each plan carries its parts and whether
 -- it is due now.
 create or replace function "app_private"."list_maintenance_plans"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -2577,14 +2816,34 @@ as $$
 declare
   v_filters jsonb := coalesce(list_maintenance_plans.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_kind text := nullif(v_filters ->> 'kind', '');
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due boolean := (v_filters ->> 'due')::boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_maintenance_plans.tenant is not null and coalesce(better_supabase.can('tenant', list_maintenance_plans.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(y.view order by y.due_first, y.id)
-    from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
     'due', x."status" = 'active' and x."work_order_id" is null and (
       (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
       or (x."kind" = 'meter' and exists (
@@ -2595,17 +2854,58 @@ begin
     'parts', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
       from "app_private"."maintenance_plan_parts" y where y."plan_id" = x."id"
-    ), '[]'::jsonb)) as view, x."id" as id, x."next_due_at" as due_first
-      from "app_private"."maintenance_plans" x
+    ), '[]'::jsonb)) as j, jsonb_build_array((coalesce(x."next_due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."maintenance_plans" x
       where x."tenant_id" = list_maintenance_plans.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-      order by x."next_due_at" nulls last, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-    where (v_filters ->> 'due') is distinct from 'true' or (y.view ->> 'due')::boolean
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "app_private"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "app_private"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+        and (v_after is null or (coalesce(x."next_due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."next_due_at", 'infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."maintenance_plans" x
+      where x."tenant_id" = list_maintenance_plans.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "app_private"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "app_private"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_maintenance_plans"(uuid, jsonb) from public, anon;
@@ -2712,7 +3012,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:5a5f87c98ecfbacf573ab40100c2126d57a78eb9caed5526e2273d021af4c3a6
+-- @bsb-hash sha256:6aaf9e48912012dc8c365066f3750d86c43fd349c80c7291ffc47b2338c90937
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2798,6 +3098,7 @@ create table "better_supabase"."maintenance_plans" (
   )
 );
 create index "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
+create index "maintenance_plans_list_idx" on "better_supabase"."maintenance_plans" ("tenant_id", (coalesce("next_due_at", 'infinity'::timestamptz)), "id");
 create index "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
 create index "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
 create index "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
@@ -2843,6 +3144,7 @@ create table "better_supabase"."maintenance_calibrations" (
   constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_list_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "performed_at" desc, "id");
 create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
@@ -3359,7 +3661,8 @@ $$;
 revoke execute on function "better_supabase"."record_calibration"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."record_calibration"(uuid, jsonb) to authenticated, service_role;
 
--- Calibrations, newest first. filters is { assetId, dueBefore, limit, offset }.
+-- Calibrations, newest first. filters is { assetId, dueBefore, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_calibrations"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3371,28 +3674,64 @@ as $$
 declare
   v_filters jsonb := coalesce(list_calibrations.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due timestamptz := (v_filters ->> 'dueBefore')::timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_calibrations.tenant is not null and coalesce(better_supabase.can('tenant', list_calibrations.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'assetId', y."asset_id", 'instrument', y."instrument", 'performedAt', y."performed_at", 'dueAt', y."due_at", 'result', y."result", 'reference', y."reference", 'performedBy', y."performed_by", 'qualifications', to_jsonb(y."qualifications")) order by y."performed_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'assetId', x."asset_id", 'instrument', x."instrument", 'performedAt', x."performed_at", 'dueAt', x."due_at", 'result', x."result", 'reference', x."reference", 'performedBy', x."performed_by", 'qualifications', to_jsonb(x."qualifications")) as j, jsonb_build_array((x."performed_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."maintenance_calibrations" x
       where x."tenant_id" = list_calibrations.tenant
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-        and (not v_filters ? 'dueBefore' or x."due_at" <= (v_filters ->> 'dueBefore')::timestamptz)
-      order by x."performed_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+        and (v_after is null or (x."performed_at" <= (v_after ->> 0)::timestamptz and ((x."performed_at" < (v_after ->> 0)::timestamptz) or (x."performed_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."performed_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_calibrations" x
+      where x."tenant_id" = list_calibrations.tenant
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_calibrations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_calibrations"(uuid, jsonb) to authenticated, service_role;
 
 -- Plans of an organization, soonest due first. filters is { status, kind,
--- assetId, due: true, limit, offset }. Each plan carries its parts and whether
+-- assetId, due: true, limit, after, offset, paged, total, totalCap }. Each plan carries its parts and whether
 -- it is due now.
 create or replace function "better_supabase"."list_maintenance_plans"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -3405,14 +3744,34 @@ as $$
 declare
   v_filters jsonb := coalesce(list_maintenance_plans.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_kind text := nullif(v_filters ->> 'kind', '');
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due boolean := (v_filters ->> 'due')::boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_maintenance_plans.tenant is not null and coalesce(better_supabase.can('tenant', list_maintenance_plans.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(y.view order by y.due_first, y.id)
-    from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
     'due', x."status" = 'active' and x."work_order_id" is null and (
       (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
       or (x."kind" = 'meter' and exists (
@@ -3423,17 +3782,58 @@ begin
     'parts', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
       from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
-    ), '[]'::jsonb)) as view, x."id" as id, x."next_due_at" as due_first
-      from "better_supabase"."maintenance_plans" x
+    ), '[]'::jsonb)) as j, jsonb_build_array((coalesce(x."next_due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."maintenance_plans" x
       where x."tenant_id" = list_maintenance_plans.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-      order by x."next_due_at" nulls last, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-    where (v_filters ->> 'due') is distinct from 'true' or (y.view ->> 'due')::boolean
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+        and (v_after is null or (coalesce(x."next_due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."next_due_at", 'infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_plans" x
+      where x."tenant_id" = list_maintenance_plans.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_maintenance_plans"(uuid, jsonb) from public, anon;
@@ -3638,7 +4038,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:c8fa74bfba8b5e9f7c6027e76ef2e5b38b468cd022eb403923e18dec5fa2d9b0
+-- @bsb-hash sha256:a4f5a7c031c304b6894a014fe8f43fd270dbc7f92b896f64c215bf9faaa77939
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3704,6 +4104,7 @@ alter table "better_supabase"."maintenance_plans" add column if not exists "crea
 alter table "better_supabase"."maintenance_plans" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_maintenance_plans_tenant_id_key" on "better_supabase"."maintenance_plans" ("tenant_id", "id");
 create index if not exists "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "status", "next_due_at");
+create index if not exists "maintenance_plans_list_idx" on "better_supabase"."maintenance_plans" ("tenant_id", (coalesce("next_due_at", 'infinity'::timestamptz)), "id");
 create index if not exists "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "asset_id");
 create index if not exists "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("tenant_id", "meter_id");
 create index if not exists "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
@@ -3742,6 +4143,7 @@ alter table "better_supabase"."maintenance_calibrations" add column if not exist
 alter table "better_supabase"."maintenance_calibrations" add column if not exists "performed_by" uuid;
 alter table "better_supabase"."maintenance_calibrations" add column if not exists "qualifications" text[] not null default '{}';
 create index if not exists "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
+create index if not exists "maintenance_calibrations_list_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "performed_at" desc, "id");
 create index if not exists "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
@@ -4257,7 +4659,8 @@ $$;
 revoke execute on function "better_supabase"."record_calibration"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."record_calibration"(uuid, jsonb) to authenticated, service_role;
 
--- Calibrations, newest first. filters is { assetId, dueBefore, limit, offset }.
+-- Calibrations, newest first. filters is { assetId, dueBefore, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_calibrations"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -4269,28 +4672,64 @@ as $$
 declare
   v_filters jsonb := coalesce(list_calibrations.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due timestamptz := (v_filters ->> 'dueBefore')::timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_calibrations.tenant is not null and coalesce(better_supabase.can('tenant', list_calibrations.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'assetId', y."asset_id", 'instrument', y."instrument", 'performedAt', y."performed_at", 'dueAt', y."due_at", 'result', y."result", 'reference', y."reference", 'performedBy', y."performed_by", 'qualifications', to_jsonb(y."qualifications")) order by y."performed_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'assetId', x."asset_id", 'instrument', x."instrument", 'performedAt', x."performed_at", 'dueAt', x."due_at", 'result', x."result", 'reference', x."reference", 'performedBy', x."performed_by", 'qualifications', to_jsonb(x."qualifications")) as j, jsonb_build_array((x."performed_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."maintenance_calibrations" x
       where x."tenant_id" = list_calibrations.tenant
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-        and (not v_filters ? 'dueBefore' or x."due_at" <= (v_filters ->> 'dueBefore')::timestamptz)
-      order by x."performed_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+        and (v_after is null or (x."performed_at" <= (v_after ->> 0)::timestamptz and ((x."performed_at" < (v_after ->> 0)::timestamptz) or (x."performed_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."performed_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_calibrations" x
+      where x."tenant_id" = list_calibrations.tenant
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_calibrations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_calibrations"(uuid, jsonb) to authenticated, service_role;
 
 -- Plans of an organization, soonest due first. filters is { status, kind,
--- assetId, due: true, limit, offset }. Each plan carries its parts and whether
+-- assetId, due: true, limit, after, offset, paged, total, totalCap }. Each plan carries its parts and whether
 -- it is due now.
 create or replace function "better_supabase"."list_maintenance_plans"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -4303,14 +4742,34 @@ as $$
 declare
   v_filters jsonb := coalesce(list_maintenance_plans.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_kind text := nullif(v_filters ->> 'kind', '');
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due boolean := (v_filters ->> 'due')::boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_maintenance_plans.tenant is not null and coalesce(better_supabase.can('tenant', list_maintenance_plans.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(y.view order by y.due_first, y.id)
-    from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
     'due', x."status" = 'active' and x."work_order_id" is null and (
       (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
       or (x."kind" = 'meter' and exists (
@@ -4321,17 +4780,58 @@ begin
     'parts', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
       from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
-    ), '[]'::jsonb)) as view, x."id" as id, x."next_due_at" as due_first
-      from "better_supabase"."maintenance_plans" x
+    ), '[]'::jsonb)) as j, jsonb_build_array((coalesce(x."next_due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."maintenance_plans" x
       where x."tenant_id" = list_maintenance_plans.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-      order by x."next_due_at" nulls last, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-    where (v_filters ->> 'due') is distinct from 'true' or (y.view ->> 'due')::boolean
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+        and (v_after is null or (coalesce(x."next_due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."next_due_at", 'infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_plans" x
+      where x."tenant_id" = list_maintenance_plans.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_maintenance_plans"(uuid, jsonb) from public, anon;
@@ -4438,7 +4938,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:918c26a14a25b5c9922dc4c4463552f831fcc3babe59b2a9d923462b55e30298
+-- @bsb-hash sha256:13693b2553ec4cdf9245e151713fe986c2983d79c2b63312def648b108841101
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4524,6 +5024,7 @@ create table "better_supabase"."maintenance_plans" (
   )
 );
 create index "maintenance_plans_tenant_idx" on "better_supabase"."maintenance_plans" ("org_id", "status", "next_due_at");
+create index "maintenance_plans_list_idx" on "better_supabase"."maintenance_plans" ("org_id", (coalesce("next_due_at", 'infinity'::timestamptz)), "id");
 create index "maintenance_plans_asset_idx" on "better_supabase"."maintenance_plans" ("org_id", "asset_id");
 create index "maintenance_plans_meter_idx" on "better_supabase"."maintenance_plans" ("org_id", "meter_id");
 create index "maintenance_plans_work_order_idx" on "better_supabase"."maintenance_plans" ("work_order_id") where "work_order_id" is not null;
@@ -4569,6 +5070,7 @@ create table "better_supabase"."maintenance_calibrations" (
   constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("org_id", "asset_id", "performed_at" desc);
+create index "maintenance_calibrations_list_idx" on "better_supabase"."maintenance_calibrations" ("org_id", "performed_at" desc, "id");
 create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("org_id", "due_at");
 alter table "better_supabase"."maintenance_calibrations" enable row level security;
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
@@ -5085,7 +5587,8 @@ $$;
 revoke execute on function "better_supabase"."record_calibration"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."record_calibration"(uuid, jsonb) to authenticated, service_role;
 
--- Calibrations, newest first. filters is { assetId, dueBefore, limit, offset }.
+-- Calibrations, newest first. filters is { assetId, dueBefore, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_calibrations"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -5097,28 +5600,64 @@ as $$
 declare
   v_filters jsonb := coalesce(list_calibrations.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due timestamptz := (v_filters ->> 'dueBefore')::timestamptz;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_calibrations.tenant is not null and coalesce(better_supabase.can('tenant', list_calibrations.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'assetId', y."asset_id", 'instrument', y."instrument", 'performedAt', y."performed_at", 'dueAt', y."due_at", 'result', y."result", 'reference', y."reference", 'performedBy', y."performed_by", 'qualifications', to_jsonb(y."qualifications")) order by y."performed_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'assetId', x."asset_id", 'instrument', x."instrument", 'performedAt', x."performed_at", 'dueAt', x."due_at", 'result', x."result", 'reference', x."reference", 'performedBy', x."performed_by", 'qualifications', to_jsonb(x."qualifications")) as j, jsonb_build_array((x."performed_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."maintenance_calibrations" x
       where x."org_id" = list_calibrations.tenant
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-        and (not v_filters ? 'dueBefore' or x."due_at" <= (v_filters ->> 'dueBefore')::timestamptz)
-      order by x."performed_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+        and (v_after is null or (x."performed_at" <= (v_after ->> 0)::timestamptz and ((x."performed_at" < (v_after ->> 0)::timestamptz) or (x."performed_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."performed_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_calibrations" x
+      where x."org_id" = list_calibrations.tenant
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is null or x."due_at" <= v_due)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_calibrations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_calibrations"(uuid, jsonb) to authenticated, service_role;
 
 -- Plans of an organization, soonest due first. filters is { status, kind,
--- assetId, due: true, limit, offset }. Each plan carries its parts and whether
+-- assetId, due: true, limit, after, offset, paged, total, totalCap }. Each plan carries its parts and whether
 -- it is due now.
 create or replace function "better_supabase"."list_maintenance_plans"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -5131,14 +5670,34 @@ as $$
 declare
   v_filters jsonb := coalesce(list_maintenance_plans.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_kind text := nullif(v_filters ->> 'kind', '');
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due boolean := (v_filters ->> 'due')::boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_maintenance_plans.tenant is not null and coalesce(better_supabase.can('tenant', list_maintenance_plans.tenant, 'maintenance.read'), false))) then
     raise exception 'not allowed to read maintenance' using errcode = '42501', hint = 'MAINTENANCE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(y.view order by y.due_first, y.id)
-    from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
     'due', x."status" = 'active' and x."work_order_id" is null and (
       (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
       or (x."kind" = 'meter' and exists (
@@ -5149,17 +5708,58 @@ begin
     'parts', coalesce((
       select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
       from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
-    ), '[]'::jsonb)) as view, x."id" as id, x."next_due_at" as due_first
-      from "better_supabase"."maintenance_plans" x
+    ), '[]'::jsonb)) as j, jsonb_build_array((coalesce(x."next_due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."maintenance_plans" x
       where x."org_id" = list_maintenance_plans.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'assetId' or x."asset_id" = (v_filters ->> 'assetId')::uuid)
-      order by x."next_due_at" nulls last, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-    where (v_filters ->> 'due') is distinct from 'true' or (y.view ->> 'due')::boolean
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+        and (v_after is null or (coalesce(x."next_due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."next_due_at", 'infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."maintenance_plans" x
+      where x."org_id" = list_maintenance_plans.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_kind is null or x."kind" = v_kind)
+        and (v_asset is null or x."asset_id" = v_asset)
+        and (v_due is not true or (jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'title', x."title", 'kind', x."kind", 'assetId', x."asset_id", 'everyDays', x."every_days", 'meterId', x."meter_id", 'everyValue', x."every_value"::text, 'priority', x."priority", 'status', x."status", 'lastDoneAt', x."last_done_at", 'lastDoneValue', x."last_done_value"::text, 'nextDueAt', x."next_due_at", 'workOrderId', x."work_order_id", 'rrule', x."rrule", 'dtstart', x."dtstart", 'tz', x."tz", 'requiredQualifications', to_jsonb(x."required_qualifications"), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object(
+    'due', x."status" = 'active' and x."work_order_id" is null and (
+      (x."kind" in ('time', 'rrule') and x."next_due_at" <= now())
+      or (x."kind" = 'meter' and exists (
+        select 1 from "better_supabase"."maintenance_meters" z
+        where z."id" = x."meter_id" and z."reading" >= coalesce(x."last_done_value", 0) + x."every_value"
+      ))
+    ),
+    'parts', coalesce((
+      select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name", 'quantity', y."quantity"::text, 'variantId', y."variant_id") order by y."name", y."id")
+      from "better_supabase"."maintenance_plan_parts" y where y."plan_id" = x."id"
+    ), '[]'::jsonb)) ->> 'due')::boolean)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_maintenance_plans"(uuid, jsonb) from public, anon;

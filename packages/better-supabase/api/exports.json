@@ -1361,12 +1361,15 @@
       "contextFromSupabase",
       "createServer",
       "createVersionCache",
+      "CRON_KEY_NAME",
+      "cronHandler",
       "DB_CALLS_HEADER",
       "decodeEntitlementClaim",
       "defineAuthorizationHooks",
       "defineAuthorizer",
       "defineResource",
       "delegationOf",
+      "entryContext",
       "expandBootstrapPermissions",
       "extendServer",
       "FEATURES_CLAIM",
@@ -1390,6 +1393,7 @@
       "jwtClaimsOf",
       "liveRelayTopic",
       "MEMBERSHIPS_CLAIM",
+      "observedFetch",
       "parseDbStats",
       "passwordGrant",
       "PERMISSION_CAP_CLAIM",
@@ -1516,11 +1520,13 @@
       "ClaimsRecord",
       "ClaimsSource",
       "ClearSessionCookiesOptions",
+      "ContextEntry",
       "ContextOptions",
       "CookieOptions",
       "CookieRecord",
       "CookieWrite",
       "CreateVersionCacheOptions",
+      "CronHandlerOptions",
       "DelegationPermissions",
       "DelegationRef",
       "ForContextOptions",
@@ -1535,6 +1541,8 @@
       "InvalidReason",
       "LiteDriver",
       "MiddlewareOptions",
+      "ObservedFetchCall",
+      "ObservedFetchOptions",
       "PasswordGrantOptions",
       "PermissionRef",
       "PermissionsOfOptions",
@@ -3243,6 +3251,20 @@
       "ParserSpec"
     ]
   },
+  "./list/export": {
+    "values": [
+      "csvCell",
+      "exportListCsv",
+      "pageFromIds"
+    ],
+    "types": [
+      "ExportColumn",
+      "ExportPage",
+      "IdPage",
+      "ListExportOptions",
+      "PageFromIdsOptions"
+    ]
+  },
   "./storage": {
     "values": [
       "avatarBucket",
@@ -3440,6 +3462,7 @@
       "TemplateParams",
       "TemplateValues",
       "Topic",
+      "TopicBroadcast",
       "TopicEvent",
       "TopicFanOutOptions",
       "TopicHandle",
@@ -7554,7 +7577,8 @@
     "values": [
       "bulkActionsBlock",
       "bulkActionsEvents",
-      "createBulkActions"
+      "createBulkActions",
+      "createBulkSelectionController"
     ],
     "types": [
       "BuiltInBulkAction",
@@ -7570,6 +7594,10 @@
       "BulkRowResult",
       "BulkRows",
       "BulkRun",
+      "BulkSelectionActions",
+      "BulkSelectionController",
+      "BulkSelectionOptions",
+      "BulkSelectionSnapshot",
       "BulkStarted",
       "BulkStatus"
     ]
@@ -8467,6 +8495,7 @@
   },
   "./blocks/pipelines": {
     "values": [
+      "createBoardController",
       "createPipelines",
       "dbTransport",
       "extendBlock",
@@ -8481,6 +8510,13 @@
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
+      "BoardActions",
+      "BoardCard",
+      "BoardController",
+      "BoardLane",
+      "BoardMove",
+      "BoardOptions",
+      "BoardSnapshot",
       "Pipeline",
       "PipelineColumn",
       "PipelineHealth",
@@ -9173,7 +9209,10 @@
       "StockItem",
       "StockItemInput",
       "StockLevelDetail",
+      "StockLevelRead",
+      "StockLevelStatus",
       "StockLine",
+      "StockMovementRead",
       "StockValuation",
       "TrackingMode",
       "TransferInput",

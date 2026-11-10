@@ -1,10 +1,11 @@
 import type { Money } from "../../commerce/money.ts";
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { plainDateOf } from "../../core/block-helpers.ts";
+import { blockPage, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
@@ -150,6 +151,22 @@ export interface TillSessionListOptions {
   readonly offset?: number;
 }
 
+/**
+ * What `sessionPage` reads: the filters of the list, paged by keyset (ADR
+ * 0642).
+ */
+export interface TillSessionPageOptions extends Omit<
+  TillSessionListOptions,
+  "offset"
+> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
+}
+
 /** The end-of-day count: denominations or a total. */
 export interface CloseTillSessionInput {
   /**
@@ -198,6 +215,10 @@ export interface Tills {
   listSessions(
     options?: TillSessionListOptions,
   ): AsyncResultType<readonly TillSession[]>;
+  /** One keyset page of `listSessions`, with `hasMore` and a `nextCursor`. */
+  sessionPage(
+    options?: TillSessionPageOptions,
+  ): AsyncResultType<ListPage<TillSession>>;
   /**
    * Records cash in or out of an open session; needs `tills.write`. A refund or
    * cash out cannot take more than the drawer holds.
@@ -445,6 +466,8 @@ export function createTills(options: TillsOptions): Tills {
             ),
         ),
       ),
+    sessionPage: (page = {}) =>
+      blockPage(call, tenant, "list_till_sessions", sessionOf, definedOf(page)),
     recordMovement: ({ sessionId, kind, amount, ...extra }) =>
       call(
         "record_till_movement",

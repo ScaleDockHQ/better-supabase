@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:7660fb0ae08c5daffb16e20c5f2790cb4dbf0a3879d258428ef20d4ec9228b09
+-- @bsb-hash sha256:799e9d8b6539cb37b0fcd37e64d27935dba226a5a0eb2e98157c3e46db75d8ab
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,7 +42,7 @@ create table "better_supabase"."posts" (
   "updated_at" timestamptz not null default now()
 );
 create index "posts_board_idx" on "better_supabase"."posts" ("board_id", "pinned_at" desc nulls last, "last_activity_at" desc);
-create index "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc);
+create index "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc, "id" desc);
 create index "posts_author_idx" on "better_supabase"."posts" ("author_id");
 create index "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 

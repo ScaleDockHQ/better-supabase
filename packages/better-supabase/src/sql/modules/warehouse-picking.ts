@@ -3,7 +3,8 @@ import type { WarehouseSql } from "./warehouse-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { createdFromLink } from "../links.ts";
-import { pageSize, userGrant } from "../shared.ts";
+import { listBody, listDeclare } from "../list-template.ts";
+import { userGrant } from "../shared.ts";
 import { warehouseSql } from "./warehouse-sql.ts";
 
 /** Whether the caller reads the list: a reader or the picker it is assigned to. */
@@ -481,6 +482,26 @@ function readFunctions(ctx: BlockSqlContext, q: WarehouseSql): string {
   const { fn, w, p, waves, lists } = q;
   const idType = ctx.idType;
 
+  const list_list_pick_lists = {
+    name: "list_pick_lists",
+    from: lists,
+    alias: "x",
+    where: [
+      `x.${p("tenant")} = list_pick_lists.tenant`,
+      `(v_wave is null or x.${p("wave")} = v_wave::uuid)`,
+      `(v_status is null or x.${p("status")} = v_status)`,
+      `(v_doc_type is null or x.${p("documentType")} = v_doc_type)`,
+      `(v_doc_id is null or x.${p("documentId")} = v_doc_id)`,
+      `((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x.${p("assignee")} = auth.uid(), false))`,
+    ],
+    keys: [
+      { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: `${fn("pick_list_json")}(x.${p("id")})`,
+    invalid: q.invalid,
+  } as const;
+
   return `
 -- A pick list with its lines. Readers see every list; a picker sees the lists
 -- assigned to them.
@@ -505,7 +526,7 @@ $$;
 ${userGrant(`${fn("get_pick_list")}(uuid)`)}
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId, mine: true, limit, offset }. Readers see all of
+-- documentType, documentId, mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of
 -- them; everyone else sees the lists assigned to them.
 create or replace function ${fn("list_pick_lists")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
@@ -517,24 +538,14 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_pick_lists.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list_list_pick_lists)}
+  v_wave text := nullif(v_filters ->> 'waveId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_doc_type text := nullif(v_filters ->> 'documentType', '');
+  v_doc_id text := nullif(v_filters ->> 'documentId', '');
   v_all boolean := ${q.allowed("list_pick_lists.tenant", q.read)};
 begin
-  return coalesce((
-    select jsonb_agg(${fn("pick_list_json")}(y.id) order by y.created_at desc, y.id)
-    from (
-      select x.${p("id")} as id, x.${p("createdAt")} as created_at
-      from ${lists} x
-      where x.${p("tenant")} = list_pick_lists.tenant
-        and (not v_filters ? 'waveId' or x.${p("wave")} = (v_filters ->> 'waveId')::uuid)
-        and (not v_filters ? 'status' or x.${p("status")} = v_filters ->> 'status')
-        and (not v_filters ? 'documentType' or x.${p("documentType")} = v_filters ->> 'documentType')
-        and (not v_filters ? 'documentId' or x.${p("documentId")} = v_filters ->> 'documentId')
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x.${p("assignee")} = auth.uid(), false))
-      order by x.${p("createdAt")} desc, x.${p("id")}
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(list_list_pick_lists)}
 end;
 $$;
 ${userGrant(`${fn("list_pick_lists")}(${idType}, jsonb)`)}

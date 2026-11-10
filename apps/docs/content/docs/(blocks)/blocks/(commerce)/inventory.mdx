@@ -328,11 +328,16 @@ await inventory
   .orThrow();
 ```
 
-`releaseAllocation({ allocationId })` releases one open allocation, and
-`transferAllocation({ allocationId, documentType, documentId, lineId })` moves
+`releaseAllocation({ allocationId, quantity? })` releases one open allocation, and
+`transferAllocation({ allocationId, documentType, documentId, lineId?, quantity? })` moves
 it to another document (such as a quote that became an order) and keeps what it
-holds. They call the SQL functions `release_allocation(allocation)` and
-`transfer_allocation(allocation, document_type, document_id, line_id)`. Both
+holds. They call the SQL functions `release_allocation(allocation, quantity)` and
+`transfer_allocation(allocation, document_type, document_id, line_id, quantity)`.
+Without a `quantity`, or with all that is left, they act on the whole allocation. A smaller
+`quantity` on a release lowers the allocation, freeing backorder first and then held stock. A smaller
+`quantity` on a transfer splits the allocation: held stock moves first into a new allocation on the
+new document, and the call resolves to that new allocation. A quantity of zero or above what is left
+fails with `INVENTORY_QUANTITY_INVALID`. Both
 fail with `INVENTORY_ALLOCATION_CLOSED` for an allocation that is no longer open
 and with `INVENTORY_ALLOCATION_NOT_FOUND` for an unknown one. A release frees the
 stock for waiting backorders and records `allocation.released`; a move records
@@ -490,11 +495,19 @@ The `stock_count` import target creates an open count from `{ locationId or loca
 
 ## Stock overview
 
-`overview({ organizationId, limit?, expiryDays? })` reads the stock page in one call from the SQL function `inventory_overview`: `levelCount`, the levels at or below their reorder point (`lowStockCount` counts all of them, `lowStock` lists the emptiest `limit`, default 20), and the lots with stock that expire within `expiryDays` (default 30), soonest first. Quantities are text, in each variant's unit. The function runs as the caller, so row security decides which levels are counted, and it reads lots through `expiring_lots`, which checks the `inventory.read` permission. `inventory_levels(tenant, variant_ids, location_id)` returns on hand, allocated, available, incoming, the reorder point and a status for those variants only. `inventory_status_counts` counts in-stock, low and out. `list_inventory_movements` pages ledger movements of kind `stock.%`, filtered by variant, location, bin, lot or document. Open purchase orders already add their remaining quantity to `stock_levels.incoming`.
+`overview({ organizationId, limit?, expiryDays? })` reads the stock page in one call from the SQL function `inventory_overview`: `levelCount`, the levels at or below their reorder point (`lowStockCount` counts all of them, `lowStock` lists the emptiest `limit`, default 20), and the lots with stock that expire within `expiryDays` (default 30), soonest first. Quantities are text, in each variant's unit. The function runs as the caller, so row security decides which levels are counted, and it reads lots through `expiring_lots`, which checks the `inventory.read` permission. `levels({ organizationId, variantIds?, locationId? })` calls `inventory_levels` and returns on hand, allocated, available, incoming, the reorder point and a status (`in_stock`, `low` or `out`) for those variants only, by the level primary key, so a page of products is one query. `movements({ organizationId, variantId?, locationId?, binId?, lotId?, documentType?, documentId?, limit?, offset? })` calls `list_inventory_movements` and pages ledger movements of kind `stock.%`, newest first, with `limit` capped at 200. `inventory_status_counts` counts in-stock, low and out. Open purchase orders already add their remaining quantity to `stock_levels.incoming`.
 
 ```ts
 const stock = await db.$blocks.inventory
   .overview({ organizationId, limit: 10, expiryDays: 14 })
+  .orThrow();
+
+const levels = await db.$blocks.inventory
+  .levels({ organizationId, variantIds: pageOfVariantIds })
+  .orThrow();
+
+const history = await db.$blocks.inventory
+  .movements({ organizationId, variantId, limit: 20 })
   .orThrow();
 ```
 

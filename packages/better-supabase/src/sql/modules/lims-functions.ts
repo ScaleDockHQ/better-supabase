@@ -2,8 +2,9 @@ import type { BlockSqlContext } from "../context.ts";
 import type { LimsSql } from "./lims-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { listBody, listDeclare } from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
-import { pageSize, userGrant } from "../shared.ts";
+import { userGrant } from "../shared.ts";
 import { limsSql } from "./lims-sql.ts";
 
 function methodFunctions(ctx: BlockSqlContext, q: LimsSql): string {
@@ -146,6 +147,22 @@ function sampleFunctions(ctx: BlockSqlContext, q: LimsSql): string {
   const { fn, s, r, samples, results } = q;
   const idType = ctx.idType;
 
+  const list = {
+    name: "list_samples",
+    from: samples,
+    alias: "x",
+    where: [
+      `x.${s("tenant")} = list_samples.tenant`,
+      `(v_status is null or x.${s("status")} = v_status)`,
+    ],
+    keys: [
+      { expr: `x.${s("sequence")}`, dir: "desc", type: "bigint" },
+      { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: q.sampleJson("x"),
+    invalid: q.invalid,
+  } as const;
+
   const numberAssign = assignNumberSql(
     ctx,
     ctx.naming.rename("lims_sample"),
@@ -222,7 +239,7 @@ end;
 $$;
 ${userGrant(`${fn("get_sample")}(uuid)`)}
 
--- Samples, newest first. filters is { status, limit, offset }.
+-- Samples, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function ${fn("list_samples")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -233,21 +250,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_samples.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list)}
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not ${q.allowed("list_samples.tenant", q.read)} then
     ${q.forbidden("not allowed to read samples")}
   end if;
-  return coalesce((
-    select jsonb_agg(${q.sampleJson("y")} order by y.${s("sequence")} desc)
-    from (
-      select * from ${samples} x
-      where x.${s("tenant")} = list_samples.tenant
-        and (not v_filters ? 'status' or x.${s("status")} = v_filters ->> 'status')
-      order by x.${s("sequence")} desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(list)}
 end;
 $$;
 ${userGrant(`${fn("list_samples")}(${idType}, jsonb)`)}

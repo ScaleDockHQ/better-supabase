@@ -28,6 +28,10 @@ export interface LoadedTriggerOptions extends Omit<
 export interface LoadedTopic extends TopicInput {
   readonly params: readonly string[];
   readonly private: boolean;
+  /** The tables the topic broadcasts (`broadcast` in `defineTopic`). */
+  readonly broadcasts?: readonly (LoadedTriggerOptions & {
+    readonly table: string;
+  })[];
   sql(options?: { readonly functions?: AuthorizationFunctions }): string;
   trigger(table: string, options?: LoadedTriggerOptions): string;
 }

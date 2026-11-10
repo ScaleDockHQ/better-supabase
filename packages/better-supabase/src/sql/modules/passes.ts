@@ -259,7 +259,7 @@ create table if not exists ${passes} (
   check (${p("usesAllowed")} is null or ${p("uses")} <= ${p("usesAllowed")}),
   check (${p("validUntil")} is null or ${p("validUntil")} > ${p("validFrom")})
 );
-create index if not exists ${index("passes", "tenant_idx")} on ${passes} (${p("tenant")}, ${p("createdAt")} desc);
+create index if not exists ${index("passes", "tenant_idx")} on ${passes} (${p("tenant")}, ${p("createdAt")} desc, ${p("id")} desc);
 create index if not exists ${index("passes", "holder_idx")} on ${passes} (${p("holderUser")});
 create index if not exists ${index("passes", "booking_idx")} on ${passes} (${p("booking")});
 create index if not exists ${index("passes", "resource_idx")} on ${passes} (${p("resource")});${passOverlap(ctx)}

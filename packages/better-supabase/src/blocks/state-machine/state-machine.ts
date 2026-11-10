@@ -35,6 +35,12 @@ export interface StatusState {
   readonly organizationId: string;
   readonly subject: RecordRef;
   readonly status: string;
+  /**
+   * The statuses the caller may move the record to now: the machine's edges
+   * from `status`, without those whose guard the caller fails, and none while
+   * the record is paused. Edges in `requiresApproval` stay in the list.
+   */
+  readonly next: readonly string[];
   /** The machine's `order`, empty when it sets none. */
   readonly order: readonly string[];
   /** The status's 1-based position in `order`, `undefined` outside it. */
@@ -154,6 +160,7 @@ function stateOf(value: unknown): StatusState {
     organizationId: textOf(row["organizationId"]),
     subject: subjectRefOf(row["subjectType"], row["subjectId"]),
     status: textOf(row["status"]),
+    next: stringsOf(row["next"]),
     order: stringsOf(row["order"]),
     step: optionalNumber(row["step"]),
     steps: optionalNumber(row["steps"]),

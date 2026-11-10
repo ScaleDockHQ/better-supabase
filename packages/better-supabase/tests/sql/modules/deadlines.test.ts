@@ -77,7 +77,7 @@ describe("deadlines module", () => {
     const sql = sqlOf();
 
     expect(sql).toContain(
-      `using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))`,
+      `using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true)`,
     );
     expect(sql).toMatch(
       /"deadline_subject_readable"\(subject_type text, subject_id text, tenant uuid\)[\s\S]*?security invoker[\s\S]*?return true;/u,

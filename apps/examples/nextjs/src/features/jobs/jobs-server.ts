@@ -15,7 +15,23 @@ import { env } from "@/env";
 /** The queue the settings page's "Enqueue a test job" writes to. */
 export const TEST_QUEUE = "settings_test";
 
+/** The queue the audit page's export job for large ranges runs on. */
+export const AUDIT_EXPORT_QUEUE = "audit_export";
+
+/** What an audit export job needs; the filters keep the URL's text form. */
+export const auditExportSchema = v.object({
+  job: v.pipe(v.string(), v.uuid()),
+  tenant: v.string(),
+  userId: v.string(),
+  from: v.nullable(v.string()),
+  to: v.nullable(v.string()),
+  actor: v.nullable(v.string()),
+  type: v.nullable(v.string()),
+  q: v.nullable(v.string()),
+});
+
 const queues = {
+  [AUDIT_EXPORT_QUEUE]: auditExportSchema,
   [TEST_QUEUE]: v.object({ message: v.string() }),
   [BLOCK_TICKS_QUEUE]: blockTickSchema,
 };

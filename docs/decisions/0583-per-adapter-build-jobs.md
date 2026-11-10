@@ -10,7 +10,11 @@ The docs build had a CI job, but the Next.js and Vite examples built only inside
 
 ## Decision
 
-`ci.yml` has an `Adapter build` matrix job with one entry per example that builds: `@better-supabase/example-nextjs` and `@better-supabase/example-vite-react`. Both build with no extra environment. A new example with a build script joins the matrix.
+`ci.yml` has an `Adapter build` job for `@better-supabase/example-vite-react`.
+The Next.js example is built by `verify / test`, which reads the build to
+check the route baselines, so CI does not build it a second time. A new
+example with a build script joins the matrix, except a Next.js app whose
+build `verify / test` already depends on.
 
 ## Not done
 
@@ -18,4 +22,4 @@ SvelteKit, TanStack Start, React Router, Solid Start, Nuxt and Astro have no exa
 
 ## Consequences
 
-A framework bundler failure names its framework in the check list. The job adds two parallel runners per pull request.
+A framework bundler failure names its framework in the check list. The Vite job adds one parallel runner per pull request that changes it. The Next.js build is the one `verify / test` already runs.

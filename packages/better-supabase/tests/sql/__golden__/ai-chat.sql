@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:31563b1743768cd546dddfb973f51d5880ad1c721a394105d5d5a94b47a2e1da
+-- @bsb-hash sha256:a4ee212a94bb6116031aaf5a01d77b3d2304d5cafd3f56c501000fed6def60d0
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -340,7 +340,7 @@ create table "better_supabase"."ai_moderation_events" (
   "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc);
+create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc, "id" desc);
 create index ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
 create index ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
@@ -2777,7 +2777,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:0dc5578b2daed7496b4c3f1772e30d4bd77942bf314b8e775bddcfdc6e13d4e8
+-- @bsb-hash sha256:539a9b49316e1e5b4733c9c0c4cea48f09e07ea7dec0a3771cc088be64ac43dc
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3116,7 +3116,7 @@ create table "better_supabase"."ai_moderation_events" (
   "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc);
+create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc, "id" desc);
 create index ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
 create index ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
@@ -5487,7 +5487,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:1ab90976aae36dfd2a7429d57f80bf0f7059ca7c87e15a394962437685b08cff
+-- @bsb-hash sha256:c97f860ccc782ea9c137c82b43a90d676a8b9ec18eaa9bad1d1538962d07da56
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5831,7 +5831,7 @@ create table "app_private"."ai_moderation_events" (
   "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index ai_moderation_events_tenant_idx on "app_private"."ai_moderation_events" ("tenant_id", "created_at" desc);
+create index ai_moderation_events_tenant_idx on "app_private"."ai_moderation_events" ("tenant_id", "created_at" desc, "id" desc);
 create index ai_moderation_events_chat_idx on "app_private"."ai_moderation_events" ("chat_id");
 create index ai_moderation_events_user_idx on "app_private"."ai_moderation_events" ("user_id");
 alter table "app_private"."ai_moderation_events" enable row level security;
@@ -8268,7 +8268,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:031ca92e31bfca620bb374c1b3d7fe5f4422494431203931d7acbb94b8f71a28
+-- @bsb-hash sha256:d0072f651bd80df7f1016a2d28c5301cfd6677853fdfd370927382ee6db6d6ce
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8607,7 +8607,7 @@ create table "better_supabase"."ai_moderation_events" (
   "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc);
+create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc, "id" desc);
 create index ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
 create index ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
@@ -11619,7 +11619,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:8d6014713b4206244491a8d3aff9e91949761a966024f5e1a8269957d98bcb02
+-- @bsb-hash sha256:e98f42cf9f4b38e9a042f7471689d2c0f8be44dd77cdf1a045f2f2f2c9e9584e
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11921,7 +11921,7 @@ alter table "better_supabase"."ai_moderation_events" add column if not exists "c
 alter table "better_supabase"."ai_moderation_events" add column if not exists "score" real;
 alter table "better_supabase"."ai_moderation_events" add column if not exists "action" text constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block'));
 alter table "better_supabase"."ai_moderation_events" add column if not exists "created_at" timestamptz not null default now();
-create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc);
+create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("tenant_id", "created_at" desc, "id" desc);
 create index if not exists ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
 create index if not exists ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;
@@ -14350,7 +14350,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:93819ea5059bfb9745aba789856cb2727677967eca6f1599aafe46b484501b06
+-- @bsb-hash sha256:e0b1a9f5b6deb546970002c8ddec44fcab96e0ac5c74f61036fdd27079d5387a
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14689,7 +14689,7 @@ create table "better_supabase"."ai_moderation_events" (
   "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
-create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("org_id", "created_at" desc);
+create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("org_id", "created_at" desc, "id" desc);
 create index ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
 create index ai_moderation_events_user_idx on "better_supabase"."ai_moderation_events" ("user_id");
 alter table "better_supabase"."ai_moderation_events" enable row level security;

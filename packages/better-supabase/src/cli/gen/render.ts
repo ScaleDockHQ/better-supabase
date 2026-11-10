@@ -211,6 +211,14 @@ export async function render(
       : { path: config.databaseTypesOutput, contents: databaseTypes },
   );
 
+  if (!mapper) {
+    for (const copy of config.gen.types?.also ?? []) {
+      if (copy !== config.databaseTypesOutput) {
+        files.push({ path: copy, contents: databaseTypes });
+      }
+    }
+  }
+
   const main = mapper ? 0 : 1;
 
   const projected =

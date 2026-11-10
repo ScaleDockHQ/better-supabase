@@ -60,13 +60,6 @@ export const markAllRead = bsb.action(
   },
 );
 
-/** The badge numbers, loaded by `useNotifications` after each broadcast. */
-export const loadNotificationCounts = bsb.blockAction(
-  ({ db }) => db.notifications,
-  "counts",
-  { requireTenant: true, args: (_input, { tenant }) => [{ tenant }] },
-);
-
 /**
  * The caller's latest notifications, loaded by `useNotifications` after each
  * broadcast.

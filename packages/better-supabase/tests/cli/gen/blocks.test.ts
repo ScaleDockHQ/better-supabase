@@ -94,6 +94,34 @@ describe("blocks.generated.ts", () => {
     });
   });
 
+  it("writes each machine's transitions for the app to read", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          "state-machine": {
+            options: {
+              machines: {
+                quote: {
+                  table: "public.quotes",
+                  column: "status",
+                  initial: "draft",
+                  transitions: { draft: ["sent"], sent: ["accepted"] },
+                },
+                change_request: { column: "status", workflow: "changes" },
+                legacy: "not a machine",
+              },
+            },
+          },
+        },
+      },
+      "/project",
+    );
+
+    expect(blockConfigEntries(config)["state-machine"]?.options).toEqual({
+      transitions: { quote: { draft: ["sent"], sent: ["accepted"] } },
+    });
+  });
+
   it("writes the function names the tenant name and blocks.<name>.functions give", () => {
     const config = resolveConfig(
       {

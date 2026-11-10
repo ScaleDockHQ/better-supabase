@@ -182,3 +182,100 @@ describe("setFeatureStatement for a rendered tag", () => {
     );
   });
 });
+
+const RPC = {
+  name: "rpc",
+  args: { name: "get_scale_tasks", columns: "id,title" },
+} as const;
+
+const COPY = {
+  name: "copy",
+  args: {
+    columns: "tenant_id,project_id,title,hours",
+    suffix: "title: (copy)",
+  },
+} as const;
+
+const ROLLUP = {
+  name: "rollup",
+  args: {
+    stored: true,
+    to: "public.scale_projects",
+    key: "project_id",
+    column: "task_count",
+  },
+} as const;
+
+describe("rpc, copy and rollup tags (ADR 0661)", () => {
+  it("renders the SQL the second pgTAP file applies", () => {
+    const pgtap = readFileSync(
+      new URL(
+        "../../../../supabase/tests/database/bsb_tags_rendered_more.test.sql",
+        import.meta.url,
+      ),
+      "utf-8",
+    );
+
+    for (const block of [
+      renderTagBlock("rpc", "public", "scale_tasks", RPC),
+      renderTagBlock("copy", "public", "scale_tasks", COPY),
+      renderTagBlock("rollup", "public", "scale_tasks", ROLLUP),
+    ]) {
+      expect(pgtap).toContain(block);
+    }
+  });
+
+  it("caps the ids an rpc reads and keeps their order", () => {
+    const sql = renderTagBlock("rpc", "public", "scale_tasks", {
+      name: "rpc",
+      args: { name: "get_scale_tasks", max: "50" },
+    });
+
+    expect(sql).toContain("get_scale_tasks.ids[1:50]");
+    expect(sql).toContain("order by i.n");
+    expect(() =>
+      renderTagBlock("rpc", "public", "scale_tasks", {
+        name: "rpc",
+        args: { max: "9000" },
+      }),
+    ).toThrow(/1 to 5000/u);
+  });
+
+  it("refuses a copy without columns or with the id", () => {
+    expect(() =>
+      renderTagBlock("copy", "public", "scale_tasks", {
+        name: "copy",
+        args: {},
+      }),
+    ).toThrow(/columns=/u);
+    expect(() =>
+      renderTagBlock("copy", "public", "scale_tasks", {
+        name: "copy",
+        args: { columns: "id,title" },
+      }),
+    ).toThrow(/must not include id/u);
+  });
+
+  it("sums a column in a rollup and refuses what it cannot render", () => {
+    const sql = renderTagBlock("rollup", "public", "scale_tasks", {
+      name: "rollup",
+      args: { ...ROLLUP.args, column: "hours_total", sum: "hours" },
+    });
+
+    expect(sql).toContain('"hours_total" + coalesce(new."hours", 0)');
+    expect(sql).toContain('old."hours" is distinct from new."hours"');
+
+    expect(() =>
+      renderTagBlock("rollup", "public", "scale_tasks", {
+        name: "rollup",
+        args: { to: "public.scale_projects", key: "project_id", column: "n" },
+      }),
+    ).toThrow(/stored/u);
+    expect(() =>
+      renderTagBlock("rollup", "public", "scale_tasks", {
+        name: "rollup",
+        args: { stored: true, key: "project_id", column: "n" },
+      }),
+    ).toThrow(/to=/u);
+  });
+});

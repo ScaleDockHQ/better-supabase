@@ -5,12 +5,20 @@ import { sqlString } from "../core/template.ts";
 import { listBody, listDeclare } from "./list-template.ts";
 
 /**
- * The `@bsb` tags that render SQL beyond a single call (ADR 0637): `access`
- * policies, a keyset `list` function and an `idempotency` index. `table enable`
- * writes each as a block between marker comments in the table's file, so a
- * later run replaces it instead of adding a second copy.
+ * The `@bsb` tags that render SQL beyond a single call (ADR 0637, ADR 0661):
+ * `access` policies, a keyset `list` function, an `idempotency` index, an id
+ * `rpc` function, a stored `rollup` trigger and a `copy` function. `table
+ * enable` writes each as a block between marker comments in the table's file,
+ * so a later run replaces it instead of adding a second copy.
  */
-export const RENDERED_FEATURES = ["access", "list", "idempotency"] as const;
+export const RENDERED_FEATURES = [
+  "access",
+  "list",
+  "idempotency",
+  "rpc",
+  "rollup",
+  "copy",
+] as const;
 
 export type RenderedFeature = (typeof RENDERED_FEATURES)[number];
 
@@ -367,6 +375,180 @@ grant execute on function ${fn}(${signature}) to authenticated, service_role;
 ${indexes.join("\n")}`;
 }
 
+/** The columns of a row as jsonb: all of them, or the listed ones. */
+function rowJson(alias: string, columns: readonly string[]): string {
+  if (columns.length === 0) {
+    return `to_jsonb(${alias})`;
+  }
+
+  return `jsonb_build_object(${columns
+    .map((column) => `${sqlString(column)}, ${alias}.${quote(column)}`)
+    .join(", ")})`;
+}
+
+const MAX_IDS = 5000;
+
+function rpcBlock(schema: string, table: string, tag: BsbTag): string {
+  const target = `${quote(schema)}.${quote(table)}`;
+  const name = identifier(arg(tag, "name") ?? `get_${table}_by_ids`, "name");
+  const fn = `${quote(schema)}.${quote(name)}`;
+  const idColumn = identifier(arg(tag, "id") ?? "id", "id");
+  const idType = castType(arg(tag, "id-type") ?? "uuid", "rpc");
+  const columns = list(tag, "columns").map((c) => identifier(c, "columns"));
+  const max = Number(arg(tag, "max") ?? "500");
+
+  if (!Number.isInteger(max) || max < 1 || max > MAX_IDS) {
+    throw new TypeError(`@bsb rpc: max is a whole number from 1 to ${MAX_IDS}`);
+  }
+
+  return `-- The rows of ${schema}.${table} for up to ${max} ids, in the order of the ids; row security decides the rows.
+create or replace function ${fn}(ids ${idType}[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(${rowJson("x", columns)} order by i.n), '[]'::jsonb)
+  from unnest(${name}.ids[1:${max}]) with ordinality as i(id, n)
+  join ${target} x on x.${quote(idColumn)} = i.id
+$$;
+revoke execute on function ${fn}(${idType}[]) from public;
+grant execute on function ${fn}(${idType}[]) to authenticated, service_role;`;
+}
+
+function copyBlock(schema: string, table: string, tag: BsbTag): string {
+  const target = `${quote(schema)}.${quote(table)}`;
+  const name = identifier(arg(tag, "name") ?? `copy_${table}`, "name");
+  const fn = `${quote(schema)}.${quote(name)}`;
+  const idColumn = identifier(arg(tag, "id") ?? "id", "id");
+  const idType = castType(arg(tag, "id-type") ?? "uuid", "copy");
+  const columns = list(tag, "columns").map((c) => identifier(c, "columns"));
+
+  if (columns.length === 0) {
+    throw new TypeError(
+      "@bsb copy needs columns=<comma list> of the columns to copy; leave out the id and generated columns",
+    );
+  }
+
+  if (columns.includes(idColumn)) {
+    throw new TypeError(`@bsb copy: columns must not include ${idColumn}`);
+  }
+
+  const suffixes = new Map(
+    list(tag, "suffix").map((entry) => {
+      const [column = "", ...text] = entry.split(":");
+
+      return [identifier(column, "suffix"), text.join(":")] as const;
+    }),
+  );
+
+  for (const column of suffixes.keys()) {
+    if (!columns.includes(column)) {
+      throw new TypeError(
+        `@bsb copy: suffix names ${column}, which is not in columns`,
+      );
+    }
+  }
+
+  const selected = columns.map((column) =>
+    suffixes.has(column)
+      ? `x.${quote(column)} || ${sqlString(suffixes.get(column) ?? "")}`
+      : `x.${quote(column)}`,
+  );
+
+  return `-- A copy of one row of ${schema}.${table}; row security decides what is read and what may be inserted.
+create or replace function ${fn}(source ${idType})
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${target};
+begin
+  insert into ${target} (${columns.map(quote).join(", ")})
+  select ${selected.join(", ")}
+  from ${target} x
+  where x.${quote(idColumn)} = ${name}.source
+  returning * into v_row;
+  if not found then
+    raise exception ${sqlString(`${table} not found`)} using errcode = 'P0002';
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function ${fn}(${idType}) from public;
+grant execute on function ${fn}(${idType}) to authenticated, service_role;`;
+}
+
+function rollupBlock(schema: string, table: string, tag: BsbTag): string {
+  if (tag.args["stored"] !== true) {
+    throw new TypeError(
+      "@bsb rollup renders a stored rollup only; write `rollup stored`",
+    );
+  }
+
+  const target = `${quote(schema)}.${quote(table)}`;
+  const to = (arg(tag, "to") ?? "").split(".");
+  const parentSchema = to[0] ?? "";
+  const parentTable = to[1] ?? "";
+
+  if (parentTable === "") {
+    throw new TypeError(
+      "@bsb rollup needs to=<schema.table>, the parent table that stores the value",
+    );
+  }
+
+  const parent = `${quote(identifier(parentSchema, "to"))}.${quote(identifier(parentTable, "to"))}`;
+  const key = identifier(arg(tag, "key") ?? "", "key");
+  const column = identifier(arg(tag, "column") ?? "", "column");
+  const parentKey = identifier(arg(tag, "parent-key") ?? "id", "parent-key");
+  const sum = arg(tag, "sum");
+  const sumColumn = sum === undefined ? undefined : identifier(sum, "sum");
+  const name = `bsb_rollup_${table}_${column}`;
+  const fn = `${quote(schema)}.${quote(name)}`;
+
+  const amount = (row: string): string =>
+    sumColumn === undefined ? "1" : `coalesce(${row}.${quote(sumColumn)}, 0)`;
+
+  const adjust = (row: string, sign: "+" | "-"): string =>
+    `update ${parent} set ${quote(column)} = ${quote(column)} ${sign} ${amount(row)} where ${quote(parentKey)} = ${row}.${quote(key)};`;
+
+  const changed =
+    sumColumn === undefined
+      ? `old.${quote(key)} is distinct from new.${quote(key)}`
+      : `old.${quote(key)} is distinct from new.${quote(key)} or old.${quote(sumColumn)} is distinct from new.${quote(sumColumn)}`;
+
+  return `-- Keeps ${parentSchema}.${parentTable}.${column} equal to the ${sumColumn === undefined ? "number of rows" : `sum of ${sumColumn}`} of ${schema}.${table} by ${key}. Backfill the column once when you turn this on.
+create or replace function ${fn}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    ${adjust("new", "+")}
+    return new;
+  elsif tg_op = 'DELETE' then
+    ${adjust("old", "-")}
+    return old;
+  end if;
+  if ${changed} then
+    ${adjust("old", "-")}
+    ${adjust("new", "+")}
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function ${fn}() from public, anon, authenticated;
+create trigger ${quote(name)}
+  after insert or update or delete on ${target}
+  for each row execute function ${fn}();`;
+}
+
 const begin = (feature: string): string => `-- @bsb-tag ${feature} begin`;
 const end = (feature: string): string => `-- @bsb-tag ${feature} end`;
 
@@ -396,6 +578,18 @@ export function renderTagBlock(
 
       case "idempotency": {
         return idempotencyBlock(schema, table, tag);
+      }
+
+      case "rpc": {
+        return rpcBlock(schema, table, tag);
+      }
+
+      case "rollup": {
+        return rollupBlock(schema, table, tag);
+      }
+
+      case "copy": {
+        return copyBlock(schema, table, tag);
       }
 
       default: {

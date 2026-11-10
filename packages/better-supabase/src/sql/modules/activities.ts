@@ -392,7 +392,7 @@ ${
   ${e("createdAt")} timestamptz not null default now()${owned("updatedAt") ? `,\n  ${e("updatedAt")} timestamptz not null default now()` : ""}
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("activities").name}_owner_open_idx`)} on ${t("activities")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
-create index if not exists ${sqlIdent(`${ctx.tableName("activities").name}_tenant_created_idx`)} on ${t("activities")} (${e("tenant")}, ${e("createdAt")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("activities").name}_tenant_created_idx`)} on ${t("activities")} (${e("tenant")}, ${e("createdAt")} desc, ${e("id")} desc);
 ${owned("externalRef") ? `create unique index if not exists ${sqlIdent(`${ctx.tableName("activities").name}_external_ref_idx`)} on ${t("activities")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;` : ""}${noteColumnsSql(ctx)}
 ${lockTable(t("activities"), { read: true })}
 create table if not exists ${t("links")} (

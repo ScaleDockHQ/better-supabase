@@ -164,10 +164,10 @@ export function memoizedTenantLabel(
     values: values.replaceAll(label, "v_label"),
     sql: `
   if row_tenant is not null then
-    v_label := better_supabase.memo_get('audit.tenant_label.t' || replace(row_tenant::text, '-', ''));
+    v_label := better_supabase.memo_slot_get('audit.tenant_label.t' || replace(row_tenant::text, '-', ''));
     if v_label is null then
       v_label := ${label};
-      perform better_supabase.memo_set('audit.tenant_label.t' || replace(row_tenant::text, '-', ''), coalesce(v_label, ''));
+      perform better_supabase.memo_slot_set('audit.tenant_label.t' || replace(row_tenant::text, '-', ''), coalesce(v_label, ''));
     end if;
   end if;`,
   };

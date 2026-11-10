@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:0698b6d4c377d29c22f817998a304a43b9b1fa3b73aea4573f7b87eb694c1889
+-- @bsb-hash sha256:f3066370c1d5efab46c4f1ae2d7c1f6cf7391ff25c1ef70d67630c6299e14723
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,7 @@ create table "better_supabase"."shipments" (
   constraint bsb_shipments_check1 check (("label_cost" is null) = ("currency" is null)),
   constraint bsb_shipments_check2 check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
 );
-create index "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc);
+create index "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc, "id" desc);
 create index "shipments_status_idx" on "better_supabase"."shipments" ("tenant_id", "status");
 create unique index "shipments_tracking_key" on "better_supabase"."shipments" ("carrier", "tracking_number") where "tracking_number" is not null;
 create index "shipments_subject_idx" on "better_supabase"."shipments" ("tenant_id", "subject_type", "subject_id");

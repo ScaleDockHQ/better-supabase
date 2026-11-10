@@ -334,3 +334,107 @@ describe("inventory block", () => {
     ]);
   });
 });
+
+describe("inventory levels and movements reads", () => {
+  it("reads the levels of the given variants in one call", async () => {
+    const calls: { fn: string; args: unknown }[] = [];
+
+    const inventory = createInventory({
+      transport: {
+        call(_schema: string, fn: string, args: unknown) {
+          calls.push({ fn, args });
+
+          return Promise.resolve([
+            {
+              variantId: "v1",
+              locationId: "l1",
+              onHand: "5",
+              allocated: "1",
+              available: "4",
+              incoming: "0",
+              reorderPoint: null,
+              status: "in_stock",
+            },
+          ]);
+        },
+      },
+    });
+
+    const levels = await inventory
+      .levels({ organizationId: "org", variantIds: ["v1", "v2"] })
+      .orThrow();
+
+    expect(levels).toEqual([
+      {
+        variantId: "v1",
+        locationId: "l1",
+        onHand: "5",
+        allocated: "1",
+        available: "4",
+        incoming: "0",
+        reorderPoint: null,
+        status: "in_stock",
+      },
+    ]);
+    expect(calls).toEqual([
+      {
+        fn: "inventory_levels",
+        args: { tenant: "org", variant_ids: ["v1", "v2"], location_id: null },
+      },
+    ]);
+  });
+
+  it("pages movements with the filters it is given", async () => {
+    const calls: { fn: string; args: unknown }[] = [];
+
+    const inventory = createInventory({
+      transport: {
+        call(_schema: string, fn: string, args: unknown) {
+          calls.push({ fn, args });
+
+          return Promise.resolve([
+            {
+              id: "m1",
+              kind: "stock.sale",
+              variantId: "v1",
+              locationId: "l1",
+              binId: null,
+              lotId: null,
+              quantity: "-2",
+              documentType: "order",
+              documentId: "o1",
+              effectiveAt: "2026-11-01T10:00:00+00:00",
+            },
+          ]);
+        },
+      },
+    });
+
+    const movements = await inventory
+      .movements({
+        organizationId: "org",
+        variantId: "v1",
+        documentType: "order",
+        limit: 20,
+      })
+      .orThrow();
+
+    expect(movements[0]).toMatchObject({ id: "m1", quantity: "-2" });
+    expect(calls).toEqual([
+      {
+        fn: "list_inventory_movements",
+        args: {
+          tenant: "org",
+          variant: "v1",
+          location: null,
+          bin: null,
+          lot: null,
+          document_type: "order",
+          document_id: null,
+          row_limit: 20,
+          row_offset: null,
+        },
+      },
+    ]);
+  });
+});

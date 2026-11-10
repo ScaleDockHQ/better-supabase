@@ -2,7 +2,8 @@ import type { BlockSqlContext } from "../context.ts";
 import type { AppraisalsSql } from "./appraisals-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { pageSize, userGrant } from "../shared.ts";
+import { listBody, listDeclare } from "../list-template.ts";
+import { userGrant } from "../shared.ts";
 import { rubricFunctions } from "./appraisals-rubrics.ts";
 import { appraisalsSql } from "./appraisals-sql.ts";
 import { APPRAISAL_ANONYMITY } from "./appraisals-values.ts";
@@ -435,6 +436,25 @@ function reviewFunctions(ctx: BlockSqlContext, q: AppraisalsSql): string {
 
   const idType = ctx.idType;
 
+  const list_list_appraisals = {
+    name: "list_appraisals",
+    from: appraisals,
+    alias: "x",
+    where: [
+      `x.${a("tenant")} = list_appraisals.tenant`,
+      `(v_cycle is null or x.${a("cycle")} = v_cycle::uuid)`,
+      `(v_status is null or x.${a("status")} = v_status)`,
+      `(v_subject is null or x.${a("subjectUser")} = v_subject::uuid)`,
+      `((v_all and (v_filters ->> 'mine') is distinct from 'true') or ${ownership(q, "x")})`,
+    ],
+    keys: [
+      { expr: `x.${a("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${a("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: `${fn("appraisal_json")}(x.${a("id")}, v_all)`,
+    invalid: q.invalid,
+  } as const;
+
   return `
 -- Submits a review the caller was assigned. input is { rating: 1 to 5,
 -- comments, submissionId } where submissionId is the forms submission that
@@ -745,7 +765,7 @@ $$;
 ${userGrant(`${fn("get_appraisal")}(uuid)`)}
 
 -- Appraisals of an organization. filters is { cycleId, status, subjectUserId,
--- mine: true, limit, offset }. Readers see all of them; everyone else sees
+-- mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of them; everyone else sees
 -- the ones they are the subject or a reviewer of.
 create or replace function ${fn("list_appraisals")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
@@ -757,23 +777,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_appraisals.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list_list_appraisals)}
+  v_cycle text := nullif(v_filters ->> 'cycleId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_subject text := nullif(v_filters ->> 'subjectUserId', '');
   v_all boolean := ${q.allowed("list_appraisals.tenant", q.read)};
 begin
-  return coalesce((
-    select jsonb_agg(${fn("appraisal_json")}(y.id, v_all) order by y.created_at desc, y.id)
-    from (
-      select x.${a("id")} as id, x.${a("createdAt")} as created_at
-      from ${appraisals} x
-      where x.${a("tenant")} = list_appraisals.tenant
-        and (not v_filters ? 'cycleId' or x.${a("cycle")} = (v_filters ->> 'cycleId')::uuid)
-        and (not v_filters ? 'status' or x.${a("status")} = v_filters ->> 'status')
-        and (not v_filters ? 'subjectUserId' or x.${a("subjectUser")} = (v_filters ->> 'subjectUserId')::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or ${ownership(q, "x")})
-      order by x.${a("createdAt")} desc, x.${a("id")}
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(list_list_appraisals)}
 end;
 $$;
 ${userGrant(`${fn("list_appraisals")}(${idType}, jsonb)`)}

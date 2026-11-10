@@ -1,7 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { MaintenanceSql } from "./maintenance-sql.ts";
 
-import { pageSize, triggerGrant, userGrant } from "../shared.ts";
+import { listBody, listDeclare } from "../list-template.ts";
+import { triggerGrant, userGrant } from "../shared.ts";
 import { maintenanceSql } from "./maintenance-sql.ts";
 import {
   MAINTENANCE_CALIBRATION_RESULTS,
@@ -399,6 +400,23 @@ function calibrationFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
   const { fn, c, calibrations } = q;
   const idType = ctx.idType;
 
+  const list = {
+    name: "list_calibrations",
+    from: calibrations,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = list_calibrations.tenant`,
+      `(v_asset is null or x.${c("asset")} = v_asset)`,
+      `(v_due is null or x.${c("dueAt")} <= v_due)`,
+    ],
+    keys: [
+      { expr: `x.${c("performedAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: q.calibrationJson("x"),
+    invalid: q.invalid,
+  } as const;
+
   return `
 -- Records a calibration. input is { assetId, instrument, performedAt, dueAt,
 -- result: 'pass' | 'fail' | 'adjusted', reference, qualifications }. The
@@ -460,7 +478,8 @@ end;
 $$;
 ${userGrant(`${fn("record_calibration")}(${idType}, jsonb)`)}
 
--- Calibrations, newest first. filters is { assetId, dueBefore, limit, offset }.
+-- Calibrations, newest first. filters is { assetId, dueBefore, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function ${fn("list_calibrations")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -471,22 +490,14 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_calibrations.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list)}
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due timestamptz := (v_filters ->> 'dueBefore')::timestamptz;
 begin
   if not ${q.allowed("list_calibrations.tenant", q.read)} then
     ${q.forbidden("not allowed to read maintenance")}
   end if;
-  return coalesce((
-    select jsonb_agg(${q.calibrationJson("y")} order by y.${c("performedAt")} desc, y.${c("id")})
-    from (
-      select * from ${calibrations} x
-      where x.${c("tenant")} = list_calibrations.tenant
-        and (not v_filters ? 'assetId' or x.${c("asset")} = (v_filters ->> 'assetId')::uuid)
-        and (not v_filters ? 'dueBefore' or x.${c("dueAt")} <= (v_filters ->> 'dueBefore')::timestamptz)
-      order by x.${c("performedAt")} desc, x.${c("id")}
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(list)}
 end;
 $$;
 ${userGrant(`${fn("list_calibrations")}(${idType}, jsonb)`)}
@@ -497,9 +508,32 @@ function dispatchFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
   const { fn, p, s, plans, parts } = q;
   const idType = ctx.idType;
 
+  const list_list_maintenance_plans = {
+    name: "list_maintenance_plans",
+    from: plans,
+    alias: "x",
+    where: [
+      `x.${p("tenant")} = list_maintenance_plans.tenant`,
+      `(v_status is null or x.${p("status")} = v_status)`,
+      `(v_kind is null or x.${p("kind")} = v_kind)`,
+      `(v_asset is null or x.${p("asset")} = v_asset)`,
+      `(v_due is not true or (${planView(q, "x")} ->> 'due')::boolean)`,
+    ],
+    keys: [
+      {
+        expr: `coalesce(x.${p("nextDueAt")}, 'infinity'::timestamptz)`,
+        dir: "asc",
+        type: "timestamptz",
+      },
+      { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: planView(q, "x"),
+    invalid: q.invalid,
+  } as const;
+
   const plansSql = `
 -- Plans of an organization, soonest due first. filters is { status, kind,
--- assetId, due: true, limit, offset }. Each plan carries its parts and whether
+-- assetId, due: true, limit, after, offset, paged, total, totalCap }. Each plan carries its parts and whether
 -- it is due now.
 create or replace function ${fn("list_maintenance_plans")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
@@ -511,25 +545,16 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_maintenance_plans.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list_list_maintenance_plans)}
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_kind text := nullif(v_filters ->> 'kind', '');
+  v_asset uuid := (v_filters ->> 'assetId')::uuid;
+  v_due boolean := (v_filters ->> 'due')::boolean;
 begin
   if not ${q.allowed("list_maintenance_plans.tenant", q.read)} then
     ${q.forbidden("not allowed to read maintenance")}
   end if;
-  return coalesce((
-    select jsonb_agg(y.view order by y.due_first, y.id)
-    from (
-      select ${planView(q, "x")} as view, x.${p("id")} as id, x.${p("nextDueAt")} as due_first
-      from ${plans} x
-      where x.${p("tenant")} = list_maintenance_plans.tenant
-        and (not v_filters ? 'status' or x.${p("status")} = v_filters ->> 'status')
-        and (not v_filters ? 'kind' or x.${p("kind")} = v_filters ->> 'kind')
-        and (not v_filters ? 'assetId' or x.${p("asset")} = (v_filters ->> 'assetId')::uuid)
-      order by x.${p("nextDueAt")} nulls last, x.${p("id")}
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-    where (v_filters ->> 'due') is distinct from 'true' or (y.view ->> 'due')::boolean
-  ), '[]'::jsonb);
+  ${listBody(list_list_maintenance_plans)}
 end;
 $$;
 ${userGrant(`${fn("list_maintenance_plans")}(${idType}, jsonb)`)}

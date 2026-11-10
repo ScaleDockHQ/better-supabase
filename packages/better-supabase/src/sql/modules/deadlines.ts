@@ -8,6 +8,7 @@ import type {
 import type {
   BlockSqlDefinition,
   BlockSqlDeprecation,
+  BlockSqlLayout,
   BlockSqlUpgrade,
 } from "../module-types.ts";
 
@@ -24,6 +25,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
+import { inlineSubjectReadable } from "./attachments-app.ts";
 import { evaluatorSql } from "./deadlines-evaluator.ts";
 import { validatorSql } from "./deadlines-validator.ts";
 import {
@@ -300,7 +302,7 @@ ${userGrant(`${ctx.fn("compute_deadline")}(${ctx.idType}, text, text, text, text
   },
 ];
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -392,13 +394,31 @@ function build(ctx: BlockSqlContext): string {
       { target: table },
     );
 
+  // The policy inlines the check over the row's columns (ADR 0644); the
+  // function stays for the types a later module's table holds and for the
+  // write paths. Without subjects every subject passes.
+  const own = (column: string): string => `${deadlines}.${d(column)}`;
+
+  const subjectPolicy = inlineSubjectReadable(
+    ctx,
+    layout,
+    subjects,
+    {
+      type: own("subjectType"),
+      id: own("subjectId"),
+      tenant: own("tenant"),
+      fallback: `${fn("deadline_subject_readable")}(${own("subjectType")}, ${own("subjectId")}, ${own("tenant")})`,
+    },
+    { module: "deadlines", guest: false, typeNotNull: true },
+  );
+
   const readPolicy = renderPolicy(
     makePolicy({
       table: deadlines,
       name: sqlIdent(`${deadlinesName}_read`),
       command: "select",
       roles: ["authenticated"],
-      using: `${ctx.scope.check(d("tenant"), read)} and ${fn("deadline_subject_readable")}(${d("subjectType")}, ${d("subjectId")}, ${d("tenant")})`,
+      using: `${ctx.scope.check(d("tenant"), read)} and ${subjectPolicy}`,
     }),
     { target: deadlines },
   );

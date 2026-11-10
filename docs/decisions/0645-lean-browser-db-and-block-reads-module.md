@@ -85,3 +85,9 @@ server pay 0.2 to 0.9 KB for the second module.
   server would add a session memo to the same route.
 - `tests/validation-presets` wiring files keep their old shape until the integration run rewrites
   them; the old `reads` import still works.
+
+After merging main the baselines are re-measured from a fresh build of this branch with the `update`
+scripts: `tests/next-build/server-baseline.json` rises for 201 entries (raw up to about 700 bytes,
+the second runtime module and the filter slot), First Load JS and the bundle baselines are lowered
+or re-recorded, and the shipped sizes of `react + query`, `saas client with blocks` and `next proxy`
+drop as the table above shows. The guard in `next-build.test.ts` is unchanged.

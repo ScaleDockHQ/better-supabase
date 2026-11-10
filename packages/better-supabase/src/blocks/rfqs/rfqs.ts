@@ -1,10 +1,11 @@
 import type { Money } from "../../commerce/money.ts";
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { optionalPlainDateOf } from "../../core/block-helpers.ts";
+import { blockPage, optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
@@ -146,6 +147,16 @@ export interface RfqListOptions {
   readonly offset?: number;
 }
 
+/** What `rfqPage` reads: the filters of the list, paged by keyset (ADR 0642). */
+export interface RfqPageOptions extends Omit<RfqListOptions, "offset"> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
+}
+
 export interface RfqQuoteInput {
   readonly leadTimeDays?: number | null;
   readonly validUntil?: Temporal.PlainDate | null;
@@ -218,6 +229,8 @@ export interface Rfqs {
   }): AsyncResultType<RfqDetail>;
   getRfq(rfqId: string): AsyncResultType<RfqDetail>;
   listRfqs(options?: RfqListOptions): AsyncResultType<readonly Rfq[]>;
+  /** One keyset page of `listRfqs`, with `hasMore` and a `nextCursor`. */
+  rfqPage(options?: RfqPageOptions): AsyncResultType<ListPage<Rfq>>;
   /**
    * Asks a supplier to quote. When the contacts block is installed the supplier
    * must be an active supplier there; needs `rfqs.write`.
@@ -533,6 +546,8 @@ export function createRfqs(options: RfqsOptions): Rfqs {
             recordsOf(value, "list_rfqs").map((row) => rfqOf(row, "list_rfqs")),
         ),
       ),
+    rfqPage: (page = {}) =>
+      blockPage(call, tenant, "list_rfqs", rfqOf, definedOf(page)),
     inviteSupplier: ({ rfqId, supplier }) =>
       call(
         "invite_rfq_supplier",
