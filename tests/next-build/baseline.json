@@ -12,7 +12,7 @@
   "/[locale]/(app)/approvals/page": {
     "raw": 1416842,
     "gzip": 449023,
-    "brotli": 391265
+    "brotli": 392282
   },
   "/[locale]/(app)/assistant/[id]/page": {
     "raw": 1298014,
@@ -32,7 +32,7 @@
   "/[locale]/(app)/assistant/tasks/page": {
     "raw": 1319507,
     "gzip": 413155,
-    "brotli": 359601
+    "brotli": 360524
   },
   "/[locale]/(app)/banking/page": {
     "raw": 1464870,
@@ -67,7 +67,7 @@
   "/[locale]/(app)/care/[clientId]/page": {
     "raw": 1585415,
     "gzip": 496735,
-    "brotli": 432845
+    "brotli": 433931
   },
   "/[locale]/(app)/care/page": {
     "raw": 1459091,
@@ -167,7 +167,7 @@
   "/[locale]/(app)/drive/[folderId]/page": {
     "raw": 1466896,
     "gzip": 465761,
-    "brotli": 405786
+    "brotli": 406876
   },
   "/[locale]/(app)/drive/page": {
     "raw": 1633446,
@@ -302,7 +302,7 @@
   "/[locale]/(app)/people/hiring/page": {
     "raw": 1469998,
     "gzip": 466823,
-    "brotli": 407021
+    "brotli": 408088
   },
   "/[locale]/(app)/people/page": {
     "raw": 1419159,
@@ -392,7 +392,7 @@
   "/[locale]/(app)/settings/integrations/page": {
     "raw": 1352101,
     "gzip": 424586,
-    "brotli": 369734
+    "brotli": 370688
   },
   "/[locale]/(app)/settings/jobs/page": {
     "raw": 1305176,
@@ -427,7 +427,7 @@
   "/[locale]/(app)/settings/privacy/page": {
     "raw": 1344824,
     "gzip": 423221,
-    "brotli": 368431
+    "brotli": 369369
   },
   "/[locale]/(app)/settings/profile/page": {
     "raw": 1312173,
@@ -442,7 +442,7 @@
   "/[locale]/(app)/settings/roles/page": {
     "raw": 1455190,
     "gzip": 452670,
-    "brotli": 394310
+    "brotli": 395298
   },
   "/[locale]/(app)/settings/security/page": {
     "raw": 1389315,
@@ -452,7 +452,7 @@
   "/[locale]/(app)/settings/signing-keys/page": {
     "raw": 1339187,
     "gzip": 421435,
-    "brotli": 367057
+    "brotli": 368003
   },
   "/[locale]/(app)/settings/sso/page": {
     "raw": 1414132,
@@ -532,12 +532,12 @@
   "/[locale]/(app)/work/grid/page": {
     "raw": 1430003,
     "gzip": 453261,
-    "brotli": 394926
+    "brotli": 395961
   },
   "/[locale]/(app)/work/page": {
     "raw": 1499416,
     "gzip": 478756,
-    "brotli": 417425
+    "brotli": 418501
   },
   "/[locale]/(app)/workflows/[run]/page": {
     "raw": 1319947,

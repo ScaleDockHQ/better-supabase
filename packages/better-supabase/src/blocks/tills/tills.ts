@@ -5,7 +5,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { pageRowsOf, plainDateOf } from "../../core/block-helpers.ts";
+import { blockPage, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
@@ -467,25 +467,7 @@ export function createTills(options: TillsOptions): Tills {
         ),
       ),
     sessionPage: (page = {}) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "list_till_sessions",
-          {
-            tenant: organizationId,
-            filters: { ...definedOf(page), paged: true },
-          },
-          (value) => {
-            const read = pageRowsOf(value, "list_till_sessions");
-
-            return {
-              ...read,
-              items: read.items.map((row) =>
-                sessionOf(row, "list_till_sessions"),
-              ),
-            };
-          },
-        ),
-      ),
+      blockPage(call, tenant, "list_till_sessions", sessionOf, definedOf(page)),
     recordMovement: ({ sessionId, kind, amount, ...extra }) =>
       call(
         "record_till_movement",

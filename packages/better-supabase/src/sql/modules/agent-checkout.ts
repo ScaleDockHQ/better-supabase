@@ -8,11 +8,11 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { listBody, listDeclare } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
-  pageSize,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
@@ -228,6 +228,43 @@ function build(ctx: BlockSqlContext): string {
   end if;`
     : "";
 
+  const list_list_checkout_sessions = {
+    name: "list_checkout_sessions",
+    from: sessions,
+    alias: "x",
+    where: [
+      `x.${s("tenant")} = list_checkout_sessions.tenant`,
+      `(v_status is null or x.${s("status")} = v_status)`,
+      `(v_protocol is null or x.${s("protocol")} = v_protocol)`,
+      `(v_cart is null or x.${s("cart")}::text = v_cart)`,
+    ],
+    keys: [
+      { expr: `x.${s("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: sessionJson("x"),
+    invalid,
+  } as const;
+
+  const list_list_agent_mandates = {
+    name: "list_agent_mandates",
+    from: mandates,
+    alias: "x",
+    where: [
+      `x.${m("tenant")} = list_agent_mandates.tenant`,
+      `(v_session is null or x.${m("session")}::text = v_session)`,
+      `(v_status is null or x.${m("status")} = v_status)`,
+      `(v_vct is null or x.${m("vct")} = v_vct)`,
+    ],
+    keys: [
+      { expr: `x.${m("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: mandateJson("x"),
+    invalid: (message: string): string =>
+      fail("AGENT_MANDATE_INVALID", message, "22023"),
+  } as const;
+
   return `${schemaPreamble(ctx)}
 -- Agent checkout: ACP and UCP checkout sessions over an orders cart, and AP2
 -- mandates stored beside them. The session keeps the protocol state; the cart
@@ -249,6 +286,7 @@ create table if not exists ${sessions} (
   unique (${s("tenant")}, ${s("idempotencyKey")}),
   check ((${s("status")} = 'completed') = (${s("order")} is not null))
 );${appKey("sessions", "tenant_id", `${s("tenant")}, ${s("id")}`)}
+create index if not exists ${name("sessions", "list_idx")} on ${sessions} (${s("tenant")}, ${s("createdAt")} desc, ${s("id")});
 create index if not exists ${name("sessions", "cart_idx")} on ${sessions} (${s("cart")});
 ${lockTable(sessions, { read: true })}
 ${readPolicy("sessions", s("tenant"))}
@@ -273,6 +311,7 @@ create table if not exists ${mandates} (
   unique (${m("tenant")}, ${m("credentialHash")}),
   check ((${m("status")} = 'consumed') = (${m("consumedAt")} is not null))
 );${appKey("mandates", "tenant_id", `${m("tenant")}, ${m("id")}`)}${appKey("mandates", "tenant_credential_hash", `${m("tenant")}, ${m("credentialHash")}`)}
+create index if not exists ${name("mandates", "list_idx")} on ${mandates} (${m("tenant")}, ${m("createdAt")} desc, ${m("id")});
 create index if not exists ${name("mandates", "session_idx")} on ${mandates} (${m("session")});
 ${lockTable(mandates, { read: true })}
 ${readPolicy("mandates", m("tenant"))}
@@ -394,7 +433,8 @@ end;
 $$;
 ${userGrant(`${fn("get_checkout_session")}(uuid)`)}
 
--- Sessions, newest first. filters is { status, protocol, cartId, limit, offset }.
+-- Sessions, newest first. filters is { status, protocol, cartId, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function ${fn("list_checkout_sessions")}(tenant ${id}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -405,23 +445,15 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list_list_checkout_sessions)}
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_protocol text := nullif(v_filters ->> 'protocol', '');
+  v_cart text := nullif(v_filters ->> 'cartId', '');
 begin
   if not ${allowed("list_checkout_sessions.tenant", read)} then
     ${fail("CHECKOUT_FORBIDDEN", "not allowed to read checkout sessions")}
   end if;
-  return coalesce((
-    select jsonb_agg(${sessionJson("y")} order by y.${s("createdAt")} desc, y.${s("id")})
-    from (
-      select * from ${sessions} x
-      where x.${s("tenant")} = list_checkout_sessions.tenant
-        and (not v_filters ? 'status' or x.${s("status")} = v_filters ->> 'status')
-        and (not v_filters ? 'protocol' or x.${s("protocol")} = v_filters ->> 'protocol')
-        and (not v_filters ? 'cartId' or x.${s("cart")}::text = v_filters ->> 'cartId')
-      order by x.${s("createdAt")} desc, x.${s("id")}
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(list_list_checkout_sessions)}
 end;
 $$;
 ${userGrant(`${fn("list_checkout_sessions")}(${id}, jsonb)`)}
@@ -608,7 +640,8 @@ end;
 $$;
 ${userGrant(`${fn("get_agent_mandate")}(uuid)`)}
 
--- Mandates, newest first. filters is { sessionId, status, vct, limit, offset }.
+-- Mandates, newest first. filters is { sessionId, status, vct, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function ${fn("list_agent_mandates")}(tenant ${id}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -619,23 +652,15 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list_list_agent_mandates)}
+  v_session text := nullif(v_filters ->> 'sessionId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_vct text := nullif(v_filters ->> 'vct', '');
 begin
   if not ${allowed("list_agent_mandates.tenant", read)} then
     ${fail("AGENT_MANDATE_FORBIDDEN", "not allowed to read mandates")}
   end if;
-  return coalesce((
-    select jsonb_agg(${mandateJson("y")} order by y.${m("createdAt")} desc, y.${m("id")})
-    from (
-      select * from ${mandates} x
-      where x.${m("tenant")} = list_agent_mandates.tenant
-        and (not v_filters ? 'sessionId' or x.${m("session")}::text = v_filters ->> 'sessionId')
-        and (not v_filters ? 'status' or x.${m("status")} = v_filters ->> 'status')
-        and (not v_filters ? 'vct' or x.${m("vct")} = v_filters ->> 'vct')
-      order by x.${m("createdAt")} desc, x.${m("id")}
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(list_list_agent_mandates)}
 end;
 $$;
 ${userGrant(`${fn("list_agent_mandates")}(${id}, jsonb)`)}

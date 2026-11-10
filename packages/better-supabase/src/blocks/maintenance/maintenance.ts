@@ -4,7 +4,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { pageRowsOf } from "../../core/block-helpers.ts";
+import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
@@ -178,6 +178,22 @@ export interface MaintenancePlanListOptions {
   readonly offset?: number;
 }
 
+/**
+ * What `planPage` reads: the filters of `listPlans`, paged by keyset (ADR
+ * 0642).
+ */
+export interface MaintenancePlanPageOptions extends Omit<
+  MaintenancePlanListOptions,
+  "offset"
+> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
+}
+
 export interface MaintenanceCalibrationListOptions {
   readonly assetId?: string;
   /** Due on or before. */
@@ -214,6 +230,10 @@ export interface Maintenance {
   listPlans(
     options?: MaintenancePlanListOptions,
   ): AsyncResult<readonly MaintenancePlan[]>;
+  /** One keyset page of `listPlans`, with `hasMore` and a `nextCursor`. */
+  planPage(
+    options?: MaintenancePlanPageOptions,
+  ): AsyncResult<ListPage<MaintenancePlan>>;
   /**
    * Opens a dispatch work order, with the plan's parts, for every due plan that
    * has none open. A done work order moves the plan's next due date.
@@ -435,6 +455,23 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
             ),
         ),
       ),
+    planPage: (page = {}) =>
+      blockPage(
+        call,
+        tenant,
+        "list_maintenance_plans",
+        planOf,
+        definedOf({
+          status: page.status,
+          kind: page.kind,
+          assetId: page.assetId,
+          due: page.due,
+          limit: page.limit,
+          after: page.after,
+          total: page.total,
+          totalCap: page.totalCap,
+        }),
+      ),
     generateWorkOrders: () =>
       tenant().andThen((organizationId) =>
         call(
@@ -513,34 +550,19 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
         ),
       ),
     calibrationPage: (page = {}) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "list_calibrations",
-          {
-            tenant: organizationId,
-            filters: {
-              ...definedOf({
-                assetId: page.assetId,
-                dueBefore: page.dueBefore?.toString(),
-                limit: page.limit,
-                after: page.after,
-                total: page.total,
-                totalCap: page.totalCap,
-              }),
-              paged: true,
-            },
-          },
-          (value) => {
-            const read = pageRowsOf(value, "list_calibrations");
-
-            return {
-              ...read,
-              items: read.items.map((row) =>
-                calibrationOf(row, "list_calibrations"),
-              ),
-            };
-          },
-        ),
+      blockPage(
+        call,
+        tenant,
+        "list_calibrations",
+        calibrationOf,
+        definedOf({
+          assetId: page.assetId,
+          dueBefore: page.dueBefore?.toString(),
+          limit: page.limit,
+          after: page.after,
+          total: page.total,
+          totalCap: page.totalCap,
+        }),
       ),
   };
 

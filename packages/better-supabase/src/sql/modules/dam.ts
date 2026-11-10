@@ -164,6 +164,7 @@ create table if not exists ${rights} (
   ${u("createdAt")} timestamptz not null default now(),
   check (${u("expiresOn")} is null or ${u("expiresOn")} >= ${u("startsOn")})
 );${appKey("rights", "tenant_id", `${u("tenant")}, ${u("id")}`)}
+create index if not exists ${name("rights", "list_idx")} on ${rights} (${u("tenant")}, (coalesce(${u("expiresOn")}, 'infinity'::date)), ${u("id")});
 create index if not exists ${name("rights", "node_idx")} on ${rights} (${u("tenant")}, ${u("node")});
 create index if not exists ${name("rights", "expiry_idx")} on ${rights} (${u("expiresOn")}) where ${u("revokedAt")} is null and ${u("expiresOn")} is not null;
 ${lockTable(rights, { read: true })}
