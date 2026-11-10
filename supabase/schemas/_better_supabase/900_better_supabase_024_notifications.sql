@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:12c2bc8d801761a6be4133b08ac8b13a089c0a81cf9363e8f6d5947f6caeded8
+-- @bsb-hash sha256:eb0c7c2f2b8689549b593aea406ca97cd12caadfa027fbc9c4500efdc0f17f5e
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1609,16 +1609,16 @@ create policy bsb_notifications_receive on realtime.messages
   using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'notifications:' || (select auth.uid())::text || '$'));
 
 -- on with cascade: deleting a subject row deletes its notifications rows.
-create or replace function "better_supabase"."notifications_subject_deleted"()
+create or replace function "better_supabase"."notifications_subject_deleted_product"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_type text := tg_argv[0];
-  v_id text := to_jsonb(old) ->> tg_argv[1];
-  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
+  v_type text := 'product';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
 begin
   if v_tenant is null then
     delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
@@ -1630,28 +1630,166 @@ begin
   return null;
 end;
 $$;
-revoke execute on function "better_supabase"."notifications_subject_deleted"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."notifications_subject_deleted_product"() from public, anon, authenticated;
 create trigger "bsb_notifications_product_cascade"
   after delete on "better_supabase"."products"
-  for each row execute function "better_supabase"."notifications_subject_deleted"('product', 'id', 'tenant_id');
+  for each row execute function "better_supabase"."notifications_subject_deleted_product"();
+
+create or replace function "better_supabase"."notifications_subject_deleted_product_variant"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'product_variant';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."notification_events" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."notifications_subject_deleted_product_variant"() from public, anon, authenticated;
 create trigger "bsb_notifications_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
-  for each row execute function "better_supabase"."notifications_subject_deleted"('product_variant', 'id', 'tenant_id');
+  for each row execute function "better_supabase"."notifications_subject_deleted_product_variant"();
+
+create or replace function "better_supabase"."notifications_subject_deleted_customer"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'customer';
+  v_id text := old."id"::text;
+  v_tenant text := old."organization_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."notification_events" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."notifications_subject_deleted_customer"() from public, anon, authenticated;
 create trigger "bsb_notifications_customer_cascade"
   after delete on "public"."customers"
-  for each row execute function "better_supabase"."notifications_subject_deleted"('customer', 'id', 'organization_id');
+  for each row execute function "better_supabase"."notifications_subject_deleted_customer"();
+
+create or replace function "better_supabase"."notifications_subject_deleted_organization"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'organization';
+  v_id text := old."id"::text;
+  v_tenant text := old."id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."notification_events" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."notifications_subject_deleted_organization"() from public, anon, authenticated;
 create trigger "bsb_notifications_organization_cascade"
   after delete on "public"."organizations"
-  for each row execute function "better_supabase"."notifications_subject_deleted"('organization', 'id', 'id');
+  for each row execute function "better_supabase"."notifications_subject_deleted_organization"();
+
+create or replace function "better_supabase"."notifications_subject_deleted_change_request"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'change_request';
+  v_id text := old."id"::text;
+  v_tenant text := old."organization_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."notification_events" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."notifications_subject_deleted_change_request"() from public, anon, authenticated;
 create trigger "bsb_notifications_change_request_cascade"
   after delete on "public"."change_requests"
-  for each row execute function "better_supabase"."notifications_subject_deleted"('change_request', 'id', 'organization_id');
+  for each row execute function "better_supabase"."notifications_subject_deleted_change_request"();
+
+create or replace function "better_supabase"."notifications_subject_deleted_project"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'project';
+  v_id text := old."id"::text;
+  v_tenant text := old."organization_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."notification_events" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."notifications_subject_deleted_project"() from public, anon, authenticated;
 create trigger "bsb_notifications_project_cascade"
   after delete on "public"."projects"
-  for each row execute function "better_supabase"."notifications_subject_deleted"('project', 'id', 'organization_id');
+  for each row execute function "better_supabase"."notifications_subject_deleted_project"();
+
+create or replace function "better_supabase"."notifications_subject_deleted_task"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'task';
+  v_id text := old."id"::text;
+  v_tenant text := old."organization_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."notification_events" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."notifications_subject_deleted_task"() from public, anon, authenticated;
 create trigger "bsb_notifications_task_cascade"
   after delete on "public"."tasks"
-  for each row execute function "better_supabase"."notifications_subject_deleted"('task', 'id', 'organization_id');
+  for each row execute function "better_supabase"."notifications_subject_deleted_task"();
 
 
 create or replace view "api"."notification_recipients" with (security_invoker = true) as

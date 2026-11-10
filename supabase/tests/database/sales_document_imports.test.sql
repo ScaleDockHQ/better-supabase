@@ -151,7 +151,7 @@ select is(
     "number":"INV-2019-0007","status":"paid","issuedOn":"2019-03-04","currency":"EUR","title":"Changed in the source",
     "lines":[{"description":"Widget","quantity":2,"unitAmount":10000,"taxRateBps":2100}]
   }}]$json$::jsonb) - 'errors' - 'dryRun' - 'warnings')),
-  '{"inserted":0,"updated":0,"unchanged":0,"conflicted":1}'::jsonb,
+  '{"inserted":0,"updated":0,"unchanged":0,"conflicted":1,"conflictKeys":["inv-2019-0007"]}'::jsonb,
   'an invoice a user edited is reported as a conflict'
 );
 select is(

@@ -242,6 +242,16 @@ export interface Imports {
 const toCount = (value: unknown): number =>
   typeof value === "number" ? value : Number(value ?? 0);
 
+const conflictKeysOf = (
+  value: unknown,
+): { readonly conflictKeys: readonly string[] } | Record<never, never> => {
+  const keys = (Array.isArray(value) ? value : []).flatMap((key) =>
+    typeof key === "string" ? [key] : [],
+  );
+
+  return keys.length > 0 ? { conflictKeys: keys } : {};
+};
+
 const entityCounts = (value: unknown): ImportEntityCounts => {
   const row = recordOrEmpty(value);
 
@@ -439,6 +449,12 @@ export function createImports(options: ImportsOptions): Imports {
               updated: first.data.updated + second.data.updated,
               unchanged: first.data.unchanged + second.data.unchanged,
               conflicted: first.data.conflicted + second.data.conflicted,
+              ...conflictKeysOf(
+                [
+                  ...(first.data.conflictKeys ?? []),
+                  ...(second.data.conflictKeys ?? []),
+                ].slice(0, 100),
+              ),
               errors: [...first.data.errors, ...second.data.errors],
               warnings: [
                 ...(first.data.warnings ?? []),
@@ -562,8 +578,15 @@ export function createImports(options: ImportsOptions): Imports {
         call("process_import_chunk", { run: runId, entity, chunk }, (value) => {
           const row = recordOf(value, "process_import_chunk");
 
-          return row["skipped"] === true
-            ? { status: "skipped" as const }
+          if (row["skipped"] === true) {
+            return { status: "skipped" as const };
+          }
+
+          return row["failed"] === true
+            ? {
+                status: "failed" as const,
+                message: textOf(row["message"] ?? ""),
+              }
             : {
                 status: row["done"] === true ? "done" : "processed",
                 inserted: toCount(row["inserted"]),
@@ -580,6 +603,12 @@ export function createImports(options: ImportsOptions): Imports {
                 })),
               };
         }),
+      fail: ({ runId, entity, chunk, message }) =>
+        call(
+          "fail_import_chunk",
+          { run: runId, entity, chunk, message },
+          (value) => value === true,
+        ),
       progress: (runId) =>
         call("import_chunk_progress", { run: runId }, (value) => {
           const row = recordOf(value, "import_chunk_progress");
@@ -588,6 +617,7 @@ export function createImports(options: ImportsOptions): Imports {
             pending: toCount(row["pending"]),
             claimed: toCount(row["claimed"]),
             done: toCount(row["done"]),
+            failed: toCount(row["failed"]),
           };
         }),
     },
@@ -605,6 +635,7 @@ export function createImports(options: ImportsOptions): Imports {
             updated: toCount(row["updated"]),
             unchanged: toCount(row["unchanged"]),
             conflicted: toCount(row["conflicted"]),
+            ...conflictKeysOf(row["conflictKeys"]),
             errors: recordsOf(row["errors"], "import_upsert_batch").map(
               (error) => ({
                 key: nullableText(error["key"]),

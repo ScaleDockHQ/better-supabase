@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:678fe66120b23370dd2000c933d61f0bcebfbcb2aeb75f046de33314f9bdd8ae
+-- @bsb-hash sha256:80675544787468ed4ac7e4f796d54f71db410493304f158ee9bbf1f4bfa070de
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1137,16 +1137,16 @@ end;
 $$;
 
 -- on with cascade: deleting a subject row deletes its attachments rows.
-create or replace function "better_supabase"."attachments_subject_deleted"()
+create or replace function "better_supabase"."attachments_subject_deleted_task"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_type text := tg_argv[0];
-  v_id text := to_jsonb(old) ->> tg_argv[1];
-  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
+  v_type text := 'task';
+  v_id text := old."id"::text;
+  v_tenant text := old."organization_id"::text;
 begin
   if v_tenant is null then
     delete from "better_supabase"."attachments" x where x."subject_type" = v_type and x."subject_id" = v_id;
@@ -1156,10 +1156,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function "better_supabase"."attachments_subject_deleted"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."attachments_subject_deleted_task"() from public, anon, authenticated;
 create trigger "bsb_attachments_task_cascade"
   after delete on "centrakit"."tasks"
-  for each row execute function "better_supabase"."attachments_subject_deleted"('task', 'id', 'organization_id');
+  for each row execute function "better_supabase"."attachments_subject_deleted_task"();
 
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.

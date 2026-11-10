@@ -8,9 +8,12 @@ import type { Imports } from "./imports.ts";
 export interface ImportChunkOutcome {
   /**
    * `processed` after this call wrote the chunk, `done` when an earlier call
-   * had, `skipped` when the chunk is missing or another worker holds it.
+   * had, `skipped` when the chunk is missing or another worker holds it, and
+   * `failed` when `fail` marked it (store it again to retry).
    */
-  readonly status: "processed" | "done" | "skipped";
+  readonly status: "processed" | "done" | "skipped" | "failed";
+  /** The message `fail` gave, for a failed chunk. */
+  readonly message?: string;
   readonly inserted?: number;
   readonly updated?: number;
   readonly unchanged?: number;
@@ -26,6 +29,7 @@ export interface ImportChunkProgress {
   readonly pending: number;
   readonly claimed: number;
   readonly done: number;
+  readonly failed: number;
 }
 
 export interface ImportChunks {
@@ -49,6 +53,17 @@ export interface ImportChunks {
     entity: string;
     chunk: number;
   }): AsyncResult<ImportChunkOutcome>;
+  /**
+   * Marks a chunk failed with a message, so the run reports it instead of a
+   * queue retrying it. Storing the chunk again makes it pending. `false` means
+   * the chunk is done or missing.
+   */
+  fail(input: {
+    runId: string;
+    entity: string;
+    chunk: number;
+    message: string;
+  }): AsyncResult<boolean>;
   progress(runId: string): AsyncResult<ImportChunkProgress>;
 }
 

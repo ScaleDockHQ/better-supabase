@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:d5eac93ddcff9a19d68fcdbdbc389420642b036515285f59fded19a9c4c563b1
+-- @bsb-hash sha256:d72faf91c2948b8772cc9d5082d5dd4d9091f92829971f7273151b82bd07e359
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -560,16 +560,16 @@ create policy bsb_reactions_receive on realtime.messages
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('reactions.read') x));
 
 -- on with cascade: deleting a subject row deletes its reactions rows.
-create or replace function "better_supabase"."reactions_subject_deleted"()
+create or replace function "better_supabase"."reactions_subject_deleted_product"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_type text := tg_argv[0];
-  v_id text := to_jsonb(old) ->> tg_argv[1];
-  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
+  v_type text := 'product';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
 begin
   if v_tenant is null then
     delete from "better_supabase"."reactions" r where r."subject_type" = v_type and r."subject_id" = v_id;
@@ -579,13 +579,34 @@ begin
   return null;
 end;
 $$;
-revoke execute on function "better_supabase"."reactions_subject_deleted"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."reactions_subject_deleted_product"() from public, anon, authenticated;
 create trigger "bsb_reactions_product_cascade"
   after delete on "better_supabase"."products"
-  for each row execute function "better_supabase"."reactions_subject_deleted"('product', 'id', 'tenant_id');
+  for each row execute function "better_supabase"."reactions_subject_deleted_product"();
+
+create or replace function "better_supabase"."reactions_subject_deleted_product_variant"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'product_variant';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."reactions" r where r."subject_type" = v_type and r."subject_id" = v_id;
+  else
+    delete from "better_supabase"."reactions" r where r."subject_type" = v_type and r."subject_id" = v_id and r."tenant_id" = v_tenant::uuid;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."reactions_subject_deleted_product_variant"() from public, anon, authenticated;
 create trigger "bsb_reactions_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
-  for each row execute function "better_supabase"."reactions_subject_deleted"('product_variant', 'id', 'tenant_id');
+  for each row execute function "better_supabase"."reactions_subject_deleted_product_variant"();
 
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.

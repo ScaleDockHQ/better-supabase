@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:dfa874c29253e46aa07d276a4e058200ff0c6495b6a1a9d1c3a57b281e8a1cd7
+-- @bsb-hash sha256:fe50cf183a92ef7307cb49be528a2404674fb717f4613074949772eee9be3a13
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1586,9 +1586,9 @@ begin
         select 1 from "better_supabase"."taggings" lg
         join "better_supabase"."tags" lt on lt."id" = lg."tag_id"
         where lg."subject_type" = 'drive_node' and lg."subject_id" = x."id"::text
-          and "better_supabase"."retention_for"("better_supabase"."drive_retention_kind"(lt."name"), x."tenant_id"::text) is not null
-          and coalesce(x."updated_at", x."created_at") < now() - "better_supabase"."retention_for"("better_supabase"."drive_retention_kind"(lt."name"), x."tenant_id"::text)
-          and not "better_supabase"."is_held"("better_supabase"."drive_retention_kind"(lt."name"), x."tenant_id"::text)
+          and "better_supabase"."retention_for_memo"("better_supabase"."drive_retention_kind"(lt."name"), x."tenant_id"::text) is not null
+          and coalesce(x."updated_at", x."created_at") < now() - "better_supabase"."retention_for_memo"("better_supabase"."drive_retention_kind"(lt."name"), x."tenant_id"::text)
+          and not "better_supabase"."is_held_memo"("better_supabase"."drive_retention_kind"(lt."name"), x."tenant_id"::text)
       )
       and not "better_supabase"."drive_node_held"(x."id")
     order by coalesce(x."updated_at", x."created_at"), x."id"

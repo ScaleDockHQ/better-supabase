@@ -815,59 +815,73 @@ export function subjectCascades(
   }
 
   const name = `${ctx.module.replaceAll("-", "_")}_subject_deleted`;
-  const fn = ctx.fn(name);
 
-  const triggers = cascading.map(([type, subject]) => {
+  const removalFor = (tenanted: boolean): string =>
+    typeof remove === "string"
+      ? remove
+      : tenanted
+        ? `if v_tenant is null then
+    ${remove(() => "")}
+  else
+    ${remove((alias, column) => ` and ${alias}.${column} = v_tenant::${ctx.idType}`)}
+  end if;`
+        : remove(() => "");
+
+  // One function per subject type reads the key columns straight off `old`:
+  // to_jsonb(old) ->> column costs about 3 microseconds a row, which a bulk
+  // delete pays once per cascading module (ADR 0610).
+  const blocks = cascading.map(([type, subject]) => {
+    const fnName = `${name}_${type.replaceAll("-", "_")}`;
+
+    if (fnName.length > 63) {
+      throw new TypeError(
+        `${ctx.module}: the cascade function for subject type "${type}" would be ${String(fnName.length)} characters; Postgres allows 63. Shorten the type.`,
+      );
+    }
+
+    const fn = ctx.fn(fnName);
+
     const trigger = sqlIdent(
       `bsb_${ctx.module.replaceAll("-", "_")}_${type}_cascade`.slice(0, 63),
     );
 
     const table = qualifiedTable(subject.table);
 
-    const tenant =
+    const tenantColumn =
       options.tenant === true && subject.tenant !== false
-        ? `, ${sqlString(subject.tenant ?? ctx.naming.rename("organization_id"))}`
+        ? (subject.tenant ?? ctx.naming.rename("organization_id"))
+        : undefined;
+
+    const tenantVariable =
+      options.tenant === true
+        ? `\n  v_tenant text := ${tenantColumn === undefined ? "null" : `old.${sqlIdent(tenantColumn)}::text`};`
         : "";
 
-    return `drop trigger if exists ${trigger} on ${table};
-create trigger ${trigger}
-  after delete on ${table}
-  for each row execute function ${fn}(${sqlString(type)}, ${sqlString(subject.id ?? "id")}${tenant});`;
-  });
-
-  const removal =
-    typeof remove === "string"
-      ? remove
-      : `if v_tenant is null then
-    ${remove(() => "")}
-  else
-    ${remove((alias, column) => ` and ${alias}.${column} = v_tenant::${ctx.idType}`)}
-  end if;`;
-
-  const tenantVariable =
-    options.tenant === true
-      ? "\n  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;"
-      : "";
-
-  return `
--- on with cascade: deleting a subject row deletes its ${ctx.module} rows.
-create or replace function ${fn}()
+    return `create or replace function ${fn}()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_type text := tg_argv[0];
-  v_id text := to_jsonb(old) ->> tg_argv[1];${tenantVariable}
+  v_type text := ${sqlString(type)};
+  v_id text := old.${sqlIdent(subject.id ?? "id")}::text;${tenantVariable}
 begin
-  ${removal}
+  ${removalFor(tenantColumn !== undefined)}
   return null;
 end;
 $$;
 revoke execute on function ${fn}() from public, anon, authenticated;
 
-${triggers.join("\n\n")}
+drop trigger if exists ${trigger} on ${table};
+create trigger ${trigger}
+  after delete on ${table}
+  for each row execute function ${fn}();`;
+  });
+
+  return `
+-- on with cascade: deleting a subject row deletes its ${ctx.module} rows.
+${blocks.join("\n\n")}
 `;
 }
 

@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:360f7c43fedc3f8ab434b908505617e7973cc645cd8e6f80bfe08f9dcbee9886
+-- @bsb-hash sha256:f0746f514ac8aa6297cb82e60b98eb05b7d745bc66b4ef520a93f39299dafd6d
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ create table "better_supabase"."import_chunks" (
   primary key ("run_id", "entity", "chunk")
 );
 alter table "better_supabase"."import_chunks" add constraint "bsb_import_chunks_status"
-  check ("status" in ('pending', 'claimed', 'done'));
+  check ("status" in ('pending', 'claimed', 'done', 'failed'));
 alter table "better_supabase"."import_chunks" enable row level security;
 revoke all on "better_supabase"."import_chunks" from public, anon, authenticated;
 grant all on "better_supabase"."import_chunks" to service_role;
@@ -655,6 +655,7 @@ declare
   v_updated integer := 0;
   v_unchanged integer := 0;
   v_conflicted integer := 0;
+  v_conflict_keys jsonb := '[]'::jsonb;
   v_errors jsonb := '[]'::jsonb;
   v_warnings jsonb := '[]'::jsonb;
   v_issue text;
@@ -776,6 +777,9 @@ begin
       end if;
 
       if v_issue = 'conflict' then
+        if jsonb_array_length(v_conflict_keys) < 100 then
+          v_conflict_keys := v_conflict_keys || to_jsonb(v_key);
+        end if;
         perform "better_supabase"."import_note_issue"(v_run_id, v_entity, v_key, 'conflict', 'IMPORT_CONFLICT', 'the subject changed after the last import');
       else
         perform "better_supabase"."import_clear_issues"(v_run_id, v_entity, v_key);
@@ -858,7 +862,7 @@ begin
 
   perform "better_supabase"."import_note_warnings"(v_run_id, v_entity, v_warnings);
 
-  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
+  return jsonb_build_object('inserted', v_inserted, 'updated', v_updated, 'unchanged', v_unchanged, 'conflicted', v_conflicted, 'errors', v_errors) || case when jsonb_array_length(v_conflict_keys) > 0 then jsonb_build_object('conflictKeys', v_conflict_keys) else '{}'::jsonb end || case when jsonb_array_length(v_diff) > 0 then jsonb_build_object('diff', v_diff) else '{}'::jsonb end || case when jsonb_array_length(v_warnings) > 0 then jsonb_build_object('warnings', v_warnings) else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function "better_supabase"."import_apply_batch"(uuid, text, jsonb) from public, anon, authenticated;
@@ -1258,13 +1262,34 @@ begin
   insert into "better_supabase"."import_chunks" ("run_id", "tenant_id", "entity", "chunk", "items")
   values (store_import_chunk.run, v_run."tenant_id", store_import_chunk.entity, store_import_chunk.chunk, store_import_chunk.items)
   on conflict ("run_id", "entity", "chunk") do update
-    set "items" = excluded."items", "status" = 'pending', "claimed_at" = null
+    set "items" = excluded."items", "status" = 'pending', "claimed_at" = null, "result" = null, "done_at" = null
     where "better_supabase"."import_chunks"."status" <> 'done';
   return found;
 end;
 $$;
 revoke execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."store_import_chunk"(uuid, text, integer, jsonb) to service_role;
+
+-- Marks a chunk failed with the message a worker gives, so a run can report it
+-- instead of retrying it forever. Storing the chunk again makes it pending. A done
+-- chunk stays done and the answer is false.
+create or replace function "better_supabase"."fail_import_chunk"(run uuid, entity text, chunk integer, message text)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update "better_supabase"."import_chunks" x set "status" = 'failed', "done_at" = now(),
+    "result" = jsonb_build_object('failed', true, 'message', left(coalesce(fail_import_chunk.message, ''), 500))
+  where x."run_id" = fail_import_chunk.run and x."entity" = fail_import_chunk.entity
+    and x."chunk" = fail_import_chunk.chunk and x."status" in ('pending', 'claimed', 'failed');
+  return found;
+end;
+$$;
+revoke execute on function "better_supabase"."fail_import_chunk"(uuid, text, integer, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."fail_import_chunk"(uuid, text, integer, text) to service_role;
 
 -- Takes a pending chunk, or one whose claim is older than lease seconds (a worker
 -- that died), and returns { entity, chunk, items }. Null when the chunk is done,
@@ -1320,7 +1345,8 @@ grant execute on function "better_supabase"."complete_import_chunk"(uuid, text, 
 -- One worker step: claim the chunk, write it with import_upsert_batch and mark it
 -- done, in one transaction, so a failure leaves the chunk pending for the next try.
 -- A chunk that is done answers what its batch answered; one that is missing or
--- held by another worker answers { skipped: true }.
+-- held by another worker answers { skipped: true }; one marked failed answers
+-- { failed: true, message }.
 create or replace function "better_supabase"."process_import_chunk"(run uuid, entity text, chunk integer)
 returns jsonb
 language plpgsql
@@ -1338,6 +1364,12 @@ begin
     and x."chunk" = process_import_chunk.chunk and x."status" = 'done';
   if found then
     return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('done', true);
+  end if;
+  select x."result" into v_done from "better_supabase"."import_chunks" x
+  where x."run_id" = process_import_chunk.run and x."entity" = process_import_chunk.entity
+    and x."chunk" = process_import_chunk.chunk and x."status" = 'failed';
+  if found then
+    return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('failed', true);
   end if;
   v_claim := "better_supabase"."claim_import_chunk"(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk);
   if v_claim is null then
@@ -1363,7 +1395,8 @@ as $$
   select jsonb_build_object(
     'pending', count(*) filter (where x."status" = 'pending'),
     'claimed', count(*) filter (where x."status" = 'claimed'),
-    'done', count(*) filter (where x."status" = 'done')
+    'done', count(*) filter (where x."status" = 'done'),
+    'failed', count(*) filter (where x."status" = 'failed')
   )
   from "better_supabase"."import_chunks" x
   where x."run_id" = import_chunk_progress.run

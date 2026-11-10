@@ -84,9 +84,9 @@ begin
         select 1 from ${tags.table("taggings")} lg
         join ${tags.table("tags")} lt on lt.${tt("id")} = lg.${tg("tag")}
         where lg.${tg("subjectType")} = ${tags.cast("taggings", "subjectType", typeLit)} and lg.${tg("subjectId")} = x.${n("id")}::text
-          and ${lifecycle.fn("retention_for")}(${kind}, ${tenant}) is not null
-          and ${changed} < now() - ${lifecycle.fn("retention_for")}(${kind}, ${tenant})
-          and not ${lifecycle.fn("is_held")}(${kind}, ${tenant})
+          and ${lifecycle.fn("retention_for_memo")}(${kind}, ${tenant}) is not null
+          and ${changed} < now() - ${lifecycle.fn("retention_for_memo")}(${kind}, ${tenant})
+          and not ${lifecycle.fn("is_held_memo")}(${kind}, ${tenant})
       )
       and not ${fn("drive_node_held")}(x.${n("id")})
     order by ${changed}, x.${n("id")}

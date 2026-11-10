@@ -45,7 +45,7 @@ create table if not exists ${chunks} (
   ${c("createdAt")} timestamptz not null default now(),
   primary key (${c("run")}, ${c("entity")}, ${c("chunk")})
 );
-${ensureCheck(chunks, `bsb_${k}_status`, `${c("status")} in ('pending', 'claimed', 'done')`)}
+${ensureCheck(chunks, `bsb_${k}_status`, `${c("status")} in ('pending', 'claimed', 'done', 'failed')`)}
 ${lockTable(chunks, { read: false })}
 create index if not exists ${sqlIdent(`${k}_tenant_idx`)} on ${chunks} (${c("tenant")});
 `;
@@ -86,12 +86,32 @@ begin
   insert into ${chunks} (${c("run")}, ${c("tenant")}, ${c("entity")}, ${c("chunk")}, ${c("items")})
   values (store_import_chunk.run, v_run.${r("tenant")}, store_import_chunk.entity, store_import_chunk.chunk, store_import_chunk.items)
   on conflict (${c("run")}, ${c("entity")}, ${c("chunk")}) do update
-    set ${c("items")} = excluded.${c("items")}, ${c("status")} = 'pending', ${c("claimedAt")} = null
+    set ${c("items")} = excluded.${c("items")}, ${c("status")} = 'pending', ${c("claimedAt")} = null, ${c("result")} = null, ${c("doneAt")} = null
     where ${chunks}.${c("status")} <> 'done';
   return found;
 end;
 $$;
 ${serviceGrant(`${fn("store_import_chunk")}(uuid, text, integer, jsonb)`)}
+
+-- Marks a chunk failed with the message a worker gives, so a run can report it
+-- instead of retrying it forever. Storing the chunk again makes it pending. A done
+-- chunk stays done and the answer is false.
+create or replace function ${fn("fail_import_chunk")}(run uuid, entity text, chunk integer, message text)
+returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  update ${chunks} x set ${c("status")} = 'failed', ${c("doneAt")} = now(),
+    ${c("result")} = jsonb_build_object('failed', true, 'message', left(coalesce(fail_import_chunk.message, ''), 500))
+  where x.${c("run")} = fail_import_chunk.run and x.${c("entity")} = fail_import_chunk.entity
+    and x.${c("chunk")} = fail_import_chunk.chunk and x.${c("status")} in ('pending', 'claimed', 'failed');
+  return found;
+end;
+$$;
+${serviceGrant(`${fn("fail_import_chunk")}(uuid, text, integer, text)`)}
 
 -- Takes a pending chunk, or one whose claim is older than lease seconds (a worker
 -- that died), and returns { entity, chunk, items }. Null when the chunk is done,
@@ -145,7 +165,8 @@ ${serviceGrant(`${fn("complete_import_chunk")}(uuid, text, integer, jsonb)`)}
 -- One worker step: claim the chunk, write it with import_upsert_batch and mark it
 -- done, in one transaction, so a failure leaves the chunk pending for the next try.
 -- A chunk that is done answers what its batch answered; one that is missing or
--- held by another worker answers { skipped: true }.
+-- held by another worker answers { skipped: true }; one marked failed answers
+-- { failed: true, message }.
 create or replace function ${fn("process_import_chunk")}(run uuid, entity text, chunk integer)
 returns jsonb
 language plpgsql
@@ -163,6 +184,12 @@ begin
     and x.${c("chunk")} = process_import_chunk.chunk and x.${c("status")} = 'done';
   if found then
     return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('done', true);
+  end if;
+  select x.${c("result")} into v_done from ${chunks} x
+  where x.${c("run")} = process_import_chunk.run and x.${c("entity")} = process_import_chunk.entity
+    and x.${c("chunk")} = process_import_chunk.chunk and x.${c("status")} = 'failed';
+  if found then
+    return coalesce(v_done, '{}'::jsonb) || jsonb_build_object('failed', true);
   end if;
   v_claim := ${fn("claim_import_chunk")}(process_import_chunk.run, process_import_chunk.entity, process_import_chunk.chunk);
   if v_claim is null then
@@ -187,7 +214,8 @@ as $$
   select jsonb_build_object(
     'pending', count(*) filter (where x.${c("status")} = 'pending'),
     'claimed', count(*) filter (where x.${c("status")} = 'claimed'),
-    'done', count(*) filter (where x.${c("status")} = 'done')
+    'done', count(*) filter (where x.${c("status")} = 'done'),
+    'failed', count(*) filter (where x.${c("status")} = 'failed')
   )
   from ${chunks} x
   where x.${c("run")} = import_chunk_progress.run
@@ -211,6 +239,11 @@ export const CHUNK_CONTRACT = [
   {
     name: "complete_import_chunk",
     args: ["uuid", "text", "integer", "jsonb"],
+    returns: "boolean",
+  },
+  {
+    name: "fail_import_chunk",
+    args: ["uuid", "text", "integer", "text"],
     returns: "boolean",
   },
   {

@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:f921d3a77dca1a02a29722635f8266425f92e4a81d995bf5c651585d9d5eb6b4
+-- @bsb-hash sha256:197f0042606c7fb37a1dba19cee752c363ae24f395c623a473b67bd105acc03a
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -452,16 +452,16 @@ $$;
 revoke execute on function "better_supabase"."assign_comment"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."assign_comment"(uuid, uuid, jsonb) to authenticated, service_role;
 -- on with cascade: deleting a subject row deletes its comments rows.
-create or replace function "better_supabase"."comments_subject_deleted"()
+create or replace function "better_supabase"."comments_subject_deleted_product"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_type text := tg_argv[0];
-  v_id text := to_jsonb(old) ->> tg_argv[1];
-  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
+  v_type text := 'product';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
 begin
   if v_tenant is null then
     delete from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_id;
@@ -471,13 +471,34 @@ begin
   return null;
 end;
 $$;
-revoke execute on function "better_supabase"."comments_subject_deleted"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."comments_subject_deleted_product"() from public, anon, authenticated;
 create trigger "bsb_comments_product_cascade"
   after delete on "better_supabase"."products"
-  for each row execute function "better_supabase"."comments_subject_deleted"('product', 'id', 'tenant_id');
+  for each row execute function "better_supabase"."comments_subject_deleted_product"();
+
+create or replace function "better_supabase"."comments_subject_deleted_product_variant"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'product_variant';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_id;
+  else
+    delete from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_id and c."tenant_id" = v_tenant::uuid;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."comments_subject_deleted_product_variant"() from public, anon, authenticated;
 create trigger "bsb_comments_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
-  for each row execute function "better_supabase"."comments_subject_deleted"('product_variant', 'id', 'tenant_id');
+  for each row execute function "better_supabase"."comments_subject_deleted_product_variant"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

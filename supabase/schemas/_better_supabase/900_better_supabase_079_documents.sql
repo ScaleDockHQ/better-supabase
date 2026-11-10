@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:0d0e1f45e99ed94572bdffcf1a6c940b26c128d767ff354ab04626960664a382
+-- @bsb-hash sha256:4e4f890bf42d0edd8480e43db734bbfb54ca01032c998e57b7e592855b223cb2
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2322,27 +2322,43 @@ create policy bsb_documents_send on realtime.messages
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))) and (select better_supabase.actor_may_write()));
 
 -- on with cascade: deleting a subject row deletes its documents rows.
-create or replace function "better_supabase"."documents_subject_deleted"()
+create or replace function "better_supabase"."documents_subject_deleted_product"()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_type text := tg_argv[0];
-  v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_type text := 'product';
+  v_id text := old."id"::text;
 begin
   delete from "better_supabase"."documents" d where d."subject_type" = v_type and d."subject_id" = v_id;
   return null;
 end;
 $$;
-revoke execute on function "better_supabase"."documents_subject_deleted"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."documents_subject_deleted_product"() from public, anon, authenticated;
 create trigger "bsb_documents_product_cascade"
   after delete on "better_supabase"."products"
-  for each row execute function "better_supabase"."documents_subject_deleted"('product', 'id');
+  for each row execute function "better_supabase"."documents_subject_deleted_product"();
+
+create or replace function "better_supabase"."documents_subject_deleted_product_variant"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'product_variant';
+  v_id text := old."id"::text;
+begin
+  delete from "better_supabase"."documents" d where d."subject_type" = v_type and d."subject_id" = v_id;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."documents_subject_deleted_product_variant"() from public, anon, authenticated;
 create trigger "bsb_documents_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
-  for each row execute function "better_supabase"."documents_subject_deleted"('product_variant', 'id');
+  for each row execute function "better_supabase"."documents_subject_deleted_product_variant"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
