@@ -497,6 +497,9 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0595: Session memo on globalThis and stale-while-revalidate JWKS.
 - 0596: Bump authorization versions when role defaults change.
 - 0597: Native offline boundary and a permissions snapshot.
+- 0598: Read the audit log and the inbox through the passed filters, with capped counts.
+- 0599: Check import mode in the document freeze trigger's when clause.
+- 0600: Filter subject cascade deletes on the tenant.
 
 ## Pre-release pins
 
