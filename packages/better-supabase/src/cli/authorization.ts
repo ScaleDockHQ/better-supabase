@@ -575,11 +575,6 @@ export function providerTruncatedClaim(
   return hook?.truncatedClaim ?? hook?.budget?.truncatedClaim;
 }
 
-/**
- * The claim that marks a partial `team_ids` list, when it is not the default.
- * The sessions hook option wins, then the provider's
- * `tokenHook.teamIdsTruncatedClaim`.
- */
 /** The truncated markers codegen records when they are not the defaults. */
 export function claimMarkerOverrides(
   config: Pick<ResolvedConfig, "authorization" | "blocks">,
@@ -596,7 +591,12 @@ export function claimMarkerOverrides(
   };
 }
 
-export function teamIdsTruncatedClaimOf(
+/**
+ * The claim that marks a partial `team_ids` list, when it is not the default.
+ * The sessions hook option wins, then the provider's
+ * `tokenHook.teamIdsTruncatedClaim`.
+ */
+function teamIdsTruncatedClaimOf(
   config: Pick<ResolvedConfig, "authorization" | "blocks">,
 ): string | undefined {
   const hook = config.blocks["sessions"]?.options?.["hook"];
