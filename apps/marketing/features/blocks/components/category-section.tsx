@@ -12,7 +12,7 @@ import { MoreBlocks } from "./more-blocks";
  * How many blocks of a category get a tile. The rest load on demand behind a
  * button, so the page's document stays under 512 KB (Vercel warns above it).
  */
-export const TILES_PER_CATEGORY = 2;
+const TILES_PER_CATEGORY = 2;
 
 /**
  * A category on `/blocks`: its scene and summary, a tile per leading block,
