@@ -308,6 +308,106 @@ describe.skipIf(!live)("state machine", () => {
     }
   });
 
+  it("lists the next statuses, stamps a column and checks guards inside the transition", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.client.query(`${TABLES}
+alter table sm_it.quotes add column sent_at timestamptz, add column line_count integer not null default 0;
+create function sm_it.quote_has_lines(quote sm_it.quotes) returns boolean
+language sql stable set search_path = '' as $$ select quote.line_count > 0 $$;`);
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+
+      await s.install(["organizations", "outbox", "state-machine"], {
+        subjects: { quote: { table: "sm_it.quotes", idType: "uuid" } },
+        modules: {
+          permissions: { roles: { owner: ["*"], member: [] } },
+          "state-machine": {
+            options: {
+              machines: {
+                quote: {
+                  column: "status",
+                  initial: "draft",
+                  transitions: { draft: ["sent", "void"], sent: ["accepted"] },
+                  stamps: { sent: "sent_at" },
+                  guards: {
+                    draft: { sent: { check: "sm_it.quote_has_lines" } },
+                    sent: { accepted: { permission: "quotes.accept" } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const tenant = await s.organization(owner, { member });
+      await s.service();
+
+      const quote = (
+        await s.rows<{ id: string }>(
+          "insert into sm_it.quotes (organization_id) values ($1) returning id",
+          [tenant],
+        )
+      )[0]!.id;
+
+      const machine = createStateMachine<"quote">({
+        transport: sqlTransport(s.sql),
+      });
+
+      const subject = { type: "quote", id: quote } as const;
+      const next = async () => (await machine.state(subject).orThrow()).next;
+
+      await s.asRole(member);
+      expect(await next()).toEqual(["void"]);
+      expect(
+        await s.hint("better_supabase.transition('quote', $1, 'sent', null)", [
+          quote,
+        ]),
+      ).toBe("STATE_GUARD_FAILED");
+
+      await s.service();
+      await s.client.query(
+        "update sm_it.quotes set line_count = 1 where id = $1",
+        [quote],
+      );
+
+      await s.asRole(member);
+      expect(await next()).toEqual(["sent", "void"]);
+      await machine.transition({ subject, to: "sent" }).orThrow();
+      expect(
+        await s.value<boolean>(
+          "(select sent_at is not null from sm_it.quotes where id = $1)",
+          [quote],
+        ),
+      ).toBe(true);
+
+      expect(await next()).toEqual([]);
+      expect(
+        await s.hint(
+          "better_supabase.transition('quote', $1, 'accepted', null)",
+          [quote],
+        ),
+      ).toBe("STATE_TRANSITION_FORBIDDEN");
+
+      await s.asRole(owner);
+      expect(await next()).toEqual(["accepted"]);
+      await machine.transition({ subject, to: "accepted" }).orThrow();
+      expect((await machine.state(subject).orThrow()).status).toBe("accepted");
+
+      await s.service();
+      expect(
+        await s.rows(
+          "insert into sm_it.quotes (organization_id, status) values ($1, 'sent') returning sent_at is not null as stamped",
+          [tenant],
+        ),
+      ).toEqual([{ stamped: true }]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("writes an enum status and an app history table with enum and domain columns", async () => {
     const s = await BlockSession.open(pool);
 

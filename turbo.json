@@ -177,6 +177,17 @@
         "$TURBO_ROOT$/supabase/migrations/**"
       ]
     },
+    "doctor:sarif": {
+      "description": "Writes the doctor's SARIF report, cached with the same inputs as doctor",
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/supabase/snapshot.json",
+        "$TURBO_ROOT$/supabase/schemas/**",
+        "$TURBO_ROOT$/supabase/migrations/**"
+      ],
+      "outputs": ["doctor.sarif"]
+    },
     "//#test:scripts": {
       "inputs": ["scripts/*.ts"]
     },

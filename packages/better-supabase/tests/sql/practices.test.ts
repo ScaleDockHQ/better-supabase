@@ -8,8 +8,9 @@ import { splitStatements } from "../../src/sql/pipeline/split.ts";
  * The Supabase and Postgres practices the generated SQL is held to (plan Part
  * 6). Each rule counts its findings per module over the module goldens. A count
  * may go down and never up, so a module that breaks a rule fails here and the
- * numbers in `practices-baseline.json` only shrink. `UPDATE_PRACTICES=1`
- * rewrites the baseline after a count dropped.
+ * numbers in `practices-baseline.json` are a ceiling: a count may not grow. A
+ * lower count does not need a new file. `UPDATE_PRACTICES=1` tightens the
+ * ceiling when you want the drop recorded.
  */
 const golden = join(import.meta.dirname, "__golden__");
 const baselineFile = join(import.meta.dirname, "practices-baseline.json");
@@ -264,17 +265,6 @@ describe("generated SQL practices", () => {
       expect(grown).toEqual([]);
     },
   );
-
-  it("has a baseline row only for a module that still has findings", () => {
-    const stale = Object.entries(baseline).flatMap(([module, counts]) =>
-      Object.keys(counts)
-        .filter((rule) => (now[module]?.[rule] ?? 0) < (counts[rule] ?? 0))
-        .map((rule) => `${module}: ${rule}`),
-    );
-
-    // A count dropped: run `UPDATE_PRACTICES=1 vitest run tests/sql/practices.test.ts`.
-    expect(stale).toEqual([]);
-  });
 
   it("finds each rule's pattern in a minimal statement", () => {
     const sample = [
