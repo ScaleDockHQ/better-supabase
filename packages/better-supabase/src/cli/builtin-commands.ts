@@ -41,6 +41,10 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/backfill.ts").then((m) => m.dbBackfillCommand),
   ],
   [
+    "db verify",
+    () => import("./commands/verify.ts").then((m) => m.dbVerifyCommand),
+  ],
+  [
     "db partition",
     () => import("./commands/partition.ts").then((m) => m.dbPartitionCommand),
   ],
