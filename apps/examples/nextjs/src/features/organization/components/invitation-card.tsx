@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RoleBadge } from "@/features/user/components/role-badge";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
+import { localizedPath } from "@/i18n/routing";
 
 import { getInvitationPreview } from "../organization-queries";
 import { InvitationResponse } from "./invitation-response";
@@ -48,7 +49,7 @@ export async function InvitationCard({ token }: { token: string }) {
     );
   }
 
-  const back = `/${locale}/invite/${encodeURIComponent(token)}`;
+  const back = localizedPath(locale, `/invite/${encodeURIComponent(token)}`);
   const signedIn = session.kind === "user";
 
   return (

@@ -12,7 +12,7 @@ import {
   SunIcon,
   UserIcon,
 } from "lucide-react";
-import { useExtracted, useLocale } from "next-intl";
+import { hasLocale, useExtracted, useLocale } from "next-intl";
 import { useTransition } from "react";
 
 import type { Locale } from "@/i18n/routing";
@@ -46,10 +46,6 @@ const LOCALE_NAMES = { en: "English", nl: "Nederlands" } satisfies Record<
   Locale,
   string
 >;
-
-function isLocale(value: string): value is Locale {
-  return routing.locales.some((locale) => locale === value);
-}
 
 export function UserMenuDropdown({
   name,
@@ -175,7 +171,7 @@ export function UserMenuDropdown({
               <DropdownMenuRadioGroup
                 value={locale}
                 onValueChange={(value: string) => {
-                  if (!isLocale(value)) {
+                  if (!hasLocale(routing.locales, value)) {
                     return;
                   }
 

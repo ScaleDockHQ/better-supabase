@@ -9,7 +9,7 @@ import { expect, test } from "@playwright/test";
 // this one adds the chunks a route pulls in while it hydrates, so a lazy chunk
 // that every visit fetches anyway shows up here (ADR 0480).
 
-// Measured on a production build: /en/login 824231 and /en/signup 786287 decoded
+// Measured on a production build: /login 824231 and /signup 786287 decoded
 // bytes (700 KB of static first load plus the toaster and the lazy chunks that
 // load while it hydrates). The budget leaves about 3% for chunk changes.
 const SIGN_IN_BUDGET = 850_000;
@@ -41,7 +41,7 @@ async function scriptBytes(page: Page, path: string): Promise<number> {
 test("the sign-in route downloads a small amount of JavaScript", async ({
   page,
 }) => {
-  const bytes = await scriptBytes(page, "/en/login");
+  const bytes = await scriptBytes(page, "/login");
 
   expect(bytes, "sign-in script bytes").toBeLessThan(SIGN_IN_BUDGET);
 });
@@ -49,7 +49,7 @@ test("the sign-in route downloads a small amount of JavaScript", async ({
 test("the sign-up route downloads a small amount of JavaScript", async ({
   page,
 }) => {
-  const bytes = await scriptBytes(page, "/en/signup");
+  const bytes = await scriptBytes(page, "/signup");
 
   expect(bytes, "sign-up script bytes").toBeLessThan(SIGN_IN_BUDGET);
 });

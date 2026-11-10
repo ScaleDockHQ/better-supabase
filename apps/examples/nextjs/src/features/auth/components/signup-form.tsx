@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { sessionChanged } from "@/features/user/user-actions";
 import { Link } from "@/i18n/navigation";
+import { localizedPath } from "@/i18n/routing";
 import { loadBrowserClient } from "@/lib/supabase/load-client";
 
 import { safeNext } from "../safe-next";
@@ -61,7 +62,7 @@ export function SignupForm() {
         password: String(form.get("password")),
         options: {
           data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}/${locale}`,
+          emailRedirectTo: `${window.location.origin}${localizedPath(locale, "/")}`,
         },
       });
 
@@ -74,7 +75,7 @@ export function SignupForm() {
         return { confirm: email };
       }
 
-      await changeSession(safeNext(`/${locale}`));
+      await changeSession(safeNext(localizedPath(locale, "/")));
 
       return null;
     },

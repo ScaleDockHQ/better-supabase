@@ -20,6 +20,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { sessionChanged } from "@/features/user/user-actions";
+import { localizedPath } from "@/i18n/routing";
 import { loadBrowserClient } from "@/lib/supabase/load-client";
 
 import { safeNext } from "../safe-next";
@@ -43,7 +44,7 @@ export function MfaChallengeForm() {
       const factor = factors?.totp[0];
 
       if (!factor) {
-        router.push(safeNext(`/${locale}`));
+        router.push(safeNext(localizedPath(locale, "/")));
 
         return;
       }
@@ -58,7 +59,7 @@ export function MfaChallengeForm() {
         return;
       }
 
-      await changeSession(safeNext(`/${locale}`));
+      await changeSession(safeNext(localizedPath(locale, "/")));
     });
   };
 

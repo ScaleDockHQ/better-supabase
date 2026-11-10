@@ -5,7 +5,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
 async function signIn(page: Page): Promise<void> {
-  await page.goto("/en/login");
+  await page.goto("/login");
   await page.getByLabel("Email").fill("admin@acme.test");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -20,7 +20,7 @@ test("a loaded list keeps its rows while offline and the banner follows the conn
   page,
   context,
 }) => {
-  await page.goto("/en/customers");
+  await page.goto("/customers");
   await expect(page.getByText("Road Runner Inc")).toBeVisible();
 
   const banner = page.getByText("You are offline");
