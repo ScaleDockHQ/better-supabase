@@ -12,6 +12,7 @@ import {
   updatedAtConfig,
 } from "./blocks/slices.ts";
 
+/** The permission keys, re-exported from `blocks/permissions.ts`. @public */
 export { permissions, type PermissionKey } from "./blocks/permissions.ts";
 
 /**

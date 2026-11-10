@@ -1111,6 +1111,7 @@ export function emitBlockConfigModule(
           ? []
           : [
               "",
+              "/** The permission keys, re-exported from `blocks/permissions.ts`. @public */",
               'export { permissions, type PermissionKey } from "./blocks/permissions.ts";',
             ]),
         "",
