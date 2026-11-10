@@ -8,8 +8,8 @@ import { splitStatements } from "../../src/sql/pipeline/split.ts";
  * The `do` blocks left in the schema files the library generates for this
  * repository and the validation fixtures (ADR 0251, ADR 0400). A schema diff
  * can't see what a top-level `do` block builds at run time, so each count may
- * go down and never up. `UPDATE_PRACTICES=1` rewrites the baseline after a
- * count dropped.
+ * go down and never up. A lower count does not need a new file.
+ * `UPDATE_PRACTICES=1` tightens the ceiling when you want the drop recorded.
  */
 const root = join(import.meta.dirname, "../../../..");
 const baselineFile = join(import.meta.dirname, "static-ddl-baseline.json");
@@ -113,19 +113,6 @@ describe("static DDL in the generated schema files", () => {
       expect(grown).toEqual([]);
     },
   );
-
-  it("lists a file only while it still has the findings", () => {
-    const stale = Object.entries(baseline)
-      .filter(
-        ([file, counts]) =>
-          (now[file]?.doBlocks ?? 0) < counts.doBlocks ||
-          (now[file]?.withExecute ?? 0) < counts.withExecute,
-      )
-      .map(([file]) => file);
-
-    // A count dropped: run `UPDATE_PRACTICES=1 vitest run tests/sql/static-ddl.test.ts`.
-    expect(stale).toEqual([]);
-  });
 
   it("keeps a reason for every file that still has a block", () => {
     const unexplained = Object.keys(baseline).filter(

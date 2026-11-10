@@ -286,6 +286,17 @@ export function lineColumn(
     : `${alias}.${ctx.col(lines, column)}`;
 }
 
+export function lineRateValue(
+  ctx: BlockSqlContext,
+  lines: string,
+  column: string,
+  value: string,
+): string {
+  return RATE_COLUMNS.has(column) && percentRates(ctx, lines)
+    ? `(${value} / 100.0)`
+    : value;
+}
+
 const RATE_COLUMNS: ReadonlySet<string> = new Set([
   "discountBps",
   "taxRateBps",
@@ -560,9 +571,7 @@ export function lineItemsSql(
         ? ctx.cast(items.lines, name, value)
         : name === "productId" && !replaces
           ? asColumnType(t, column(name), value)
-          : RATE_COLUMNS.has(name) && percentRates(ctx, items.lines)
-            ? `(${value} / 100.0)`
-            : value,
+          : lineRateValue(ctx, items.lines, name, value),
   ]);
 
   // What an update sets: the line's value, or the row's own for a key left out.

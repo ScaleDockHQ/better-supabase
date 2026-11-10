@@ -44,7 +44,9 @@ env:
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
-  database:
+  # Schema checks and the runtime checks each start a stack, so neither waits on the other.
+  schema:
+    name: Schema
     # x64 until the Supabase native runtime is confirmed on arm.
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -86,6 +88,38 @@ jobs:
       - name: pgTAP
         run: pnpm exec supabase test db
 
+      - name: Lint SQL
+        # `extensions` holds third-party code (PostGIS for the assets block),
+        # whose own functions fail plpgsql_check.
+        run: >-
+          pnpm exec supabase db lint --local --level warning --fail-on error
+          --schema api,better_supabase,public,rbac,workflow
+
+      - name: Supabase advisors
+        run: pnpm exec supabase db advisors --local --type all --fail-on warn
+
+  runtime:
+    name: Runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+
+      - name: Create the local signing key
+        run: |
+          pnpm exec turbo run build --filter=better-supabase...
+          pnpm better-supabase dev keys --cwd .
+
+      - name: Start Supabase
+        uses: $/.github/actions/supabase-stack
+
       - name: World conformance
         # Runs the @workflow/world-testing suite against the Supabase World (ADR 0210). The
         # peer range allows 5.1.x only, so the catalog pin is both ends of the range.
@@ -104,16 +138,6 @@ jobs:
           path: packages/better-supabase/world-conformance.xml
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Lint SQL
-        # `extensions` holds third-party code (PostGIS for the assets block),
-        # whose own functions fail plpgsql_check.
-        run: >-
-          pnpm exec supabase db lint --local --level warning --fail-on error
-          --schema api,better_supabase,public,rbac,workflow
-
-      - name: Supabase advisors
-        run: pnpm exec supabase db advisors --local --type all --fail-on warn
 
       - name: Doctor against the stack
         run: |
