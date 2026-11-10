@@ -136,6 +136,7 @@ const config: KnipConfig = {
         ...exampleIgnore,
         "src/lib/supabase/generated-schema.ts",
         "src/lib/supabase/generated.meta.js",
+        "src/lib/supabase/generated.functions.js",
         "src/lib/supabase/tables/**",
       ],
     },

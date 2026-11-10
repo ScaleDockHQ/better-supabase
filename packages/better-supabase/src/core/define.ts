@@ -636,9 +636,15 @@ export class BetterSupabase<
         ),
       $stats: () => recorder.snapshot(),
       $table: (name: string) => {
-        if (!Object.hasOwn(this.meta.tables, name)) {
+        // A table the server loads on first use (ADR 0611) is known by its loader.
+        const known = [
+          ...Object.keys(this.meta.tables),
+          ...Object.keys(this.meta.tableLoaders ?? {}),
+        ];
+
+        if (!known.includes(name)) {
           throw new TypeError(
-            `better-supabase: unknown table "${name}". Known: ${Object.keys(this.meta.tables).join(", ")}`,
+            `better-supabase: unknown table "${name}". Known: ${known.join(", ")}`,
           );
         }
 
