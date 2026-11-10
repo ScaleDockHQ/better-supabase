@@ -530,6 +530,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0639: Keep a size baseline until the measurement leaves its slack.
 - 0640: Read inventory levels and movements from the client, move allocations in parts, and read one contact by id.
 - 0641: Bound the version cache and share the block builder per db.
+- 0644: Inline the remaining subject read policies, bound the memo keys and roll up replies in place.
 - 0642: Move offset lists onto the keyset template and warn about row triggers that ignore imports.
 - 0647: Hint at a large audit log in doctor, and keep the data hooks' refetches as they are.
 - 0648: Map the data of a bsb.action to another type with a third argument.

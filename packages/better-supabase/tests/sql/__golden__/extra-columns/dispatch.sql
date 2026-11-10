@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:3e80dbcbb0300b47042a3b0e541e55424fe44a7686f59a8e0aa960ace57081dd
+-- @bsb-hash sha256:caa370a16c16697dae77478f0ba3368a63d644b09f378c726589ab814735db71
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -43,7 +43,7 @@ create table "better_supabase"."work_orders" (
   constraint bsb_work_orders_check2 check ("ends_at" is null or "ends_at" > "starts_at"),
   constraint bsb_work_orders_check3 check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
 );
-create index "work_orders_tenant_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at" desc);
+create index "work_orders_tenant_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at" desc, "id" desc);
 create index "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
 create index "work_orders_board_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at") where "starts_at" is not null;
 create index "work_orders_backlog_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at") where "status" = 'unscheduled';

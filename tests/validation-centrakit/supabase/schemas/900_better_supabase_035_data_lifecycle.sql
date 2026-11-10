@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:dd5f39e845d3e917a762c9efdd98c8db238a79de996a9651643e72c04e5fe845
+-- @bsb-hash sha256:e6e5b1ca864cff28702ae2166c2c8a0a8438669e9a5afa74e711f06552e36646
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -169,14 +169,14 @@ set search_path = ''
 as $$
 declare
   v_key text := 'rf' || md5(statement_timestamp()::text || retention_for_memo.kind || coalesce(retention_for_memo.tenant, ''));
-  v_memo text := better_supabase.memo_get(v_key);
+  v_memo text := better_supabase.memo_slot_get(v_key);
   v_keep interval;
 begin
   if v_memo is not null then
     return nullif(v_memo, '-')::interval;
   end if;
   v_keep := "better_supabase"."retention_for"(retention_for_memo.kind, retention_for_memo.tenant);
-  perform better_supabase.memo_set(v_key, coalesce(v_keep::text, '-'));
+  perform better_supabase.memo_slot_set(v_key, coalesce(v_keep::text, '-'));
   return v_keep;
 end;
 $$;
@@ -190,14 +190,14 @@ set search_path = ''
 as $$
 declare
   v_key text := 'ih' || md5(statement_timestamp()::text || is_held_memo.kind || coalesce(is_held_memo.tenant, ''));
-  v_memo text := better_supabase.memo_get(v_key);
+  v_memo text := better_supabase.memo_slot_get(v_key);
   v_held boolean;
 begin
   if v_memo is not null then
     return v_memo = 't';
   end if;
   v_held := "better_supabase"."is_held"(is_held_memo.kind, is_held_memo.tenant);
-  perform better_supabase.memo_set(v_key, case when v_held then 't' else 'f' end);
+  perform better_supabase.memo_slot_set(v_key, case when v_held then 't' else 'f' end);
   return v_held;
 end;
 $$;

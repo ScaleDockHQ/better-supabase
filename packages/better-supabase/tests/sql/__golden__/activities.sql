@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:9db9c3a2a71329cbf1e8d4cff9920cb607e6a791c68aa67089298e639567d777
+-- @bsb-hash sha256:7f4811ece785a4a7e99825431ede520ec0d9b0b3a71143f62a95eba8d860f616
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -24,7 +24,7 @@ create table "better_supabase"."activities" (
   "updated_at" timestamptz not null default now()
 );
 create index "activities_owner_open_idx" on "better_supabase"."activities" ("tenant_id", "owner_id", "due_at") where "done_at" is null;
-create index "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc);
+create index "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc, "id" desc);
 create unique index "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an activity, when it locks, its addenda and the
 -- in-error flag.
@@ -536,7 +536,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:51b71b5b65ba25958c503bb87e2bcb47471eac98defdcf1a4c22463ce45a7f81
+-- @bsb-hash sha256:f141291b2c02f056a67e95009a6ec0dd81802656b27ec9554ca4b7a27a6840be
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -559,7 +559,7 @@ create table "better_supabase"."activities" (
   "updated_at" timestamptz not null default now()
 );
 create index "activities_owner_open_idx" on "better_supabase"."activities" ("tenant_id", "owner_id", "due_at") where "done_at" is null;
-create index "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc);
+create index "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc, "id" desc);
 create unique index "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an activity, when it locks, its addenda and the
 -- in-error flag.
@@ -1131,7 +1131,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:5c5cbac6a439653c70022301129cbf83f428c9117c7586349f2ca77dec69dffa
+-- @bsb-hash sha256:8de279436822cb8c0185b3c5ebfa70269f6392af6b2d43f6c1aee8b896e3ac87
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1159,7 +1159,7 @@ create table "app_private"."activities" (
   "updated_at" timestamptz not null default now()
 );
 create index "activities_owner_open_idx" on "app_private"."activities" ("tenant_id", "owner_id", "due_at") where "done_at" is null;
-create index "activities_tenant_created_idx" on "app_private"."activities" ("tenant_id", "created_at" desc);
+create index "activities_tenant_created_idx" on "app_private"."activities" ("tenant_id", "created_at" desc, "id" desc);
 create unique index "activities_external_ref_idx" on "app_private"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an activity, when it locks, its addenda and the
 -- in-error flag.
@@ -1671,7 +1671,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:d2a349ed125263a7f4bf2682c304a7e2236bb9f7797a7c93da4c957b96be10c5
+-- @bsb-hash sha256:4554503464e0f6828ed7ba9bd0c4bb8f404892bfea5e198df6ba9c6d2b929399
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1694,7 +1694,7 @@ create table "better_supabase"."activities" (
   "updated_at" timestamptz not null default now()
 );
 create index "activities_owner_open_idx" on "better_supabase"."activities" ("tenant_id", "owner_id", "due_at") where "done_at" is null;
-create index "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc);
+create index "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc, "id" desc);
 create unique index "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an activity, when it locks, its addenda and the
 -- in-error flag.
@@ -2294,7 +2294,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:479b97e0ea308ac72d7603283fd71b32405b90e0c8126ea486dcc0616d9474d1
+-- @bsb-hash sha256:b3810b0ee832416c15ad9eef0a8f88c246060ad78428434480b7d47604264c67
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2316,7 +2316,7 @@ alter table "better_supabase"."activities" add column if not exists "created_by"
 alter table "better_supabase"."activities" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."activities" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists "activities_owner_open_idx" on "better_supabase"."activities" ("tenant_id", "owner_id", "due_at") where "done_at" is null;
-create index if not exists "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc);
+create index if not exists "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc, "id" desc);
 create unique index if not exists "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an activity, when it locks, its addenda and the
 -- in-error flag.
@@ -2825,7 +2825,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:76c778b806a58303a83906745fd49728b555dd66cac505688eef4c723fdadc0f
+-- @bsb-hash sha256:c190c2c1dcde0a321dca6a5845a991c5d203a6dab374c1a8a0cf7bfd4a0beae4
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2848,7 +2848,7 @@ create table "better_supabase"."activities" (
   "updated_at" timestamptz not null default now()
 );
 create index "activities_owner_open_idx" on "better_supabase"."activities" ("org_id", "owner_id", "due_at") where "done_at" is null;
-create index "activities_tenant_created_idx" on "better_supabase"."activities" ("org_id", "created_at" desc);
+create index "activities_tenant_created_idx" on "better_supabase"."activities" ("org_id", "created_at" desc, "id" desc);
 create unique index "activities_external_ref_idx" on "better_supabase"."activities" ("org_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an activity, when it locks, its addenda and the
 -- in-error flag.
