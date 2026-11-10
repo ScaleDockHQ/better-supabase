@@ -6,6 +6,7 @@ import type {
 } from "../../sql/index.ts";
 import type { SqlFlags } from "./args.ts";
 
+import { FormerPermissionKeyError } from "../../config/index.ts";
 import {
   moduleLayout,
   modulePermissionKeys,
@@ -16,6 +17,7 @@ import {
   entitlementsMode,
   moduleKeyProblems,
 } from "../authorization.ts";
+import { CliError } from "../core/errors.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { moduleLayoutFor, schemasDirOf } from "../sql-layout.ts";
 
@@ -100,10 +102,19 @@ function accessProviderFor(
         return mode.access;
       }
 
-      const problems = moduleKeyProblems(
-        config.authorization,
-        modulePermissionKeys(config.blocks, names, config.subjects),
-      );
+      let keys: ReturnType<typeof modulePermissionKeys>;
+
+      try {
+        keys = modulePermissionKeys(config.blocks, names, config.subjects);
+      } catch (error) {
+        if (error instanceof FormerPermissionKeyError) {
+          throw new CliError("config_invalid", error.message, { cause: error });
+        }
+
+        throw error;
+      }
+
+      const problems = moduleKeyProblems(config.authorization, keys);
 
       if (problems.length > 0) {
         throw new TypeError(

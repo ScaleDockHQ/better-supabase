@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:4e23fad25ceaf7601404f4e00d036475d09826757045916dbaa32dfefa83ae15
+-- @bsb-hash sha256:873ef230bd3d0566508c940a8c9549293c8915f1089b390586ebdbe0943a14ab
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -402,7 +402,7 @@ begin
   end if;
   bytes := decode(repeat('00', width), 'hex');
   if held is null then
-    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+    return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
   end if;
   for i in 1 .. coalesce(cardinality(all_keys), 0) loop
     if all_keys[i] = any (held) then
@@ -411,7 +411,7 @@ begin
       bytes := set_byte(bytes, slot, value);
     end if;
   end loop;
-  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
 end;
 $$;
 

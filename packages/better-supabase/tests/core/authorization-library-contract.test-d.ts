@@ -293,9 +293,13 @@ describe("authorization library contract", () => {
         bootstrapPermissions: "a.p({tenant})",
         approverFor: "a.approvers()",
         managedUsers: "a.managed()",
+        // oxlint-disable-next-line typescript/no-deprecated -- an API 1 provider may still set it
+        canApprove: "a.can({tool}, {tenant})",
       },
+      // oxlint-disable-next-line typescript/no-deprecated -- an API 1 provider may still set it
+      approvals: { distinctApprover: true },
       permissions: [{ key: "file.read", levels: ["own", "team"] }],
-      suspension: { userKey: "user_id" },
+      suspension: { user: "public.profiles.banned_at", userKey: "user_id" },
       personas: "roles",
       fixtureRoles: [{ name: "viewer", setup: "select 1", permissions: [] }],
       tokenHook: {

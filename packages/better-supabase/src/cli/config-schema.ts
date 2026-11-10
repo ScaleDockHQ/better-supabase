@@ -277,7 +277,11 @@ const authorization = v.strictObject({
     bootstrapPermissions: v.optional(v.string()),
     approverFor: v.optional(v.string()),
     managedUsers: v.optional(v.string()),
+    canApprove: v.optional(v.string()),
   }),
+  approvals: v.optional(
+    v.strictObject({ distinctApprover: v.optional(v.boolean()) }),
+  ),
   requires: v.optional(
     v.array(
       v.strictObject({
@@ -329,7 +333,7 @@ const authorization = v.strictObject({
   ),
   suspension: v.optional(
     v.strictObject({
-      user: v.optional(disabledRow),
+      user: v.optional(v.union([v.string(), disabledRow])),
       tenant: v.optional(disabledRow),
       userKey: v.optional(v.string()),
     }),

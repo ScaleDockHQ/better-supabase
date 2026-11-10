@@ -406,7 +406,7 @@
   },
   "/[locale]/(app)/settings/members/page": {
     "raw": 1583398,
-    "gzip": 496128,
+    "gzip": 497376,
     "brotli": 433387
   },
   "/[locale]/(app)/settings/organization/page": {
@@ -601,7 +601,7 @@
   },
   "/[locale]/(auth)/send/[token]/page": {
     "raw": 928477,
-    "gzip": 297092,
+    "gzip": 297836,
     "brotli": 260456
   },
   "/[locale]/(auth)/share/[token]/page": {

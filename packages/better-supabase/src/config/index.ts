@@ -203,6 +203,8 @@ export {
   splitPermissionLevel,
 } from "./authorization.ts";
 
+export { FormerPermissionKeyError } from "./former-permission-keys.ts";
+
 export type {
   AccessBlockConfig,
   ActiveTenantSource,

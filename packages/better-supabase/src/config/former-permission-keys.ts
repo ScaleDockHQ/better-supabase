@@ -19,6 +19,31 @@ const FORMER_PERMISSION_KEYS: ReadonlyMap<string, string> = new Map(
   }),
 );
 
+/**
+ * A `blocks.<name>.permissions` key that ADR 0130 renamed. `code` is stable, so
+ * a caller can branch on it instead of the message.
+ */
+export class FormerPermissionKeyError extends TypeError {
+  readonly code: "former_permission_key";
+  /** The config path, such as `blocks.audit.permissions.view`. */
+  readonly path: string;
+  readonly key: string;
+  readonly renamed: string;
+
+  constructor(where: string, key: string, renamed: string) {
+    const path = `${where}.permissions.${key}`;
+
+    super(
+      `${path}: renamed to "${renamed}" with ADR 0130. Run \`better-supabase codemod naming\` to rename the key.`,
+    );
+    this.name = "FormerPermissionKeyError";
+    this.code = "former_permission_key";
+    this.path = path;
+    this.key = key;
+    this.renamed = renamed;
+  }
+}
+
 /** Throws for a key of `permissions` that is a former action name of `block`. */
 export function checkFormerPermissionKeys(
   where: string,
@@ -29,9 +54,7 @@ export function checkFormerPermissionKeys(
     const renamed = FORMER_PERMISSION_KEYS.get(`${block}.${key}`);
 
     if (renamed !== undefined) {
-      throw new TypeError(
-        `${where}.permissions.${key}: renamed to "${renamed}" with ADR 0130. Run \`better-supabase codemod naming\` to rename the key.`,
-      );
+      throw new FormerPermissionKeyError(where, key, renamed);
     }
   }
 }

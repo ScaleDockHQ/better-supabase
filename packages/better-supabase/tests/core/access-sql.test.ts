@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   fillTemplate,
+  templatePlaceholderProblems,
   sameTemplateFunction,
   templateProblems,
 } from "../../src/core/access-sql.ts";
@@ -110,6 +111,27 @@ describe("fillTemplate", () => {
     expect(() => fillTemplate("x", "select {b}", { a: "1" })).toThrow(
       "{b} is not available here",
     );
+  });
+
+  it("refuses {user} in subjectForTenant", () => {
+    expect(() =>
+      fillTemplate(
+        "authorization.functions.subjectForTenant",
+        "authz.subject_for({user}, {tenant})",
+        { tenant: "'t'", scope: "organization" },
+      ),
+    ).toThrow("{user} is not available here");
+
+    expect(
+      templatePlaceholderProblems(
+        "subjectForTenant",
+        "authz.subject_for({user}, {tenant})",
+      ).join(" "),
+    ).toContain("uses {user}");
+
+    expect(
+      templatePlaceholderProblems("approverFor", "authz.approver_for({user})"),
+    ).toEqual(["functions.approverFor uses {user}; it takes no placeholders"]);
   });
 });
 

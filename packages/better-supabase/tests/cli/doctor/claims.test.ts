@@ -83,7 +83,10 @@ describe("BS426", () => {
     const config = resolveConfig(
       {
         auth: { authorization: provider },
-        blocks: { invitations: { options: { platformRoles } } },
+        blocks: {
+          permissions: { model: "provider" },
+          invitations: { options: { platformRoles } },
+        },
       },
       "/project",
     );
@@ -124,6 +127,7 @@ describe("BS426", () => {
       {
         auth: { authorization: provider },
         blocks: {
+          permissions: { model: "provider" },
           memberships: {
             options: { roleThrough: through },
             columns: { memberships: { disabledAt: "disabled_at" } },
@@ -174,5 +178,64 @@ describe("BS426", () => {
       "blocks.permissions.disabled.user",
       "blocks.permissions.disabled.userKey",
     ]);
+  });
+
+  it("says nothing when the access model is not the provider", () => {
+    const platformRoles = {
+      table: "app.platform_roles",
+      user: "user_id",
+      role: "role",
+    };
+
+    const config = resolveConfig(
+      {
+        auth: { authorization: { ...stubProvider, platformRoles } },
+        blocks: {
+          permissions: { model: "roles" },
+          invitations: { options: { platformRoles } },
+        },
+      },
+      "/project",
+    );
+
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+
+    // SAFETY: BS426 reads only `config`.
+    const found = rule?.check({ config } as unknown as DoctorContext);
+
+    expect(found).toEqual([]);
+  });
+
+  it("keeps userKey when the config sets its own user column", async () => {
+    const provider: AuthorizationProvider = {
+      ...stubProvider,
+      suspension: {
+        user: { table: "app.profiles", id: "id", disabledAt: "banned_at" },
+        userKey: "user_id",
+      },
+    };
+
+    const config = resolveConfig(
+      {
+        auth: { authorization: provider },
+        blocks: {
+          permissions: {
+            model: "provider",
+            disabled: {
+              user: "public.accounts.disabled_at",
+              userKey: "user_id",
+            },
+          },
+        },
+      },
+      "/project",
+    );
+
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+
+    // SAFETY: BS426 reads only `config`.
+    const found = rule?.check({ config } as unknown as DoctorContext);
+
+    expect((await found)?.map((finding) => finding.target)).toEqual([]);
   });
 });

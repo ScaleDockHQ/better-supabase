@@ -896,7 +896,9 @@ active tenant's keys instead, as the next section shows.
 
 `blocks.memberships.options.claimFormat` picks the memberships claim's form:
 `'array'` (the default, `[{ scope, id, roles }]`) or `'map'`
-(`{ "<tenant id>": "<role>" }`).
+(`{ "<tenant id>": "<role>" }`). `'summary'` is `{ form, roles, tenants }`
+with a role index per tenant, or a sorted array of indexes when `roles.many`
+is on.
 
 ## Permissions in the token
 

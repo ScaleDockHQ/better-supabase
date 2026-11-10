@@ -1,7 +1,7 @@
 -- ==== memberships
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:d379bdc6b44689df74995b95bea7c39550c5a7a80eeb7fbc95cf6e143431b23e
+-- @bsb-hash sha256:a5f4c0d973dedcab393775fbfb0e879cba8ca58f7d7597dd84541ba2ad93b17e
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -213,7 +213,8 @@ grant execute on function better_supabase.organization_member_role(uuid, uuid) t
 
 -- The memberships claim. `claimFormat: 'array'` (the default) is
 -- [{ scope, id, roles }]; `'map'` is { [tenant id]: role }; `'summary'`
--- is { form, roles, tenants } with a role index per tenant. When an
+-- is { form, roles, tenants } with a role index per tenant, or a sorted
+-- array of indexes when a member holds several roles. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',
@@ -283,7 +284,7 @@ on conflict (name) do update
 -- ==== permissions
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:e1868f25f821e983098df86c64b7bd982df02fbc80d5016535098f2dd03fa2e6
+-- @bsb-hash sha256:c5bac68c1501736e59901d87c7d26661bff25d806af71ff0dcd731a2e7fc3b74
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -688,7 +689,7 @@ begin
   end if;
   bytes := decode(repeat('00', width), 'hex');
   if held is null then
-    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+    return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
   end if;
   for i in 1 .. coalesce(cardinality(all_keys), 0) loop
     if all_keys[i] = any (held) then
@@ -697,7 +698,7 @@ begin
       bytes := set_byte(bytes, slot, value);
     end if;
   end loop;
-  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
 end;
 $$;
 

@@ -2,7 +2,7 @@ import type { GeneratedBlock } from "../../blocks/index.ts";
 import type { ResolvedConfig } from "../../config/index.ts";
 
 import { entityNames } from "../../blocks/index.ts";
-import { blockEntities } from "../../config/index.ts";
+import { blockEntities, FormerPermissionKeyError } from "../../config/index.ts";
 import { readTypeSource } from "../../index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
@@ -12,6 +12,7 @@ import {
   resolveBlock,
   SQL_MODULES,
 } from "../../sql/index.ts";
+import { CliError } from "../core/errors.ts";
 import { applyCasing } from "./model-types.ts";
 import { prop, q } from "./shared.ts";
 
@@ -106,11 +107,23 @@ function permissionGroups(
 ): Readonly<Record<string, Readonly<Record<string, string>>>> {
   const groups: Record<string, Record<string, string>> = {};
 
-  for (const entry of modulePermissionKeys(
-    config.blocks,
-    config.blockNames,
-    config.subjects,
-  )) {
+  let keys: ReturnType<typeof modulePermissionKeys>;
+
+  try {
+    keys = modulePermissionKeys(
+      config.blocks,
+      config.blockNames,
+      config.subjects,
+    );
+  } catch (error) {
+    if (error instanceof FormerPermissionKeyError) {
+      throw new CliError("config_invalid", error.message, { cause: error });
+    }
+
+    throw error;
+  }
+
+  for (const entry of keys) {
     groups[entry.module] = {
       ...groups[entry.module],
       [entry.action]: entry.key,

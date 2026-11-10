@@ -20,6 +20,7 @@ type StubProvider = AuthorizationProvider & {
       | "approverFor"
       | "bootstrapPermissions"
       | "managedUsers"
+      | "canApprove"
     >
   >;
   readonly memberships: NonNullable<AuthorizationProvider["memberships"]>;

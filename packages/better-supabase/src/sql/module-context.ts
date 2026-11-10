@@ -215,15 +215,18 @@ function withProviderSuspension(
 
   const configured = access.disabled ?? {};
 
+  const useProviderUser =
+    configured.user === undefined && suspension.user !== undefined;
+
   const disabled: NonNullable<AccessBlockConfig["disabled"]> = {
     ...configured,
     ...(configured.tenant === undefined && suspension.tenant
       ? { tenant: suspension.tenant }
       : {}),
-    ...(configured.user === undefined && suspension.user
-      ? { user: suspension.user }
-      : {}),
-    ...(configured.userKey === undefined && suspension.userKey !== undefined
+    ...(useProviderUser ? { user: suspension.user } : {}),
+    ...(useProviderUser &&
+    configured.userKey === undefined &&
+    suspension.userKey !== undefined
       ? { userKey: suspension.userKey }
       : {}),
   };

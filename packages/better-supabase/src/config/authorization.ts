@@ -124,12 +124,13 @@ export interface AuthorizationFunctions {
   readonly subject?: string;
   /**
    * `subject` for one tenant: an expression of the authorizer subject (jsonb)
-   * of the signed-in user restricted to `{tenant}` (text), as a
-   * `subject_for(user, tenant)` function. The bootstrap call uses it when the
-   * page names a tenant, so the payload never carries the other tenants'
-   * memberships. It must fail closed: `null` for an unknown tenant, a tenant
-   * the user has no membership in, and a null tenant. Without it the bootstrap
-   * call falls back to `subject`.
+   * of the signed-in user restricted to `{tenant}` (text), for example
+   * `authz.subject_for(auth.uid(), {tenant})`. The caller is the user, so there
+   * is no `{user}`. The bootstrap call uses it when the page names a tenant, so
+   * the payload never carries the other tenants' memberships. It must fail
+   * closed: `null` for an unknown tenant, a tenant the user has no membership
+   * in, and a null tenant. Without it the bootstrap call falls back to
+   * `subject`.
    */
   readonly subjectForTenant?: string;
   /**
@@ -146,16 +147,23 @@ export interface AuthorizationFunctions {
   /**
    * The user ids the caller approves for (out-of-office covers and delegations
    * included), as a set of uuid: it is used as `select u from <template> as
-   * t(u)`. No placeholders. Without it `isApprover` alone decides.
+   * t(u)`. No placeholders. No module reads this yet. Without it `isApprover`
+   * alone decides.
    */
   readonly approverFor?: string;
   /**
    * The user ids the caller manages in `{tenant}` (the manager chain and
    * delegations included), as a set of uuid: it is used as `select u from
    * <template> as t(u)`. `{tenant}` is optional: a template that leaves it out
-   * returns the users the caller manages in every tenant.
+   * returns the users the caller manages in every tenant. No module reads this
+   * yet.
    */
   readonly managedUsers?: string;
+  /**
+   * @deprecated Ignored. `isApprover` decides, and it always refuses the
+   * requester. Kept so an authorization provider API 1 value still loads.
+   */
+  readonly canApprove?: string;
 }
 
 /** One scope the provider decides permissions in, such as `organization`. */
@@ -453,6 +461,11 @@ export interface AuthorizationProvider<Key extends string = string> {
   /** The scope tenants are. */
   readonly tenantScope: string;
   readonly functions: AuthorizationFunctions;
+  /**
+   * @deprecated Ignored. Kept so an authorization provider API 1 value still
+   * loads. `isApprover` decides.
+   */
+  readonly approvals?: { readonly distinctApprover?: boolean };
   readonly requires?: readonly AuthorizationRequirement[];
   readonly permissions?: readonly AuthorizationPermission<Key>[];
   /**
@@ -464,12 +477,16 @@ export interface AuthorizationProvider<Key extends string = string> {
   readonly memberships?: readonly AuthorizationMembership[];
   /** Rows that say whether a user or a tenant is active. */
   readonly suspension?: {
-    readonly user?: DisabledRow;
+    /**
+     * A column (`schema.table.column`) or an active row. A column is matched on
+     * `userKey`.
+     */
+    readonly user?: string | DisabledRow;
     readonly tenant?: DisabledRow;
     /**
-     * The column of the user table that holds the auth user id, for a `user`
-     * given as a column name. Becomes `blocks.permissions.disabled.userKey`
-     * unless the config sets it.
+     * The column of the user table that holds the auth user id, when `user` is
+     * a column name. Becomes `blocks.permissions.disabled.userKey` only when
+     * the provider's `user` is the one in use.
      */
     readonly userKey?: string;
   };

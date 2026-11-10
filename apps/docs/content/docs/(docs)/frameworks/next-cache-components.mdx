@@ -588,8 +588,9 @@ The client reads keys from `PermissionsProvider` and `useCan` in
 `better-supabase/react`, which accepts the compact form or the expanded lists.
 At 300 keys and one tenant the full list is about 7 KB and the bitset is a
 few hundred bytes. At 150 memberships, `claimFormat: "summary"` stores a role
-index per tenant instead of a `{ scope, id, roles }` object each, which is
-what drops a 9-chunk cookie.
+index per tenant instead of a `{ scope, id, roles }` object each, or an array
+of indexes when a member holds several roles, which is what drops a 9-chunk
+cookie.
 
 Cache what the UI needs the same way. The snapshot needs the session, so read
 it first, then let `bsb.cached()` set the tags and the lifetime:

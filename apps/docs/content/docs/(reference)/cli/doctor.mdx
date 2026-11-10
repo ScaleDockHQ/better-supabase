@@ -2218,8 +2218,11 @@ the request) differs from `blocks.permissions.activeTenant`, where
 then never change the token. It notes when `auth.claims.scope` is neither
 `tenant` nor the provider's `tenantScope`, notes when the provider sets
 `suspension` or `roleSources` while `blocks.permissions.model` is not
-`provider` (only that model reads them), and reports every entry of the
-provider's `problems`, such as a file version it can't read.
+`provider` (only that model reads them), notes when `functions.canApprove`
+or `approvals.distinctApprover` is set (both are ignored; `isApprover`
+decides), warns when a function template uses a placeholder it does not
+take, and reports every entry of the provider's `problems`, such as a file
+version it can't read.
 
 ### BS410
 
@@ -2384,7 +2387,9 @@ and `blocks.permissions.disabled` (`tenant`, `user` and `userKey`) default to
 what the provider declares in `platformRoles`, a role source's `through`, a
 membership's `disabledAt` and `suspension`. A config value equal to
 the provider's is a second copy that goes stale when the provider changes.
-Remove it.
+Doctor reports it only under the provider access model. `disabled.userKey`
+is reported only when `disabled.user` is unset or equal to the provider's,
+because the provider's key applies only then. Remove each reported copy.
 
 ## Env files
 

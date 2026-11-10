@@ -203,6 +203,7 @@ export {
   scopeProblems,
   sameTemplateFunction,
   templateFunctions,
+  templatePlaceholderProblems,
 } from "../core/access-sql.ts";
 
 export { AUDIT_CATEGORIES } from "./audit-actions.ts";

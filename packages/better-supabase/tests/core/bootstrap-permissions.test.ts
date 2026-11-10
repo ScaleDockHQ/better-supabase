@@ -88,6 +88,43 @@ describe("expandBootstrapPermissions", () => {
     ).toEqual({ apiVersion: 1, tenants: { t1: ["a", "c"] }, platform: [] });
   });
 
+  it("reads a bitset after Postgres wraps the base64 every 76 characters", () => {
+    const keys = Array.from({ length: 500 }, (_, index) => `k${index}`);
+    const held = keys.filter((_, index) => index % 2 === 0);
+
+    const compact = compactBootstrapPermissions({
+      tenants: { t1: held, t2: keys },
+      platform: [],
+    });
+
+    // encode() writes standard base64, a newline every 76 characters, and the
+    // SQL strips the trailing '=' without removing that newline.
+    const wrapped = (value: string): string => {
+      const padded =
+        value.replaceAll("-", "+").replaceAll("_", "/") +
+        "=".repeat((4 - (value.length % 4)) % 4);
+
+      const lines = padded.match(/.{1,76}/g) ?? [];
+
+      return lines.join("\n").replace(/[=]+$/u, "");
+    };
+
+    const encoded = compact.tenants["t1"] ?? "";
+
+    expect(encoded.length).toBeGreaterThan(76);
+    expect(encoded).not.toContain("\n");
+
+    const expanded = expandBootstrapPermissions({
+      ...compact,
+      tenants: { t1: wrapped(encoded) },
+    });
+
+    expect(expanded?.tenants["t1"]?.toSorted()).toEqual(held.toSorted());
+    expect(expandBootstrapPermissions(compact)?.tenants["t1"]).toEqual(
+      expanded?.tenants["t1"],
+    );
+  });
+
   it("fails closed on anything it does not understand", () => {
     const compact = (tenants: unknown, keys: unknown = ["a", "b", "c"]) => ({
       apiVersion: 1,

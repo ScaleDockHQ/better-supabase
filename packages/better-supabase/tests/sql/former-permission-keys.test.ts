@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { namingCodemod } from "../../src/cli/codemod-naming.ts";
 import { applyCodemod } from "../../src/cli/codemod.ts";
+import { FormerPermissionKeyError } from "../../src/config/index.ts";
+import { modulePermissionKeys } from "../../src/sql/introspect.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
 describe("former permission keys", () => {
@@ -11,6 +13,31 @@ describe("former permission keys", () => {
         modules: { audit: { permissions: { view: "audit.view" } } },
       }),
     ).toThrow(/permissions\.view: renamed to "read".*codemod naming/su);
+  });
+
+  it("throws FormerPermissionKeyError with a code a caller can test", () => {
+    const thrown = (): unknown => {
+      try {
+        modulePermissionKeys(
+          { audit: { permissions: { view: "audit.view" } } },
+          ["audit"],
+        );
+      } catch (error) {
+        return error;
+      }
+
+      return undefined;
+    };
+
+    const error = thrown();
+
+    expect(error).toBeInstanceOf(FormerPermissionKeyError);
+    expect(error).toMatchObject({
+      code: "former_permission_key",
+      key: "view",
+      renamed: "read",
+      path: "blocks.audit.permissions.view",
+    });
   });
 
   it("accepts the new key", () => {

@@ -7,11 +7,15 @@ import type { BlockSqlEntitlementsProvider } from "../../sql/index.ts";
 import type { ProviderRequirement } from "../authorization.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
+import {
+  DEFAULT_ACTIVE_TENANT,
+  FormerPermissionKeyError,
+} from "../../config/index.ts";
 import {
   modulePermissionKeys,
   sameTemplateFunction,
   SQL_MODULES,
+  templatePlaceholderProblems,
 } from "../../sql/index.ts";
 import {
   accessRequirements,
@@ -395,7 +399,9 @@ function requirementProblem(
 function restatedDefaults(context: DoctorContext): FindingInput[] {
   const provider = context.config.authorization;
 
-  if (!provider) {
+  // The provider's values are filled in only under the provider model.
+  // Advising their removal under another model deletes the setting.
+  if (!provider || accessModule(context).kind !== "provider") {
     return [];
   }
 
@@ -449,7 +455,7 @@ function restatedDefaults(context: DoctorContext): FindingInput[] {
   const disabled = context.config.blocks.permissions?.disabled;
 
   if (disabled !== undefined && provider.suspension !== undefined) {
-    for (const key of ["tenant", "user", "userKey"] as const) {
+    for (const key of ["tenant", "user"] as const) {
       if (
         disabled[key] !== undefined &&
         provider.suspension[key] !== undefined &&
@@ -460,6 +466,24 @@ function restatedDefaults(context: DoctorContext): FindingInput[] {
           target: `blocks.permissions.disabled.${key}`,
         });
       }
+    }
+
+    // The provider's userKey applies only when its user is the one in use.
+    const providerUser =
+      disabled.user === undefined ||
+      (provider.suspension.user !== undefined &&
+        same(disabled.user, provider.suspension.user));
+
+    if (
+      providerUser &&
+      disabled.userKey !== undefined &&
+      provider.suspension.userKey !== undefined &&
+      same(disabled.userKey, provider.suspension.userKey)
+    ) {
+      findings.push({
+        message: `blocks.permissions.disabled.userKey repeats the suspension.userKey of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
+        target: "blocks.permissions.disabled.userKey",
+      });
     }
   }
 
@@ -472,7 +496,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "info",
     title: "Config value the authorization provider already supplies",
     description:
-      "`blocks.invitations.options.platformRoles`, `blocks.memberships.options.roleThrough`, the memberships `disabledAt` column and `blocks.permissions.disabled` (`tenant`, `user`, `userKey`) default to the values the authorization provider declares (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`). A config value equal to the provider's is a second copy that goes stale when the provider changes. Doctor reports each one; remove it.",
+      "`blocks.invitations.options.platformRoles`, `blocks.memberships.options.roleThrough`, the memberships `disabledAt` column and `blocks.permissions.disabled` (`tenant`, `user`, `userKey`) default to the values the authorization provider declares (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`). A config value equal to the provider's is a second copy that goes stale when the provider changes. Doctor reports each one under the provider access model; under another model the provider's value is not the default. `disabled.userKey` is reported only when `disabled.user` is unset or equal to the provider's, because the provider's key applies only then. Remove each reported copy.",
     check: restatedDefaults,
   },
   {
@@ -671,7 +695,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The authorization provider and the better-supabase config disagree",
     description:
-      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.tenant.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, warns when the provider's `tokenHook.activeOrganizationFrom` differs from `blocks.permissions.activeTenant` (where `switch_organization` writes the active organization), notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
+      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.tenant.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, warns when the provider's `tokenHook.activeOrganizationFrom` differs from `blocks.permissions.activeTenant` (where `switch_organization` writes the active organization), notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), notes when `functions.canApprove` or `approvals.distinctApprover` is set (both are ignored; `isApprover` decides), warns when a function template uses a placeholder it does not take, and reports the `problems` the provider found while it was built.",
     check: (context) => {
       const provider = context.config.authorization;
 
@@ -743,6 +767,37 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
         });
       }
 
+      // oxlint-disable-next-line typescript/no-deprecated -- reports the ignored v1 field
+      if (provider.functions.canApprove !== undefined) {
+        findings.push({
+          severity: "info",
+          message: `${label} sets functions.canApprove, which is ignored. isApprover decides, and it always refuses the requester.`,
+          target: "authorization.functions.canApprove",
+        });
+      }
+
+      // oxlint-disable-next-line typescript/no-deprecated -- reports the ignored v1 field
+      if (provider.approvals?.distinctApprover !== undefined) {
+        findings.push({
+          severity: "info",
+          message: `${label} sets approvals.distinctApprover, which is ignored. isApprover decides.`,
+          target: "authorization.approvals.distinctApprover",
+        });
+      }
+
+      for (const [name, template] of Object.entries(provider.functions)) {
+        if (typeof template !== "string") {
+          continue;
+        }
+
+        for (const problem of templatePlaceholderProblems(name, template)) {
+          findings.push({
+            message: `${label}: ${problem}`,
+            target: `authorization.functions.${name}`,
+          });
+        }
+      }
+
       return findings;
     },
   },
@@ -782,16 +837,27 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
         }
       }
 
-      findings.push(
-        ...moduleKeyProblems(
-          provider,
-          modulePermissionKeys(
-            context.config.blocks,
-            context.config.blockNames,
-            context.config.subjects,
+      try {
+        findings.push(
+          ...moduleKeyProblems(
+            provider,
+            modulePermissionKeys(
+              context.config.blocks,
+              context.config.blockNames,
+              context.config.subjects,
+            ),
           ),
-        ),
-      );
+        );
+      } catch (error) {
+        if (!(error instanceof FormerPermissionKeyError)) {
+          throw error;
+        }
+
+        findings.push({
+          message: `${error.message} A former permission key stops this check; the rest of doctor still runs.`,
+          target: error.path,
+        });
+      }
 
       const canAssign =
         context.config.blocks.permissions?.functions?.canAssign ??

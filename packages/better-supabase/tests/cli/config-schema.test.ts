@@ -250,6 +250,19 @@ describe("configIssues for authorization", () => {
   const issues = (over: Record<string, unknown>) =>
     configIssues({ auth: { authorization: { ...stubProvider, ...over } } });
 
+  it("accepts the removed apiVersion 1 names and ignores them", () => {
+    expect(
+      issues({
+        functions: {
+          ...stubProvider.functions,
+          canApprove: "authz.can_approve({tool}, {tenant})",
+        },
+        approvals: { distinctApprover: true },
+        suspension: { user: "public.profiles.banned_at", userKey: "user_id" },
+      }),
+    ).toEqual([]);
+  });
+
   it("accepts the stub provider with the optional hooks", () => {
     expect(
       issues({

@@ -220,6 +220,72 @@ export function roleNameOf(ctx: BlockSqlContext, alias: string): string {
 }
 
 /**
+ * `claimFormat: 'summary'`: one sorted `roles` list, and per tenant the index
+ * of its role. With `roles.many`, `roles` is the union of the role sets and
+ * each tenant maps to a sorted array of indexes.
+ */
+function summaryClaim(
+  ctx: BlockSqlContext,
+  tenant: string,
+  user: string,
+  role: string,
+): string {
+  const namedRole = roleNameOf(ctx, "named");
+  const membership = ctx.table("memberships");
+
+  if (!manyRoles(ctx)) {
+    return `jsonb_build_object(
+      'form', 'summary',
+      'roles', coalesce(jsonb_agg(distinct ${role} order by ${role}), '[]'::jsonb),
+      'tenants', coalesce(jsonb_object_agg(m.${tenant}::text, (
+        select count(*)::integer
+        from (
+          select distinct ${namedRole} as role_name
+          from ${membership} named
+          where named.${user} = m.${user}
+            and not better_supabase.user_disabled(named.${user})
+            and not better_supabase.tenant_disabled(named.${tenant})${activeMembership(ctx, "named")}
+        ) names
+        where names.role_name < ${role}
+      )), '{}'::jsonb)
+    )`;
+  }
+
+  const roles = membershipRolesTable(ctx);
+
+  const listed = `
+          select distinct r."role" as role_name
+          from ${roles} r
+          join ${membership} named
+            on named.${tenant} = r.${tenant} and named.${user} = r.${user}
+          where r.${user} = membership_claims.user_id
+            and not better_supabase.user_disabled(r.${user})
+            and not better_supabase.tenant_disabled(r.${tenant})${activeMembership(ctx, "named")}`;
+
+  return `jsonb_build_object(
+      'form', 'summary',
+      'roles', coalesce((
+        select jsonb_agg(names.role_name order by names.role_name)
+        from (${listed}
+        ) names
+      ), '[]'::jsonb),
+      'tenants', coalesce(jsonb_object_agg(m.${tenant}::text, (
+        select coalesce(jsonb_agg(idx order by idx), '[]'::jsonb)
+        from (
+          select (
+            select count(*)::integer
+            from (${listed}
+            ) all_roles
+            where all_roles.role_name < mine."role"
+          ) as idx
+          from ${roles} mine
+          where mine.${tenant} = m.${tenant} and mine.${user} = m.${user}
+        ) indexed
+      )), '{}'::jsonb)
+    )`;
+}
+
+/**
  * The active tenant: `blocks.permissions.activeTenant` (claim, resolver or
  * profile column).
  */
@@ -434,21 +500,7 @@ function tenantSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     claimFormat === "map"
       ? `coalesce(jsonb_object_agg(m.${tenant}::text, ${many ? roleSet : role}), '{}'::jsonb)`
       : claimFormat === "summary"
-        ? `jsonb_build_object(
-      'form', 'summary',
-      'roles', coalesce(jsonb_agg(distinct ${role} order by ${role}), '[]'::jsonb),
-      'tenants', coalesce(jsonb_object_agg(m.${tenant}::text, (
-        select count(*)::integer
-        from (
-          select distinct ${role} as role_name
-          from ${m} named
-          where named.${user} = m.${user}
-            and not better_supabase.user_disabled(named.${user})
-            and not better_supabase.tenant_disabled(named.${tenant})${activeMembership(ctx, "named")}
-        ) names
-        where names.role_name < ${role}
-      )), '{}'::jsonb)
-    )`
+        ? summaryClaim(ctx, tenant, user, role)
         : `coalesce(jsonb_agg(jsonb_build_object(
       'scope', ${sqlString(ctx.claims.scope)},
       'id', m.${tenant},
@@ -553,7 +605,8 @@ grant execute on function ${ctx.fn("organization_member_role")}(${id}, uuid) to 
 
 -- The memberships claim. \`claimFormat: 'array'\` (the default) is
 -- [{ scope, id, roles }]; \`'map'\` is { [tenant id]: role }; \`'summary'\`
--- is { form, roles, tenants } with a role index per tenant. When an
+-- is { form, roles, tenants } with a role index per tenant, or a sorted
+-- array of indexes when a member holds several roles. When an
 -- authorization provider's hook writes this claim, use its hook instead.
 -- Otherwise call it from your custom access token hook:
 --   return jsonb_set(event, '{claims,memberships}',

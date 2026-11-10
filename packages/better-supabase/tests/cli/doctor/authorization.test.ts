@@ -628,6 +628,40 @@ describe("BS409", () => {
       }),
     ]);
   });
+
+  it("notes the ignored approval fields and a placeholder a template does not take", async () => {
+    expect(
+      await findings("BS409", {
+        auth: {
+          authorization: withProvider({
+            functions: {
+              ...stubProvider.functions,
+              // oxlint-disable-next-line typescript/no-deprecated -- the ignored v1 name still has to load
+              canApprove: "authz.can({tool})",
+              approverFor: "authz.approver_for({user})",
+              managedUsers: "authz.managed({tenant})",
+            },
+            // oxlint-disable-next-line typescript/no-deprecated -- the ignored v1 name still has to load
+            approvals: { distinctApprover: true },
+          }),
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "info",
+        target: "authorization.functions.canApprove",
+      }),
+      expect.objectContaining({
+        severity: "info",
+        target: "authorization.approvals.distinctApprover",
+      }),
+      expect.objectContaining({
+        severity: "warning",
+        target: "authorization.functions.approverFor",
+        message: expect.stringContaining("uses {user}"),
+      }),
+    ]);
+  });
 });
 
 describe("BS411", () => {
@@ -640,6 +674,24 @@ describe("BS411", () => {
   });
 
   const snapshot = withAuthz(ALL);
+
+  it("reports a former permission key instead of aborting", async () => {
+    expect(
+      await findings(
+        "BS411",
+        config(stubProvider, {
+          audit: { permissions: { view: "audit.view" } },
+        }),
+        { snapshot },
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        target: "blocks.audit.permissions.view",
+        message: expect.stringContaining("codemod naming"),
+      }),
+    ]);
+  });
 
   it("passes when the provider and the database back the model", async () => {
     expect(await findings("BS411", config(), { snapshot })).toEqual([]);

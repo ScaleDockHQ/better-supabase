@@ -10,10 +10,19 @@ export type JwksInput = Jwks | URL | (() => Promise<Jwks>);
 
 export interface JwksSourceOptions extends JwksOfOptions {
   /**
-   * How long a fetched key set is used before it is fetched again. Default: 300.
-   * A Supabase Auth key set (`/auth/v1/.well-known/jwks.json`) is capped at 600.
+   * How long a fetched key set is used before a refresh starts. Default: 300.
+   * Past this, a caller still gets the cached set while a refresh runs in the
+   * background, until `maxStaleSeconds` more have passed.
    */
   readonly cacheSeconds?: number;
+  /**
+   * How long a key set may still be served after `cacheSeconds`, while a
+   * refresh runs in the background. Default: `cacheSeconds`. Past that the call
+   * waits for the fetch and fails with `JWKS_FETCH_FAILED` when the fetch
+   * fails. For a Supabase Auth key set, `cacheSeconds` plus this stays within
+   * 600 seconds.
+   */
+  readonly maxStaleSeconds?: number;
   /** The least time between two fetches for an unknown `kid`. Default: 30. */
   readonly refetchSeconds?: number;
   readonly fetch?: typeof fetch;
@@ -33,11 +42,33 @@ export interface RawJwks {
 }
 
 /**
- * The longest a Supabase project's key set is used before it is fetched again,
- * whatever `cacheSeconds` says. Signing keys rotate, and a revoked key keeps
- * verifying until the set is fetched again.
+ * The longest a Supabase project's key set is served, cache window and stale
+ * window together, whatever the options say. Signing keys rotate, and a revoked
+ * key keeps verifying until the set is fetched again.
  */
 const SUPABASE_JWKS_MAX_CACHE_SECONDS = 600;
+
+/**
+ * The fresh window and the extra time a stale set may still be served. A
+ * Supabase key set keeps the two inside 600 seconds.
+ */
+function cacheWindows(
+  cacheSeconds: number,
+  maxStaleSeconds: number,
+  supabase: boolean,
+): { readonly cacheMs: number; readonly limitMs: number } {
+  let cache = cacheSeconds;
+  let stale = maxStaleSeconds;
+
+  if (supabase) {
+    cache = Math.min(cache, SUPABASE_JWKS_MAX_CACHE_SECONDS);
+    stale = Math.min(stale, SUPABASE_JWKS_MAX_CACHE_SECONDS - cache);
+  }
+
+  const cacheMs = cache * 1000;
+
+  return { cacheMs, limitMs: cacheMs + stale * 1000 };
+}
 
 const SUPABASE_JWKS_PATH = "/auth/v1/.well-known/jwks.json";
 
@@ -180,10 +211,13 @@ async function fetchRawJwks(
 
 /**
  * The issuer's key set for `url`, shared by every verifier in the process. It
- * is fetched on first use and again after `cacheSeconds`; a refresh for an
- * unknown `kid` refetches at most once per `refetchSeconds`, so a stream of
- * forged `kid`s can't hammer the issuer. Concurrent callers share one fetch,
- * and a failed fetch keeps the keys already known.
+ * is fetched on first use and again after `cacheSeconds`. Until
+ * `maxStaleSeconds` more have passed, a caller gets the cached set and the
+ * refresh runs in the background. After that the call waits, and a failed fetch
+ * is an error. A refresh for an unknown `kid` refetches at most once per
+ * `refetchSeconds`, so a stream of forged `kid`s can't hammer the issuer.
+ * Concurrent callers share one fetch. A failed fetch keeps the keys already
+ * known while they are still inside that window.
  */
 export async function sharedJwks(
   url: URL,
@@ -194,12 +228,14 @@ export async function sharedJwks(
   const now = options.now ?? Date.now;
   const seconds = options.cacheSeconds ?? 300;
 
-  const cacheMs =
-    (isSupabaseJwksUrl(url)
-      ? Math.min(seconds, SUPABASE_JWKS_MAX_CACHE_SECONDS)
-      : seconds) * 1000;
+  const { cacheMs, limitMs } = cacheWindows(
+    seconds,
+    options.maxStaleSeconds ?? seconds,
+    isSupabaseJwksUrl(url),
+  );
 
   const refetchMs = (options.refetchSeconds ?? 30) * 1000;
+
   const age = entry.cached ? now() - entry.cached.at : Number.POSITIVE_INFINITY;
 
   if (entry.cached && age < (refresh ? refetchMs : cacheMs)) {
@@ -236,8 +272,9 @@ export async function sharedJwks(
   };
 
   // A routine expiry serves the keys already known and refreshes behind the
-  // response. An unknown kid still waits, because the cached set cannot verify it.
-  if (entry.cached && !refresh) {
+  // response, until the stale window ends. An unknown kid still waits, because
+  // the cached set cannot verify it.
+  if (entry.cached && !refresh && age < limitMs) {
     entry.pending ??= refreshKeys();
 
     return ok(entry.cached.keys);
@@ -247,7 +284,9 @@ export async function sharedJwks(
 
   const result = await entry.pending;
 
-  return !result.ok && entry.cached ? ok(entry.cached.keys) : result;
+  return !result.ok && entry.cached && age < limitMs
+    ? ok(entry.cached.keys)
+    : result;
 }
 
 /**
@@ -279,7 +318,14 @@ export function jwksSource(
   }
 
   const now = options.now ?? Date.now;
-  const cacheMs = (options.cacheSeconds ?? 300) * 1000;
+  const seconds = options.cacheSeconds ?? 300;
+
+  const { cacheMs, limitMs } = cacheWindows(
+    seconds,
+    options.maxStaleSeconds ?? seconds,
+    false,
+  );
+
   const refetchMs = (options.refetchSeconds ?? 30) * 1000;
   let cached: { readonly keys: Jwks; readonly at: number } | undefined;
   let pending: Promise<Result<Jwks>> | undefined;
@@ -321,7 +367,7 @@ export function jwksSource(
       return flight;
     };
 
-    if (cached && !refresh) {
+    if (cached && !refresh && age < limitMs) {
       pending ??= load();
 
       return ok(cached.keys);
@@ -331,6 +377,6 @@ export function jwksSource(
 
     const result = await pending;
 
-    return !result.ok && cached ? ok(cached.keys) : result;
+    return !result.ok && cached && age < limitMs ? ok(cached.keys) : result;
   };
 }

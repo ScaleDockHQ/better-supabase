@@ -19,6 +19,13 @@ import {
   templateFunctions,
 } from "../sql/index.ts";
 
+/** The claim a hook sets when `team_ids` is not the user's whole list. */
+const TEAM_IDS_TRUNCATED_CLAIM = "team_ids_truncated";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /** How findings name the provider. */
 export const providerLabel = (provider: AuthorizationProvider): string =>
   `the authorization provider (${provider.name})`;
@@ -566,6 +573,45 @@ export function providerTruncatedClaim(
   const hook = provider?.tokenHook;
 
   return hook?.truncatedClaim ?? hook?.budget?.truncatedClaim;
+}
+
+/** The truncated markers codegen records when they are not the defaults. */
+export function claimMarkerOverrides(
+  config: Pick<ResolvedConfig, "authorization" | "blocks">,
+): {
+  readonly permissionsTruncated?: string;
+  readonly teamIdsTruncated?: string;
+} {
+  const permissionsTruncated = providerTruncatedClaim(config.authorization);
+  const teamIdsTruncated = teamIdsTruncatedClaimOf(config);
+
+  return {
+    ...(permissionsTruncated === undefined ? {} : { permissionsTruncated }),
+    ...(teamIdsTruncated === undefined ? {} : { teamIdsTruncated }),
+  };
+}
+
+/**
+ * The claim that marks a partial `team_ids` list, when it is not the default.
+ * The sessions hook option wins, then the provider's
+ * `tokenHook.teamIdsTruncatedClaim`.
+ */
+function teamIdsTruncatedClaimOf(
+  config: Pick<ResolvedConfig, "authorization" | "blocks">,
+): string | undefined {
+  const hook = config.blocks["sessions"]?.options?.["hook"];
+
+  const fromHook =
+    isRecord(hook) && typeof hook["teamIdsTruncatedClaim"] === "string"
+      ? hook["teamIdsTruncatedClaim"]
+      : undefined;
+
+  const claim =
+    fromHook ?? config.authorization?.tokenHook?.teamIdsTruncatedClaim;
+
+  return claim === undefined || claim === TEAM_IDS_TRUNCATED_CLAIM
+    ? undefined
+    : claim;
 }
 
 /**
