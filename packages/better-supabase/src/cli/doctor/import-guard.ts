@@ -63,7 +63,7 @@ export function appRowTriggers(
 }
 
 /** The body of each function in the files, by its unqualified name. */
-export function functionBodies(
+function functionBodies(
   files: readonly { readonly path: string; readonly text: string }[],
 ): ReadonlyMap<string, string> {
   const bodies = new Map<string, string>();
