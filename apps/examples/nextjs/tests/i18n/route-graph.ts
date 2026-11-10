@@ -13,6 +13,7 @@ const ROUTE_FILES =
 const EXTENSIONS = [".tsx", ".ts", "/index.tsx", "/index.ts"];
 const IMPORT = /(?:from\s+|import\s*\(\s*|import\s+)"([^"]+)"/g;
 const USE_EXTRACTED = /useExtracted\(\s*"([^"]+)"/g;
+
 const PROVIDER =
   /<NextIntlClientProvider\s+messages=\{(null|pick\(messages,\s*([^)]*)\))\}/;
 
