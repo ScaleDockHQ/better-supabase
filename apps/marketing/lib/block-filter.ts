@@ -1,3 +1,5 @@
+import * as v from "valibot";
+
 /** The fields the `/blocks` overview renders and filters on. */
 export interface BlockSummary {
   readonly name: string;
@@ -7,6 +9,18 @@ export interface BlockSummary {
   readonly requires: readonly string[];
   readonly hasReact: boolean;
 }
+
+/** The `/blocks/index.json` document, checked before the search uses it. */
+export const blockSummariesSchema = v.array(
+  v.object({
+    name: v.string(),
+    title: v.string(),
+    category: v.string(),
+    description: v.string(),
+    requires: v.array(v.string()),
+    hasReact: v.boolean(),
+  }),
+);
 
 export const ALL_CATEGORIES = "All";
 

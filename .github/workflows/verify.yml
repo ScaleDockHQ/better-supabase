@@ -163,8 +163,10 @@ jobs:
         run: |
           read -ra affected <<< "$AFFECTED"
           # Passthrough arguments enter every task hash, so the build runs without them and hits
-          # the cache; only the test takes `--shard`.
-          pnpm exec turbo run build --filter=better-supabase "${affected[@]}" --log-file
+          # the cache; only the test takes `--shard`. The build takes no `--affected`: the test
+          # task is affected by test and config files the build task never reads, and the tests
+          # import the built package, so an affected-only build leaves `dist` missing.
+          pnpm exec turbo run build --filter=better-supabase --log-file
           pnpm exec turbo run test --filter=better-supabase --only "${affected[@]}" --log-file -- \
             --shard="$SHARD/3" --reporter=blob
 

@@ -6,6 +6,8 @@ import * as v from "valibot";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { COMMUNITY_TAG } from "./community-cache";
+
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Opens the organization's feedback board. */
@@ -28,7 +30,7 @@ export const createFeedbackBoard = bsb.action(
       return board;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [COMMUNITY_TAG]);
 
     return ok({ id: board.data.id });
   },
@@ -52,7 +54,7 @@ export const createPost = bsb.action(
       return post;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [COMMUNITY_TAG]);
 
     return ok({ id: post.data.id, moderation: post.data.moderation });
   },
@@ -72,7 +74,7 @@ export const voteOnPost = bsb.action(
       return tally;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [COMMUNITY_TAG]);
 
     return ok(tally.data);
   },

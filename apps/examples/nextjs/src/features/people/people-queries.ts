@@ -4,11 +4,15 @@ import type { TimesheetStatus } from "better-supabase/blocks/time-entries";
 
 import { toWeeklyGrid } from "better-supabase/blocks/time-entries";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
+
+import { PEOPLE_TAG } from "./people-cache";
 
 /** What a loader gives a component: the data, a failed read, or no organization. */
 export type Loaded<T> =
@@ -58,6 +62,7 @@ export async function loadDirectory(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -116,6 +121,7 @@ export async function loadTimesheet(
 ): Promise<TimesheetWeek | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -197,6 +203,7 @@ export interface HiringBoardData {
 export async function loadHiringBoard(): Promise<HiringBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

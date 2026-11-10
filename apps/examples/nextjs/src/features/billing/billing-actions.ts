@@ -10,6 +10,7 @@ import { parseMoney } from "better-supabase/commerce";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { refreshCaller } from "@/lib/refresh-caller";
@@ -18,6 +19,7 @@ import { bsb } from "@/lib/supabase/server";
 
 import type { PlanOption } from "./billing-queries";
 
+import { BILLING_TAG } from "./billing-cache";
 import { getPlans } from "./billing-queries";
 
 /** Completes the "Review your plan" onboarding step. */
@@ -115,7 +117,7 @@ export const createDraftInvoice = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [BILLING_TAG, BANKING_TAG]);
 
     return ok(created.data.id);
   },
@@ -135,7 +137,7 @@ export const issueInvoice = bsb.action(
       return issued;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [BILLING_TAG, BANKING_TAG]);
 
     return ok(issued.data.status);
   },

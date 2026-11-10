@@ -3,8 +3,12 @@ import type { MoneyJson } from "better-supabase/commerce";
 
 import { money, moneyToJson } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { BANKING_TAG } from "@/features/banking/banking-cache";
+import { BILLING_TAG } from "@/features/billing/billing-cache";
+import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -54,6 +58,7 @@ export interface Books {
 async function loadBooks(): Promise<Books | "not-set-up" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(BANKING_TAG, BILLING_TAG, SHOP_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

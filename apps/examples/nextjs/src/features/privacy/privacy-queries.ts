@@ -5,10 +5,13 @@ import type {
 
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
+
+import { PRIVACY_TAG } from "./privacy-cache";
 
 export interface ExportRow {
   readonly id: string;
@@ -48,6 +51,7 @@ export async function loadPrivacy(): Promise<PrivacyData> {
   "use cache: private";
 
   const request = await bsb.cached();
+  cacheTag(PRIVACY_TAG);
   const { session, db } = request;
   const permissions = await readPermissions(request);
 

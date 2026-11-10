@@ -4,6 +4,7 @@ import type { Team } from "better-supabase/blocks/teams";
 import { tenantOf } from "better-supabase/next";
 import { cacheLife, cacheTag } from "next/cache";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { bsb } from "@/lib/supabase/server";
 
 import { teamsTag } from "./teams-cache";
@@ -40,6 +41,7 @@ export async function getTeams(): Promise<readonly Team[]> {
 export async function getTeamCustomers(teamId: string) {
   "use cache: private";
   const { db } = await bsb.cached({ tables: ["customers"] });
+  cacheTag(CUSTOMERS_TAG);
 
   return db.customersWithOwner
     .list({

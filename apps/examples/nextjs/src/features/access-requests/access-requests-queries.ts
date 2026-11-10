@@ -2,14 +2,18 @@ import type { AccessRequestStatus } from "better-supabase/blocks/access-requests
 
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import type { Role } from "@/lib/claims";
 
+import { APPROVALS_TAG } from "@/features/approvals/approvals-cache";
 import { getMembers } from "@/features/organization/organization-queries";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can, roleOf } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
+
+import { ACCESS_REQUESTS_TAG } from "./access-requests-cache";
 
 export interface AccessRequestRow {
   readonly id: string;
@@ -59,6 +63,7 @@ export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
   "use cache: private";
 
   const request = await bsb.cached();
+  cacheTag(ACCESS_REQUESTS_TAG, APPROVALS_TAG);
   const { session, db, auth } = request;
   const permissions = await readPermissions(request);
 

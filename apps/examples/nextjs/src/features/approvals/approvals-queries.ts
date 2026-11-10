@@ -1,12 +1,16 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { ACCESS_REQUESTS_TAG } from "@/features/access-requests/access-requests-cache";
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { readMembers } from "@/features/organization/organization-queries";
 import { bsb } from "@/lib/supabase/server";
 
 import type { ApprovalRow, SubjectOption } from "./approvals-types";
 
+import { APPROVALS_TAG } from "./approvals-cache";
 import { APPROVAL_SUBJECT } from "./approvals-types";
 
 export interface ApprovalsQueue {
@@ -26,6 +30,7 @@ export type Loaded<T> =
 async function loadQueue(): Promise<ApprovalsQueue | null> {
   "use cache: private";
   const request = await bsb.cached();
+  cacheTag(APPROVALS_TAG, ACCESS_REQUESTS_TAG, CUSTOMERS_TAG);
   const { session, db } = request;
   const tenant = tenantOf(session);
 

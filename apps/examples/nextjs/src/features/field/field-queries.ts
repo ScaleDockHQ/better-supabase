@@ -9,10 +9,13 @@ import type {
 } from "better-supabase/blocks/shipments";
 
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
 import { readMembers } from "@/features/organization/organization-queries";
 import { bsb } from "@/lib/supabase/server";
+
+import { FIELD_TAG } from "./field-cache";
 
 /** One work order as the board and the day plan show it. */
 export interface WorkOrderCard {
@@ -106,6 +109,7 @@ export async function loadDispatchWeek(
 ): Promise<DispatchWeek | null> {
   "use cache: private";
   const request = await bsb.cached();
+  cacheTag(FIELD_TAG);
   const { session, db } = request;
   const tenant = tenantOf(session);
 
@@ -161,6 +165,7 @@ export async function loadTechnicianDay(
 ): Promise<TechnicianDayPlan | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(FIELD_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -187,6 +192,7 @@ export async function loadShipmentTracking(
 ): Promise<ShipmentTracking | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(FIELD_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

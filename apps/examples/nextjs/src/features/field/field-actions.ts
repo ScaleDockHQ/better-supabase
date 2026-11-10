@@ -9,6 +9,8 @@ import * as v from "valibot";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { FIELD_TAG } from "./field-cache";
+
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
 
 /** Where the example ships from; an app reads its warehouse from settings. */
@@ -60,7 +62,7 @@ export const createWorkOrder = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [FIELD_TAG]);
 
     return ok({ id: created.data.id });
   },
@@ -83,7 +85,7 @@ export const advanceWorkOrder = bsb.action(
       return moved;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [FIELD_TAG]);
 
     return ok({ status: moved.data.status });
   },
@@ -134,7 +136,7 @@ export const createShipment = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [FIELD_TAG]);
 
     return ok({ id: created.data.id });
   },

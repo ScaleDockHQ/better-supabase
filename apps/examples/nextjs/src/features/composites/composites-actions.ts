@@ -5,6 +5,8 @@ import { money } from "better-supabase/commerce";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { CRM_TAG } from "@/features/crm/crm-cache";
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -38,7 +40,7 @@ export const closeDealWon = bsb.action(
       return closed;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
 
     return ok({
       dealId: closed.data.deal.id,

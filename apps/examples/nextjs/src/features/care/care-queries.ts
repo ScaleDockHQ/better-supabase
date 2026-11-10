@@ -5,8 +5,10 @@ import type {
 } from "better-supabase/blocks/consents";
 
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -42,6 +44,7 @@ const CLIENT_LIMIT = 200;
 async function loadClients(): Promise<readonly ClientRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG);
 
   if (!tenantOf(session)) {
     return null;
@@ -64,6 +67,7 @@ export function getClients(): Promise<Loaded<readonly ClientRow[]>> {
 async function loadClient(id: string): Promise<ClientRow | "missing" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG);
 
   if (!tenantOf(session)) {
     return null;
@@ -95,6 +99,7 @@ export interface ConsentRow {
 async function loadConsents(id: string): Promise<readonly ConsentRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG);
 
   if (!tenantOf(session)) {
     return null;
@@ -139,6 +144,7 @@ export interface AccessRow {
 async function loadAccessLog(id: string): Promise<readonly AccessRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG);
 
   if (!tenantOf(session)) {
     return null;

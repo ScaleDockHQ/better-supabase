@@ -108,6 +108,7 @@ const config: KnipConfig = {
         "src/lib/supabase/generated.nuqs.ts",
         // `gen.serverBlocks` writes `<name>Instances` and `<name>Blocks` for each set (ADR 0542).
         "src/lib/supabase/blocks.core.ts",
+        "src/lib/supabase/blocks.api.ts",
         // Copied from the registry, which knip checks as entries.
         "src/hooks/use-*.ts",
       ],

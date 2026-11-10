@@ -7,10 +7,14 @@ import type {
 } from "better-supabase/blocks/forms";
 
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { notFound, unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
+import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache";
 import { bsb } from "@/lib/supabase/server";
+
+import { FORMS_TAG } from "./forms-cache";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -71,6 +75,7 @@ export type Loaded<T> =
 async function loadForms(): Promise<readonly FormSummary[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(FORMS_TAG, CUSTOM_FIELDS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -117,6 +122,7 @@ function answerCells(answers: FormSubmission["answers"]) {
 async function loadForm(id: string): Promise<FormDetailView | "not-found"> {
   "use cache: private";
   const { db } = await bsb.cached();
+  cacheTag(FORMS_TAG, CUSTOM_FIELDS_TAG);
   const { forms } = db;
 
   const [detail, submissions] = await Promise.all([

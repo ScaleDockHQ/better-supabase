@@ -5,11 +5,7 @@ import type { ReactNode } from "react";
 import { FilterXIcon } from "lucide-react";
 import { useId, useState } from "react";
 
-import type {
-  RecipeFilter,
-  RecipeKind,
-  RecipeSummary,
-} from "@/lib/recipe-filter";
+import type { RecipeFilter, RecipeKind } from "@/lib/recipe-filter";
 import type { RecipePlatform } from "@/lib/recipe-platform";
 
 import { Button } from "@/components/ui/button";
@@ -29,12 +25,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { IndexPending } from "@/features/catalog/components/index-pending";
+import { useCatalogIndex } from "@/features/catalog/use-catalog-index";
 import {
   ALL,
   filterRecipes,
   isFiltering,
   NO_FILTER,
   recipeKinds,
+  recipeSummariesSchema,
 } from "@/lib/recipe-filter";
 import { recipePlatforms } from "@/lib/recipe-platform";
 
@@ -58,17 +57,28 @@ const isKind = (value: unknown): value is RecipeKind =>
 
 /**
  * Filters the available recipes by category, platform and kind. With no filter
- * it shows `children`, the category sections rendered on the server.
+ * it shows `children`, the category sections rendered on the server. The
+ * recipes load from `/recipes/index.json` when a control gets focus or hover,
+ * so the page's document does not embed the list.
  */
 export function RecipeFilters({
-  recipes,
   categories,
   children,
 }: {
-  recipes: readonly RecipeSummary[];
   categories: readonly string[];
   children: ReactNode;
 }) {
+  const { index, load } = useCatalogIndex(
+    "/recipes/index.json",
+    recipeSummariesSchema,
+  );
+
+  const pending =
+    index.status === "ready" ? null : (
+      <IndexPending failed={index.status === "error"} onRetry={load} />
+    );
+
+  const recipes = index.status === "ready" ? index.items : [];
   const [filter, setFilter] = useState<RecipeFilter>(NO_FILTER);
   const categoryId = useId();
   const filtering = isFiltering(filter);
@@ -82,7 +92,11 @@ export function RecipeFilters({
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          className="flex flex-wrap items-center gap-2"
+          onFocus={load}
+          onPointerEnter={load}
+        >
           <label htmlFor={categoryId} className="sr-only">
             Category
           </label>
@@ -155,48 +169,47 @@ export function RecipeFilters({
           </ToggleGroup>
         </div>
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          {filtering
+          {filtering && index.status === "ready"
             ? `${String(matches.length)} of ${String(recipes.length)} recipes match`
             : null}
         </p>
       </div>
-      {filtering ? (
-        matches.length === 0 ? (
-          <Empty className="border border-dashed border-border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <FilterXIcon aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle>No recipe matches</EmptyTitle>
-              <EmptyDescription>
-                No available recipe has this category, platform and kind. The
-                planned recipes are listed under their category.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setFilter(NO_FILTER);
-                }}
-              >
-                Clear the filters
-              </Button>
-            </EmptyContent>
-          </Empty>
-        ) : (
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {matches.map((recipe) => (
-              <li key={recipe.slug}>
-                <RecipeTile recipe={recipe} />
-              </li>
-            ))}
-          </ul>
-        )
-      ) : (
-        children
-      )}
+      {filtering
+        ? (pending ??
+          (matches.length === 0 ? (
+            <Empty className="border border-dashed border-border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <FilterXIcon aria-hidden="true" />
+                </EmptyMedia>
+                <EmptyTitle>No recipe matches</EmptyTitle>
+                <EmptyDescription>
+                  No available recipe has this category, platform and kind. The
+                  planned recipes are listed under their category.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFilter(NO_FILTER);
+                  }}
+                >
+                  Clear the filters
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {matches.map((recipe) => (
+                <li key={recipe.slug}>
+                  <RecipeTile recipe={recipe} />
+                </li>
+              ))}
+            </ul>
+          )))
+        : children}
     </div>
   );
 }

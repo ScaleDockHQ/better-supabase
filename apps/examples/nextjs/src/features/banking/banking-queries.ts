@@ -6,10 +6,15 @@ import type {
 import type { MoneyJson } from "better-supabase/commerce";
 
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
+import { BILLING_TAG } from "@/features/billing/billing-cache";
+import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { bsb } from "@/lib/supabase/server";
+
+import { BANKING_TAG } from "./banking-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -84,6 +89,7 @@ async function loadReconciliation(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(BANKING_TAG, BILLING_TAG, SHOP_TAG);
 
   if (!tenantOf(session)) {
     return null;

@@ -11,6 +11,8 @@ import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
+import { SERVICE_PRINCIPALS_TAG } from "./service-principals-cache";
+
 const API_SCHEMA = blockConfig["service-accounts"].api;
 
 /**
@@ -56,7 +58,7 @@ export const createServicePrincipal = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [SERVICE_PRINCIPALS_TAG]);
 
     return ok(created.data.id);
   },
@@ -82,7 +84,7 @@ export const disableServicePrincipal = bsb.action(
     });
 
     if (disabled.ok) {
-      await refreshCaller(auth);
+      await refreshCaller(auth, [SERVICE_PRINCIPALS_TAG]);
     }
 
     return disabled;

@@ -5,9 +5,13 @@ import type {
 } from "better-supabase/blocks/inspections";
 
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { CASES_TAG } from "@/features/cases/cases-cache";
 import { bsb } from "@/lib/supabase/server";
+
+import { INSPECTIONS_TAG } from "./inspections-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -44,6 +48,7 @@ export interface InspectionRow {
 async function loadCalendar(): Promise<readonly InspectionRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(INSPECTIONS_TAG, CASES_TAG);
 
   if (!tenantOf(session)) {
     return null;
@@ -112,6 +117,7 @@ async function loadRun(
 ): Promise<InspectionRunView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(INSPECTIONS_TAG, CASES_TAG);
 
   if (!tenantOf(session)) {
     return null;

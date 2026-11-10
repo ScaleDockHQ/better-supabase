@@ -2,11 +2,13 @@ import "server-only";
 import type { TemplateScope } from "better-supabase/blocks/templates";
 
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
 import { bsb } from "@/lib/supabase/server";
 
+import { TEMPLATES_TAG } from "./templates-cache";
 import { CustomerTemplateBody, templatesOf } from "./templates-server";
 
 export interface TemplateCard {
@@ -31,6 +33,7 @@ export type TemplatesView =
 async function loadTemplates(): Promise<readonly TemplateCard[] | null> {
   "use cache: private";
   const { session, supabase } = await bsb.cached();
+  cacheTag(TEMPLATES_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

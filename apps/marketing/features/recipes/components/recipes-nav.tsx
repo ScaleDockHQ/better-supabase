@@ -1,7 +1,6 @@
 import { LayoutTemplateIcon } from "lucide-react";
 
 import { categoryStyle } from "@/features/blocks/categories";
-import { BlockGlyph } from "@/features/blocks/components/block-icon";
 import { CategoryIcon } from "@/features/blocks/components/category-icon";
 import { CatalogLink } from "@/features/catalog/components/catalog-link";
 import { recipeGroups, recipePath } from "@/lib/recipes";
@@ -43,7 +42,6 @@ export function RecipesNav() {
                     href={recipePath(recipe.slug)}
                     className="min-h-7"
                   >
-                    <BlockGlyph name={recipe.block} category={group.category} />
                     <span className="truncate">{recipe.title}</span>
                   </CatalogLink>
                 </li>
@@ -53,7 +51,6 @@ export function RecipesNav() {
                   key={recipe.slug}
                   className="flex min-h-7 items-center gap-2 px-2 text-muted-foreground"
                 >
-                  <BlockGlyph name={recipe.block} category={group.category} />
                   <span className="truncate">{recipe.title}</span>
                   <span className="ml-auto text-xs">planned</span>
                 </li>

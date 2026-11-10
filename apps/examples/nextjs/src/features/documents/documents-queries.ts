@@ -1,7 +1,10 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { notFound, unstable_rethrow } from "next/navigation";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
@@ -33,6 +36,7 @@ export type Loaded<T> =
 async function loadDocuments(): Promise<readonly DocumentSummary[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
 
   if (!tenantOf(session)) {
     return null;
@@ -75,6 +79,7 @@ async function loadTarget(
   "use cache: private";
 
   const request = await bsb.cached();
+  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
   const { session, db } = request;
   const permissions = await readPermissions(request);
 

@@ -6,6 +6,8 @@ import * as v from "valibot";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { COURSES_TAG } from "./courses-cache";
+
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Creates and publishes a one-module course to try the learner flow with. */
@@ -72,7 +74,7 @@ export const createSampleCourse = bsb.action(
       return published;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [COURSES_TAG]);
 
     return ok({ id: course.data.id });
   },
@@ -92,7 +94,7 @@ export const enrollInCourse = bsb.action(
       return learner;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [COURSES_TAG]);
 
     return ok({ status: learner.data.status });
   },
@@ -112,7 +114,7 @@ export const completeLesson = bsb.action(
       return learner;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [COURSES_TAG]);
 
     return ok({ status: learner.data.status });
   },
@@ -142,7 +144,7 @@ export const submitQuiz = bsb.action(
       return result;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [COURSES_TAG]);
 
     const entry = result.data.progress.lessons.find(
       (lesson) => lesson.lessonId === lessonId,

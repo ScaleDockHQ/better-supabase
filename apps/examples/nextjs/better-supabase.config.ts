@@ -89,6 +89,8 @@ export default defineConfig({
     // server from this set and bundle no other block (ADR 0542).
     serverBlocks: {
       core: ["permissions"],
+      // `/api/v1` serves the app's tables next to the teams and permissions blocks.
+      api: ["permissions", "teams"],
       shell: [
         "permissions",
         "organizations",

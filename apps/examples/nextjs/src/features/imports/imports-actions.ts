@@ -11,6 +11,7 @@ import {
 } from "better-supabase/blocks/imports";
 import * as v from "valibot";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
@@ -151,7 +152,7 @@ export const runCustomerImport = bsb.action(
         ),
       });
 
-      await refreshCaller(auth);
+      await refreshCaller(auth, [CUSTOMERS_TAG]);
 
       return ok<ImportOutcome>({
         id: result.id,
