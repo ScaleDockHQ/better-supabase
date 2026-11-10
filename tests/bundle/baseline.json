@@ -8,6 +8,7 @@
   "./create/supabase": 4625,
   "./cli": 797494,
   "./client": 64719,
+  "./client/lite": 490,
   "./client/native": 64588,
   "./react": 90602,
   "./react (react-server)": 91678,
