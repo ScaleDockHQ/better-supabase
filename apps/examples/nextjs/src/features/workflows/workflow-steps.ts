@@ -1,11 +1,10 @@
 import type { RequestContext } from "better-supabase";
 
-import { createClient } from "@supabase/supabase-js";
 import { createNotifications } from "better-supabase/blocks/notifications";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { Temporal } from "temporal-polyfill";
 
-import { env } from "@/env";
+import { serviceSupabase } from "@/lib/service-supabase";
 
 import {
   notificationTypes,
@@ -18,20 +17,7 @@ import {
  * the run was started with (`workflowContext`), never from input. The step
  * bundle doesn't load `@/lib/supabase`, so it passes Temporal itself.
  */
-export function serviceSupabase() {
-  const url = env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = env.SUPABASE_SECRET_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      "Workflow steps need NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY",
-    );
-  }
-
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
+export { serviceSupabase };
 
 export function serviceNotifications() {
   return createNotifications({

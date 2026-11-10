@@ -1,21 +1,21 @@
-import type { AuditListOptions } from "better-supabase/blocks/audit";
-
-import { dbError, err } from "better-supabase";
+import { dbError, err, ok } from "better-supabase";
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
 
+import {
+  EXPORT_ROW_LIMIT,
+  filtersOf,
+  paramsOf,
+} from "@/features/audit/audit-export";
+
 import { bsb } from "../../../../lib/supabase/server";
-
-/** The most rows one request streams; a larger range needs a narrower filter. */
-const MAX_ROWS = 100_000;
-
-const DEFAULT_WINDOW_HOURS = 30 * 24;
-
-type Filters = { -readonly [K in keyof AuditListOptions]: AuditListOptions[K] };
 
 /**
  * `GET /api/audit/export?actor=&type=&from=&to=&q=`: the active organization's
  * audit log as CSV for the same filters and window as the page (the last 30
- * days without `from`), streamed page by page from the audit module.
+ * days without `from`), streamed page by page from the audit module. Up to
+ * 100,000 rows; a larger range needs the job at `/api/audit/export-jobs`. With
+ * `probe=1` it answers `{ rows, limit }` instead, so the page can pick between
+ * the two.
  */
 export const GET = bsb.route(
   async (request, { session, tenant: organizationId, db }) => {
@@ -27,53 +27,32 @@ export const GET = bsb.route(
       return err(dbError("forbidden", "CSV exports are not in your plan"));
     }
 
-    const params = new URL(request.url).searchParams;
-    const from = params.get("from");
-    const to = params.get("to");
-    const actor = params.get("actor");
-    const type = params.get("type");
-    const search = params.get("q");
-
-    const filters: Filters = {
-      organizationId,
-      since: from
-        ? Temporal.Instant.from(from)
-        : Temporal.Now.instant().subtract({ hours: DEFAULT_WINDOW_HOURS }),
-    };
-
-    if (to) {
-      filters.until = Temporal.Instant.from(to);
-    }
-
-    if (actor) {
-      filters.actorId = actor;
-    }
-
-    if (type) {
-      filters.eventType = type;
-    }
-
-    if (search) {
-      filters.search = search;
-    }
+    const search = new URL(request.url).searchParams;
+    const filters = filtersOf(organizationId, paramsOf(search));
 
     const probe = await db.audit.list({
       ...filters,
       limit: 1,
       fields: "summary",
       count: true,
-      countCap: MAX_ROWS + 1,
+      countCap: EXPORT_ROW_LIMIT + 1,
     });
 
     if (!probe.ok) {
       return probe;
     }
 
-    if ((probe.data.total ?? 0) > MAX_ROWS) {
+    const rows = probe.data.total ?? 0;
+
+    if (search.get("probe") === "1") {
+      return ok({ rows, limit: EXPORT_ROW_LIMIT });
+    }
+
+    if (rows > EXPORT_ROW_LIMIT) {
       return err(
         dbError(
           "invalid_input",
-          `More than ${String(MAX_ROWS)} entries match; narrow the dates or filters`,
+          `More than ${String(EXPORT_ROW_LIMIT)} entries match; start the export job or narrow the dates`,
         ),
       );
     }
