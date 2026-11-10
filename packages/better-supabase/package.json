@@ -354,6 +354,11 @@
       "types": "./dist/list/index.d.ts",
       "default": "./dist/list/index.js"
     },
+    "./list/export": {
+      "@better-supabase/source": "./src/list/export/index.ts",
+      "types": "./dist/list/export/index.d.ts",
+      "default": "./dist/list/export/index.js"
+    },
     "./storage": {
       "@better-supabase/source": "./src/storage/index.ts",
       "types": "./dist/storage/index.d.ts",
@@ -1765,6 +1770,10 @@
       "./list": {
         "types": "./dist/list/index.d.ts",
         "default": "./dist/list/index.js"
+      },
+      "./list/export": {
+        "types": "./dist/list/export/index.d.ts",
+        "default": "./dist/list/export/index.js"
       },
       "./storage": {
         "types": "./dist/storage/index.d.ts",

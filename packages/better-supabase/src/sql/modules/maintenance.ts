@@ -260,6 +260,7 @@ create table if not exists ${plans} (
   )
 );${appKey("plans", "tenant_id", `${p("tenant")}, ${p("id")}`)}
 create index if not exists ${name("plans", "tenant_idx")} on ${plans} (${p("tenant")}, ${p("status")}, ${p("nextDueAt")});
+create index if not exists ${name("plans", "list_idx")} on ${plans} (${p("tenant")}, (coalesce(${p("nextDueAt")}, 'infinity'::timestamptz)), ${p("id")});
 create index if not exists ${name("plans", "asset_idx")} on ${plans} (${p("tenant")}, ${p("asset")});
 create index if not exists ${name("plans", "meter_idx")} on ${plans} (${p("tenant")}, ${p("meter")});
 create index if not exists ${name("plans", "work_order_idx")} on ${plans} (${p("workOrder")}) where ${p("workOrder")} is not null;

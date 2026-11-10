@@ -198,3 +198,17 @@ if (first.hasMore) {
     .orThrow();
 }
 ```
+
+`listPlans` still takes `offset`. `planPage` pages the same list by keyset and
+returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
+`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+
+```ts
+const first = await maintenance.planPage({ limit: 50, total: true }).orThrow();
+
+if (first.hasMore) {
+  const next = await maintenance
+    .planPage({ limit: 50, after: first.nextCursor })
+    .orThrow();
+}
+```

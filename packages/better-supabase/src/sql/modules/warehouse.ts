@@ -261,6 +261,7 @@ create table if not exists ${lists} (
   foreign key (${p("tenant")}, ${p("wave")}) references ${waves} (${w("tenant")}, ${w("id")}) on delete cascade,
   check ((${p("status")} = 'picked') = (${p("pickedAt")} is not null))
 );${appKey("lists", `${p("tenant")}, ${p("id")}`)}
+create index if not exists ${name("lists", "list_idx")} on ${lists} (${p("tenant")}, ${p("createdAt")} desc, ${p("id")});
 create index if not exists ${name("lists", "wave_idx")} on ${lists} (${p("tenant")}, ${p("wave")});
 create index if not exists ${name("lists", "document_idx")} on ${lists} (${p("tenant")}, ${p("documentType")}, ${p("documentId")});
 create index if not exists ${name("lists", "assignee_idx")} on ${lists} (${p("tenant")}, ${p("assignee")}, ${p("status")});

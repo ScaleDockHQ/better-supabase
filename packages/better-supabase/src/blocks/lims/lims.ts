@@ -4,7 +4,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { pageRowsOf, plainDateOf } from "../../core/block-helpers.ts";
+import { blockPage, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
@@ -378,23 +378,7 @@ export function createLims(options: LimsOptions): Lims {
         ),
       ),
     samplePage: (page = {}) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "list_samples",
-          {
-            tenant: organizationId,
-            filters: { ...definedOf(page), paged: true },
-          },
-          (value) => {
-            const read = pageRowsOf(value, "list_samples");
-
-            return {
-              ...read,
-              items: read.items.map((row) => sampleOf(row, "list_samples")),
-            };
-          },
-        ),
-      ),
+      blockPage(call, tenant, "list_samples", sampleOf, definedOf(page)),
     recordResult: ({ sampleId, methodId, input }) =>
       call(
         "record_lims_result",

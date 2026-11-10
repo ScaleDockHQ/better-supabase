@@ -207,6 +207,30 @@ export function pageRowsOf(
   };
 }
 
+/**
+ * One keyset page of a block list (ADR 0660): the tenant, `fn` called with `{
+ * paged: true }` and each row read by `rowOf`.
+ */
+export function blockPage<Item>(
+  call: BlockCall,
+  tenant: () => AsyncResult<string>,
+  fn: string,
+  rowOf: (row: Record<string, unknown>, fn: string) => Item,
+  filters: Readonly<Record<string, unknown>>,
+): AsyncResult<ListPage<Item>> {
+  return tenant().andThen((organizationId) =>
+    call(
+      fn,
+      { tenant: organizationId, filters: { ...filters, paged: true } },
+      (value) => {
+        const read = pageRowsOf(value, fn);
+
+        return { ...read, items: read.items.map((row) => rowOf(row, fn)) };
+      },
+    ),
+  );
+}
+
 export const stringsOf = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.map(textOf) : [];
 
