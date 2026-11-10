@@ -33,6 +33,11 @@ export interface OrderDocumentInput {
   readonly billingAddress?: Address;
   /** Where the order's stock is allocated. Default: the first with stock. */
   readonly locationId?: string;
+  /**
+   * Saves the order as a `draft`: it holds no stock and no payment window runs
+   * until `confirmDraft`. Records `order.drafted` instead of `order.placed`.
+   */
+  readonly draft?: boolean;
 }
 
 export interface OrderFromLinesInput extends OrderDocumentInput {
@@ -65,6 +70,25 @@ export interface OrderDocuments<
     organizationId: string;
     input: OrderFromLinesInput;
   }): AsyncResult<OrderFromDocument<F>>;
+  /**
+   * Confirms a draft: its stock is allocated (or backordered) and
+   * `order.placed` is recorded. Staff with `orders.manage` only.
+   */
+  confirmDraft(input: {
+    orderId: string;
+    /** Where the stock is allocated. Default: the first location with stock. */
+    locationId?: string | undefined;
+  }): AsyncResult<Order<F>>;
+  /**
+   * Puts an order that waits for payment, or a confirmed one, on hold. It can't
+   * be fulfilled or expire while it is held, and keeps its stock.
+   */
+  hold(input: {
+    orderId: string;
+    reason?: string | undefined;
+  }): AsyncResult<Order<F>>;
+  /** Moves a held order back to the status it was held from. */
+  releaseHold(orderId: string): AsyncResult<Order<F>>;
   /**
    * The order of an accepted quote, with the quote's lines and totals. Needs
    * the quotes block; a quote orders once.
@@ -100,6 +124,7 @@ function attrsOf(input: OrderDocumentInput): Record<string, unknown> {
     shippingAddress: input.shippingAddress,
     billingAddress: input.billingAddress,
     locationId: input.locationId,
+    draft: input.draft,
   };
 }
 
@@ -171,6 +196,24 @@ export function orderDocuments<F extends object>(
           return { id: textOf(row["id"]), orderId: textOf(row["orderId"]) };
         },
       ),
+    confirmDraft: ({ orderId, locationId }) =>
+      parsed(
+        call(
+          "confirm_draft_order",
+          { order_id: orderId, location: locationId ?? null },
+          orderOf,
+        ),
+      ),
+    hold: ({ orderId, reason }) =>
+      parsed(
+        call(
+          "hold_order",
+          { order_id: orderId, reason: reason ?? null },
+          orderOf,
+        ),
+      ),
+    releaseHold: (orderId) =>
+      parsed(call("release_order_hold", { order_id: orderId }, orderOf)),
     fromQuote: ({ quoteId, input = {} }) =>
       created(
         call(

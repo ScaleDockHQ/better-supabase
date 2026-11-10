@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:939c38c92a5743396121115a28738d9b321b2135e929a1d09ce62a63cefb50ec
+-- @bsb-hash sha256:ad9e9cd807b7de0aee8e8a34a2814bf5fa0910844f46371480a3a965fa79c4fb
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,6 +112,9 @@ create table "better_supabase"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
+  "held_at" timestamptz,
+  "held_from" text,
+  "hold_reason" text constraint bsb_orders_hold_reason_check check (length("hold_reason") <= 2000),
   "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
@@ -828,8 +831,10 @@ begin
     return v_from;
   end if;
   if not (case v_from
-    when 'pending_payment' then p_to = any ('{paid,cancelled}'::text[])
-    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled}'::text[])
+    when 'draft' then p_to = any ('{confirmed,cancelled}'::text[])
+    when 'pending_payment' then p_to = any ('{paid,cancelled,on_hold}'::text[])
+    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled,on_hold}'::text[])
+    when 'on_hold' then p_to = any ('{pending_payment,confirmed,cancelled}'::text[])
     when 'paid' then p_to = any ('{fulfilled,refunded}'::text[])
     when 'fulfilled' then p_to = any ('{paid,completed,refunded}'::text[])
     when 'completed' then p_to = any ('{refunded}'::text[])
@@ -869,6 +874,7 @@ as $$
     'invoiceNumber', x."invoice_number", 'invoicedAt', x."invoiced_at", 'placedAt', x."placed_at",
     'paidAt', x."paid_at", 'fulfilledAt', x."fulfilled_at", 'completedAt', x."completed_at",
     'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason",
+    'heldAt', x."held_at", 'holdReason', x."hold_reason",
     'lines', coalesce((select jsonb_agg(jsonb_build_object(
         'id', l."id", 'variantId', l."variant_id", 'productId', l."product_id", 'sku', l."sku",
         'title', l."title", 'quantity', l."quantity", 'unitAmount', l."unit_amount"::text,
@@ -1161,8 +1167,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_cancel"(uuid, text) from public, anon, authenticated;
 
--- Cancels an order that is waiting for payment, or a confirmed one before
--- anything shipped. Staff with orders.manage and the customer who placed
+-- Cancels a draft, an order that is waiting for payment, a confirmed one or
+-- one on hold, before anything shipped. Staff with orders.manage and the customer who placed
 -- it can.
 create or replace function "better_supabase"."cancel_order"(order_id uuid, reason text default null)
 returns boolean
@@ -1183,9 +1189,9 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."order_fulfillments" y
+  if v_order.status::text not in ('draft', 'pending_payment', 'confirmed', 'on_hold') or exists (select 1 from "better_supabase"."order_fulfillments" y
     where y."order_id" = v_order.id and y."status" in ('shipped', 'delivered')) then
-    raise exception 'only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+    raise exception 'only a draft, an order waiting for payment, a confirmed one or one on hold, with nothing shipped, can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
   perform "better_supabase"."order_cancel"(v_order.id, cancel_order.reason);
   return true;
@@ -1248,8 +1254,9 @@ revoke execute on function "better_supabase"."get_order"(uuid) from public, anon
 grant execute on function "better_supabase"."get_order"(uuid) to authenticated, service_role;
 
 -- Inserts a confirmed order with computed lines and totals, allocates its
--- stock and records order.placed. p_attrs carries the totals as text and an
--- optional origin; an order with the same origin is returned instead.
+-- stock and records order.placed. With p_attrs.draft the order is a draft:
+-- it holds no stock and records order.drafted until confirm_draft_order.
+-- p_attrs carries the totals as text and an optional origin; an order with the same origin is returned instead.
 -- Internal: order_from_lines and order_from_quote check first.
 create or replace function "better_supabase"."order_from_document"(p_tenant uuid, p_attrs jsonb, p_lines jsonb, p_location uuid)
 returns jsonb
@@ -1290,7 +1297,7 @@ begin
   insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
     "shipping_address", "billing_address", "origin_type", "origin_id")
-  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', 'confirmed', p_attrs ->> 'currency',
+  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
     p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
@@ -1302,7 +1309,13 @@ begin
     (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
-  null;
+  if not coalesce((p_attrs ->> 'draft')::boolean, false) then
+  end if;
+  if coalesce((p_attrs ->> 'draft')::boolean, false) then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', true);
 end;
 $$;
@@ -1412,6 +1425,110 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Confirms a draft order: it is allocated stock at the best location (or
+-- location), the rest on backorder, and records order.placed. A draft that
+-- was never confirmed can be cancelled with cancel_order.
+create or replace function "better_supabase"."confirm_draft_order"(order_id uuid, location uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_line record;
+  v_allocation jsonb;
+  v_claims text;
+begin
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = confirm_draft_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'draft' then
+    raise exception 'only a draft order can be confirmed' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  perform "better_supabase"."order_transition"(v_order.id, 'confirmed');
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) to authenticated, service_role;
+
+-- Puts an order that waits for payment, or a confirmed one, on hold: it can't
+-- be paid into, fulfilled or expire until the hold is released. Its stock
+-- stays reserved. reason is for the people who release it.
+create or replace function "better_supabase"."hold_order"(order_id uuid, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = hold_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text not in ('pending_payment', 'confirmed') then
+    raise exception 'only an order waiting for payment or a confirmed one can be put on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  v_from := "better_supabase"."order_transition"(v_order.id, 'on_hold');
+  update "better_supabase"."orders" x set "held_from" = v_from, "held_at" = now(), "hold_reason" = nullif(trim(hold_order.reason), ''), "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."hold_order"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."hold_order"(uuid, text) to authenticated, service_role;
+
+-- Releases a hold: the order goes back to the status it was on hold from.
+create or replace function "better_supabase"."release_order_hold"(order_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_target text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = release_order_hold.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'on_hold' then
+    raise exception 'the order isn''t on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  select coalesce(x."held_from", 'confirmed') into v_target from "better_supabase"."orders" x where x."id" = v_order.id;
+  perform "better_supabase"."order_transition"(v_order.id, v_target);
+  update "better_supabase"."orders" x set "held_from" = null, "held_at" = null, "hold_reason" = null, "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."release_order_hold"(uuid) from public, anon;
+grant execute on function "better_supabase"."release_order_hold"(uuid) to authenticated, service_role;
 
 -- Puts an order into the variant group of another order (variant_of is the
 -- group's first order), or takes it out of its group when variant_of is null.
@@ -2215,7 +2332,7 @@ as $$
   select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
   from (
     select
-      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      array_position(array['draft', 'pending_payment', 'confirmed', 'on_hold', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
       jsonb_build_object(
         'status', g.label,
         'count', g.n,
@@ -2447,7 +2564,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:48052e6c0d28c71e84e3cf317e1763d762520deb2f9aca761af6377e8a5f2490
+-- @bsb-hash sha256:d8f0d200e1a2dd025cba77062a6ac09942a8ca461ce5d4e15c220b06d09e2fe0
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2558,6 +2675,9 @@ create table "better_supabase"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
+  "held_at" timestamptz,
+  "held_from" text,
+  "hold_reason" text constraint bsb_orders_hold_reason_check check (length("hold_reason") <= 2000),
   "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
@@ -3282,8 +3402,10 @@ begin
     return v_from;
   end if;
   if not (case v_from
-    when 'pending_payment' then p_to = any ('{paid,cancelled}'::text[])
-    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled}'::text[])
+    when 'draft' then p_to = any ('{confirmed,cancelled}'::text[])
+    when 'pending_payment' then p_to = any ('{paid,cancelled,on_hold}'::text[])
+    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled,on_hold}'::text[])
+    when 'on_hold' then p_to = any ('{pending_payment,confirmed,cancelled}'::text[])
     when 'paid' then p_to = any ('{fulfilled,refunded}'::text[])
     when 'fulfilled' then p_to = any ('{paid,completed,refunded}'::text[])
     when 'completed' then p_to = any ('{refunded}'::text[])
@@ -3323,6 +3445,7 @@ as $$
     'invoiceNumber', x."invoice_number", 'invoicedAt', x."invoiced_at", 'placedAt', x."placed_at",
     'paidAt', x."paid_at", 'fulfilledAt', x."fulfilled_at", 'completedAt', x."completed_at",
     'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason",
+    'heldAt', x."held_at", 'holdReason', x."hold_reason",
     'lines', coalesce((select jsonb_agg(jsonb_build_object(
         'id', l."id", 'variantId', l."variant_id", 'productId', l."product_id", 'sku', l."sku",
         'title', l."title", 'quantity', l."quantity", 'unitAmount', l."unit_amount"::text,
@@ -3708,8 +3831,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_cancel"(uuid, text) from public, anon, authenticated;
 
--- Cancels an order that is waiting for payment, or a confirmed one before
--- anything shipped. Staff with orders.manage and the customer who placed
+-- Cancels a draft, an order that is waiting for payment, a confirmed one or
+-- one on hold, before anything shipped. Staff with orders.manage and the customer who placed
 -- it can.
 create or replace function "better_supabase"."cancel_order"(order_id uuid, reason text default null)
 returns boolean
@@ -3730,9 +3853,9 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."order_fulfillments" y
+  if v_order.status::text not in ('draft', 'pending_payment', 'confirmed', 'on_hold') or exists (select 1 from "better_supabase"."order_fulfillments" y
     where y."order_id" = v_order.id and y."status" in ('shipped', 'delivered')) then
-    raise exception 'only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+    raise exception 'only a draft, an order waiting for payment, a confirmed one or one on hold, with nothing shipped, can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
   perform "better_supabase"."order_cancel"(v_order.id, cancel_order.reason);
   return true;
@@ -3795,8 +3918,9 @@ revoke execute on function "better_supabase"."get_order"(uuid) from public, anon
 grant execute on function "better_supabase"."get_order"(uuid) to authenticated, service_role;
 
 -- Inserts a confirmed order with computed lines and totals, allocates its
--- stock and records order.placed. p_attrs carries the totals as text and an
--- optional origin; an order with the same origin is returned instead.
+-- stock and records order.placed. With p_attrs.draft the order is a draft:
+-- it holds no stock and records order.drafted until confirm_draft_order.
+-- p_attrs carries the totals as text and an optional origin; an order with the same origin is returned instead.
 -- Internal: order_from_lines and order_from_quote check first.
 create or replace function "better_supabase"."order_from_document"(p_tenant uuid, p_attrs jsonb, p_lines jsonb, p_location uuid)
 returns jsonb
@@ -3837,7 +3961,7 @@ begin
   insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
     "shipping_address", "billing_address", "origin_type", "origin_id")
-  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', 'confirmed', p_attrs ->> 'currency',
+  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
     p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
@@ -3849,6 +3973,7 @@ begin
     (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
+  if not coalesce((p_attrs ->> 'draft')::boolean, false) then
   for v_line in
     select x."id" as id, x."variant_id" as variant, x."quantity" as quantity, cv."allow_backorder" as backorder
     from "better_supabase"."order_lines" x join "better_supabase"."product_variants" cv on cv."id" = x."variant_id"
@@ -3863,7 +3988,12 @@ begin
       "backordered" = (v_allocation ->> 'backordered')::numeric > 0
     where x."id" = v_line.id;
   end loop;
-  perform "better_supabase".emit_event('order.placed', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'subtotal', (p_attrs ->> 'subtotal'), 'discountTotal', (p_attrs ->> 'discountTotal'), 'shippingTotal', (p_attrs ->> 'shippingTotal'), 'taxTotal', (p_attrs ->> 'taxTotal'), 'total', v_order.total::text, 'units', (select coalesce(sum(l."quantity"), 0)::text from "better_supabase"."order_lines" l where l."order_id" = v_order.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
+  end if;
+  if coalesce((p_attrs ->> 'draft')::boolean, false) then
+    perform "better_supabase".emit_event('order.drafted', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'total', v_order.total::text, 'units', (select coalesce(sum(l."quantity"), 0)::text from "better_supabase"."order_lines" l where l."order_id" = v_order.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
+  else
+    perform "better_supabase".emit_event('order.placed', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'subtotal', (p_attrs ->> 'subtotal'), 'discountTotal', (p_attrs ->> 'discountTotal'), 'shippingTotal', (p_attrs ->> 'shippingTotal'), 'taxTotal', (p_attrs ->> 'taxTotal'), 'total', v_order.total::text, 'units', (select coalesce(sum(l."quantity"), 0)::text from "better_supabase"."order_lines" l where l."order_id" = v_order.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
+  end if;
   return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', true);
 end;
 $$;
@@ -4019,6 +4149,127 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Confirms a draft order: it is allocated stock at the best location (or
+-- location), the rest on backorder, and records order.placed. A draft that
+-- was never confirmed can be cancelled with cancel_order.
+create or replace function "better_supabase"."confirm_draft_order"(order_id uuid, location uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_line record;
+  v_allocation jsonb;
+  v_claims text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = confirm_draft_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'draft' then
+    raise exception 'only a draft order can be confirmed' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  perform "better_supabase"."order_transition"(v_order.id, 'confirmed');
+  for v_line in
+    select x."id" as id, x."variant_id" as variant, x."quantity" as quantity, cv."allow_backorder" as backorder
+    from "better_supabase"."order_lines" x join "better_supabase"."product_variants" cv on cv."id" = x."variant_id"
+    where x."order_id" = v_order.id and cv."track_inventory"
+    order by x."position"
+  loop
+    v_claims := current_setting('request.jwt.claims', true);
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  v_allocation := "better_supabase"."allocate_stock"(v_order.tenant, v_line.variant, confirm_draft_order.location, v_line.quantity::numeric, 'order', v_order.id::text, v_line.id::text, v_line.backorder);
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    update "better_supabase"."order_lines" x set "location_id" = (v_allocation ->> 'locationId')::uuid,
+      "backordered" = (v_allocation ->> 'backordered')::numeric > 0
+    where x."id" = v_line.id;
+  end loop;
+  perform "better_supabase".emit_event('order.placed', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'subtotal', (select z."subtotal"::text from "better_supabase"."orders" z where z."id" = v_order.id), 'discountTotal', (select z."discount_total"::text from "better_supabase"."orders" z where z."id" = v_order.id), 'shippingTotal', (select z."shipping_total"::text from "better_supabase"."orders" z where z."id" = v_order.id), 'taxTotal', v_order.tax_total::text, 'total', v_order.total::text, 'units', (select coalesce(sum(l."quantity"), 0)::text from "better_supabase"."order_lines" l where l."order_id" = v_order.id)), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) to authenticated, service_role;
+
+-- Puts an order that waits for payment, or a confirmed one, on hold: it can't
+-- be paid into, fulfilled or expire until the hold is released. Its stock
+-- stays reserved. reason is for the people who release it.
+create or replace function "better_supabase"."hold_order"(order_id uuid, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = hold_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text not in ('pending_payment', 'confirmed') then
+    raise exception 'only an order waiting for payment or a confirmed one can be put on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  v_from := "better_supabase"."order_transition"(v_order.id, 'on_hold');
+  update "better_supabase"."orders" x set "held_from" = v_from, "held_at" = now(), "hold_reason" = nullif(trim(hold_order.reason), ''), "updated_at" = now()
+  where x."id" = v_order.id;
+  perform "better_supabase".emit_event('order.hold_placed', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'reason', nullif(trim(hold_order.reason), '')), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."hold_order"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."hold_order"(uuid, text) to authenticated, service_role;
+
+-- Releases a hold: the order goes back to the status it was on hold from.
+create or replace function "better_supabase"."release_order_hold"(order_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_target text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = release_order_hold.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'on_hold' then
+    raise exception 'the order isn''t on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  select coalesce(x."held_from", 'confirmed') into v_target from "better_supabase"."orders" x where x."id" = v_order.id;
+  perform "better_supabase"."order_transition"(v_order.id, v_target);
+  update "better_supabase"."orders" x set "held_from" = null, "held_at" = null, "hold_reason" = null, "updated_at" = now()
+  where x."id" = v_order.id;
+  perform "better_supabase".emit_event('order.hold_released', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'status', v_target), 'orders/' || v_order.id::text, (v_order.tenant)::text, null, 'better-supabase/orders');
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."release_order_hold"(uuid) from public, anon;
+grant execute on function "better_supabase"."release_order_hold"(uuid) to authenticated, service_role;
 
 -- Puts an order into the variant group of another order (variant_of is the
 -- group's first order), or takes it out of its group when variant_of is null.
@@ -4888,7 +5139,7 @@ as $$
   select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
   from (
     select
-      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      array_position(array['draft', 'pending_payment', 'confirmed', 'on_hold', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
       jsonb_build_object(
         'status', g.label,
         'count', g.n,
@@ -5124,7 +5375,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:7bc444b813f85d0fc037ac1c636d63c1a9b5812d6f4f729fd3462ed380cc47dd
+-- @bsb-hash sha256:94f79fa2632c0c802a83dd98d6663b7c5ccb60b1b42cac36ad97789f662d6f37
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5240,6 +5491,9 @@ create table "app_private"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
+  "held_at" timestamptz,
+  "held_from" text,
+  "hold_reason" text constraint bsb_orders_hold_reason_check check (length("hold_reason") <= 2000),
   "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
@@ -5956,8 +6210,10 @@ begin
     return v_from;
   end if;
   if not (case v_from
-    when 'pending_payment' then p_to = any ('{paid,cancelled}'::text[])
-    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled}'::text[])
+    when 'draft' then p_to = any ('{confirmed,cancelled}'::text[])
+    when 'pending_payment' then p_to = any ('{paid,cancelled,on_hold}'::text[])
+    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled,on_hold}'::text[])
+    when 'on_hold' then p_to = any ('{pending_payment,confirmed,cancelled}'::text[])
     when 'paid' then p_to = any ('{fulfilled,refunded}'::text[])
     when 'fulfilled' then p_to = any ('{paid,completed,refunded}'::text[])
     when 'completed' then p_to = any ('{refunded}'::text[])
@@ -5997,6 +6253,7 @@ as $$
     'invoiceNumber', x."invoice_number", 'invoicedAt', x."invoiced_at", 'placedAt', x."placed_at",
     'paidAt', x."paid_at", 'fulfilledAt', x."fulfilled_at", 'completedAt', x."completed_at",
     'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason",
+    'heldAt', x."held_at", 'holdReason', x."hold_reason",
     'lines', coalesce((select jsonb_agg(jsonb_build_object(
         'id', l."id", 'variantId', l."variant_id", 'productId', l."product_id", 'sku', l."sku",
         'title', l."title", 'quantity', l."quantity", 'unitAmount', l."unit_amount"::text,
@@ -6289,8 +6546,8 @@ end;
 $$;
 revoke execute on function "app_private"."order_cancel"(uuid, text) from public, anon, authenticated;
 
--- Cancels an order that is waiting for payment, or a confirmed one before
--- anything shipped. Staff with orders.manage and the customer who placed
+-- Cancels a draft, an order that is waiting for payment, a confirmed one or
+-- one on hold, before anything shipped. Staff with orders.manage and the customer who placed
 -- it can.
 create or replace function "app_private"."cancel_order"(order_id uuid, reason text default null)
 returns boolean
@@ -6311,9 +6568,9 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "app_private"."order_fulfillments" y
+  if v_order.status::text not in ('draft', 'pending_payment', 'confirmed', 'on_hold') or exists (select 1 from "app_private"."order_fulfillments" y
     where y."order_id" = v_order.id and y."status" in ('shipped', 'delivered')) then
-    raise exception 'only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+    raise exception 'only a draft, an order waiting for payment, a confirmed one or one on hold, with nothing shipped, can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
   perform "app_private"."order_cancel"(v_order.id, cancel_order.reason);
   return true;
@@ -6376,8 +6633,9 @@ revoke execute on function "app_private"."get_order"(uuid) from public, anon;
 grant execute on function "app_private"."get_order"(uuid) to authenticated, service_role;
 
 -- Inserts a confirmed order with computed lines and totals, allocates its
--- stock and records order.placed. p_attrs carries the totals as text and an
--- optional origin; an order with the same origin is returned instead.
+-- stock and records order.placed. With p_attrs.draft the order is a draft:
+-- it holds no stock and records order.drafted until confirm_draft_order.
+-- p_attrs carries the totals as text and an optional origin; an order with the same origin is returned instead.
 -- Internal: order_from_lines and order_from_quote check first.
 create or replace function "app_private"."order_from_document"(p_tenant uuid, p_attrs jsonb, p_lines jsonb, p_location uuid)
 returns jsonb
@@ -6418,7 +6676,7 @@ begin
   insert into "app_private"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
     "shipping_address", "billing_address", "origin_type", "origin_id")
-  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', 'confirmed', p_attrs ->> 'currency',
+  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
     p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
@@ -6430,7 +6688,13 @@ begin
     (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "app_private"."orders" x where x."id" = v_id;
-  null;
+  if not coalesce((p_attrs ->> 'draft')::boolean, false) then
+  end if;
+  if coalesce((p_attrs ->> 'draft')::boolean, false) then
+    null;
+  else
+    null;
+  end if;
   return "app_private"."order_json"(v_id) || jsonb_build_object('created', true);
 end;
 $$;
@@ -6540,6 +6804,110 @@ end;
 $$;
 revoke execute on function "app_private"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Confirms a draft order: it is allocated stock at the best location (or
+-- location), the rest on backorder, and records order.placed. A draft that
+-- was never confirmed can be cancelled with cancel_order.
+create or replace function "app_private"."confirm_draft_order"(order_id uuid, location uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_line record;
+  v_allocation jsonb;
+  v_claims text;
+begin
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "app_private"."orders" x where x."id" = confirm_draft_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'draft' then
+    raise exception 'only a draft order can be confirmed' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  perform "app_private"."order_transition"(v_order.id, 'confirmed');
+  null;
+  return "app_private"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "app_private"."confirm_draft_order"(uuid, uuid) from public, anon;
+grant execute on function "app_private"."confirm_draft_order"(uuid, uuid) to authenticated, service_role;
+
+-- Puts an order that waits for payment, or a confirmed one, on hold: it can't
+-- be paid into, fulfilled or expire until the hold is released. Its stock
+-- stays reserved. reason is for the people who release it.
+create or replace function "app_private"."hold_order"(order_id uuid, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "app_private"."orders" x where x."id" = hold_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text not in ('pending_payment', 'confirmed') then
+    raise exception 'only an order waiting for payment or a confirmed one can be put on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  v_from := "app_private"."order_transition"(v_order.id, 'on_hold');
+  update "app_private"."orders" x set "held_from" = v_from, "held_at" = now(), "hold_reason" = nullif(trim(hold_order.reason), ''), "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "app_private"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "app_private"."hold_order"(uuid, text) from public, anon;
+grant execute on function "app_private"."hold_order"(uuid, text) to authenticated, service_role;
+
+-- Releases a hold: the order goes back to the status it was on hold from.
+create or replace function "app_private"."release_order_hold"(order_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_target text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "app_private"."orders" x where x."id" = release_order_hold.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'on_hold' then
+    raise exception 'the order isn''t on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  select coalesce(x."held_from", 'confirmed') into v_target from "app_private"."orders" x where x."id" = v_order.id;
+  perform "app_private"."order_transition"(v_order.id, v_target);
+  update "app_private"."orders" x set "held_from" = null, "held_at" = null, "hold_reason" = null, "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "app_private"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "app_private"."release_order_hold"(uuid) from public, anon;
+grant execute on function "app_private"."release_order_hold"(uuid) to authenticated, service_role;
 
 -- Puts an order into the variant group of another order (variant_of is the
 -- group's first order), or takes it out of its group when variant_of is null.
@@ -7343,7 +7711,7 @@ as $$
   select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
   from (
     select
-      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      array_position(array['draft', 'pending_payment', 'confirmed', 'on_hold', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
       jsonb_build_object(
         'status', g.label,
         'count', g.n,
@@ -7575,7 +7943,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:c74a339efc678d0db93f94f82b6d06a4afeef19031f712aa4d87ffeeb2448516
+-- @bsb-hash sha256:21eac7f5d7f890369cb2c648a46d151da825b4e2f673b18792df639af5c93981
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7686,6 +8054,9 @@ create table "better_supabase"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
+  "held_at" timestamptz,
+  "held_from" text,
+  "hold_reason" text constraint bsb_orders_hold_reason_check check (length("hold_reason") <= 2000),
   "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
@@ -8402,8 +8773,10 @@ begin
     return v_from;
   end if;
   if not (case v_from
-    when 'pending_payment' then p_to = any ('{paid,cancelled}'::text[])
-    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled}'::text[])
+    when 'draft' then p_to = any ('{confirmed,cancelled}'::text[])
+    when 'pending_payment' then p_to = any ('{paid,cancelled,on_hold}'::text[])
+    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled,on_hold}'::text[])
+    when 'on_hold' then p_to = any ('{pending_payment,confirmed,cancelled}'::text[])
     when 'paid' then p_to = any ('{fulfilled,refunded}'::text[])
     when 'fulfilled' then p_to = any ('{paid,completed,refunded}'::text[])
     when 'completed' then p_to = any ('{refunded}'::text[])
@@ -8443,6 +8816,7 @@ as $$
     'invoiceNumber', x."invoice_number", 'invoicedAt', x."invoiced_at", 'placedAt', x."placed_at",
     'paidAt', x."paid_at", 'fulfilledAt', x."fulfilled_at", 'completedAt', x."completed_at",
     'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason",
+    'heldAt', x."held_at", 'holdReason', x."hold_reason",
     'lines', coalesce((select jsonb_agg(jsonb_build_object(
         'id', l."id", 'variantId', l."variant_id", 'productId', l."product_id", 'sku', l."sku",
         'title', l."title", 'quantity', l."quantity", 'unitAmount', l."unit_amount"::text,
@@ -8735,8 +9109,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_cancel"(uuid, text) from public, anon, authenticated;
 
--- Cancels an order that is waiting for payment, or a confirmed one before
--- anything shipped. Staff with orders.manage and the customer who placed
+-- Cancels a draft, an order that is waiting for payment, a confirmed one or
+-- one on hold, before anything shipped. Staff with orders.manage and the customer who placed
 -- it can.
 create or replace function "better_supabase"."cancel_order"(order_id uuid, reason text default null)
 returns boolean
@@ -8757,9 +9131,9 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."order_fulfillments" y
+  if v_order.status::text not in ('draft', 'pending_payment', 'confirmed', 'on_hold') or exists (select 1 from "better_supabase"."order_fulfillments" y
     where y."order_id" = v_order.id and y."status" in ('shipped', 'delivered')) then
-    raise exception 'only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+    raise exception 'only a draft, an order waiting for payment, a confirmed one or one on hold, with nothing shipped, can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
   perform "better_supabase"."order_cancel"(v_order.id, cancel_order.reason);
   return true;
@@ -8822,8 +9196,9 @@ revoke execute on function "better_supabase"."get_order"(uuid) from public, anon
 grant execute on function "better_supabase"."get_order"(uuid) to authenticated, service_role;
 
 -- Inserts a confirmed order with computed lines and totals, allocates its
--- stock and records order.placed. p_attrs carries the totals as text and an
--- optional origin; an order with the same origin is returned instead.
+-- stock and records order.placed. With p_attrs.draft the order is a draft:
+-- it holds no stock and records order.drafted until confirm_draft_order.
+-- p_attrs carries the totals as text and an optional origin; an order with the same origin is returned instead.
 -- Internal: order_from_lines and order_from_quote check first.
 create or replace function "better_supabase"."order_from_document"(p_tenant uuid, p_attrs jsonb, p_lines jsonb, p_location uuid)
 returns jsonb
@@ -8864,7 +9239,7 @@ begin
   insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
     "shipping_address", "billing_address", "origin_type", "origin_id")
-  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', 'confirmed', p_attrs ->> 'currency',
+  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
     p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
@@ -8876,7 +9251,13 @@ begin
     (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
-  null;
+  if not coalesce((p_attrs ->> 'draft')::boolean, false) then
+  end if;
+  if coalesce((p_attrs ->> 'draft')::boolean, false) then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', true);
 end;
 $$;
@@ -8986,6 +9367,110 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Confirms a draft order: it is allocated stock at the best location (or
+-- location), the rest on backorder, and records order.placed. A draft that
+-- was never confirmed can be cancelled with cancel_order.
+create or replace function "better_supabase"."confirm_draft_order"(order_id uuid, location uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_line record;
+  v_allocation jsonb;
+  v_claims text;
+begin
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = confirm_draft_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'draft' then
+    raise exception 'only a draft order can be confirmed' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  perform "better_supabase"."order_transition"(v_order.id, 'confirmed');
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) to authenticated, service_role;
+
+-- Puts an order that waits for payment, or a confirmed one, on hold: it can't
+-- be paid into, fulfilled or expire until the hold is released. Its stock
+-- stays reserved. reason is for the people who release it.
+create or replace function "better_supabase"."hold_order"(order_id uuid, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = hold_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text not in ('pending_payment', 'confirmed') then
+    raise exception 'only an order waiting for payment or a confirmed one can be put on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  v_from := "better_supabase"."order_transition"(v_order.id, 'on_hold');
+  update "better_supabase"."orders" x set "held_from" = v_from, "held_at" = now(), "hold_reason" = nullif(trim(hold_order.reason), ''), "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."hold_order"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."hold_order"(uuid, text) to authenticated, service_role;
+
+-- Releases a hold: the order goes back to the status it was on hold from.
+create or replace function "better_supabase"."release_order_hold"(order_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_target text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = release_order_hold.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'on_hold' then
+    raise exception 'the order isn''t on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  select coalesce(x."held_from", 'confirmed') into v_target from "better_supabase"."orders" x where x."id" = v_order.id;
+  perform "better_supabase"."order_transition"(v_order.id, v_target);
+  update "better_supabase"."orders" x set "held_from" = null, "held_at" = null, "hold_reason" = null, "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."release_order_hold"(uuid) from public, anon;
+grant execute on function "better_supabase"."release_order_hold"(uuid) to authenticated, service_role;
 
 -- Puts an order into the variant group of another order (variant_of is the
 -- group's first order), or takes it out of its group when variant_of is null.
@@ -9789,7 +10274,7 @@ as $$
   select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
   from (
     select
-      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      array_position(array['draft', 'pending_payment', 'confirmed', 'on_hold', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
       jsonb_build_object(
         'status', g.label,
         'count', g.n,
@@ -10171,6 +10656,33 @@ as $$ select "better_supabase"."order_from_quote"($1, $2) $$;
 revoke execute on function "api"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "api"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
 
+create or replace function "api"."confirm_draft_order"(order_id uuid, location uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."confirm_draft_order"($1, $2) $$;
+revoke execute on function "api"."confirm_draft_order"(uuid, uuid) from public, anon;
+grant execute on function "api"."confirm_draft_order"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."hold_order"(order_id uuid, reason text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."hold_order"($1, $2) $$;
+revoke execute on function "api"."hold_order"(uuid, text) from public, anon;
+grant execute on function "api"."hold_order"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."release_order_hold"(order_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."release_order_hold"($1) $$;
+revoke execute on function "api"."release_order_hold"(uuid) from public, anon;
+grant execute on function "api"."release_order_hold"(uuid) to authenticated, service_role;
+
 create or replace function "api"."set_order_variant"(id uuid, variant_of uuid, label text default null)
 returns jsonb
 language sql
@@ -10326,7 +10838,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:28545c6804308b02f913d8d9be86c1eac17b780af0ea55ca881d01c942541d18
+-- @bsb-hash sha256:b536ae534fcc4cc8d869a9bf3ef2690e5b349d21eb71ed84fa5156a8bc1ad6fc
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10431,6 +10943,9 @@ alter table "better_supabase"."orders" add column if not exists "fulfilled_at" t
 alter table "better_supabase"."orders" add column if not exists "completed_at" timestamptz;
 alter table "better_supabase"."orders" add column if not exists "cancelled_at" timestamptz;
 alter table "better_supabase"."orders" add column if not exists "cancel_reason" text;
+alter table "better_supabase"."orders" add column if not exists "held_at" timestamptz;
+alter table "better_supabase"."orders" add column if not exists "held_from" text;
+alter table "better_supabase"."orders" add column if not exists "hold_reason" text constraint bsb_orders_hold_reason_check check (length("hold_reason") <= 2000);
 alter table "better_supabase"."orders" add column if not exists "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table "better_supabase"."orders" add column if not exists "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200);
 alter table "better_supabase"."orders" add column if not exists "buyer" jsonb;
@@ -11129,8 +11644,10 @@ begin
     return v_from;
   end if;
   if not (case v_from
-    when 'pending_payment' then p_to = any ('{paid,cancelled}'::text[])
-    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled}'::text[])
+    when 'draft' then p_to = any ('{confirmed,cancelled}'::text[])
+    when 'pending_payment' then p_to = any ('{paid,cancelled,on_hold}'::text[])
+    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled,on_hold}'::text[])
+    when 'on_hold' then p_to = any ('{pending_payment,confirmed,cancelled}'::text[])
     when 'paid' then p_to = any ('{fulfilled,refunded}'::text[])
     when 'fulfilled' then p_to = any ('{paid,completed,refunded}'::text[])
     when 'completed' then p_to = any ('{refunded}'::text[])
@@ -11170,6 +11687,7 @@ as $$
     'invoiceNumber', x."invoice_number", 'invoicedAt', x."invoiced_at", 'placedAt', x."placed_at",
     'paidAt', x."paid_at", 'fulfilledAt', x."fulfilled_at", 'completedAt', x."completed_at",
     'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason",
+    'heldAt', x."held_at", 'holdReason', x."hold_reason",
     'lines', coalesce((select jsonb_agg(jsonb_build_object(
         'id', l."id", 'variantId', l."variant_id", 'productId', l."product_id", 'sku', l."sku",
         'title', l."title", 'quantity', l."quantity", 'unitAmount', l."unit_amount"::text,
@@ -11462,8 +11980,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_cancel"(uuid, text) from public, anon, authenticated;
 
--- Cancels an order that is waiting for payment, or a confirmed one before
--- anything shipped. Staff with orders.manage and the customer who placed
+-- Cancels a draft, an order that is waiting for payment, a confirmed one or
+-- one on hold, before anything shipped. Staff with orders.manage and the customer who placed
 -- it can.
 create or replace function "better_supabase"."cancel_order"(order_id uuid, reason text default null)
 returns boolean
@@ -11484,9 +12002,9 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."order_fulfillments" y
+  if v_order.status::text not in ('draft', 'pending_payment', 'confirmed', 'on_hold') or exists (select 1 from "better_supabase"."order_fulfillments" y
     where y."order_id" = v_order.id and y."status" in ('shipped', 'delivered')) then
-    raise exception 'only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+    raise exception 'only a draft, an order waiting for payment, a confirmed one or one on hold, with nothing shipped, can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
   perform "better_supabase"."order_cancel"(v_order.id, cancel_order.reason);
   return true;
@@ -11549,8 +12067,9 @@ revoke execute on function "better_supabase"."get_order"(uuid) from public, anon
 grant execute on function "better_supabase"."get_order"(uuid) to authenticated, service_role;
 
 -- Inserts a confirmed order with computed lines and totals, allocates its
--- stock and records order.placed. p_attrs carries the totals as text and an
--- optional origin; an order with the same origin is returned instead.
+-- stock and records order.placed. With p_attrs.draft the order is a draft:
+-- it holds no stock and records order.drafted until confirm_draft_order.
+-- p_attrs carries the totals as text and an optional origin; an order with the same origin is returned instead.
 -- Internal: order_from_lines and order_from_quote check first.
 create or replace function "better_supabase"."order_from_document"(p_tenant uuid, p_attrs jsonb, p_lines jsonb, p_location uuid)
 returns jsonb
@@ -11591,7 +12110,7 @@ begin
   insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
     "shipping_address", "billing_address", "origin_type", "origin_id")
-  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', 'confirmed', p_attrs ->> 'currency',
+  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
     p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
@@ -11603,7 +12122,13 @@ begin
     (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
-  null;
+  if not coalesce((p_attrs ->> 'draft')::boolean, false) then
+  end if;
+  if coalesce((p_attrs ->> 'draft')::boolean, false) then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', true);
 end;
 $$;
@@ -11713,6 +12238,110 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Confirms a draft order: it is allocated stock at the best location (or
+-- location), the rest on backorder, and records order.placed. A draft that
+-- was never confirmed can be cancelled with cancel_order.
+create or replace function "better_supabase"."confirm_draft_order"(order_id uuid, location uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_line record;
+  v_allocation jsonb;
+  v_claims text;
+begin
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = confirm_draft_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'draft' then
+    raise exception 'only a draft order can be confirmed' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  perform "better_supabase"."order_transition"(v_order.id, 'confirmed');
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) to authenticated, service_role;
+
+-- Puts an order that waits for payment, or a confirmed one, on hold: it can't
+-- be paid into, fulfilled or expire until the hold is released. Its stock
+-- stays reserved. reason is for the people who release it.
+create or replace function "better_supabase"."hold_order"(order_id uuid, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = hold_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text not in ('pending_payment', 'confirmed') then
+    raise exception 'only an order waiting for payment or a confirmed one can be put on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  v_from := "better_supabase"."order_transition"(v_order.id, 'on_hold');
+  update "better_supabase"."orders" x set "held_from" = v_from, "held_at" = now(), "hold_reason" = nullif(trim(hold_order.reason), ''), "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."hold_order"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."hold_order"(uuid, text) to authenticated, service_role;
+
+-- Releases a hold: the order goes back to the status it was on hold from.
+create or replace function "better_supabase"."release_order_hold"(order_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_target text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = release_order_hold.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'on_hold' then
+    raise exception 'the order isn''t on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  select coalesce(x."held_from", 'confirmed') into v_target from "better_supabase"."orders" x where x."id" = v_order.id;
+  perform "better_supabase"."order_transition"(v_order.id, v_target);
+  update "better_supabase"."orders" x set "held_from" = null, "held_at" = null, "hold_reason" = null, "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."release_order_hold"(uuid) from public, anon;
+grant execute on function "better_supabase"."release_order_hold"(uuid) to authenticated, service_role;
 
 -- Puts an order into the variant group of another order (variant_of is the
 -- group's first order), or takes it out of its group when variant_of is null.
@@ -12516,7 +13145,7 @@ as $$
   select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
   from (
     select
-      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      array_position(array['draft', 'pending_payment', 'confirmed', 'on_hold', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
       jsonb_build_object(
         'status', g.label,
         'count', g.n,
@@ -12748,7 +13377,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:b5624bebfd84d816c5e8fba14d91e56889c619cb4cb10437a37252e9ea7d7ca9
+-- @bsb-hash sha256:c34474011409b7c089a6bb3f35df91cd2c3ae4994c4e8c1de5a511f0959b5ff4
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12859,6 +13488,9 @@ create table "better_supabase"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
+  "held_at" timestamptz,
+  "held_from" text,
+  "hold_reason" text constraint bsb_orders_hold_reason_check check (length("hold_reason") <= 2000),
   "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
@@ -13575,8 +14207,10 @@ begin
     return v_from;
   end if;
   if not (case v_from
-    when 'pending_payment' then p_to = any ('{paid,cancelled}'::text[])
-    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled}'::text[])
+    when 'draft' then p_to = any ('{confirmed,cancelled}'::text[])
+    when 'pending_payment' then p_to = any ('{paid,cancelled,on_hold}'::text[])
+    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled,on_hold}'::text[])
+    when 'on_hold' then p_to = any ('{pending_payment,confirmed,cancelled}'::text[])
     when 'paid' then p_to = any ('{fulfilled,refunded}'::text[])
     when 'fulfilled' then p_to = any ('{paid,completed,refunded}'::text[])
     when 'completed' then p_to = any ('{refunded}'::text[])
@@ -13616,6 +14250,7 @@ as $$
     'invoiceNumber', x."invoice_number", 'invoicedAt', x."invoiced_at", 'placedAt', x."placed_at",
     'paidAt', x."paid_at", 'fulfilledAt', x."fulfilled_at", 'completedAt', x."completed_at",
     'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason",
+    'heldAt', x."held_at", 'holdReason', x."hold_reason",
     'lines', coalesce((select jsonb_agg(jsonb_build_object(
         'id', l."id", 'variantId', l."variant_id", 'productId', l."product_id", 'sku', l."sku",
         'title', l."title", 'quantity', l."quantity", 'unitAmount', l."unit_amount"::text,
@@ -13908,8 +14543,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_cancel"(uuid, text) from public, anon, authenticated;
 
--- Cancels an order that is waiting for payment, or a confirmed one before
--- anything shipped. Staff with orders.manage and the customer who placed
+-- Cancels a draft, an order that is waiting for payment, a confirmed one or
+-- one on hold, before anything shipped. Staff with orders.manage and the customer who placed
 -- it can.
 create or replace function "better_supabase"."cancel_order"(order_id uuid, reason text default null)
 returns boolean
@@ -13930,9 +14565,9 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."order_fulfillments" y
+  if v_order.status::text not in ('draft', 'pending_payment', 'confirmed', 'on_hold') or exists (select 1 from "better_supabase"."order_fulfillments" y
     where y."order_id" = v_order.id and y."status" in ('shipped', 'delivered')) then
-    raise exception 'only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+    raise exception 'only a draft, an order waiting for payment, a confirmed one or one on hold, with nothing shipped, can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
   perform "better_supabase"."order_cancel"(v_order.id, cancel_order.reason);
   return true;
@@ -13995,8 +14630,9 @@ revoke execute on function "better_supabase"."get_order"(uuid) from public, anon
 grant execute on function "better_supabase"."get_order"(uuid) to authenticated, service_role;
 
 -- Inserts a confirmed order with computed lines and totals, allocates its
--- stock and records order.placed. p_attrs carries the totals as text and an
--- optional origin; an order with the same origin is returned instead.
+-- stock and records order.placed. With p_attrs.draft the order is a draft:
+-- it holds no stock and records order.drafted until confirm_draft_order.
+-- p_attrs carries the totals as text and an optional origin; an order with the same origin is returned instead.
 -- Internal: order_from_lines and order_from_quote check first.
 create or replace function "better_supabase"."order_from_document"(p_tenant uuid, p_attrs jsonb, p_lines jsonb, p_location uuid)
 returns jsonb
@@ -14037,7 +14673,7 @@ begin
   insert into "better_supabase"."orders" ("org_id", "number", "sequence", "customer_id", "email", "status", "currency",
     "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
     "shipping_address", "billing_address", "origin_type", "origin_id")
-  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', 'confirmed', p_attrs ->> 'currency',
+  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', case when coalesce((p_attrs ->> 'draft')::boolean, false) then 'draft' else 'confirmed' end, p_attrs ->> 'currency',
     (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
     (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
     p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
@@ -14049,7 +14685,13 @@ begin
     (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
   from jsonb_array_elements(p_lines) with ordinality as e(l, n);
   select x."id" as id, x."org_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
-  null;
+  if not coalesce((p_attrs ->> 'draft')::boolean, false) then
+  end if;
+  if coalesce((p_attrs ->> 'draft')::boolean, false) then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', true);
 end;
 $$;
@@ -14159,6 +14801,110 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Confirms a draft order: it is allocated stock at the best location (or
+-- location), the rest on backorder, and records order.placed. A draft that
+-- was never confirmed can be cancelled with cancel_order.
+create or replace function "better_supabase"."confirm_draft_order"(order_id uuid, location uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_line record;
+  v_allocation jsonb;
+  v_claims text;
+begin
+  select x."id" as id, x."org_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = confirm_draft_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'draft' then
+    raise exception 'only a draft order can be confirmed' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  perform "better_supabase"."order_transition"(v_order.id, 'confirmed');
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."confirm_draft_order"(uuid, uuid) to authenticated, service_role;
+
+-- Puts an order that waits for payment, or a confirmed one, on hold: it can't
+-- be paid into, fulfilled or expire until the hold is released. Its stock
+-- stays reserved. reason is for the people who release it.
+create or replace function "better_supabase"."hold_order"(order_id uuid, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_from text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."org_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = hold_order.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text not in ('pending_payment', 'confirmed') then
+    raise exception 'only an order waiting for payment or a confirmed one can be put on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  v_from := "better_supabase"."order_transition"(v_order.id, 'on_hold');
+  update "better_supabase"."orders" x set "held_from" = v_from, "held_at" = now(), "hold_reason" = nullif(trim(hold_order.reason), ''), "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."hold_order"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."hold_order"(uuid, text) to authenticated, service_role;
+
+-- Releases a hold: the order goes back to the status it was on hold from.
+create or replace function "better_supabase"."release_order_hold"(order_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_target text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."org_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = release_order_hold.order_id for update;
+  if not found then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status::text <> 'on_hold' then
+    raise exception 'the order isn''t on hold' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  end if;
+  select coalesce(x."held_from", 'confirmed') into v_target from "better_supabase"."orders" x where x."id" = v_order.id;
+  perform "better_supabase"."order_transition"(v_order.id, v_target);
+  update "better_supabase"."orders" x set "held_from" = null, "held_at" = null, "hold_reason" = null, "updated_at" = now()
+  where x."id" = v_order.id;
+  null;
+  return "better_supabase"."order_json"(v_order.id);
+end;
+$$;
+revoke execute on function "better_supabase"."release_order_hold"(uuid) from public, anon;
+grant execute on function "better_supabase"."release_order_hold"(uuid) to authenticated, service_role;
 
 -- Puts an order into the variant group of another order (variant_of is the
 -- group's first order), or takes it out of its group when variant_of is null.
@@ -14962,7 +15708,7 @@ as $$
   select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
   from (
     select
-      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      array_position(array['draft', 'pending_payment', 'confirmed', 'on_hold', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
       jsonb_build_object(
         'status', g.label,
         'count', g.n,

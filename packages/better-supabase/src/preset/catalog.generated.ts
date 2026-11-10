@@ -3434,6 +3434,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "completedAt": "completed_at",
               "cancelledAt": "cancelled_at",
               "cancelReason": "cancel_reason",
+              "heldAt": "held_at",
+              "heldFrom": "held_from",
+              "holdReason": "hold_reason",
               "originType": "origin_type",
               "originId": "origin_id",
               "buyer": "buyer",
@@ -29803,6 +29806,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "PurchaseOrderStatus"
         },
         {
+          "name": "PurchaseOrderTaxLine"
+        },
+        {
           "name": "PurchaseRequisition"
         }
       ],
@@ -31451,6 +31457,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "order.placed",
           "order.paid",
           "order.cancelled",
+          "order.drafted",
+          "order.hold_placed",
+          "order.hold_released",
           "order.fulfilled",
           "order.completed",
           "order.refunded",

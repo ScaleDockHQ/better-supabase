@@ -33,6 +33,7 @@ import {
 import { dropShipContract, dropShipFunctions } from "./orders-procurement.ts";
 import { ORDER_READS, orderReads } from "./orders-reads.ts";
 import { columns, orderTemplatesOn, paymentWindow } from "./orders-shared.ts";
+import { staffOrderFunctions } from "./orders-staff.ts";
 import {
   orderVariantContract,
   orderVariantFunctions,
@@ -70,6 +71,15 @@ const EVENTS: BlockSqlEvents<OrdersEvents> = {
     "invoiceNumber",
   ]),
   "order.cancelled": orderEvent(["number", "customerId", "reason"]),
+  "order.drafted": orderEvent([
+    "number",
+    "customerId",
+    "currency",
+    "total",
+    "units",
+  ]),
+  "order.hold_placed": orderEvent(["number", "customerId", "reason"]),
+  "order.hold_released": orderEvent(["number", "customerId", "status"]),
   "order.fulfilled": orderEvent(["number", "customerId"]),
   "order.completed": orderEvent(["number", "customerId"]),
   "order.refunded": orderEvent([
@@ -234,6 +244,9 @@ const NAMES: BlockSqlNames = {
         completedAt: "completed_at",
         cancelledAt: "cancelled_at",
         cancelReason: "cancel_reason",
+        heldAt: "held_at",
+        heldFrom: "held_from",
+        holdReason: "hold_reason",
         originType: "origin_type",
         originId: "origin_id",
         buyer: "buyer",
@@ -246,6 +259,9 @@ const NAMES: BlockSqlNames = {
         "email",
         "billingAddress",
         "cancelReason",
+        "heldAt",
+        "heldFrom",
+        "holdReason",
         "taxTransaction",
         "originType",
         "originId",
@@ -549,7 +565,7 @@ create table if not exists ${t("orders")} (
   ${o("paidAt")} timestamptz,
   ${o("fulfilledAt")} timestamptz,
   ${o("completedAt")} timestamptz,
-  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}${optionalColumn("orders", "originType", (name) => `${name} text check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`)}${optionalColumn("orders", "originId", (name) => `${name} text check (length(${name}) between 1 and 200)`)}${optionalColumn("orders", "buyer", (name) => `${name} jsonb`)}${optionalColumn("orders", "variantOf", (name) => `${name} uuid references ${t("orders")} (${o("id")}) on delete set null`)}${optionalColumn("orders", "variantLabel", (name) => `${name} text check (length(${name}) <= 200)`)}${optionalColumn("orders", "isSelected", (name) => `${name} boolean not null default true`)}
+  ${o("cancelledAt")} timestamptz,${optionalColumn("orders", "cancelReason", (name) => `${name} text`)}${optionalColumn("orders", "heldAt", (name) => `${name} timestamptz`)}${optionalColumn("orders", "heldFrom", (name) => `${name} text`)}${optionalColumn("orders", "holdReason", (name) => `${name} text check (length(${name}) <= 2000)`)}${optionalColumn("orders", "originType", (name) => `${name} text check (${name} ~ '^[a-z][a-z0-9_]{0,62}$')`)}${optionalColumn("orders", "originId", (name) => `${name} text check (length(${name}) between 1 and 200)`)}${optionalColumn("orders", "buyer", (name) => `${name} jsonb`)}${optionalColumn("orders", "variantOf", (name) => `${name} uuid references ${t("orders")} (${o("id")}) on delete set null`)}${optionalColumn("orders", "variantLabel", (name) => `${name} text check (length(${name}) <= 200)`)}${optionalColumn("orders", "isSelected", (name) => `${name} boolean not null default true`)}
   ${o("updatedAt")} timestamptz not null default now(),
   unique (${o("tenant")}, ${o("number")}),
   unique (${o("tenant")}, ${o("invoiceNumber")})
@@ -714,7 +730,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
-${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${orderVariantFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${orderImportFunctions(ctx, names)}${orderReads(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
+${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${documentFunctions(ctx, names)}${staffOrderFunctions(ctx, names)}${orderVariantFunctions(ctx, names)}${dropShipFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${orderImportFunctions(ctx, names)}${orderReads(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -799,6 +815,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         ]
       : []),
     { name: "cancel_order", args: ["uuid", "text"], returns: "boolean" },
+    { name: "confirm_draft_order", args: ["uuid", "uuid"], returns: "jsonb" },
+    ...(ctx.has("orders", "heldFrom")
+      ? [
+          { name: "hold_order", args: ["uuid", "text"], returns: "jsonb" },
+          { name: "release_order_hold", args: ["uuid"], returns: "jsonb" },
+        ]
+      : []),
     { name: "expire_orders", args: ["integer"], returns: "integer" },
     { name: "get_order", args: ["uuid"], returns: "jsonb" },
     {

@@ -9191,6 +9191,7 @@
       "PurchaseOrderInput",
       "PurchaseOrderLine",
       "PurchaseOrderStatus",
+      "PurchaseOrderTaxLine",
       "PurchaseRequisition",
       "Receipt",
       "ReceiptLine",

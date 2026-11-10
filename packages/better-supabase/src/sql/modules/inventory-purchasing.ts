@@ -243,6 +243,65 @@ export function purchaseOrderFunctions(
       audit: false,
     });
 
+  // Tax lines exist when the line carries a rate and the table is there.
+  const taxLines =
+    ctx.hasTable("purchaseOrderTaxLines") &&
+    ctx.has("purchaseOrderLines", "taxRateBps");
+
+  const pt = columns(ctx, "purchaseOrderTaxLines");
+  const taxTable = taxLines ? ctx.table("purchaseOrderTaxLines") : "";
+
+  const codeOn =
+    taxLines &&
+    ctx.has("purchaseOrderTaxLines", "taxCode") &&
+    ctx.has("purchaseOrderLines", "taxCode");
+
+  // Each line's net is its rounded quantity times cost and its tax that net at
+  // the line's rate, rounded; the tax lines add those up per code and rate.
+  const rebuildTaxLines = taxLines
+    ? `
+  delete from ${taxTable} x where x.${pt("order")} = v_id;
+  insert into ${taxTable} (${pt("tenant")}, ${pt("order")}${codeOn ? `, ${pt("taxCode")}` : ""}, ${pt("taxRateBps")}, ${pt("net")}, ${pt("tax")}, ${pt("gross")})
+  select save_purchase_order.tenant, v_id${codeOn ? `, g.code` : ""}, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  from (
+    select ${codeOn ? `nullif(trim(e ->> 'taxCode'), '') as code, ` : ""}coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
+    from jsonb_array_elements(save_purchase_order.lines) e
+  ) g
+  where g.rate > 0
+  group by ${codeOn ? "g.code, " : ""}g.rate;`
+    : "";
+
+  const taxReader = taxLines
+    ? `
+-- The tax of a purchase order per code and rate, with the order's currency.
+-- Amounts are text in minor units.
+create or replace function ${fn("purchase_order_tax_lines")}(purchase_order uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+begin
+  select x.${po("tenant")} as tenant, x.${po("currency")} as currency into v_row
+  from ${orders} x where x.${po("id")} = purchase_order_tax_lines.purchase_order;
+  if not found or not (auth.role() = 'service_role' or ${ctx.scope.can("v_row.tenant", names.read)}) then
+    ${fail("INVENTORY_PURCHASE_ORDER_NOT_FOUND", "purchase order not found", "P0002")}
+  end if;
+  return jsonb_build_object('currency', v_row.currency::text, 'lines', coalesce((
+    select jsonb_agg(jsonb_build_object(${codeOn ? `'taxCode', z.${pt("taxCode")}, ` : ""}'taxRateBps', z.${pt("taxRateBps")},
+      'net', z.${pt("net")}::text, 'tax', z.${pt("tax")}::text, 'gross', z.${pt("gross")}::text) order by z.${pt("taxRateBps")}${codeOn ? `, z.${pt("taxCode")}` : ""})
+    from ${taxTable} z where z.${pt("order")} = purchase_order_tax_lines.purchase_order), '[]'::jsonb));
+end;
+$$;
+${userGrant(`${fn("purchase_order_tax_lines")}(uuid)`)}
+`
+    : "";
+
   const statusError = fail(
     "INVENTORY_PURCHASE_ORDER_STATUS",
     "the purchase order can't do this in its current status",
@@ -251,7 +310,8 @@ export function purchaseOrderFunctions(
 
   return `
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
--- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
+-- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
+-- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.subjects record, or are both null.
 create or replace function ${fn("save_purchase_order")}(tenant ${ctx.idType}, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
 returns jsonb
@@ -272,7 +332,7 @@ begin
   if save_purchase_order.currency is null or ${currencyUnits}(save_purchase_order.currency) is null then
     ${fail("INVENTORY_CURRENCY_INVALID", "the currency must be an ISO 4217 code", "22023")}
   end if;
-  ${linesCheck("save_purchase_order.lines", "variantId", `\n        or coalesce(e ->> 'unitCost', '') !~ ${UNIT_COST}`)}
+  ${linesCheck("save_purchase_order.lines", "variantId", `\n        or coalesce(e ->> 'unitCost', '') !~ ${UNIT_COST}${taxLines ? `\n        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')\n        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)` : ""}`)}
   ${linesVariantCheck(ctx, "save_purchase_order.lines", "save_purchase_order.tenant")}
   if v_id is null then
     insert into ${orders} (${po("tenant")}, ${po("location")}, ${po("supplierType")}, ${po("supplierId")}, ${po("currency")}, ${po("expectedAt")}, ${po("note")})
@@ -293,14 +353,14 @@ begin
     end if;
     delete from ${lines} x where x.${pl("order")} = v_id;
   end if;
-  insert into ${lines} (${pl("tenant")}, ${pl("order")}, ${pl("variant")}, ${pl("quantity")}, ${pl("unitCost")})
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
-  from jsonb_array_elements(save_purchase_order.lines) e;
+  insert into ${lines} (${pl("tenant")}, ${pl("order")}, ${pl("variant")}, ${pl("quantity")}, ${pl("unitCost")}${taxLines ? `, ${pl("taxRateBps")}${ctx.has("purchaseOrderLines", "taxCode") ? `, ${pl("taxCode")}` : ""}` : ""})
+  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint${taxLines ? `, (e ->> 'taxRateBps')::integer${ctx.has("purchaseOrderLines", "taxCode") ? ", nullif(trim(e ->> 'taxCode'), '')" : ""}` : ""}
+  from jsonb_array_elements(save_purchase_order.lines) e;${taxLines ? rebuildTaxLines : ""}
   return jsonb_build_object('id', v_id, 'status', 'draft');
 end;
 $$;
 ${userGrant(`${fn("save_purchase_order")}(${ctx.idType}, uuid, uuid, text, text, text, timestamptz, jsonb, text)`)}
-
+${taxReader}
 -- Sends a draft purchase order: its quantities count as incoming at its location.
 create or replace function ${fn("place_purchase_order")}(purchase_order uuid)
 returns boolean
