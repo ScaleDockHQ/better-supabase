@@ -2,7 +2,7 @@
 "better-supabase": minor
 ---
 
-The browser client's `db` is smaller: `createClient` from `better-supabase/client` no longer carries `$many`, `$search`, `$stats`, `$decode` or `$decodeReadSet`, so `react` plus `query` ships 35.5 KB gzip instead of 43.1 KB. `client.db` is typed as `CoreDb`, so a call to a removed method fails at type-check time. The server, every adapter, `createNativeClient` and `better-supabase/testing` install the full `db` and are unchanged.
+The browser client's `db` is smaller: `createClient` from `better-supabase/client` no longer carries `$many`, `$search`, `$stats`, `$decode` or `$decodeReadSet`, so `react` plus `query` ships 35.4 KB gzip instead of 43.1 KB. `client.db` is typed as `CoreDb`, so a call to a removed method fails at type-check time. The server, every adapter, `createNativeClient` and `better-supabase/testing` install the full `db` and are unchanged.
 
 A filter tree (`FilterQuery`) passed to `where` needs `enableFilterTrees()` from `better-supabase/list` in a bundle that builds no server. The server installs it.
 

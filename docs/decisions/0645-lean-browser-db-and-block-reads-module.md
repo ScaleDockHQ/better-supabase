@@ -47,12 +47,12 @@ Library code only, min+gzip, supabase-js external (`tests/bundle/baseline-shippe
 
 | Consumer                                 | Before | After  |
 | ---------------------------------------- | ------ | ------ |
-| react + query                            | 43,060 | 35,468 |
-| saas client with blocks                  | 63,616 | 55,971 |
-| next proxy                               | 27,088 | 24,038 |
-| next + client                            | 93,429 | 94,337 |
-| hono                                     | 71,973 | 72,195 |
-| client/native + react/native + powersync | 46,940 | 47,251 |
+| react + query                            | 43,060 | 35,444 |
+| saas client with blocks                  | 63,616 | 55,954 |
+| next proxy                               | 27,088 | 24,018 |
+| next + client                            | 93,429 | 94,316 |
+| hono                                     | 71,973 | 72,174 |
+| client/native + react/native + powersync | 46,940 | 47,229 |
 
 By step, `react + query`: the extras split 43,207 to 39,648 raw-measured in the analyzer, the
 public env parser to 38,708, and the filter-tree slot to 35,580. The consumers that connect a
@@ -61,12 +61,12 @@ server pay 0.2 to 0.9 KB for the second module.
 `tests/next-build` from a fresh `next build` of this branch against `origin/main`:
 
 - First-load JavaScript of the `(app)` pages falls by about 26 KB raw and 8 KB gzip (for example
-  `/appraisals`: 1,467,108 to 1,441,087 raw, 454,362 to 446,294 gzip).
-- `/api/pipelines/[id]/overview` and `/api/banking/[id]/overview`: 2,320,170 to 1,049,640 raw,
-  700,997 to 330,267 gzip, 584,901 to 287,351 brotli (-54.8%).
-- `/api/chat` routes: 2,855,059 to 1,737,851 raw, 845,482 to 526,406 gzip (-37.7%).
-- `/api/chat/durable` routes: 4,459,112 to 3,344,659 raw, 1,332,068 to 1,014,427 gzip (-23.8%).
-- The proxy: 1,235,283 to 1,232,506 raw.
+  `/appraisals`: 1,467,108 to 1,441,007 raw, 454,362 to 446,270 gzip).
+- `/api/pipelines/[id]/overview` and `/api/banking/[id]/overview`: 2,320,170 to 1,049,586 raw,
+  700,997 to 330,241 gzip, 584,901 to 287,326 brotli (-54.8%).
+- `/api/chat` routes: 2,855,059 to 1,737,797 raw, 845,482 to 526,375 gzip (-37.7%).
+- `/api/chat/durable` routes: 4,459,112 to 3,344,605 raw, 1,332,068 to 1,014,397 gzip (-23.8%).
+- The proxy: 1,235,283 to 1,232,456 raw.
 - Every other server entry grows by 0.1 to 1.0 KB raw (the second runtime module and the filter
   slot), under 0.5 KB gzip. That is more than the 512 byte slack of the server check, so the server
   baseline is written fresh from this build instead of lowered by `update`.

@@ -374,7 +374,7 @@ binding, and `gen.hooks` takes any registered name.
 
 The `db` of `createClient` from `better-supabase/client` has no `$many`,
 `$search`, `$stats`, `$decode` or `$decodeReadSet`. `react` and `query` reach
-35.5 KB gzip instead of 43.1 KB because the browser no longer carries read-set
+35.4 KB gzip instead of 43.1 KB because the browser no longer carries read-set
 batching, vector search, call statistics and the stats recorder. The types
 match: `client.db` is a `CoreDb`, so a call to a removed method fails to
 type-check, and the typed repositories, `$rpc`, `$run`, `$table`, `$with`,
