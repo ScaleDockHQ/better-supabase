@@ -241,6 +241,30 @@ describe("proxy fast path", () => {
   });
 });
 
+describe("before and protect", () => {
+  it("runs protect on the request when before passes it on", async () => {
+    const protect = vi.fn(() => undefined);
+
+    await run(page(await expiring(3600, "r-before-1")), { protect });
+
+    expect(protect).toHaveBeenCalledOnce();
+  });
+
+  it("skips protect when before redirects, because the target passes through the proxy again", async () => {
+    const protect = vi.fn(() => Response.redirect("https://app.test/login"));
+
+    const { response } = await run(page(await expiring(3600, "r-before-2")), {
+      before: () => Response.redirect("https://app.test/nl/dashboard"),
+      protect,
+    });
+
+    expect(protect).not.toHaveBeenCalled();
+    expect(response.headers.get("location")).toBe(
+      "https://app.test/nl/dashboard",
+    );
+  });
+});
+
 describe("session memo", () => {
   it("seeds the memo with a refreshed token, so the render never verifies it", async () => {
     let issued = "";
