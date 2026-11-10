@@ -1,4 +1,4 @@
-# 0644: Compare the mapper on the same program, read app columns per table, and measure the block set
+# 0654: Compare the mapper on the same program, read app columns per table, and measure the block set
 
 - Status: accepted
 - Date: 2026-11-10
