@@ -432,7 +432,7 @@
   "/[locale]/(app)/settings/profile/page": {
     "raw": 1311258,
     "gzip": 410689,
-    "brotli": 357854
+    "brotli": 358759
   },
   "/[locale]/(app)/settings/roles/[roleId]/page": {
     "raw": 1314262,
