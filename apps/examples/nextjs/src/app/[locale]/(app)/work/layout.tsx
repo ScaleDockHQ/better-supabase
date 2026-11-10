@@ -1,0 +1,27 @@
+import type { ReactNode } from "react";
+
+import { RouteMessages } from "@/i18n/route-messages";
+
+export default function WorkLayout({ children }: { children: ReactNode }) {
+  return (
+    <RouteMessages
+      namespaces={[
+        "announcements",
+        "app",
+        "dashboard",
+        "errors",
+        "inbox",
+        "navigation",
+        "notifications",
+        "offline",
+        "organization",
+        "search",
+        "settings",
+        "user",
+        "work",
+      ]}
+    >
+      {children}
+    </RouteMessages>
+  );
+}

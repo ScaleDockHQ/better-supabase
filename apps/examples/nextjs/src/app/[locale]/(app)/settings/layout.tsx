@@ -6,6 +6,7 @@ import {
   SettingsNav,
   SettingsNavSkeleton,
 } from "@/features/settings/components/settings-nav";
+import { RouteMessages } from "@/i18n/route-messages";
 
 export default function SettingsLayout({
   children,
@@ -13,7 +14,42 @@ export default function SettingsLayout({
   const t = useExtracted("settings");
 
   return (
-    <>
+    <RouteMessages
+      namespaces={[
+        "accessRequests",
+        "aiProviders",
+        "announcements",
+        "apiKeys",
+        "app",
+        "audit",
+        "billing",
+        "custom-fields",
+        "customers",
+        "dashboard",
+        "errors",
+        "inbox",
+        "integrations",
+        "jobs",
+        "members",
+        "navigation",
+        "notifications",
+        "offline",
+        "organization",
+        "privacy",
+        "push",
+        "roles",
+        "search",
+        "security",
+        "servicePrincipals",
+        "sessions",
+        "settings",
+        "signingKeys",
+        "sso",
+        "teams",
+        "user",
+        "webhooks",
+      ]}
+    >
       <PageHeader
         title={t("Settings")}
         description={t("Your account and your organization.")}
@@ -22,6 +58,6 @@ export default function SettingsLayout({
         <SettingsNav />
       </Suspense>
       <div className="max-w-4xl space-y-6">{children}</div>
-    </>
+    </RouteMessages>
   );
 }

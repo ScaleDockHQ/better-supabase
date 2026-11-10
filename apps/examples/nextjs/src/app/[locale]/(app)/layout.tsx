@@ -30,6 +30,7 @@ import {
   UserMenu,
   UserMenuSkeleton,
 } from "@/features/user/components/user-menu";
+import { RouteMessages } from "@/i18n/route-messages";
 
 // A default <Link> into the app loads only this static frame; everything
 // that reads the session renders on a per-link prefetch or the navigation.
@@ -46,52 +47,69 @@ export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
   const toggle = t("Toggle sidebar");
 
   return (
-    <DataProviders>
-      <SidebarProvider>
-        <Sidebar collapsible="icon">
-          <SidebarHeader>
-            <Suspense fallback={<OrganizationSwitcherSkeleton />}>
-              <OrganizationSwitcher />
-            </Suspense>
-          </SidebarHeader>
-          <SidebarContent>
-            <Suspense fallback={<SideNavSkeleton />}>
-              <AppNav />
-            </Suspense>
-          </SidebarContent>
-          <SidebarFooter>
-            <Suspense fallback={<UserMenuSkeleton />}>
-              <UserMenu />
-            </Suspense>
-          </SidebarFooter>
-          <SidebarRail aria-label={toggle} title={toggle} />
-        </Sidebar>
-        <SidebarInset>
-          <AppHeader
-            breadcrumbs={
-              <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
-                <AppBreadcrumbs
-                  organization={
-                    <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
-                      <ActiveOrganizationName />
-                    </Suspense>
-                  }
-                />
+    <RouteMessages
+      namespaces={[
+        "announcements",
+        "app",
+        "dashboard",
+        "errors",
+        "inbox",
+        "navigation",
+        "notifications",
+        "offline",
+        "organization",
+        "search",
+        "settings",
+        "user",
+      ]}
+    >
+      <DataProviders>
+        <SidebarProvider>
+          <Sidebar collapsible="icon">
+            <SidebarHeader>
+              <Suspense fallback={<OrganizationSwitcherSkeleton />}>
+                <OrganizationSwitcher />
               </Suspense>
-            }
-          />
-          <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-            <OfflineBanner />
-            <Suspense fallback={null}>
-              <ImpersonationBanner />
-            </Suspense>
-            <Suspense fallback={null}>
-              <Announcements />
-            </Suspense>
-            {children}
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-    </DataProviders>
+            </SidebarHeader>
+            <SidebarContent>
+              <Suspense fallback={<SideNavSkeleton />}>
+                <AppNav />
+              </Suspense>
+            </SidebarContent>
+            <SidebarFooter>
+              <Suspense fallback={<UserMenuSkeleton />}>
+                <UserMenu />
+              </Suspense>
+            </SidebarFooter>
+            <SidebarRail aria-label={toggle} title={toggle} />
+          </Sidebar>
+          <SidebarInset>
+            <AppHeader
+              breadcrumbs={
+                <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+                  <AppBreadcrumbs
+                    organization={
+                      <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+                        <ActiveOrganizationName />
+                      </Suspense>
+                    }
+                  />
+                </Suspense>
+              }
+            />
+            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+              <OfflineBanner />
+              <Suspense fallback={null}>
+                <ImpersonationBanner />
+              </Suspense>
+              <Suspense fallback={null}>
+                <Announcements />
+              </Suspense>
+              {children}
+            </div>
+          </SidebarInset>
+        </SidebarProvider>
+      </DataProviders>
+    </RouteMessages>
   );
 }

@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 
 import { ThemeProvider } from "@wrksz/themes/next";
-import { NextIntlClientProvider, useLocale } from "next-intl";
+import { useLocale } from "next-intl";
 import { getExtracted } from "next-intl/server";
 
 import { LazyToaster } from "@/components/ui/lazy-toaster";
 import { ServiceWorkerRegistrar } from "@/features/offline/components/service-worker-registrar";
+import { RouteMessages } from "@/i18n/route-messages";
 import { routing } from "@/i18n/routing";
 import { geistMono, geistSans } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
@@ -57,11 +58,11 @@ export default function LocaleLayout({ children }: LayoutProps<"/[locale]">) {
     >
       <body className="min-h-svh bg-background font-sans text-foreground antialiased">
         <ThemeProvider storage="cookie" themes={["light", "dark"]}>
-          <NextIntlClientProvider>
+          <RouteMessages namespaces={[]}>
             <Providers>{children}</Providers>
             <LazyToaster />
             <ServiceWorkerRegistrar />
-          </NextIntlClientProvider>
+          </RouteMessages>
         </ThemeProvider>
       </body>
     </html>
