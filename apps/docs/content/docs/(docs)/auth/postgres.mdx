@@ -84,6 +84,18 @@ const postgres = createPostgres({
 All values are milliseconds. `connectionTimeout` and `idleTimeout` apply to
 the pool `createPostgres` opens, not to one you pass as `pool`.
 
+## TLS and one pool per process
+
+`ssl: true` verifies the server certificate against the system roots; pass
+`ssl: { ca }` for a private certificate authority, or `ssl: false` to turn TLS
+off. A connection string that sets `sslmode` wins over the option.
+
+`sharedPostgres(options)` takes the same options and returns one pool per
+process and connection string, kept on `globalThis` so a hot reload, a route
+and a job don't each open their own connections. The first call's options win,
+and `end()` closes the pool so the next call opens a new one. A call that
+passes `pool` is not shared.
+
 A session or transaction can set its own limit with the `statementTimeout`
 session option, for a job that runs one long query on a shared pool:
 
