@@ -278,6 +278,7 @@ const authorization = v.strictObject({
     approverFor: v.optional(v.string()),
     managedUsers: v.optional(v.string()),
     canApprove: v.optional(v.string()),
+    canIn: v.optional(v.string()),
   }),
   approvals: v.optional(
     v.strictObject({ distinctApprover: v.optional(v.boolean()) }),

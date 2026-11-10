@@ -176,7 +176,7 @@ export function recordsOf(
 }
 
 /**
- * One page of a list read with `{ paged: true }` (ADR 0634). `nextCursor` goes
+ * One page of a list read with `{ paged: true }` (ADR 0637). `nextCursor` goes
  * back as `after` for the next page; `total` is present when the read asked for
  * it and stops at `totalCap`, with `totalCapped` set when it did.
  */

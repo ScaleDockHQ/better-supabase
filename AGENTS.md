@@ -523,6 +523,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0633: Correct the provider contract and bound stale JWKS.
 - 0634: Keep supports-color 11, ultracite 8.1.1 and Expo 58 together.
 - 0635: Split the connection runtime from the definition.
+- 0637: Page block lists by keyset, and render access, list and idempotency from tags.
 
 ## Pre-release pins
 

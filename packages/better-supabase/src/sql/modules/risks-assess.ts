@@ -306,7 +306,7 @@ ${userGrant(`${fn("get_risk")}(uuid)`)}
 -- { category, band (residual), ownerId, status, reviewDue, search, limit,
 -- after, offset, paged, total, totalCap }; closed risks are left out unless
 -- status asks for them. Pages by keyset (after is the previous nextCursor);
--- offset stays for callers that show page numbers (ADR 0634).
+-- offset stays for callers that show page numbers (ADR 0637).
 create or replace function ${fn("list_risks")}(tenant ${idType}, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql

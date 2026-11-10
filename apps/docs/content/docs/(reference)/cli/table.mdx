@@ -32,6 +32,9 @@ write the migration.
 | `vector-search`   | `vector-search`   |
 | `history`         | `history`         |
 | `lifecycle`       | `lifecycle`       |
+| `access`          | `access`          |
+| `list`            | `list`            |
+| `idempotency`     | `idempotency`     |
 
 `audit` also appends `select better_supabase.audit('schema.table');` and `expose` appends a
 `grant select, insert, update, delete ... to authenticated;` statement, so the migration carries
@@ -40,6 +43,10 @@ columns it makes searchable (`@bsb lookup email`). `audit-reads` turns on `audit
 table's record type. `history title body` keeps the old and new value of those columns through
 the `field-history` block, and `lifecycle stage=status pipeline=deals` binds the table to the
 `pipelines` block. The last three need a `subject` tag on the table and their block installed.
+
+`access`, `list` and `idempotency` render a block of SQL from the arguments the tag already carries in
+the comment, between `-- @bsb-tag <name> begin` and `end` markers; see
+[Tags that render SQL](/docs/repository/rendered-tags).
 
 | Flag        | Effect                                            |
 | ----------- | ------------------------------------------------- |

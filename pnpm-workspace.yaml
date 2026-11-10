@@ -433,7 +433,7 @@ overrides:
   # attw 0.18 > marked-terminal 7 > supports-hyperlinks 3 is CommonJS and calls
   # supports-color 7's `supportsColor()`; 11 exports named functions only, so
   # it crashes. marked-terminal 8 (supports-hyperlinks 4) breaks attw's default
-  # import, so only this one consumer keeps supports-color 7 (ADR 0634).
+  # import, so only this one consumer keeps supports-color 7 (ADR 0637).
   "supports-hyperlinks@3>supports-color": 7.2.0
   # debug's optional peer. Without one copy, workspaces that don't declare it
   # get @babel/core with chalk's supports-color 7, and next resolves twice.

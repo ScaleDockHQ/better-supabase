@@ -90,7 +90,7 @@ function cursorOf(keys: readonly ListSortKey[]): string {
 }
 
 /**
- * The declarations a list function needs (ADR 0634). Put them in the function's
+ * The declarations a list function needs (ADR 0637). Put them in the function's
  * `declare` section, next to its own variables.
  */
 export function listDeclare(options: ListTemplateOptions): string {

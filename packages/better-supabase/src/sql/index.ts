@@ -313,6 +313,25 @@ export {
 
 export type { TableFeature } from "./table-features.ts";
 
+export {
+  isRenderedFeature,
+  RENDERED_FEATURES,
+  renderTagBlock,
+  setTagBlock,
+} from "./tag-statements.ts";
+
+export type { RenderedFeature, TagRenderOptions } from "./tag-statements.ts";
+
+export {
+  keysetPredicate,
+  listBody,
+  listDeclare,
+  listOrder,
+  LIST_TOTAL_CAP,
+} from "./list-template.ts";
+
+export type { ListSortKey, ListTemplateOptions } from "./list-template.ts";
+
 export { declareRead, readArgSource, readArgSqlType } from "./reads.ts";
 
 export type {

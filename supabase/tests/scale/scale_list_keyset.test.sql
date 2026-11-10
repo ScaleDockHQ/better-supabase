@@ -1,4 +1,4 @@
--- Keyset and offset pages of a block list on the scale fixture (ADR 0634): a
+-- Keyset and offset pages of a block list on the scale fixture (ADR 0637): a
 -- deep page by offset reads and discards every skipped row, a keyset page
 -- starts at the cursor. Set bsb.scale_rows to resize (default 60,000).
 begin;

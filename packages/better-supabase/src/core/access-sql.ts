@@ -38,6 +38,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   approverFor: [],
   managedUsers: ["tenant"],
   canApprove: ["tool", "tenant", "scope"],
+  canIn: ["permission", "tenant", "scope"],
 };
 
 /** The Postgres types a scope's ids can have. */

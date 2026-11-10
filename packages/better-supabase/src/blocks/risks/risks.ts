@@ -211,7 +211,7 @@ export interface RiskListOptions {
   readonly offset?: number;
 }
 
-/** What `risks.page` reads: the filters of `list`, paged by keyset (ADR 0634). */
+/** What `risks.page` reads: the filters of `list`, paged by keyset (ADR 0637). */
 export interface RiskPageOptions extends Omit<RiskListOptions, "offset"> {
   /** The `nextCursor` of the previous page. */
   readonly after?: readonly string[];

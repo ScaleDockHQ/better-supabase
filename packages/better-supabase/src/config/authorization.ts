@@ -164,6 +164,15 @@ export interface AuthorizationFunctions {
    * requester. Kept so an authorization provider API 1 value still loads.
    */
   readonly canApprove?: string;
+  /**
+   * Whether the caller holds `{permission}` in `{tenant}` (an expression of the
+   * tenant id type, usually a column), as a boolean expression. The `@bsb
+   * access` table tag puts it into the policies it renders, so write it for a
+   * policy: no per-row lookups when the provider can answer from a set. Without
+   * it the tag renders `{tenant} in (select better_supabase.tenant_ids_with(
+   * {permission}))`, which the provider's `idsWith` already answers (ADR 0637).
+   */
+  readonly canIn?: string;
 }
 
 /** One scope the provider decides permissions in, such as `organization`. */

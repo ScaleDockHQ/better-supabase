@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:230749b6c4808afe42f022f7dd9f610c6cd509d4c6ae36b29de26a61e88bc5fb
+-- @bsb-hash sha256:e2edbb732988b4037b386de5e2f2614583662426c3d5ad600c586bcc85a54eb0
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,6 +77,7 @@ create table "better_supabase"."risks" (
   foreign key ("tenant_id", "matrix_id") references "better_supabase"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
+create index "risks_list_idx" on "better_supabase"."risks" ("tenant_id", (coalesce("residual_score", -1)) desc, "sequence", "id");
 create index "risks_matrix_idx" on "better_supabase"."risks" ("tenant_id", "matrix_id");
 create index "risks_owner_idx" on "better_supabase"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;
 create index "risks_review_idx" on "better_supabase"."risks" ("next_review_on") where "status" <> 'closed';
@@ -779,7 +780,9 @@ grant execute on function "better_supabase"."get_risk"(uuid) to authenticated, s
 
 -- The organization's risks, the highest residual score first. filters is
 -- { category, band (residual), ownerId, status, reviewDue, search, limit,
--- offset }; closed risks are left out unless status asks for them.
+-- after, offset, paged, total, totalCap }; closed risks are left out unless
+-- status asks for them. Pages by keyset (after is the previous nextCursor);
+-- offset stays for callers that show page numbers (ADR 0637).
 create or replace function "better_supabase"."list_risks"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -793,6 +796,13 @@ declare
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_risks.tenant is not null and coalesce(better_supabase.can('tenant', list_risks.tenant, 'risks.read'), false))) then
     raise exception 'not allowed to read risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
@@ -800,8 +810,18 @@ begin
   if jsonb_typeof(v_filters) <> 'object' then
     raise exception 'filters must be an object' using errcode = '22023', hint = 'RISK_INVALID';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."residual_score" desc nulls last, x."sequence")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."residual_score", -1))::text, (x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."risks" x
       where x."tenant_id" = list_risks.tenant
@@ -812,10 +832,31 @@ begin
         and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
         and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
-      order by x."residual_score" desc nulls last, x."sequence"
-      limit v_limit offset v_offset
+        and (v_after is null or (coalesce(x."residual_score", -1) <= (v_after ->> 0)::integer and ((coalesce(x."residual_score", -1) < (v_after ->> 0)::integer) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" > (v_after ->> 1)::bigint) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."residual_score", -1) desc, x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
     ) x
-  ), '[]'::jsonb);
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."risks" x
+      where x."tenant_id" = list_risks.tenant
+        and x."archived_at" is null
+        and (case when v_filters ? 'status' then x."status" = v_filters ->> 'status' else x."status" <> 'closed' end)
+        and (not v_filters ? 'category' or x."category" = v_filters ->> 'category')
+        and (not v_filters ? 'band' or x."residual_band" = v_filters ->> 'band')
+        and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
+        and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_risks"(uuid, jsonb) from public, anon;
@@ -993,7 +1034,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:335fbac33caeebdb8542d32f79be71dd9a20be24fd8f20b7e110c0463628d7f6
+-- @bsb-hash sha256:c3aa55e39565b41331b6d6e14ff3e719462344ad69cf08ab13370f1469703b31
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1069,6 +1110,7 @@ create table "better_supabase"."risks" (
   foreign key ("tenant_id", "matrix_id") references "better_supabase"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
+create index "risks_list_idx" on "better_supabase"."risks" ("tenant_id", (coalesce("residual_score", -1)) desc, "sequence", "id");
 create index "risks_matrix_idx" on "better_supabase"."risks" ("tenant_id", "matrix_id");
 create index "risks_owner_idx" on "better_supabase"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;
 create index "risks_review_idx" on "better_supabase"."risks" ("next_review_on") where "status" <> 'closed';
@@ -1857,7 +1899,9 @@ grant execute on function "better_supabase"."get_risk"(uuid) to authenticated, s
 
 -- The organization's risks, the highest residual score first. filters is
 -- { category, band (residual), ownerId, status, reviewDue, search, limit,
--- offset }; closed risks are left out unless status asks for them.
+-- after, offset, paged, total, totalCap }; closed risks are left out unless
+-- status asks for them. Pages by keyset (after is the previous nextCursor);
+-- offset stays for callers that show page numbers (ADR 0637).
 create or replace function "better_supabase"."list_risks"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -1871,6 +1915,13 @@ declare
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_risks.tenant is not null and coalesce(better_supabase.can('tenant', list_risks.tenant, 'risks.read'), false))) then
     raise exception 'not allowed to read risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
@@ -1878,8 +1929,18 @@ begin
   if jsonb_typeof(v_filters) <> 'object' then
     raise exception 'filters must be an object' using errcode = '22023', hint = 'RISK_INVALID';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."residual_score" desc nulls last, x."sequence")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."residual_score", -1))::text, (x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."risks" x
       where x."tenant_id" = list_risks.tenant
@@ -1890,10 +1951,31 @@ begin
         and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
         and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
-      order by x."residual_score" desc nulls last, x."sequence"
-      limit v_limit offset v_offset
+        and (v_after is null or (coalesce(x."residual_score", -1) <= (v_after ->> 0)::integer and ((coalesce(x."residual_score", -1) < (v_after ->> 0)::integer) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" > (v_after ->> 1)::bigint) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."residual_score", -1) desc, x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
     ) x
-  ), '[]'::jsonb);
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."risks" x
+      where x."tenant_id" = list_risks.tenant
+        and x."archived_at" is null
+        and (case when v_filters ? 'status' then x."status" = v_filters ->> 'status' else x."status" <> 'closed' end)
+        and (not v_filters ? 'category' or x."category" = v_filters ->> 'category')
+        and (not v_filters ? 'band' or x."residual_band" = v_filters ->> 'band')
+        and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
+        and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_risks"(uuid, jsonb) from public, anon;
@@ -2103,7 +2185,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:03fc65dff458b9a3363a5063de4a1e991ff0db54a31e48fd2ec31cddfb52a922
+-- @bsb-hash sha256:c31e34319f2ef6c0cf8b70261bed83cc2d8511f73dae5aca4274a81b7e6a87ff
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2184,6 +2266,7 @@ create table "app_private"."risks" (
   foreign key ("tenant_id", "matrix_id") references "app_private"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "app_private"."risks" ("tenant_id", "status", "residual_score" desc);
+create index "risks_list_idx" on "app_private"."risks" ("tenant_id", (coalesce("residual_score", -1)) desc, "sequence", "id");
 create index "risks_matrix_idx" on "app_private"."risks" ("tenant_id", "matrix_id");
 create index "risks_owner_idx" on "app_private"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;
 create index "risks_review_idx" on "app_private"."risks" ("next_review_on") where "status" <> 'closed';
@@ -2886,7 +2969,9 @@ grant execute on function "app_private"."get_risk"(uuid) to authenticated, servi
 
 -- The organization's risks, the highest residual score first. filters is
 -- { category, band (residual), ownerId, status, reviewDue, search, limit,
--- offset }; closed risks are left out unless status asks for them.
+-- after, offset, paged, total, totalCap }; closed risks are left out unless
+-- status asks for them. Pages by keyset (after is the previous nextCursor);
+-- offset stays for callers that show page numbers (ADR 0637).
 create or replace function "app_private"."list_risks"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -2900,6 +2985,13 @@ declare
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_risks.tenant is not null and coalesce(better_supabase.can('tenant', list_risks.tenant, 'risks.read'), false))) then
     raise exception 'not allowed to read risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
@@ -2907,8 +2999,18 @@ begin
   if jsonb_typeof(v_filters) <> 'object' then
     raise exception 'filters must be an object' using errcode = '22023', hint = 'RISK_INVALID';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."residual_score" desc nulls last, x."sequence")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."residual_score", -1))::text, (x."sequence")::text, (x."id")::text) as k
     from (
       select * from "app_private"."risks" x
       where x."tenant_id" = list_risks.tenant
@@ -2919,10 +3021,31 @@ begin
         and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
         and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
-      order by x."residual_score" desc nulls last, x."sequence"
-      limit v_limit offset v_offset
+        and (v_after is null or (coalesce(x."residual_score", -1) <= (v_after ->> 0)::integer and ((coalesce(x."residual_score", -1) < (v_after ->> 0)::integer) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" > (v_after ->> 1)::bigint) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."residual_score", -1) desc, x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
     ) x
-  ), '[]'::jsonb);
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."risks" x
+      where x."tenant_id" = list_risks.tenant
+        and x."archived_at" is null
+        and (case when v_filters ? 'status' then x."status" = v_filters ->> 'status' else x."status" <> 'closed' end)
+        and (not v_filters ? 'category' or x."category" = v_filters ->> 'category')
+        and (not v_filters ? 'band' or x."residual_band" = v_filters ->> 'band')
+        and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
+        and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_risks"(uuid, jsonb) from public, anon;
@@ -3100,7 +3223,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:2cb789d7605424e4519acaa0063201f2e206b36e53ff9c075abee63d76087c23
+-- @bsb-hash sha256:d909d0fd9762ab467780cae7b3b5bf450c6795f95313656abcae42e3379c9eab
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3176,6 +3299,7 @@ create table "better_supabase"."risks" (
   foreign key ("tenant_id", "matrix_id") references "better_supabase"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
+create index "risks_list_idx" on "better_supabase"."risks" ("tenant_id", (coalesce("residual_score", -1)) desc, "sequence", "id");
 create index "risks_matrix_idx" on "better_supabase"."risks" ("tenant_id", "matrix_id");
 create index "risks_owner_idx" on "better_supabase"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;
 create index "risks_review_idx" on "better_supabase"."risks" ("next_review_on") where "status" <> 'closed';
@@ -3878,7 +4002,9 @@ grant execute on function "better_supabase"."get_risk"(uuid) to authenticated, s
 
 -- The organization's risks, the highest residual score first. filters is
 -- { category, band (residual), ownerId, status, reviewDue, search, limit,
--- offset }; closed risks are left out unless status asks for them.
+-- after, offset, paged, total, totalCap }; closed risks are left out unless
+-- status asks for them. Pages by keyset (after is the previous nextCursor);
+-- offset stays for callers that show page numbers (ADR 0637).
 create or replace function "better_supabase"."list_risks"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -3892,6 +4018,13 @@ declare
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_risks.tenant is not null and coalesce(better_supabase.can('tenant', list_risks.tenant, 'risks.read'), false))) then
     raise exception 'not allowed to read risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
@@ -3899,8 +4032,18 @@ begin
   if jsonb_typeof(v_filters) <> 'object' then
     raise exception 'filters must be an object' using errcode = '22023', hint = 'RISK_INVALID';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."residual_score" desc nulls last, x."sequence")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."residual_score", -1))::text, (x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."risks" x
       where x."tenant_id" = list_risks.tenant
@@ -3911,10 +4054,31 @@ begin
         and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
         and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
-      order by x."residual_score" desc nulls last, x."sequence"
-      limit v_limit offset v_offset
+        and (v_after is null or (coalesce(x."residual_score", -1) <= (v_after ->> 0)::integer and ((coalesce(x."residual_score", -1) < (v_after ->> 0)::integer) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" > (v_after ->> 1)::bigint) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."residual_score", -1) desc, x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
     ) x
-  ), '[]'::jsonb);
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."risks" x
+      where x."tenant_id" = list_risks.tenant
+        and x."archived_at" is null
+        and (case when v_filters ? 'status' then x."status" = v_filters ->> 'status' else x."status" <> 'closed' end)
+        and (not v_filters ? 'category' or x."category" = v_filters ->> 'category')
+        and (not v_filters ? 'band' or x."residual_band" = v_filters ->> 'band')
+        and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
+        and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_risks"(uuid, jsonb) from public, anon;
@@ -4222,7 +4386,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:803c51d9d5923f40c40ec74dc786247b2497d4437973eeda87a7aaa1c7a9c38b
+-- @bsb-hash sha256:8de89a990daba696025e4eb07295cd871d072686df380c0ca79054ba50b712d2
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4287,6 +4451,7 @@ alter table "better_supabase"."risks" add column if not exists "updated_at" time
 create unique index if not exists "bsb_risks_tenant_number_key" on "better_supabase"."risks" ("tenant_id", "number");
 create unique index if not exists "bsb_risks_tenant_id_key" on "better_supabase"."risks" ("tenant_id", "id");
 create index if not exists "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
+create index if not exists "risks_list_idx" on "better_supabase"."risks" ("tenant_id", (coalesce("residual_score", -1)) desc, "sequence", "id");
 create index if not exists "risks_matrix_idx" on "better_supabase"."risks" ("tenant_id", "matrix_id");
 create index if not exists "risks_owner_idx" on "better_supabase"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;
 create index if not exists "risks_review_idx" on "better_supabase"."risks" ("next_review_on") where "status" <> 'closed';
@@ -4985,7 +5150,9 @@ grant execute on function "better_supabase"."get_risk"(uuid) to authenticated, s
 
 -- The organization's risks, the highest residual score first. filters is
 -- { category, band (residual), ownerId, status, reviewDue, search, limit,
--- offset }; closed risks are left out unless status asks for them.
+-- after, offset, paged, total, totalCap }; closed risks are left out unless
+-- status asks for them. Pages by keyset (after is the previous nextCursor);
+-- offset stays for callers that show page numbers (ADR 0637).
 create or replace function "better_supabase"."list_risks"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -4999,6 +5166,13 @@ declare
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_risks.tenant is not null and coalesce(better_supabase.can('tenant', list_risks.tenant, 'risks.read'), false))) then
     raise exception 'not allowed to read risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
@@ -5006,8 +5180,18 @@ begin
   if jsonb_typeof(v_filters) <> 'object' then
     raise exception 'filters must be an object' using errcode = '22023', hint = 'RISK_INVALID';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."residual_score" desc nulls last, x."sequence")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."residual_score", -1))::text, (x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."risks" x
       where x."tenant_id" = list_risks.tenant
@@ -5018,10 +5202,31 @@ begin
         and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
         and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
-      order by x."residual_score" desc nulls last, x."sequence"
-      limit v_limit offset v_offset
+        and (v_after is null or (coalesce(x."residual_score", -1) <= (v_after ->> 0)::integer and ((coalesce(x."residual_score", -1) < (v_after ->> 0)::integer) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" > (v_after ->> 1)::bigint) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."residual_score", -1) desc, x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
     ) x
-  ), '[]'::jsonb);
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."risks" x
+      where x."tenant_id" = list_risks.tenant
+        and x."archived_at" is null
+        and (case when v_filters ? 'status' then x."status" = v_filters ->> 'status' else x."status" <> 'closed' end)
+        and (not v_filters ? 'category' or x."category" = v_filters ->> 'category')
+        and (not v_filters ? 'band' or x."residual_band" = v_filters ->> 'band')
+        and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
+        and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_risks"(uuid, jsonb) from public, anon;
@@ -5199,7 +5404,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:a9aa44b4bb2cbb8cc78d4f29d1b0338bdfb9218cfe55deab7a014bbc8f564b3c
+-- @bsb-hash sha256:aa83c09d142e0d5a4b9442507d2534fc9245aae2dc411bf3813c6e570451c106
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5275,6 +5480,7 @@ create table "better_supabase"."risks" (
   foreign key ("org_id", "matrix_id") references "better_supabase"."risk_matrices" ("org_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "better_supabase"."risks" ("org_id", "status", "residual_score" desc);
+create index "risks_list_idx" on "better_supabase"."risks" ("org_id", (coalesce("residual_score", -1)) desc, "sequence", "id");
 create index "risks_matrix_idx" on "better_supabase"."risks" ("org_id", "matrix_id");
 create index "risks_owner_idx" on "better_supabase"."risks" ("org_id", "owner_id") where "owner_id" is not null;
 create index "risks_review_idx" on "better_supabase"."risks" ("next_review_on") where "status" <> 'closed';
@@ -5977,7 +6183,9 @@ grant execute on function "better_supabase"."get_risk"(uuid) to authenticated, s
 
 -- The organization's risks, the highest residual score first. filters is
 -- { category, band (residual), ownerId, status, reviewDue, search, limit,
--- offset }; closed risks are left out unless status asks for them.
+-- after, offset, paged, total, totalCap }; closed risks are left out unless
+-- status asks for them. Pages by keyset (after is the previous nextCursor);
+-- offset stays for callers that show page numbers (ADR 0637).
 create or replace function "better_supabase"."list_risks"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -5991,6 +6199,13 @@ declare
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_risks.tenant is not null and coalesce(better_supabase.can('tenant', list_risks.tenant, 'risks.read'), false))) then
     raise exception 'not allowed to read risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
@@ -5998,8 +6213,18 @@ begin
   if jsonb_typeof(v_filters) <> 'object' then
     raise exception 'filters must be an object' using errcode = '22023', hint = 'RISK_INVALID';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."residual_score" desc nulls last, x."sequence")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RISK_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."residual_score", -1))::text, (x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."risks" x
       where x."org_id" = list_risks.tenant
@@ -6010,10 +6235,31 @@ begin
         and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
         and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
-      order by x."residual_score" desc nulls last, x."sequence"
-      limit v_limit offset v_offset
+        and (v_after is null or (coalesce(x."residual_score", -1) <= (v_after ->> 0)::integer and ((coalesce(x."residual_score", -1) < (v_after ->> 0)::integer) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" > (v_after ->> 1)::bigint) or (coalesce(x."residual_score", -1) = (v_after ->> 0)::integer and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."residual_score", -1) desc, x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
     ) x
-  ), '[]'::jsonb);
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."risks" x
+      where x."org_id" = list_risks.tenant
+        and x."archived_at" is null
+        and (case when v_filters ? 'status' then x."status" = v_filters ->> 'status' else x."status" <> 'closed' end)
+        and (not v_filters ? 'category' or x."category" = v_filters ->> 'category')
+        and (not v_filters ? 'band' or x."residual_band" = v_filters ->> 'band')
+        and (not v_filters ? 'ownerId' or x."owner_id" = (v_filters ->> 'ownerId')::uuid)
+        and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x."next_review_on" <= current_date)
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."cause" ilike v_search or x."consequence" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_risks"(uuid, jsonb) from public, anon;

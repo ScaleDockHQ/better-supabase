@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "tables",
+    "rendered-tags",
     "record-types",
     "record-bindings",
     "record-lists",

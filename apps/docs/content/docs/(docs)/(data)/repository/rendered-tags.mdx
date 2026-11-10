@@ -1,0 +1,88 @@
+---
+title: Tags that render SQL
+description: Turn on row access policies, a keyset list function and an idempotency index for your own tables with the access, list and idempotency tags.
+---
+
+Three `@bsb` tags in a table comment write SQL for you. `better-supabase table <name> enable <tag>`
+reads the tag's arguments from the comment and writes the statements into the table's own file, between
+`-- @bsb-tag <name> begin` and `-- @bsb-tag <name> end`. Running it again replaces the block, and
+`disable` removes it. Run `db diff` afterwards to write the migration.
+
+```sql
+comment on table public.projects is
+  'Projects. @bsb access read=projects.read create=projects.write update=projects.write delete=projects.write actor-guard; list search=name,code sort=created_at:desc filter=status; idempotency';
+```
+
+```bash
+pnpm better-supabase table projects enable access
+pnpm better-supabase table projects enable list
+pnpm better-supabase table projects enable idempotency
+```
+
+## access
+
+`access` renders row level security for a table with a tenant column. Each of `read`, `create`,
+`update` and `delete` takes a permission key and becomes one policy named `bsb_access_<table>_<operation>`
+for the `authenticated` role. At least one is required.
+
+| Argument      | Meaning                                                                        |
+| ------------- | ------------------------------------------------------------------------------ |
+| `read`        | The permission that lets a member select rows of their tenant.                 |
+| `create`      | The permission for inserts.                                                    |
+| `update`      | The permission for updates, checked before and after the change.               |
+| `delete`      | The permission for deletes.                                                    |
+| `tenant`      | The tenant column. Default `tenant_id`.                                        |
+| `actor-guard` | Also requires that the session may write, so read-only support sessions fail. |
+
+The check comes from your authorization provider. With a `canIn` template
+([provider contract](/docs/extending/authorization-providers)) it is that template, with
+`{permission}` and `{tenant}` filled. Without one it is
+`tenant_id in (select better_supabase.tenant_ids_with('<permission>'))`, which every provider answers
+through `idsWith`, so a provider written before `canIn` existed needs no change. The write guard uses
+`actorMayWrite` when the provider sets it, and `better_supabase.actor_may_write()` otherwise.
+
+## list
+
+`list` renders `list_<table>(tenant, filters)`, a `security invoker` function that returns a
+keyset page, so row level security decides the rows. It also writes the sort index (the tenant
+column, the sort columns and the id) and a trigram index for each search column; the trigram
+index needs `pg_trgm` in the `extensions` schema.
+
+| Argument | Meaning                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------- |
+| `search` | Comma list of text columns matched with `ilike` by the `search` filter.                     |
+| `sort`   | Comma list of `column:direction[:type]`. Default `created_at:desc`. Keep these not null.    |
+| `filter` | Comma list of `column[:type]` equality filters, passed only when the caller sets them.      |
+| `tenant` | The tenant column, or `false` for none. Default `tenant_id`.                                |
+| `id`     | The unique tiebreaker column. Default `id`; `id-type` sets its type.                        |
+| `name`   | The function name. Default `list_<table>`.                                                  |
+
+Column types follow the name (`*_id` is `uuid`, `*_at` is `timestamptz`, `*_on` is `date`, a few
+counters are `bigint`, anything else is `text`); the third segment of `sort` and `filter` overrides it.
+
+The function takes the same filters as the block lists. By default it returns the rows as an array.
+`{ "paged": true }` returns `{ items, hasMore, nextCursor }`, and `{ "total": true }` adds `total` and
+`totalCapped`, counted up to `totalCap` rows (default 10,000), so a large table is not counted in
+full. Pass the previous `nextCursor` as `after` for the next page. `offset` pages by number for a
+caller that shows page numbers, at the cost of reading and discarding every skipped row; `after` and
+`offset` do not combine.
+
+```ts
+const page = await db.$rpc("list_projects", {
+  tenant: organizationId,
+  filters: { status: "open", limit: 25, paged: true, total: true },
+}).orThrow();
+
+const next = await db.$rpc("list_projects", {
+  tenant: organizationId,
+  filters: { limit: 25, paged: true, after: page.nextCursor },
+}).orThrow();
+```
+
+The built-in `risks` block takes the same options through `risks.page({ after, limit, total })`.
+
+## idempotency
+
+`idempotency` writes a unique index on the tenant column and the `idempotency_key` column
+(`column=` names another), only for rows that have a key. A retried insert with the same key
+then fails with a unique violation instead of writing twice. The table declares the column.
