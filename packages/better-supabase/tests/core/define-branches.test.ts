@@ -320,3 +320,22 @@ describe("definition accessors", () => {
     expect(() => db.$storage).toThrow(/db\.\$storage needs a client/);
   });
 });
+
+describe("connection runtime slot", () => {
+  it("names the entries to import when no runtime is installed", () => {
+    const slot = Symbol.for("better-supabase.connection-runtime");
+    const host = globalThis as Record<symbol, unknown>;
+    const installed = host[slot];
+
+    host[slot] = undefined;
+
+    try {
+      // SAFETY: the call throws before it reads the executor.
+      expect(() => createSupabase(schema).connect({} as never)).toThrow(
+        /needs the connection runtime/,
+      );
+    } finally {
+      host[slot] = installed;
+    }
+  });
+});
