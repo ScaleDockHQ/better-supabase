@@ -25,7 +25,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -37,8 +37,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -60,7 +60,7 @@ import {
 
 import type { DocumentRegisterView, DocumentRow } from "../drive-queries";
 
-type DocumentCell = CellContext<DataGridFeatures, DocumentRow>;
+type DocumentCell = CellContext<ReadOnlyGridFeatures, DocumentRow>;
 
 function NumberCell({ row }: DocumentCell) {
   return (
@@ -143,7 +143,7 @@ function ReviewCell({ row }: DocumentCell) {
 function DocumentGrid({ documents }: { documents: readonly DocumentRow[] }) {
   const t = useExtracted("drive");
 
-  const columns: ColumnDef<DataGridFeatures, DocumentRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, DocumentRow>[] = [
     { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 110 },
     { accessorKey: "name", header: t("Document"), cell: NameCell, size: 260 },
     { accessorKey: "type", header: t("Type"), size: 110 },
@@ -163,7 +163,7 @@ function DocumentGrid({ documents }: { documents: readonly DocumentRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...documents],
     getRowId: (row) => row.id,

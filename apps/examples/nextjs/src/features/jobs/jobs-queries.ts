@@ -1,5 +1,6 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import * as v from "valibot";
 
 import { postgres } from "@/features/developer/postgres";
@@ -7,6 +8,7 @@ import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
+import { JOBS_TAG } from "./jobs-cache";
 import { JOBS_PERMISSION, QUEUE_NAME } from "./jobs-server";
 
 export const JobRunStatus = v.picklist([
@@ -77,6 +79,7 @@ export async function loadJobRuns(): Promise<readonly JobRunRow[] | null> {
   "use cache: private";
 
   const request = await bsb.cached();
+  cacheTag(JOBS_TAG);
   const { session } = request;
   const permissions = await readPermissions(request);
 

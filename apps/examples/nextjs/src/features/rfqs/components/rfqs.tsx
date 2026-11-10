@@ -8,7 +8,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -45,7 +45,7 @@ import type { Loaded, RfqRow } from "../rfqs-queries";
 
 import { createRfq } from "../rfqs-actions";
 
-type RfqCell = CellContext<DataGridFeatures, RfqRow>;
+type RfqCell = CellContext<ReadOnlyGridFeatures, RfqRow>;
 
 function NumberCell({ row }: RfqCell) {
   return (
@@ -105,7 +105,7 @@ function StatusCell({ row }: RfqCell) {
 function RfqGrid({ rfqs }: { rfqs: readonly RfqRow[] }) {
   const t = useExtracted("rfqs");
 
-  const columns: ColumnDef<DataGridFeatures, RfqRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, RfqRow>[] = [
     { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 120 },
     { accessorKey: "title", header: t("Request"), cell: TitleCell, size: 280 },
     { accessorKey: "dueAt", header: t("Quotes due"), cell: DueCell, size: 160 },
@@ -113,7 +113,7 @@ function RfqGrid({ rfqs }: { rfqs: readonly RfqRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...rfqs],
     getRowId: (row) => row.id,

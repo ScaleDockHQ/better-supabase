@@ -509,6 +509,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0607: Ask the policy tables once per tenant in a purge.
 - 0608: Build the proxy from the session runtime.
 - 0609: Infer a uuid subject id in the inline read policies.
+- 0615: Expire domain tags after a write, and give display-only grids a lean feature bundle.
 
 ## Pre-release pins
 

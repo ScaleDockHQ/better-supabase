@@ -29,6 +29,7 @@ export async function CustomerList() {
           lastNoteAt: customer._max.notes.createdAt,
         }))}
         statusCounts={page.facetCounts.status}
+        statusCountsCapped={page.facetCountsCapped === true}
         canWrite={writer}
       />
       {writer ? null : (

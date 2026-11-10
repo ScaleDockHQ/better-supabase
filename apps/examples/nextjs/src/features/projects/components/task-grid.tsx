@@ -22,8 +22,8 @@ import type {
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { dataGridFeatures } from "@/components/reui/data-grid/data-grid-features";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import {
   DataGridTable,

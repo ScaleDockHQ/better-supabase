@@ -8,7 +8,7 @@ import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -48,7 +48,7 @@ import type {
 
 import { acknowledgeCareAlert } from "../clinical-decision-support-actions";
 
-type AlertCell = CellContext<DataGridFeatures, CareAlertRow>;
+type AlertCell = CellContext<ReadOnlyGridFeatures, CareAlertRow>;
 
 function SeverityCell({ row }: AlertCell) {
   const t = useExtracted("care-alerts");
@@ -155,7 +155,7 @@ function AlertGrid({
 }) {
   const t = useExtracted("care-alerts");
 
-  const columns: ColumnDef<DataGridFeatures, CareAlertRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, CareAlertRow>[] = [
     {
       accessorKey: "severity",
       header: t("Severity"),
@@ -191,7 +191,7 @@ function AlertGrid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...alerts],
     getRowId: (row) => row.id,

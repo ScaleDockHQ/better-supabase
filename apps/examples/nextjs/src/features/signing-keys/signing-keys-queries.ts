@@ -1,10 +1,12 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsb } from "@/lib/supabase/server";
 
+import { SIGNING_KEYS_TAG } from "./signing-keys-cache";
 import {
   organizationOwner,
   SIGNING_KEYS_PERMISSION,
@@ -32,6 +34,7 @@ export async function loadSigningKeys(): Promise<SigningKeysOverview | null> {
   "use cache: private";
 
   const request = await bsb.cached();
+  cacheTag(SIGNING_KEYS_TAG);
   const { session } = request;
   const permissions = await readPermissions(request);
 

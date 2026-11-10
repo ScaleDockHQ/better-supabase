@@ -8,7 +8,7 @@ import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
 import { createContext, use, useMemo, useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -45,7 +45,7 @@ import type { Loaded, PrescriptionRow } from "../e-prescribing-queries";
 
 import { cancelPrescription, signPrescription } from "../e-prescribing-actions";
 
-type PrescriptionCell = CellContext<DataGridFeatures, PrescriptionRow>;
+type PrescriptionCell = CellContext<ReadOnlyGridFeatures, PrescriptionRow>;
 
 function StatusCell({ row }: PrescriptionCell) {
   const t = useExtracted("prescriptions");
@@ -168,7 +168,7 @@ function PrescriptionGrid({
     [canSign, canCancel, pending, onSign, onCancel],
   );
 
-  const columns: ColumnDef<DataGridFeatures, PrescriptionRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, PrescriptionRow>[] = [
     { accessorKey: "status", header: t("Status"), cell: StatusCell, size: 130 },
     {
       accessorKey: "medication",
@@ -186,7 +186,7 @@ function PrescriptionGrid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...prescriptions],
     getRowId: (row) => row.id,

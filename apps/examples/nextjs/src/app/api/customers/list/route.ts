@@ -1,5 +1,5 @@
 import { customerList } from "../../../../lib/lists";
-import { bsb } from "../../../../lib/supabase/server";
+import { bsbCore as bsb } from "../../../../lib/supabase/server-core";
 
 /**
  * `GET /api/customers/list?q=&status=&sort=&page=`: one page plus the count per

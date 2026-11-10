@@ -9,6 +9,7 @@ import { requirePostgres, sqlResult } from "@/features/developer/postgres";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { JOBS_TAG } from "./jobs-cache";
 import { JOBS_PERMISSION, jobsOn, QUEUE_NAME, TEST_QUEUE } from "./jobs-server";
 
 /**
@@ -35,7 +36,7 @@ export const enqueueTestJob = bsb.action(
     });
 
     if (queued.ok) {
-      await refreshCaller(auth);
+      await refreshCaller(auth, [JOBS_TAG]);
     }
 
     return queued;
@@ -82,7 +83,7 @@ export const retryJobRun = bsb.action(
       return err(dbError("not_found", "That job is not a failed run"));
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [JOBS_TAG]);
 
     return ok(Number(newId));
   },

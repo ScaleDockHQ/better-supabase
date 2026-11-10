@@ -1,5 +1,6 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import * as v from "valibot";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
@@ -8,6 +9,7 @@ import { bsb } from "@/lib/supabase/server";
 import type { WebhookDeliveryRow, WebhookEndpointRow } from "./webhook-types";
 
 import { WebhookStatus } from "./webhook-types";
+import { WEBHOOKS_TAG } from "./webhooks-cache";
 
 interface EndpointRecord {
   readonly id: string;
@@ -45,6 +47,7 @@ export interface WebhooksOverview {
 export async function loadWebhooks(): Promise<WebhooksOverview | null> {
   "use cache: private";
   const { session } = await bsb.cached();
+  cacheTag(WEBHOOKS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

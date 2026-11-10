@@ -8,7 +8,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -45,7 +45,7 @@ import type { Loaded, MaintenancePlanRow } from "../maintenance-queries";
 
 import { generateWorkOrders } from "../maintenance-actions";
 
-type PlanCell = CellContext<DataGridFeatures, MaintenancePlanRow>;
+type PlanCell = CellContext<ReadOnlyGridFeatures, MaintenancePlanRow>;
 
 function TitleCell({ row }: PlanCell) {
   return <span className="font-medium">{row.original.title}</span>;
@@ -110,7 +110,7 @@ function StatusCell({ row }: PlanCell) {
 function PlanGrid({ plans }: { plans: readonly MaintenancePlanRow[] }) {
   const t = useExtracted("maintenance");
 
-  const columns: ColumnDef<DataGridFeatures, MaintenancePlanRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, MaintenancePlanRow>[] = [
     { accessorKey: "title", header: t("Plan"), cell: TitleCell, size: 280 },
     { accessorKey: "kind", header: t("Trigger"), cell: KindCell, size: 120 },
     {
@@ -123,7 +123,7 @@ function PlanGrid({ plans }: { plans: readonly MaintenancePlanRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...plans],
     getRowId: (row) => row.id,

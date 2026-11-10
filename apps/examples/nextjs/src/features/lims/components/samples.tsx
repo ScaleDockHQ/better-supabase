@@ -8,7 +8,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -45,7 +45,7 @@ import type { Loaded, SampleRow } from "../lims-queries";
 
 import { registerSample } from "../lims-actions";
 
-type SampleCell = CellContext<DataGridFeatures, SampleRow>;
+type SampleCell = CellContext<ReadOnlyGridFeatures, SampleRow>;
 
 function NumberCell({ row }: SampleCell) {
   return (
@@ -113,7 +113,7 @@ function StatusCell({ row }: SampleCell) {
 function SampleGrid({ samples }: { samples: readonly SampleRow[] }) {
   const t = useExtracted("lims");
 
-  const columns: ColumnDef<DataGridFeatures, SampleRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, SampleRow>[] = [
     { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 120 },
     { accessorKey: "title", header: t("Sample"), cell: TitleCell, size: 280 },
     {
@@ -126,7 +126,7 @@ function SampleGrid({ samples }: { samples: readonly SampleRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...samples],
     getRowId: (row) => row.id,
