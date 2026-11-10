@@ -1,7 +1,7 @@
 {
-  "next + client": 92115,
-  "next proxy": 64832,
-  "hono": 70468,
+  "next + client": 92002,
+  "next proxy": 47740,
+  "hono": 70533,
   "react + query": 42085,
   "saas client with blocks": 62449,
   "one block controller": 1466,
