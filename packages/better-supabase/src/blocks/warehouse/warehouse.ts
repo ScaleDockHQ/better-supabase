@@ -1,3 +1,4 @@
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type {
@@ -7,6 +8,7 @@ import type {
 } from "../../core/route-optimizer.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -127,6 +129,19 @@ export interface PickListOptions {
   /** 1 to 200. Default 50. */
   readonly limit?: number;
   readonly offset?: number;
+}
+
+/**
+ * What `pickListPage` reads: the filters of `listPickLists`, paged by keyset
+ * (ADR 0642).
+ */
+export interface PickListPageOptions extends Omit<PickListOptions, "offset"> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
 }
 
 /** A schedule that opens stock counts. */
@@ -336,6 +351,8 @@ export interface Warehouse {
   completePickList(pickListId: string): AsyncResult<PickList>;
   getPickList(pickListId: string): AsyncResult<PickList>;
   listPickLists(options?: PickListOptions): AsyncResult<readonly PickList[]>;
+  /** One keyset page of `listPickLists`, with `hasMore` and a `nextCursor`. */
+  pickListPage(options?: PickListPageOptions): AsyncResult<ListPage<PickList>>;
   listPickWaves(): AsyncResult<readonly PickWave[]>;
   /**
    * Creates a putaway rule, or changes the one named by `input.id`; needs
@@ -680,6 +697,8 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
             ),
         ),
       ),
+    pickListPage: (page = {}) =>
+      blockPage(call, tenant, "list_pick_lists", listOf, definedOf(page)),
     listPickWaves: () =>
       tenant().andThen((organizationId) =>
         call("list_pick_waves", { tenant: organizationId }, (value) =>

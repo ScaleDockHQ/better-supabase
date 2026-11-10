@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:3efce6fa3e47e3ef5ab39da72121f4e8ce6637dfe5e75a353176da1ee2423728
+-- @bsb-hash sha256:3e84da89508614f8d788a4504979c916ccb12995df6075e6ec680dec21c46006
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,6 +26,7 @@ create table "better_supabase"."checkout_sessions" (
   unique ("tenant_id", "idempotency_key"),
   constraint bsb_checkout_sessions_check check (("status" = 'completed') = ("order_id" is not null))
 );
+create index "checkout_sessions_list_idx" on "better_supabase"."checkout_sessions" ("tenant_id", "created_at" desc, "id");
 create index "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
@@ -55,6 +56,7 @@ create table "better_supabase"."agent_mandates" (
   unique ("tenant_id", "credential_hash"),
   constraint bsb_agent_mandates_check check (("status" = 'consumed') = ("consumed_at" is not null))
 );
+create index "agent_mandates_list_idx" on "better_supabase"."agent_mandates" ("tenant_id", "created_at" desc, "id");
 create index "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
@@ -190,7 +192,8 @@ $$;
 revoke execute on function "better_supabase"."get_checkout_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_checkout_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { status, protocol, cartId, limit, offset }.
+-- Sessions, newest first. filters is { status, protocol, cartId, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_checkout_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -202,22 +205,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_protocol text := nullif(v_filters ->> 'protocol', '');
+  v_cart text := nullif(v_filters ->> 'cartId', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_checkout_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_checkout_sessions.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read checkout sessions' using errcode = '42501', hint = 'CHECKOUT_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'cartId', y."cart_id", 'protocol', y."protocol", 'status', y."status", 'buyer', y."buyer", 'orderId', y."order_id", 'expiresAt', y."expires_at", 'expired', (y."status" in ('open', 'ready') and y."expires_at" is not null and y."expires_at" <= now()), 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."checkout_sessions" x
       where x."tenant_id" = list_checkout_sessions.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'protocol' or x."protocol" = v_filters ->> 'protocol')
-        and (not v_filters ? 'cartId' or x."cart_id"::text = v_filters ->> 'cartId')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_checkout_sessions"(uuid, jsonb) from public, anon;
@@ -419,7 +460,8 @@ $$;
 revoke execute on function "better_supabase"."get_agent_mandate"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_agent_mandate"(uuid) to authenticated, service_role;
 
--- Mandates, newest first. filters is { sessionId, status, vct, limit, offset }.
+-- Mandates, newest first. filters is { sessionId, status, vct, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_agent_mandates"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -431,22 +473,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_session text := nullif(v_filters ->> 'sessionId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_vct text := nullif(v_filters ->> 'vct', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_agent_mandates.tenant is not null and coalesce(better_supabase.can('tenant', list_agent_mandates.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read mandates' using errcode = '42501', hint = 'AGENT_MANDATE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'sessionId', y."session_id", 'vct', y."vct", 'status', y."status", 'credential', y."credential", 'credentialHash', y."credential_hash", 'issuerKid', y."issuer_kid", 'subject', y."subject", 'expiresAt', y."expires_at", 'expired', (y."status" = 'active' and y."expires_at" <= now()), 'consumedAt', y."consumed_at", 'createdBy', y."created_by", 'createdAt', y."created_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."agent_mandates" x
       where x."tenant_id" = list_agent_mandates.tenant
-        and (not v_filters ? 'sessionId' or x."session_id"::text = v_filters ->> 'sessionId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'vct' or x."vct" = v_filters ->> 'vct')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) from public, anon;
@@ -505,7 +585,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:705521ef52674e5b250c5a7a20b7f153536aa4efdc8c57b985cd4797f172e9c1
+-- @bsb-hash sha256:676d83ef4b2d35877b7202a910da150245d971a09b294fe80ab9d8811d13cb92
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -530,6 +610,7 @@ create table "better_supabase"."checkout_sessions" (
   unique ("tenant_id", "idempotency_key"),
   constraint bsb_checkout_sessions_check check (("status" = 'completed') = ("order_id" is not null))
 );
+create index "checkout_sessions_list_idx" on "better_supabase"."checkout_sessions" ("tenant_id", "created_at" desc, "id");
 create index "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
@@ -559,6 +640,7 @@ create table "better_supabase"."agent_mandates" (
   unique ("tenant_id", "credential_hash"),
   constraint bsb_agent_mandates_check check (("status" = 'consumed') = ("consumed_at" is not null))
 );
+create index "agent_mandates_list_idx" on "better_supabase"."agent_mandates" ("tenant_id", "created_at" desc, "id");
 create index "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
@@ -722,7 +804,8 @@ $$;
 revoke execute on function "better_supabase"."get_checkout_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_checkout_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { status, protocol, cartId, limit, offset }.
+-- Sessions, newest first. filters is { status, protocol, cartId, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_checkout_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -734,22 +817,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_protocol text := nullif(v_filters ->> 'protocol', '');
+  v_cart text := nullif(v_filters ->> 'cartId', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_checkout_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_checkout_sessions.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read checkout sessions' using errcode = '42501', hint = 'CHECKOUT_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'cartId', y."cart_id", 'protocol', y."protocol", 'status', y."status", 'buyer', y."buyer", 'orderId', y."order_id", 'expiresAt', y."expires_at", 'expired', (y."status" in ('open', 'ready') and y."expires_at" is not null and y."expires_at" <= now()), 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."checkout_sessions" x
       where x."tenant_id" = list_checkout_sessions.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'protocol' or x."protocol" = v_filters ->> 'protocol')
-        and (not v_filters ? 'cartId' or x."cart_id"::text = v_filters ->> 'cartId')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_checkout_sessions"(uuid, jsonb) from public, anon;
@@ -996,7 +1117,8 @@ $$;
 revoke execute on function "better_supabase"."get_agent_mandate"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_agent_mandate"(uuid) to authenticated, service_role;
 
--- Mandates, newest first. filters is { sessionId, status, vct, limit, offset }.
+-- Mandates, newest first. filters is { sessionId, status, vct, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_agent_mandates"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1008,22 +1130,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_session text := nullif(v_filters ->> 'sessionId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_vct text := nullif(v_filters ->> 'vct', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_agent_mandates.tenant is not null and coalesce(better_supabase.can('tenant', list_agent_mandates.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read mandates' using errcode = '42501', hint = 'AGENT_MANDATE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'sessionId', y."session_id", 'vct', y."vct", 'status', y."status", 'credential', y."credential", 'credentialHash', y."credential_hash", 'issuerKid', y."issuer_kid", 'subject', y."subject", 'expiresAt', y."expires_at", 'expired', (y."status" = 'active' and y."expires_at" <= now()), 'consumedAt', y."consumed_at", 'createdBy', y."created_by", 'createdAt', y."created_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."agent_mandates" x
       where x."tenant_id" = list_agent_mandates.tenant
-        and (not v_filters ? 'sessionId' or x."session_id"::text = v_filters ->> 'sessionId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'vct' or x."vct" = v_filters ->> 'vct')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) from public, anon;
@@ -1086,7 +1246,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:3a7695aacde792344ace03b48c98bebb6f9e11928e6c8134c60e899e91bd16cb
+-- @bsb-hash sha256:f65b54305f9701394b65ca26812e9b938d5fb5ffdd2be6ad1f4771eef019c40a
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1116,6 +1276,7 @@ create table "app_private"."checkout_sessions" (
   unique ("tenant_id", "idempotency_key"),
   constraint bsb_checkout_sessions_check check (("status" = 'completed') = ("order_id" is not null))
 );
+create index "checkout_sessions_list_idx" on "app_private"."checkout_sessions" ("tenant_id", "created_at" desc, "id");
 create index "checkout_sessions_cart_idx" on "app_private"."checkout_sessions" ("cart_id");
 alter table "app_private"."checkout_sessions" enable row level security;
 revoke all on "app_private"."checkout_sessions" from public, anon, authenticated;
@@ -1145,6 +1306,7 @@ create table "app_private"."agent_mandates" (
   unique ("tenant_id", "credential_hash"),
   constraint bsb_agent_mandates_check check (("status" = 'consumed') = ("consumed_at" is not null))
 );
+create index "agent_mandates_list_idx" on "app_private"."agent_mandates" ("tenant_id", "created_at" desc, "id");
 create index "agent_mandates_session_idx" on "app_private"."agent_mandates" ("session_id");
 alter table "app_private"."agent_mandates" enable row level security;
 revoke all on "app_private"."agent_mandates" from public, anon, authenticated;
@@ -1280,7 +1442,8 @@ $$;
 revoke execute on function "app_private"."get_checkout_session"(uuid) from public, anon;
 grant execute on function "app_private"."get_checkout_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { status, protocol, cartId, limit, offset }.
+-- Sessions, newest first. filters is { status, protocol, cartId, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "app_private"."list_checkout_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1292,22 +1455,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_protocol text := nullif(v_filters ->> 'protocol', '');
+  v_cart text := nullif(v_filters ->> 'cartId', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_checkout_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_checkout_sessions.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read checkout sessions' using errcode = '42501', hint = 'CHECKOUT_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'cartId', y."cart_id", 'protocol', y."protocol", 'status', y."status", 'buyer', y."buyer", 'orderId', y."order_id", 'expiresAt', y."expires_at", 'expired', (y."status" in ('open', 'ready') and y."expires_at" is not null and y."expires_at" <= now()), 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "app_private"."checkout_sessions" x
       where x."tenant_id" = list_checkout_sessions.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'protocol' or x."protocol" = v_filters ->> 'protocol')
-        and (not v_filters ? 'cartId' or x."cart_id"::text = v_filters ->> 'cartId')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_checkout_sessions"(uuid, jsonb) from public, anon;
@@ -1509,7 +1710,8 @@ $$;
 revoke execute on function "app_private"."get_agent_mandate"(uuid) from public, anon;
 grant execute on function "app_private"."get_agent_mandate"(uuid) to authenticated, service_role;
 
--- Mandates, newest first. filters is { sessionId, status, vct, limit, offset }.
+-- Mandates, newest first. filters is { sessionId, status, vct, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "app_private"."list_agent_mandates"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1521,22 +1723,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_session text := nullif(v_filters ->> 'sessionId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_vct text := nullif(v_filters ->> 'vct', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_agent_mandates.tenant is not null and coalesce(better_supabase.can('tenant', list_agent_mandates.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read mandates' using errcode = '42501', hint = 'AGENT_MANDATE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'sessionId', y."session_id", 'vct', y."vct", 'status', y."status", 'credential', y."credential", 'credentialHash', y."credential_hash", 'issuerKid', y."issuer_kid", 'subject', y."subject", 'expiresAt', y."expires_at", 'expired', (y."status" = 'active' and y."expires_at" <= now()), 'consumedAt', y."consumed_at", 'createdBy', y."created_by", 'createdAt', y."created_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "app_private"."agent_mandates" x
       where x."tenant_id" = list_agent_mandates.tenant
-        and (not v_filters ? 'sessionId' or x."session_id"::text = v_filters ->> 'sessionId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'vct' or x."vct" = v_filters ->> 'vct')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_agent_mandates"(uuid, jsonb) from public, anon;
@@ -1595,7 +1835,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:8e70946b08ca0bb8a75bb1f6bc4d1043ed525a471a25cdae78898885ba865bf8
+-- @bsb-hash sha256:a52f24374a15f0488d8358e3ba48bddc341083912edaa047ce570e42361fa8ee
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1620,6 +1860,7 @@ create table "better_supabase"."checkout_sessions" (
   unique ("tenant_id", "idempotency_key"),
   constraint bsb_checkout_sessions_check check (("status" = 'completed') = ("order_id" is not null))
 );
+create index "checkout_sessions_list_idx" on "better_supabase"."checkout_sessions" ("tenant_id", "created_at" desc, "id");
 create index "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
@@ -1649,6 +1890,7 @@ create table "better_supabase"."agent_mandates" (
   unique ("tenant_id", "credential_hash"),
   constraint bsb_agent_mandates_check check (("status" = 'consumed') = ("consumed_at" is not null))
 );
+create index "agent_mandates_list_idx" on "better_supabase"."agent_mandates" ("tenant_id", "created_at" desc, "id");
 create index "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
@@ -1784,7 +2026,8 @@ $$;
 revoke execute on function "better_supabase"."get_checkout_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_checkout_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { status, protocol, cartId, limit, offset }.
+-- Sessions, newest first. filters is { status, protocol, cartId, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_checkout_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1796,22 +2039,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_protocol text := nullif(v_filters ->> 'protocol', '');
+  v_cart text := nullif(v_filters ->> 'cartId', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_checkout_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_checkout_sessions.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read checkout sessions' using errcode = '42501', hint = 'CHECKOUT_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'cartId', y."cart_id", 'protocol', y."protocol", 'status', y."status", 'buyer', y."buyer", 'orderId', y."order_id", 'expiresAt', y."expires_at", 'expired', (y."status" in ('open', 'ready') and y."expires_at" is not null and y."expires_at" <= now()), 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."checkout_sessions" x
       where x."tenant_id" = list_checkout_sessions.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'protocol' or x."protocol" = v_filters ->> 'protocol')
-        and (not v_filters ? 'cartId' or x."cart_id"::text = v_filters ->> 'cartId')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_checkout_sessions"(uuid, jsonb) from public, anon;
@@ -2013,7 +2294,8 @@ $$;
 revoke execute on function "better_supabase"."get_agent_mandate"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_agent_mandate"(uuid) to authenticated, service_role;
 
--- Mandates, newest first. filters is { sessionId, status, vct, limit, offset }.
+-- Mandates, newest first. filters is { sessionId, status, vct, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_agent_mandates"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2025,22 +2307,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_session text := nullif(v_filters ->> 'sessionId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_vct text := nullif(v_filters ->> 'vct', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_agent_mandates.tenant is not null and coalesce(better_supabase.can('tenant', list_agent_mandates.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read mandates' using errcode = '42501', hint = 'AGENT_MANDATE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'sessionId', y."session_id", 'vct', y."vct", 'status', y."status", 'credential', y."credential", 'credentialHash', y."credential_hash", 'issuerKid', y."issuer_kid", 'subject', y."subject", 'expiresAt', y."expires_at", 'expired', (y."status" = 'active' and y."expires_at" <= now()), 'consumedAt', y."consumed_at", 'createdBy', y."created_by", 'createdAt', y."created_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."agent_mandates" x
       where x."tenant_id" = list_agent_mandates.tenant
-        and (not v_filters ? 'sessionId' or x."session_id"::text = v_filters ->> 'sessionId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'vct' or x."vct" = v_filters ->> 'vct')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) from public, anon;
@@ -2197,7 +2517,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:0e4884e239a1877f409c36f6a6daee3c0bc2e1dbd868b5519bfafc4cbe2de77c
+-- @bsb-hash sha256:aad324e2399cfe0db98c930b0ad7b22e1e885c61923fbed900b8668e15e36e33
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2220,6 +2540,7 @@ alter table "better_supabase"."checkout_sessions" add column if not exists "crea
 alter table "better_supabase"."checkout_sessions" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."checkout_sessions" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_checkout_sessions_tenant_id_key" on "better_supabase"."checkout_sessions" ("tenant_id", "id");
+create index if not exists "checkout_sessions_list_idx" on "better_supabase"."checkout_sessions" ("tenant_id", "created_at" desc, "id");
 create index if not exists "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
@@ -2247,6 +2568,7 @@ alter table "better_supabase"."agent_mandates" add column if not exists "created
 alter table "better_supabase"."agent_mandates" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_agent_mandates_tenant_id_key" on "better_supabase"."agent_mandates" ("tenant_id", "id");
 create unique index if not exists "bsb_agent_mandates_tenant_credential_hash_key" on "better_supabase"."agent_mandates" ("tenant_id", "credential_hash");
+create index if not exists "agent_mandates_list_idx" on "better_supabase"."agent_mandates" ("tenant_id", "created_at" desc, "id");
 create index if not exists "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 grant select on "better_supabase"."agent_mandates" to authenticated;
@@ -2381,7 +2703,8 @@ $$;
 revoke execute on function "better_supabase"."get_checkout_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_checkout_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { status, protocol, cartId, limit, offset }.
+-- Sessions, newest first. filters is { status, protocol, cartId, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_checkout_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2393,22 +2716,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_protocol text := nullif(v_filters ->> 'protocol', '');
+  v_cart text := nullif(v_filters ->> 'cartId', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_checkout_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_checkout_sessions.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read checkout sessions' using errcode = '42501', hint = 'CHECKOUT_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'cartId', y."cart_id", 'protocol', y."protocol", 'status', y."status", 'buyer', y."buyer", 'orderId', y."order_id", 'expiresAt', y."expires_at", 'expired', (y."status" in ('open', 'ready') and y."expires_at" is not null and y."expires_at" <= now()), 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."checkout_sessions" x
       where x."tenant_id" = list_checkout_sessions.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'protocol' or x."protocol" = v_filters ->> 'protocol')
-        and (not v_filters ? 'cartId' or x."cart_id"::text = v_filters ->> 'cartId')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_checkout_sessions"(uuid, jsonb) from public, anon;
@@ -2610,7 +2971,8 @@ $$;
 revoke execute on function "better_supabase"."get_agent_mandate"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_agent_mandate"(uuid) to authenticated, service_role;
 
--- Mandates, newest first. filters is { sessionId, status, vct, limit, offset }.
+-- Mandates, newest first. filters is { sessionId, status, vct, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_agent_mandates"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2622,22 +2984,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_session text := nullif(v_filters ->> 'sessionId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_vct text := nullif(v_filters ->> 'vct', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_agent_mandates.tenant is not null and coalesce(better_supabase.can('tenant', list_agent_mandates.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read mandates' using errcode = '42501', hint = 'AGENT_MANDATE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'sessionId', y."session_id", 'vct', y."vct", 'status', y."status", 'credential', y."credential", 'credentialHash', y."credential_hash", 'issuerKid', y."issuer_kid", 'subject', y."subject", 'expiresAt', y."expires_at", 'expired', (y."status" = 'active' and y."expires_at" <= now()), 'consumedAt', y."consumed_at", 'createdBy', y."created_by", 'createdAt', y."created_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."agent_mandates" x
       where x."tenant_id" = list_agent_mandates.tenant
-        and (not v_filters ? 'sessionId' or x."session_id"::text = v_filters ->> 'sessionId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'vct' or x."vct" = v_filters ->> 'vct')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) from public, anon;
@@ -2696,7 +3096,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:9ebed2db690041f6b25f17c510c6a53403070dba20f92f5dd8ad3a3ad7023a6c
+-- @bsb-hash sha256:753ac9bbdb7dbebfbdaaa466e0f02ad4541d2963189640de33df1a64a6d33320
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2721,6 +3121,7 @@ create table "better_supabase"."checkout_sessions" (
   unique ("org_id", "idempotency_key"),
   constraint bsb_checkout_sessions_check check (("status" = 'completed') = ("order_id" is not null))
 );
+create index "checkout_sessions_list_idx" on "better_supabase"."checkout_sessions" ("org_id", "created_at" desc, "id");
 create index "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
@@ -2750,6 +3151,7 @@ create table "better_supabase"."agent_mandates" (
   unique ("org_id", "credential_hash"),
   constraint bsb_agent_mandates_check check (("status" = 'consumed') = ("consumed_at" is not null))
 );
+create index "agent_mandates_list_idx" on "better_supabase"."agent_mandates" ("org_id", "created_at" desc, "id");
 create index "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
@@ -2885,7 +3287,8 @@ $$;
 revoke execute on function "better_supabase"."get_checkout_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_checkout_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { status, protocol, cartId, limit, offset }.
+-- Sessions, newest first. filters is { status, protocol, cartId, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_checkout_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2897,22 +3300,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_protocol text := nullif(v_filters ->> 'protocol', '');
+  v_cart text := nullif(v_filters ->> 'cartId', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_checkout_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_checkout_sessions.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read checkout sessions' using errcode = '42501', hint = 'CHECKOUT_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'cartId', y."cart_id", 'protocol', y."protocol", 'status', y."status", 'buyer', y."buyer", 'orderId', y."order_id", 'expiresAt', y."expires_at", 'expired', (y."status" in ('open', 'ready') and y."expires_at" is not null and y."expires_at" <= now()), 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."checkout_sessions" x
       where x."org_id" = list_checkout_sessions.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'protocol' or x."protocol" = v_filters ->> 'protocol')
-        and (not v_filters ? 'cartId' or x."cart_id"::text = v_filters ->> 'cartId')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."checkout_sessions" x
+      where x."org_id" = list_checkout_sessions.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_protocol is null or x."protocol" = v_protocol)
+        and (v_cart is null or x."cart_id"::text = v_cart)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_checkout_sessions"(uuid, jsonb) from public, anon;
@@ -3114,7 +3555,8 @@ $$;
 revoke execute on function "better_supabase"."get_agent_mandate"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_agent_mandate"(uuid) to authenticated, service_role;
 
--- Mandates, newest first. filters is { sessionId, status, vct, limit, offset }.
+-- Mandates, newest first. filters is { sessionId, status, vct, limit, after, offset, paged,
+-- total, totalCap }.
 create or replace function "better_supabase"."list_agent_mandates"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3126,22 +3568,60 @@ as $$
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_session text := nullif(v_filters ->> 'sessionId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_vct text := nullif(v_filters ->> 'vct', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_agent_mandates.tenant is not null and coalesce(better_supabase.can('tenant', list_agent_mandates.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read mandates' using errcode = '42501', hint = 'AGENT_MANDATE_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'sessionId', y."session_id", 'vct', y."vct", 'status', y."status", 'credential', y."credential", 'credentialHash', y."credential_hash", 'issuerKid', y."issuer_kid", 'subject', y."subject", 'expiresAt', y."expires_at", 'expired', (y."status" = 'active' and y."expires_at" <= now()), 'consumedAt', y."consumed_at", 'createdBy', y."created_by", 'createdAt', y."created_at") order by y."created_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."agent_mandates" x
       where x."org_id" = list_agent_mandates.tenant
-        and (not v_filters ? 'sessionId' or x."session_id"::text = v_filters ->> 'sessionId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'vct' or x."vct" = v_filters ->> 'vct')
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agent_mandates" x
+      where x."org_id" = list_agent_mandates.tenant
+        and (v_session is null or x."session_id"::text = v_session)
+        and (v_status is null or x."status" = v_status)
+        and (v_vct is null or x."vct" = v_vct)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_agent_mandates"(uuid, jsonb) from public, anon;

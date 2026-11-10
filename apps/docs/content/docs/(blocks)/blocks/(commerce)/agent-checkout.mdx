@@ -144,3 +144,33 @@ bundles no wallet or chain library.
 `checkout_session.created`, `checkout_session.updated`, `checkout_session.completed`,
 `agent_mandate.created`, `agent_mandate.consumed` and `agent_mandate.revoked` go
 to the outbox, and every change is audited.
+
+## Paging a list
+
+`listSessions` still takes `offset`. `sessionPage` pages the same list by keyset and
+returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
+`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+
+```ts
+const first = await checkout.sessionPage({ limit: 50, total: true }).orThrow();
+
+if (first.hasMore) {
+  const next = await checkout
+    .sessionPage({ limit: 50, after: first.nextCursor })
+    .orThrow();
+}
+```
+
+`listMandates` still takes `offset`. `mandatePage` pages the same list by keyset and
+returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
+`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+
+```ts
+const first = await checkout.mandatePage({ limit: 50, total: true }).orThrow();
+
+if (first.hasMore) {
+  const next = await checkout
+    .mandatePage({ limit: 50, after: first.nextCursor })
+    .orThrow();
+}
+```

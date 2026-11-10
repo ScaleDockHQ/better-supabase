@@ -1,5 +1,6 @@
 import type { Money } from "../../commerce/money.ts";
 import type { Payment } from "../../commerce/payments.ts";
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type {
@@ -16,6 +17,7 @@ import type { BlockOptions } from "../shared.ts";
 import type { SigningKeyOwner, SigningKeys } from "../signing-keys/index.ts";
 
 import { money } from "../../commerce/money.ts";
+import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
@@ -104,6 +106,22 @@ export interface CheckoutSessionListOptions {
   readonly offset?: number;
 }
 
+/**
+ * What `sessionPage` reads: the filters of `listSessions`, paged by keyset (ADR
+ * 0642).
+ */
+export interface CheckoutSessionPageOptions extends Omit<
+  CheckoutSessionListOptions,
+  "offset"
+> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
+}
+
 /** A stored AP2 mandate. */
 export interface AgentMandate {
   readonly id: string;
@@ -130,6 +148,22 @@ export interface AgentMandateListOptions {
   readonly vct?: AgentMandateType;
   readonly limit?: number;
   readonly offset?: number;
+}
+
+/**
+ * What `mandatePage` reads: the filters of `listMandates`, paged by keyset (ADR
+ * 0642).
+ */
+export interface AgentMandatePageOptions extends Omit<
+  AgentMandateListOptions,
+  "offset"
+> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
 }
 
 /** The claims of a mandate whose signature and shape verified. */
@@ -193,6 +227,10 @@ export interface AgentCheckout {
   listSessions(
     options?: CheckoutSessionListOptions,
   ): AsyncResultType<readonly CheckoutSession[]>;
+  /** One keyset page of `listSessions`, with `hasMore` and a `nextCursor`. */
+  sessionPage(
+    options?: CheckoutSessionPageOptions,
+  ): AsyncResultType<ListPage<CheckoutSession>>;
   /** The session's cart at today's price, from the orders client. */
   priceSession(
     sessionId: string,
@@ -222,6 +260,10 @@ export interface AgentCheckout {
   listMandates(
     options?: AgentMandateListOptions,
   ): AsyncResultType<readonly AgentMandate[]>;
+  /** One keyset page of `listMandates`, with `hasMore` and a `nextCursor`. */
+  mandatePage(
+    options?: AgentMandatePageOptions,
+  ): AsyncResultType<ListPage<AgentMandate>>;
   /** Stops an active mandate; needs `agent-checkout.manage`. */
   revokeMandate(mandateId: string): AsyncResultType<boolean>;
 }
@@ -775,6 +817,14 @@ export function createAgentCheckout(
             ),
         ),
       ),
+    sessionPage: (page = {}) =>
+      blockPage(
+        call,
+        tenant,
+        "list_checkout_sessions",
+        sessionOf,
+        definedOf(page),
+      ),
     priceSession,
     cancelSession: (sessionId) =>
       client.updateSession({ sessionId, status: "canceled" }),
@@ -796,6 +846,14 @@ export function createAgentCheckout(
               mandateOf(row, "list_agent_mandates"),
             ),
         ),
+      ),
+    mandatePage: (page = {}) =>
+      blockPage(
+        call,
+        tenant,
+        "list_agent_mandates",
+        mandateOf,
+        definedOf(page),
       ),
     revokeMandate: (mandateId) =>
       call("revoke_agent_mandate", { mandate_id: mandateId }, Boolean),

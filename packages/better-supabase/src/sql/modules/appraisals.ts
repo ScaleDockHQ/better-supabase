@@ -298,6 +298,7 @@ create table if not exists ${appraisals} (
   foreign key (${a("tenant")}, ${a("cycle")}) references ${cycles} (${y("tenant")}, ${y("id")}) on delete cascade,
   check ((${a("status")} = 'signed_off') = (${a("signedOffAt")} is not null))
 );${appKey("appraisals", `${a("tenant")}, ${a("id")}`)}
+create index if not exists ${name("appraisals", "list_idx")} on ${appraisals} (${a("tenant")}, ${a("createdAt")} desc, ${a("id")});
 create index if not exists ${name("appraisals", "cycle_idx")} on ${appraisals} (${a("tenant")}, ${a("cycle")}, ${a("status")});
 create index if not exists ${name("appraisals", "subject_idx")} on ${appraisals} (${a("tenant")}, ${a("subjectUser")});
 create index if not exists ${name("appraisals", "approval_idx")} on ${appraisals} (${a("approval")}) where ${a("approval")} is not null;

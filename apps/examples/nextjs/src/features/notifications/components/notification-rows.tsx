@@ -45,7 +45,15 @@ export function NotificationRows({
           key={notification.id}
           className="flex items-center gap-3 px-4 py-3 text-sm"
         >
-          <span className="flex-1">{notification.title}</span>
+          <span className="flex-1">
+            {notification.href ? (
+              <a href={notification.href} className="underline">
+                {notification.title}
+              </a>
+            ) : (
+              notification.title
+            )}
+          </span>
           {notification.readAt ? null : (
             <>
               <Badge>{t("New")}</Badge>

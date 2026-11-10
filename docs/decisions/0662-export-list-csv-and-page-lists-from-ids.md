@@ -34,3 +34,7 @@ cannot do without an RPC.
 An export that outlives its request holds a connection per page read, one page at a time. A file that
 reaches `maxRows` ends without a marker, so a caller who needs to know compares the row count with the
 list's total.
+
+The First Load JS brotli baseline of `/[locale]/(app)/shop/kitchen/page` in `tests/next-build` rose
+by 6 bytes (chunk hash noise); it is re-measured from a fresh build of this branch after merging
+main. The guard in `next-build.test.ts` is unchanged.
