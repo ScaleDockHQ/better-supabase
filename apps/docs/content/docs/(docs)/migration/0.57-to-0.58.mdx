@@ -14,24 +14,25 @@ An app on 0.54 to 0.57 follows this guide directly. An app older than 0.54
 follows the [0.53 to 0.54 guide](/docs/migration/0.53-to-0.54) first. Each change is also in the
 [changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
 
-| Section                                                     | Needs code                                                    |
-| ----------------------------------------------------------- | ------------------------------------------------------------- |
-| [Order of work](#order-of-work)                             | Run the codemods, `gen`, `upgrade` and your SQL workflow      |
-| [Config keys](#config-keys)                                 | Run `codemod naming`, then move `organization` by hand        |
-| [Exports and types](#exports-and-types)                     | Run `codemod naming` and `codemod generators`                 |
-| [Blocks](#blocks)                                           | Run `codemod naming`, then `upgrade`                          |
-| [Invoice numbers](#invoice-numbers)                         | Remove `options.uniqueNumber` before `codemod naming`         |
-| [Import targets](#import-targets)                           | Set `replaces: true` on a target a block now imports          |
-| [Employees on teams](#employees-on-teams)                   | Keep your `team_members` user-only, or give it its own key    |
-| [Counts](#counts)                                           | Pass `count({ mode: "exact" })` where the total must be exact |
-| [RPC JSON keys](#rpc-json-keys)                             | Read the renamed keys, such as `purge_at`                     |
-| [Database names](#database-names)                           | Run `codemod naming`, `upgrade`, then apply the migration     |
-| [Declarative module files](#declarative-module-files)       | Run `upgrade` and commit the result                           |
-| [Your own columns and tables](#your-own-columns-and-tables) | Run `codemod extra-columns`, `config` and `owned-columns`     |
-| [Generated client code](#generated-client-code)             | Run `gen`, then `codemod table-modules`                       |
-| [CLI](#cli)                                                 | Change scripts, CI and cron entries                           |
-| [Removed](#removed)                                         | Check that nothing depends on a shim                          |
-| [Stays as it is](#stays-as-it-is)                           | None; read the notes                                          |
+| Section                                                     | Needs code                                                                       |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [Order of work](#order-of-work)                             | Run the codemods, `gen`, `upgrade` and your SQL workflow                         |
+| [Config keys](#config-keys)                                 | Run `codemod naming`, then move `organization` by hand                           |
+| [Exports and types](#exports-and-types)                     | Run `codemod naming` and `codemod generators`                                    |
+| [Blocks](#blocks)                                           | Run `codemod naming`, then `upgrade`                                             |
+| [Invoice numbers](#invoice-numbers)                         | Remove `options.uniqueNumber` before `codemod naming`                            |
+| [Import targets](#import-targets)                           | Set `replaces: true` on a target a block now imports                             |
+| [Employees on teams](#employees-on-teams)                   | Keep your `team_members` user-only, or give it its own key                       |
+| [Counts](#counts)                                           | Pass `count({ mode: "exact" })` where the total must be exact                    |
+| [RPC JSON keys](#rpc-json-keys)                             | Read the renamed keys, such as `purge_at`                                        |
+| [Database names](#database-names)                           | Run `codemod naming`, `upgrade`, then apply the migration                        |
+| [Declarative module files](#declarative-module-files)       | Run `upgrade` and commit the result                                              |
+| [Your own columns and tables](#your-own-columns-and-tables) | Run `codemod extra-columns`, `config` and `owned-columns`                        |
+| [Generated client code](#generated-client-code)             | Run `gen`, then `codemod table-modules`                                          |
+| [Browser client](#browser-client)                           | Import `better-supabase/server` or `/client/native` for the removed `db` methods |
+| [CLI](#cli)                                                 | Change scripts, CI and cron entries                                              |
+| [Removed](#removed)                                         | Check that nothing depends on a shim                                             |
+| [Stays as it is](#stays-as-it-is)                           | None; read the notes                                                             |
 
 ## Order of work
 
@@ -368,6 +369,36 @@ React hooks do, and doctor BS621 warns when a `"use client"` file imports
 `generated-schema`, `blocks.generated` or `blocks.config`. Frameworks are
 registrations: `defineFramework` from `better-supabase/plugins` builds a
 binding, and `gen.hooks` takes any registered name.
+
+## Browser client
+
+The `db` of `createClient` from `better-supabase/client` has no `$many`,
+`$search`, `$stats`, `$decode` or `$decodeReadSet`. `react` and `query` reach
+35.5 KB gzip instead of 43.1 KB because the browser no longer carries read-set
+batching, vector search, call statistics and the stats recorder. The types
+match: `client.db` is a `CoreDb`, so a call to a removed method fails to
+type-check, and the typed repositories, `$rpc`, `$run`, `$table`, `$with`,
+`$withoutPlugins`, `$storage` and `$buckets` stay.
+
+| Where you call it                                   | What to do                                                       |
+| --------------------------------------------------- | ---------------------------------------------------------------- |
+| A Server Component, route, action or job            | Nothing: `createServer` and every adapter install the full `db`  |
+| `createNativeClient` (Expo, offline engines)        | Nothing: it installs the full `db` and types it                  |
+| A `"use client"` file that called `client.db.$many` | Move the read to a server function, or call `$run` once per spec |
+| Tests that connect a definition                     | Nothing: `better-supabase/testing` installs the full runtime     |
+
+A filter tree (the `FilterQuery` that ReUI Filters edits) passed straight to
+`where` needs `enableFilterTrees()` from `better-supabase/list` once, in a
+bundle that does not build its server from `createServer`. The server installs it, so
+code that runs there is unchanged. A browser bundle that never passes a tree
+ships 4.5 KB gzip less.
+
+`gen` writes the composed block reads to `blocks.reads.ts` next to
+`blocks.generated.ts`, and `blocks.generated.ts` re-exports them, so existing
+imports keep working. Import `reads` from `blocks.reads.ts` in the module that
+defines your read sets, and build the read set over `app` instead of the
+server with all blocks: the route that runs the set then bundles the block set
+of its own server.
 
 ## CLI
 
