@@ -1,4 +1,4 @@
-# 0668: Read run steps, versions, applications, templates and care plans in batches
+# 0670: Read run steps, versions, applications, templates and care plans in batches
 
 - Status: accepted
 - Date: 2026-11-10
@@ -87,11 +87,16 @@ server route that carries the block set (measured against a build of main at the
 routes +617, 21 routes +623, 8 routes +121, 37 routes unchanged; gzip between -214 and +213 bytes,
 brotli between -19 and +236). Each method is a call with its argument map and a result mapper,
 about 110 to 150 minified bytes, and the string name of the function appears once per method.
-`tests/next-build/next-build.test.ts` fails on "never grows past the server baseline" for 132
-routes by 310 to 379 raw bytes beyond the 512-byte slack (gzip and brotli stay inside theirs),
-because main had less than 300 bytes of headroom left. This change does not edit the test or the
-baselines. A maintainer either raises the server baseline by about 620 bytes raw or asks for some of
-the reads to go; the methods are already reduced to a call and a mapper each (the run steps method
-returns a flat list instead of grouping, and `templates` shares one detail mapper with `get`).
+`tests/next-build/next-build.test.ts` failed on "never grows past the server baseline" for 132
+routes by 310 to 379 raw bytes beyond the 512-byte slack (gzip and brotli stayed inside theirs),
+because main had less than 300 bytes of headroom left. The maintainer accepted the growth, so
+`tests/next-build/server-baseline.json` raises `raw` for those 132 routes to the value measured
+from a build of the merged tree. The update command never raises a number, so the values were
+written by hand from the guard's own output; gzip and brotli did not change, and the test and its
+slack are untouched. Before and after: the new raw ceiling is 822 to 891 bytes above the old one for each of the 132
+routes (the old ceiling plus its 512-byte slack was 310 to 379 bytes below the measured size, and
+the ceiling now equals the measured size), and a re-run of the guard passes. The methods are already reduced to a
+call and a mapper each (the run steps method returns a flat list instead of grouping, and
+`templates` shares one detail mapper with `get`).
 
 No new events, permissions or tables. The migration only adds five functions and their grants.
