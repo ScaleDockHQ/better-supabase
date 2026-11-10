@@ -9696,6 +9696,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "iban": "iban",
               "bic": "bic",
               "currency": "currency",
+              "holder": "holder",
+              "isPrimary": "is_primary",
               "journal": "journal_id",
               "archivedAt": "archived_at",
               "createdAt": "created_at",
@@ -26073,6 +26075,17 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "minLength": 3,
                 "maxLength": 3
               },
+              "holder": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 200
+              },
+              "primary": {
+                "kind": "boolean",
+                "optional": true,
+                "description": "Clears the flag on the organization's other accounts in the same currency."
+              },
               "journalId": {
                 "kind": "uuid",
                 "optional": true,
@@ -26118,6 +26131,17 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "string",
                   "minLength": 3,
                   "maxLength": 3
+                },
+                "holder": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 200
+                },
+                "primary": {
+                  "type": "boolean",
+                  "description": "Clears the flag on the organization's other accounts in the same currency."
                 },
                 "journalId": {
                   "type": [

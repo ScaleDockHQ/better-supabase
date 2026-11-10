@@ -544,6 +544,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0662: Export a list as CSV and page a list from ids.
 - 0661: Render rpc, stored rollup and copy functions from tags.
 - 0660: Move the remaining paged offset lists onto the keyset template.
+- 0664: Bank accounts take a holder and a primary flag.
 - 0648: Map the data of a bsb.action to another type with a third argument.
 - 0649: Observe the server's Supabase requests with a fetch wrapper.
 - 0652: Record the hot read baselines and join the inbox page's contacts in one pass.

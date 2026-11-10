@@ -24,6 +24,18 @@ export const bankAccountInputSchema: EntitySchema<BankAccountInput> =
       },
       bic: { kind: "string", optional: true, nullable: true, maxLength: 11 },
       currency: { kind: "string", optional: true, minLength: 3, maxLength: 3 },
+      holder: {
+        kind: "string",
+        optional: true,
+        nullable: true,
+        maxLength: 200,
+      },
+      primary: {
+        kind: "boolean",
+        optional: true,
+        description:
+          "Clears the flag on the organization's other accounts in the same currency.",
+      },
       journalId: {
         kind: "uuid",
         optional: true,

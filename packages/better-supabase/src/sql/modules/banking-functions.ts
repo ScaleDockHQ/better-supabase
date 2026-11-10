@@ -134,8 +134,10 @@ export function bankingFunctions(ctx: BlockSqlContext): string {
     : "null::bigint";
 
   return `${referenceFunctions(ctx)}
--- Creates or updates a bank account: name, iban, bic, currency and the
--- accounting journal its money moves through. The IBAN is stored upper case
+-- Creates or updates a bank account: name, holder, iban, bic, currency, the
+-- primary flag and the accounting journal its money moves through. Making an
+-- account primary clears the flag on the organization's other accounts in
+-- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
 create or replace function ${fn("save_bank_account")}(tenant ${idType}, input jsonb, account_id uuid default null)
 returns jsonb
@@ -150,6 +152,9 @@ declare
   v_bic text;
   v_currency text;
   v_journal uuid;
+  v_holder text;
+  v_primary boolean;
+  v_archived boolean;
 begin
   if not ${q.allowed("save_bank_account.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage bank accounts")}
@@ -187,16 +192,32 @@ begin
   ) then
     ${q.accountInvalid("a bank account with transactions keeps its currency")}
   end if;
+  v_holder := case when save_bank_account.input ? 'holder'
+    then nullif(trim(save_bank_account.input ->> 'holder'), '')
+    else v_account.${a("holder")} end;
+  v_archived := case when save_bank_account.input ? 'archived'
+    then coalesce((save_bank_account.input ->> 'archived')::boolean, false)
+    else v_account.${a("archivedAt")} is not null end;
+  v_primary := case when v_archived then false
+    when save_bank_account.input ? 'primary' then coalesce((save_bank_account.input ->> 'primary')::boolean, false)
+    else coalesce(v_account.${a("isPrimary")}, false) end;
+  if v_primary then
+    update ${q.accounts} x set ${a("isPrimary")} = false, ${a("updatedAt")} = now()
+    where x.${a("tenant")} = save_bank_account.tenant and x.${a("currency")} = v_currency
+      and x.${a("isPrimary")} and x.${a("id")} is distinct from v_account.${a("id")};
+  end if;
   v_journal := case when save_bank_account.input ? 'journalId'
     then nullif(save_bank_account.input ->> 'journalId', '')::uuid
     else v_account.${a("journal")} end;${journalCheck}
   if v_account.${a("id")} is null then
-    insert into ${q.accounts} (${a("tenant")}, ${a("name")}, ${a("iban")}, ${a("bic")}, ${a("currency")}, ${a("journal")})
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_iban, v_bic, v_currency, v_journal)
+    insert into ${q.accounts} (${a("tenant")}, ${a("name")}, ${a("holder")}, ${a("isPrimary")}, ${a("iban")}, ${a("bic")}, ${a("currency")}, ${a("journal")})
+    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update ${q.accounts} x set
       ${a("name")} = coalesce(trim(save_bank_account.input ->> 'name'), x.${a("name")}),
+      ${a("holder")} = v_holder,
+      ${a("isPrimary")} = v_primary,
       ${a("iban")} = v_iban,
       ${a("bic")} = v_bic,
       ${a("currency")} = v_currency,

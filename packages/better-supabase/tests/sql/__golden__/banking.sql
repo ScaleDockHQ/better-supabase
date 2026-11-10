@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:be12d1b29a0363fa904112f044f6f6f13ce81fe18ec8ca37887f072feba59e7d
+-- @bsb-hash sha256:e80e7e07d0287d7584074afd521e276dd69f177b2a6c2439093ba97a88045706
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18,6 +18,10 @@ create table "better_supabase"."bank_accounts" (
   "iban" text constraint bsb_bank_accounts_iban_check check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text constraint bsb_bank_accounts_bic_check check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   "currency" char(3) not null constraint bsb_bank_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  -- Who the account belongs to, as the bank prints it on a statement.
+  "holder" text constraint bsb_bank_accounts_holder_check check ("holder" is null or length("holder") >= 1 and length("holder") <= 200),
+  -- The account an organization pays from and reconciles first, once per currency.
+  "is_primary" boolean not null default false,
   -- The accounting journal the account's money moves through.
   "journal_id" uuid,
   "archived_at" timestamptz,
@@ -26,6 +30,7 @@ create table "better_supabase"."bank_accounts" (
   unique ("tenant_id", "id")
 );
 create unique index "bank_accounts_iban_key" on "better_supabase"."bank_accounts" ("tenant_id", "iban") where "iban" is not null;
+create unique index "bank_accounts_primary_key" on "better_supabase"."bank_accounts" ("tenant_id", "currency") where "is_primary" and "archived_at" is null;
 create index "bank_accounts_tenant_idx" on "better_supabase"."bank_accounts" ("tenant_id", "name");
 create index "bank_accounts_journal_idx" on "better_supabase"."bank_accounts" ("journal_id") where "journal_id" is not null;
 alter table "better_supabase"."bank_accounts" enable row level security;
@@ -237,8 +242,10 @@ end;
 $$;
 revoke execute on function "better_supabase"."bank_reference"(text) from public, anon, authenticated;
 
--- Creates or updates a bank account: name, iban, bic, currency and the
--- accounting journal its money moves through. The IBAN is stored upper case
+-- Creates or updates a bank account: name, holder, iban, bic, currency, the
+-- primary flag and the accounting journal its money moves through. Making an
+-- account primary clears the flag on the organization's other accounts in
+-- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
 create or replace function "better_supabase"."save_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
 returns jsonb
@@ -253,6 +260,9 @@ declare
   v_bic text;
   v_currency text;
   v_journal uuid;
+  v_holder text;
+  v_primary boolean;
+  v_archived boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -293,16 +303,32 @@ begin
   ) then
     raise exception 'a bank account with transactions keeps its currency' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
+  v_holder := case when save_bank_account.input ? 'holder'
+    then nullif(trim(save_bank_account.input ->> 'holder'), '')
+    else v_account."holder" end;
+  v_archived := case when save_bank_account.input ? 'archived'
+    then coalesce((save_bank_account.input ->> 'archived')::boolean, false)
+    else v_account."archived_at" is not null end;
+  v_primary := case when v_archived then false
+    when save_bank_account.input ? 'primary' then coalesce((save_bank_account.input ->> 'primary')::boolean, false)
+    else coalesce(v_account."is_primary", false) end;
+  if v_primary then
+    update "better_supabase"."bank_accounts" x set "is_primary" = false, "updated_at" = now()
+    where x."tenant_id" = save_bank_account.tenant and x."currency" = v_currency
+      and x."is_primary" and x."id" is distinct from v_account."id";
+  end if;
   v_journal := case when save_bank_account.input ? 'journalId'
     then nullif(save_bank_account.input ->> 'journalId', '')::uuid
     else v_account."journal_id" end;
   if v_account."id" is null then
-    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "iban", "bic", "currency", "journal_id")
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_iban, v_bic, v_currency, v_journal)
+    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "holder", "is_primary", "iban", "bic", "currency", "journal_id")
+    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update "better_supabase"."bank_accounts" x set
       "name" = coalesce(trim(save_bank_account.input ->> 'name'), x."name"),
+      "holder" = v_holder,
+      "is_primary" = v_primary,
       "iban" = v_iban,
       "bic" = v_bic,
       "currency" = v_currency,
@@ -314,7 +340,7 @@ begin
     where x."id" = v_account."id"
     returning * into v_account;
   end if;
-  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
+  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'holder', v_account."holder", 'primary', v_account."is_primary", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
 exception
   when check_violation or not_null_violation then
     raise exception 'a bank account has a name of 1 to 200 characters' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
@@ -339,7 +365,7 @@ begin
     raise exception 'not allowed to read bank accounts' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
     from "better_supabase"."bank_accounts" x
     where x."tenant_id" = list_bank_accounts.tenant
       and (list_bank_accounts.include_archived or x."archived_at" is null)
@@ -1206,7 +1232,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:d837ff0f18e5baaa939005ad737c36e441dde495e1e01cc9fef9047b9be79175
+-- @bsb-hash sha256:57858c74d781dc0185e5e443646879bfb9ca9590310f8c3a7ff3aa89e9db1e06
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1223,6 +1249,10 @@ create table "better_supabase"."bank_accounts" (
   "iban" text constraint bsb_bank_accounts_iban_check check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text constraint bsb_bank_accounts_bic_check check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   "currency" char(3) not null constraint bsb_bank_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  -- Who the account belongs to, as the bank prints it on a statement.
+  "holder" text constraint bsb_bank_accounts_holder_check check ("holder" is null or length("holder") >= 1 and length("holder") <= 200),
+  -- The account an organization pays from and reconciles first, once per currency.
+  "is_primary" boolean not null default false,
   -- The accounting journal the account's money moves through.
   "journal_id" uuid references "better_supabase"."accounting_journals" ("id") on delete set null,
   "archived_at" timestamptz,
@@ -1231,6 +1261,7 @@ create table "better_supabase"."bank_accounts" (
   unique ("tenant_id", "id")
 );
 create unique index "bank_accounts_iban_key" on "better_supabase"."bank_accounts" ("tenant_id", "iban") where "iban" is not null;
+create unique index "bank_accounts_primary_key" on "better_supabase"."bank_accounts" ("tenant_id", "currency") where "is_primary" and "archived_at" is null;
 create index "bank_accounts_tenant_idx" on "better_supabase"."bank_accounts" ("tenant_id", "name");
 create index "bank_accounts_journal_idx" on "better_supabase"."bank_accounts" ("journal_id") where "journal_id" is not null;
 alter table "better_supabase"."bank_accounts" enable row level security;
@@ -1509,8 +1540,10 @@ end;
 $$;
 revoke execute on function "better_supabase"."bank_reference"(text) from public, anon, authenticated;
 
--- Creates or updates a bank account: name, iban, bic, currency and the
--- accounting journal its money moves through. The IBAN is stored upper case
+-- Creates or updates a bank account: name, holder, iban, bic, currency, the
+-- primary flag and the accounting journal its money moves through. Making an
+-- account primary clears the flag on the organization's other accounts in
+-- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
 create or replace function "better_supabase"."save_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
 returns jsonb
@@ -1525,6 +1558,9 @@ declare
   v_bic text;
   v_currency text;
   v_journal uuid;
+  v_holder text;
+  v_primary boolean;
+  v_archived boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1565,6 +1601,20 @@ begin
   ) then
     raise exception 'a bank account with transactions keeps its currency' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
+  v_holder := case when save_bank_account.input ? 'holder'
+    then nullif(trim(save_bank_account.input ->> 'holder'), '')
+    else v_account."holder" end;
+  v_archived := case when save_bank_account.input ? 'archived'
+    then coalesce((save_bank_account.input ->> 'archived')::boolean, false)
+    else v_account."archived_at" is not null end;
+  v_primary := case when v_archived then false
+    when save_bank_account.input ? 'primary' then coalesce((save_bank_account.input ->> 'primary')::boolean, false)
+    else coalesce(v_account."is_primary", false) end;
+  if v_primary then
+    update "better_supabase"."bank_accounts" x set "is_primary" = false, "updated_at" = now()
+    where x."tenant_id" = save_bank_account.tenant and x."currency" = v_currency
+      and x."is_primary" and x."id" is distinct from v_account."id";
+  end if;
   v_journal := case when save_bank_account.input ? 'journalId'
     then nullif(save_bank_account.input ->> 'journalId', '')::uuid
     else v_account."journal_id" end;
@@ -1576,12 +1626,14 @@ begin
     raise exception 'the journal must be a bank or cash journal of the organization' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
   if v_account."id" is null then
-    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "iban", "bic", "currency", "journal_id")
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_iban, v_bic, v_currency, v_journal)
+    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "holder", "is_primary", "iban", "bic", "currency", "journal_id")
+    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update "better_supabase"."bank_accounts" x set
       "name" = coalesce(trim(save_bank_account.input ->> 'name'), x."name"),
+      "holder" = v_holder,
+      "is_primary" = v_primary,
       "iban" = v_iban,
       "bic" = v_bic,
       "currency" = v_currency,
@@ -1593,7 +1645,7 @@ begin
     where x."id" = v_account."id"
     returning * into v_account;
   end if;
-  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
+  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'holder', v_account."holder", 'primary', v_account."is_primary", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
 exception
   when check_violation or not_null_violation then
     raise exception 'a bank account has a name of 1 to 200 characters' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
@@ -1618,7 +1670,7 @@ begin
     raise exception 'not allowed to read bank accounts' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
     from "better_supabase"."bank_accounts" x
     where x."tenant_id" = list_bank_accounts.tenant
       and (list_bank_accounts.include_archived or x."archived_at" is null)
@@ -2963,7 +3015,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:4af911152bb5bdf8bcab97d90ab019311c5171b71bd4140dbabd26dab1b9cb91
+-- @bsb-hash sha256:a6da7bdd0092f65822a710601776af87394ae4f9c22b42195ac5176e0987e6d8
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2985,6 +3037,10 @@ create table "app_private"."bank_accounts" (
   "iban" text constraint bsb_bank_accounts_iban_check check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text constraint bsb_bank_accounts_bic_check check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   "currency" char(3) not null constraint bsb_bank_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  -- Who the account belongs to, as the bank prints it on a statement.
+  "holder" text constraint bsb_bank_accounts_holder_check check ("holder" is null or length("holder") >= 1 and length("holder") <= 200),
+  -- The account an organization pays from and reconciles first, once per currency.
+  "is_primary" boolean not null default false,
   -- The accounting journal the account's money moves through.
   "journal_id" uuid,
   "archived_at" timestamptz,
@@ -2993,6 +3049,7 @@ create table "app_private"."bank_accounts" (
   unique ("tenant_id", "id")
 );
 create unique index "bank_accounts_iban_key" on "app_private"."bank_accounts" ("tenant_id", "iban") where "iban" is not null;
+create unique index "bank_accounts_primary_key" on "app_private"."bank_accounts" ("tenant_id", "currency") where "is_primary" and "archived_at" is null;
 create index "bank_accounts_tenant_idx" on "app_private"."bank_accounts" ("tenant_id", "name");
 create index "bank_accounts_journal_idx" on "app_private"."bank_accounts" ("journal_id") where "journal_id" is not null;
 alter table "app_private"."bank_accounts" enable row level security;
@@ -3204,8 +3261,10 @@ end;
 $$;
 revoke execute on function "app_private"."bank_reference"(text) from public, anon, authenticated;
 
--- Creates or updates a bank account: name, iban, bic, currency and the
--- accounting journal its money moves through. The IBAN is stored upper case
+-- Creates or updates a bank account: name, holder, iban, bic, currency, the
+-- primary flag and the accounting journal its money moves through. Making an
+-- account primary clears the flag on the organization's other accounts in
+-- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
 create or replace function "app_private"."save_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
 returns jsonb
@@ -3220,6 +3279,9 @@ declare
   v_bic text;
   v_currency text;
   v_journal uuid;
+  v_holder text;
+  v_primary boolean;
+  v_archived boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3260,16 +3322,32 @@ begin
   ) then
     raise exception 'a bank account with transactions keeps its currency' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
+  v_holder := case when save_bank_account.input ? 'holder'
+    then nullif(trim(save_bank_account.input ->> 'holder'), '')
+    else v_account."holder" end;
+  v_archived := case when save_bank_account.input ? 'archived'
+    then coalesce((save_bank_account.input ->> 'archived')::boolean, false)
+    else v_account."archived_at" is not null end;
+  v_primary := case when v_archived then false
+    when save_bank_account.input ? 'primary' then coalesce((save_bank_account.input ->> 'primary')::boolean, false)
+    else coalesce(v_account."is_primary", false) end;
+  if v_primary then
+    update "app_private"."bank_accounts" x set "is_primary" = false, "updated_at" = now()
+    where x."tenant_id" = save_bank_account.tenant and x."currency" = v_currency
+      and x."is_primary" and x."id" is distinct from v_account."id";
+  end if;
   v_journal := case when save_bank_account.input ? 'journalId'
     then nullif(save_bank_account.input ->> 'journalId', '')::uuid
     else v_account."journal_id" end;
   if v_account."id" is null then
-    insert into "app_private"."bank_accounts" ("tenant_id", "name", "iban", "bic", "currency", "journal_id")
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_iban, v_bic, v_currency, v_journal)
+    insert into "app_private"."bank_accounts" ("tenant_id", "name", "holder", "is_primary", "iban", "bic", "currency", "journal_id")
+    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update "app_private"."bank_accounts" x set
       "name" = coalesce(trim(save_bank_account.input ->> 'name'), x."name"),
+      "holder" = v_holder,
+      "is_primary" = v_primary,
       "iban" = v_iban,
       "bic" = v_bic,
       "currency" = v_currency,
@@ -3281,7 +3359,7 @@ begin
     where x."id" = v_account."id"
     returning * into v_account;
   end if;
-  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
+  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'holder', v_account."holder", 'primary', v_account."is_primary", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
 exception
   when check_violation or not_null_violation then
     raise exception 'a bank account has a name of 1 to 200 characters' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
@@ -3306,7 +3384,7 @@ begin
     raise exception 'not allowed to read bank accounts' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
     from "app_private"."bank_accounts" x
     where x."tenant_id" = list_bank_accounts.tenant
       and (list_bank_accounts.include_archived or x."archived_at" is null)
@@ -4173,7 +4251,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:591684eecdc0071beecb94797aef6ce0ead1cfceac97c031cd6a4136263b3044
+-- @bsb-hash sha256:2b70a28b65fdc4847d6512e6df6f65ff88a185f359d5606df51b1564748484ad
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4190,6 +4268,10 @@ create table "better_supabase"."bank_accounts" (
   "iban" text constraint bsb_bank_accounts_iban_check check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text constraint bsb_bank_accounts_bic_check check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   "currency" char(3) not null constraint bsb_bank_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  -- Who the account belongs to, as the bank prints it on a statement.
+  "holder" text constraint bsb_bank_accounts_holder_check check ("holder" is null or length("holder") >= 1 and length("holder") <= 200),
+  -- The account an organization pays from and reconciles first, once per currency.
+  "is_primary" boolean not null default false,
   -- The accounting journal the account's money moves through.
   "journal_id" uuid,
   "archived_at" timestamptz,
@@ -4198,6 +4280,7 @@ create table "better_supabase"."bank_accounts" (
   unique ("tenant_id", "id")
 );
 create unique index "bank_accounts_iban_key" on "better_supabase"."bank_accounts" ("tenant_id", "iban") where "iban" is not null;
+create unique index "bank_accounts_primary_key" on "better_supabase"."bank_accounts" ("tenant_id", "currency") where "is_primary" and "archived_at" is null;
 create index "bank_accounts_tenant_idx" on "better_supabase"."bank_accounts" ("tenant_id", "name");
 create index "bank_accounts_journal_idx" on "better_supabase"."bank_accounts" ("journal_id") where "journal_id" is not null;
 alter table "better_supabase"."bank_accounts" enable row level security;
@@ -4409,8 +4492,10 @@ end;
 $$;
 revoke execute on function "better_supabase"."bank_reference"(text) from public, anon, authenticated;
 
--- Creates or updates a bank account: name, iban, bic, currency and the
--- accounting journal its money moves through. The IBAN is stored upper case
+-- Creates or updates a bank account: name, holder, iban, bic, currency, the
+-- primary flag and the accounting journal its money moves through. Making an
+-- account primary clears the flag on the organization's other accounts in
+-- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
 create or replace function "better_supabase"."save_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
 returns jsonb
@@ -4425,6 +4510,9 @@ declare
   v_bic text;
   v_currency text;
   v_journal uuid;
+  v_holder text;
+  v_primary boolean;
+  v_archived boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4465,16 +4553,32 @@ begin
   ) then
     raise exception 'a bank account with transactions keeps its currency' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
+  v_holder := case when save_bank_account.input ? 'holder'
+    then nullif(trim(save_bank_account.input ->> 'holder'), '')
+    else v_account."holder" end;
+  v_archived := case when save_bank_account.input ? 'archived'
+    then coalesce((save_bank_account.input ->> 'archived')::boolean, false)
+    else v_account."archived_at" is not null end;
+  v_primary := case when v_archived then false
+    when save_bank_account.input ? 'primary' then coalesce((save_bank_account.input ->> 'primary')::boolean, false)
+    else coalesce(v_account."is_primary", false) end;
+  if v_primary then
+    update "better_supabase"."bank_accounts" x set "is_primary" = false, "updated_at" = now()
+    where x."tenant_id" = save_bank_account.tenant and x."currency" = v_currency
+      and x."is_primary" and x."id" is distinct from v_account."id";
+  end if;
   v_journal := case when save_bank_account.input ? 'journalId'
     then nullif(save_bank_account.input ->> 'journalId', '')::uuid
     else v_account."journal_id" end;
   if v_account."id" is null then
-    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "iban", "bic", "currency", "journal_id")
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_iban, v_bic, v_currency, v_journal)
+    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "holder", "is_primary", "iban", "bic", "currency", "journal_id")
+    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update "better_supabase"."bank_accounts" x set
       "name" = coalesce(trim(save_bank_account.input ->> 'name'), x."name"),
+      "holder" = v_holder,
+      "is_primary" = v_primary,
       "iban" = v_iban,
       "bic" = v_bic,
       "currency" = v_currency,
@@ -4486,7 +4590,7 @@ begin
     where x."id" = v_account."id"
     returning * into v_account;
   end if;
-  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
+  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'holder', v_account."holder", 'primary', v_account."is_primary", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
 exception
   when check_violation or not_null_violation then
     raise exception 'a bank account has a name of 1 to 200 characters' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
@@ -4511,7 +4615,7 @@ begin
     raise exception 'not allowed to read bank accounts' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
     from "better_supabase"."bank_accounts" x
     where x."tenant_id" = list_bank_accounts.tenant
       and (list_bank_accounts.include_archived or x."archived_at" is null)
@@ -5534,7 +5638,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:c7332300d6a24c422daa84586bd9534fd3ed1f24d36d012f3f0f54bde4881eee
+-- @bsb-hash sha256:42ca867b081cb582c6013f1a9df79951625362ccea1caa08cb1961f89712e720
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5550,12 +5654,15 @@ alter table "better_supabase"."bank_accounts" add column if not exists "name" te
 alter table "better_supabase"."bank_accounts" add column if not exists "iban" text constraint bsb_bank_accounts_iban_check check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$');
 alter table "better_supabase"."bank_accounts" add column if not exists "bic" text constraint bsb_bank_accounts_bic_check check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$');
 alter table "better_supabase"."bank_accounts" add column if not exists "currency" char(3) constraint bsb_bank_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."bank_accounts" add column if not exists "holder" text constraint bsb_bank_accounts_holder_check check ("holder" is null or length("holder") >= 1 and length("holder") <= 200);
+alter table "better_supabase"."bank_accounts" add column if not exists "is_primary" boolean not null default false;
 alter table "better_supabase"."bank_accounts" add column if not exists "journal_id" uuid;
 alter table "better_supabase"."bank_accounts" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."bank_accounts" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."bank_accounts" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_bank_accounts_tenant_id_key" on "better_supabase"."bank_accounts" ("tenant_id", "id");
 create unique index if not exists "bank_accounts_iban_key" on "better_supabase"."bank_accounts" ("tenant_id", "iban") where "iban" is not null;
+create unique index if not exists "bank_accounts_primary_key" on "better_supabase"."bank_accounts" ("tenant_id", "currency") where "is_primary" and "archived_at" is null;
 create index if not exists "bank_accounts_tenant_idx" on "better_supabase"."bank_accounts" ("tenant_id", "name");
 create index if not exists "bank_accounts_journal_idx" on "better_supabase"."bank_accounts" ("journal_id") where "journal_id" is not null;
 alter table "better_supabase"."bank_accounts" enable row level security;
@@ -5735,8 +5842,10 @@ end;
 $$;
 revoke execute on function "better_supabase"."bank_reference"(text) from public, anon, authenticated;
 
--- Creates or updates a bank account: name, iban, bic, currency and the
--- accounting journal its money moves through. The IBAN is stored upper case
+-- Creates or updates a bank account: name, holder, iban, bic, currency, the
+-- primary flag and the accounting journal its money moves through. Making an
+-- account primary clears the flag on the organization's other accounts in
+-- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
 create or replace function "better_supabase"."save_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
 returns jsonb
@@ -5751,6 +5860,9 @@ declare
   v_bic text;
   v_currency text;
   v_journal uuid;
+  v_holder text;
+  v_primary boolean;
+  v_archived boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5791,16 +5903,32 @@ begin
   ) then
     raise exception 'a bank account with transactions keeps its currency' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
+  v_holder := case when save_bank_account.input ? 'holder'
+    then nullif(trim(save_bank_account.input ->> 'holder'), '')
+    else v_account."holder" end;
+  v_archived := case when save_bank_account.input ? 'archived'
+    then coalesce((save_bank_account.input ->> 'archived')::boolean, false)
+    else v_account."archived_at" is not null end;
+  v_primary := case when v_archived then false
+    when save_bank_account.input ? 'primary' then coalesce((save_bank_account.input ->> 'primary')::boolean, false)
+    else coalesce(v_account."is_primary", false) end;
+  if v_primary then
+    update "better_supabase"."bank_accounts" x set "is_primary" = false, "updated_at" = now()
+    where x."tenant_id" = save_bank_account.tenant and x."currency" = v_currency
+      and x."is_primary" and x."id" is distinct from v_account."id";
+  end if;
   v_journal := case when save_bank_account.input ? 'journalId'
     then nullif(save_bank_account.input ->> 'journalId', '')::uuid
     else v_account."journal_id" end;
   if v_account."id" is null then
-    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "iban", "bic", "currency", "journal_id")
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_iban, v_bic, v_currency, v_journal)
+    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "holder", "is_primary", "iban", "bic", "currency", "journal_id")
+    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update "better_supabase"."bank_accounts" x set
       "name" = coalesce(trim(save_bank_account.input ->> 'name'), x."name"),
+      "holder" = v_holder,
+      "is_primary" = v_primary,
       "iban" = v_iban,
       "bic" = v_bic,
       "currency" = v_currency,
@@ -5812,7 +5940,7 @@ begin
     where x."id" = v_account."id"
     returning * into v_account;
   end if;
-  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
+  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'holder', v_account."holder", 'primary', v_account."is_primary", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
 exception
   when check_violation or not_null_violation then
     raise exception 'a bank account has a name of 1 to 200 characters' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
@@ -5837,7 +5965,7 @@ begin
     raise exception 'not allowed to read bank accounts' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
     from "better_supabase"."bank_accounts" x
     where x."tenant_id" = list_bank_accounts.tenant
       and (list_bank_accounts.include_archived or x."archived_at" is null)
@@ -6704,7 +6832,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:02682e80bb6f24207a964a431a61a6950d6343792d6231dbe1a2b20fa7d256f9
+-- @bsb-hash sha256:ca40000f950bb00b2efb33897028855e1b0733df6413142dec108f725fd5799a
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6721,6 +6849,10 @@ create table "better_supabase"."bank_accounts" (
   "iban" text constraint bsb_bank_accounts_iban_check check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text constraint bsb_bank_accounts_bic_check check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   "currency" char(3) not null constraint bsb_bank_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  -- Who the account belongs to, as the bank prints it on a statement.
+  "holder" text constraint bsb_bank_accounts_holder_check check ("holder" is null or length("holder") >= 1 and length("holder") <= 200),
+  -- The account an organization pays from and reconciles first, once per currency.
+  "is_primary" boolean not null default false,
   -- The accounting journal the account's money moves through.
   "journal_id" uuid,
   "archived_at" timestamptz,
@@ -6729,6 +6861,7 @@ create table "better_supabase"."bank_accounts" (
   unique ("org_id", "id")
 );
 create unique index "bank_accounts_iban_key" on "better_supabase"."bank_accounts" ("org_id", "iban") where "iban" is not null;
+create unique index "bank_accounts_primary_key" on "better_supabase"."bank_accounts" ("org_id", "currency") where "is_primary" and "archived_at" is null;
 create index "bank_accounts_tenant_idx" on "better_supabase"."bank_accounts" ("org_id", "name");
 create index "bank_accounts_journal_idx" on "better_supabase"."bank_accounts" ("journal_id") where "journal_id" is not null;
 alter table "better_supabase"."bank_accounts" enable row level security;
@@ -6940,8 +7073,10 @@ end;
 $$;
 revoke execute on function "better_supabase"."bank_reference"(text) from public, anon, authenticated;
 
--- Creates or updates a bank account: name, iban, bic, currency and the
--- accounting journal its money moves through. The IBAN is stored upper case
+-- Creates or updates a bank account: name, holder, iban, bic, currency, the
+-- primary flag and the accounting journal its money moves through. Making an
+-- account primary clears the flag on the organization's other accounts in
+-- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
 create or replace function "better_supabase"."save_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
 returns jsonb
@@ -6956,6 +7091,9 @@ declare
   v_bic text;
   v_currency text;
   v_journal uuid;
+  v_holder text;
+  v_primary boolean;
+  v_archived boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -6996,16 +7134,32 @@ begin
   ) then
     raise exception 'a bank account with transactions keeps its currency' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
+  v_holder := case when save_bank_account.input ? 'holder'
+    then nullif(trim(save_bank_account.input ->> 'holder'), '')
+    else v_account."holder" end;
+  v_archived := case when save_bank_account.input ? 'archived'
+    then coalesce((save_bank_account.input ->> 'archived')::boolean, false)
+    else v_account."archived_at" is not null end;
+  v_primary := case when v_archived then false
+    when save_bank_account.input ? 'primary' then coalesce((save_bank_account.input ->> 'primary')::boolean, false)
+    else coalesce(v_account."is_primary", false) end;
+  if v_primary then
+    update "better_supabase"."bank_accounts" x set "is_primary" = false, "updated_at" = now()
+    where x."org_id" = save_bank_account.tenant and x."currency" = v_currency
+      and x."is_primary" and x."id" is distinct from v_account."id";
+  end if;
   v_journal := case when save_bank_account.input ? 'journalId'
     then nullif(save_bank_account.input ->> 'journalId', '')::uuid
     else v_account."journal_id" end;
   if v_account."id" is null then
-    insert into "better_supabase"."bank_accounts" ("org_id", "name", "iban", "bic", "currency", "journal_id")
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_iban, v_bic, v_currency, v_journal)
+    insert into "better_supabase"."bank_accounts" ("org_id", "name", "holder", "is_primary", "iban", "bic", "currency", "journal_id")
+    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update "better_supabase"."bank_accounts" x set
       "name" = coalesce(trim(save_bank_account.input ->> 'name'), x."name"),
+      "holder" = v_holder,
+      "is_primary" = v_primary,
       "iban" = v_iban,
       "bic" = v_bic,
       "currency" = v_currency,
@@ -7017,7 +7171,7 @@ begin
     where x."id" = v_account."id"
     returning * into v_account;
   end if;
-  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."org_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
+  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."org_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'holder', v_account."holder", 'primary', v_account."is_primary", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
 exception
   when check_violation or not_null_violation then
     raise exception 'a bank account has a name of 1 to 200 characters' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
@@ -7042,7 +7196,7 @@ begin
     raise exception 'not allowed to read bank accounts' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
     from "better_supabase"."bank_accounts" x
     where x."org_id" = list_bank_accounts.tenant
       and (list_bank_accounts.include_archived or x."archived_at" is null)

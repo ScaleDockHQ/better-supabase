@@ -61,6 +61,10 @@ create table if not exists ${q.accounts} (
   ${a("iban")} text check (${a("iban")} is null or ${a("iban")} ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   ${a("bic")} text check (${a("bic")} is null or ${a("bic")} ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   ${a("currency")} char(3) not null check (${a("currency")} ~ '^[A-Z]{3}$'),
+  -- Who the account belongs to, as the bank prints it on a statement.
+  ${a("holder")} text check (${a("holder")} is null or length(${a("holder")}) between 1 and 200),
+  -- The account an organization pays from and reconciles first, once per currency.
+  ${a("isPrimary")} boolean not null default false,
   -- The accounting journal the account's money moves through.
   ${a("journal")} uuid${ref(accounting, "journals", "set null")},
   ${a("archivedAt")} timestamptz,
@@ -69,6 +73,7 @@ create table if not exists ${q.accounts} (
   unique (${a("tenant")}, ${a("id")})
 );${appKey("accounts", "tenant_id", `${a("tenant")}, ${a("id")}`)}
 create unique index if not exists ${name("accounts", "iban_key")} on ${q.accounts} (${a("tenant")}, ${a("iban")}) where ${a("iban")} is not null;
+create unique index if not exists ${name("accounts", "primary_key")} on ${q.accounts} (${a("tenant")}, ${a("currency")}) where ${a("isPrimary")} and ${a("archivedAt")} is null;
 create index if not exists ${name("accounts", "tenant_idx")} on ${q.accounts} (${a("tenant")}, ${a("name")});
 create index if not exists ${name("accounts", "journal_idx")} on ${q.accounts} (${a("journal")}) where ${a("journal")} is not null;
 ${lockTable(q.accounts, { read: true })}
