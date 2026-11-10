@@ -160,7 +160,8 @@ By default `gen` writes one module per table, `tables/<table>.ts`, next to the
 generated module (`gen.tableModules: false` writes the single module instead). Each one exports the table's runtime metadata as
 `<key>Table` (`customersTable`), and `generated.meta.js` lists no table. A page
 that imports one table module does not load the others. `gen.types.tables.only`
-lists the relations `database.types.ts` includes; the rest are omitted. The
+lists the relations `database.types.ts` includes; the rest are omitted, and
+`gen.types.also` lists more files that get a copy of it, for a monorepo whose apps share the types. The
 server's schema moves to `generated-schema.ts`, which imports every table. The
 generated module keeps the types, `buckets`, the extensions and `clientSchema`,
 a schema with no tables for a browser client.

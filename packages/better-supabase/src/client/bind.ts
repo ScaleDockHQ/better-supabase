@@ -4,7 +4,7 @@ import type { DataEngine } from "../bindings/data-engine.ts";
 import type { GeneratedBlocks } from "../blocks/block-config.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
-import type { Db, RepositoryOf } from "../core/repository-types.ts";
+import type { CoreDb, RepositoryOf } from "../core/repository-types.ts";
 import type { BlockTenant } from "../core/tenant-source.ts";
 import type { BetterQueries } from "../query/index.ts";
 import type { TableModule } from "../schema/define.ts";
@@ -15,13 +15,13 @@ import { userContext } from "../auth/impersonation.ts";
 import { claimedTenant } from "../bindings/keys.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
-import { provideConnectionRuntime } from "../core/define-runtime.ts";
+import { provideLeanConnectionRuntime } from "../core/define-runtime.ts";
 import { postgrestExecutor } from "../core/postgrest-executor.ts";
 import { currentTenant } from "../core/tenant-source.ts";
 import { createQueries } from "../query/queries.ts";
 import { identityKey } from "../query/user-change.ts";
 
-provideConnectionRuntime();
+provideLeanConnectionRuntime();
 
 export interface AuthUser {
   readonly id: string;
@@ -60,6 +60,7 @@ export interface BetterClient<
   C = unknown,
   P = unknown,
   B = unknown,
+  X extends object = Record<never, never>,
 > {
   /**
    * The definition the client was created from (schema metadata, specs, live
@@ -68,7 +69,7 @@ export interface BetterClient<
   readonly betterSupabase: BetterSupabase<M, unknown, F, E, C, P, B>;
   readonly supabase: SupabaseClient;
   /** Repositories with the current session's actor and claims. */
-  readonly db: Db<M, F, E, SupabaseClient, B>;
+  readonly db: CoreDb<M, F, E, SupabaseClient, B, X>;
   /**
    * The repository of one table module (`import { customers } from
    * "./tables/customers"`). With a schema that sets `lazyTables`, it also
@@ -205,13 +206,14 @@ export function bindClient<
   C = unknown,
   P = unknown,
   B = unknown,
+  X extends object = Record<never, never>,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   supabase: SupabaseClient,
   options: BindClientOptions = {},
-): BetterClient<M, F, E, C, P, B> {
+): BetterClient<M, F, E, C, P, B, X> {
   let snapshot: AuthSnapshot = LOADING;
-  let db: Db<M, F, E, SupabaseClient, B> | undefined;
+  let db: CoreDb<M, F, E, SupabaseClient, B, X> | undefined;
   let dbTenant: string | undefined;
   const listeners = new Set<() => void>();
 
@@ -252,7 +254,7 @@ export function bindClient<
     postgrestExecutor(supabase, betterSupabase.executorOptions()),
   );
 
-  const client: BetterClient<M, F, E, C, P, B> = {
+  const client: BetterClient<M, F, E, C, P, B, X> = {
     betterSupabase,
     supabase,
     ports: options.ports ?? {},
@@ -269,13 +271,15 @@ export function bindClient<
       if (db === undefined || tenant !== dbTenant) {
         const context = contextOf(snapshot);
         dbTenant = tenant;
+        // SAFETY: the connection runtime adds the helpers in X: none from the
+        // lean runtime the browser installs, the extras from the full one.
         db = betterSupabase.connect(
           supabase,
           tenant === undefined || context.tenant !== undefined
             ? context
             : { ...context, tenant },
           local === undefined ? {} : { executor: local },
-        );
+        ) as CoreDb<M, F, E, SupabaseClient, B, X>;
       }
 
       return db;

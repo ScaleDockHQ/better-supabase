@@ -1,7 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { DamSql } from "./dam-sql.ts";
 
-import { pageSize, serviceGrant, userGrant } from "../shared.ts";
+import { listBody, listDeclare } from "../list-template.ts";
+import { serviceGrant, userGrant } from "../shared.ts";
 import { damSql } from "./dam-sql.ts";
 import { DAM_RENDITION_STATUSES } from "./dam-values.ts";
 
@@ -94,6 +95,28 @@ function rightFunctions(ctx: BlockSqlContext, q: DamSql): string {
   const { fn, u, rights } = q;
   const idType = ctx.idType;
 
+  const list_list_usage_rights = {
+    name: "list_usage_rights",
+    from: rights,
+    alias: "x",
+    where: [
+      `x.${u("tenant")} = list_usage_rights.tenant`,
+      `(v_node is null or x.${u("node")} = v_node::uuid)`,
+      `(v_status is null or ${q.rightStatus("x", "current_date")} = v_status)`,
+      `(v_expiring is null or (x.${u("revokedAt")} is null and x.${u("expiresOn")} is not null and x.${u("expiresOn")} between current_date and current_date + v_expiring))`,
+    ],
+    keys: [
+      {
+        expr: `coalesce(x.${u("expiresOn")}, 'infinity'::date)`,
+        dir: "asc",
+        type: "date",
+      },
+      { expr: `x.${u("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: q.rightJson("x"),
+    invalid: q.invalid,
+  } as const;
+
   return `
 -- Grants a usage right on a file. input is { nodeId, licensee, territory,
 -- channel, startsOn, expiresOn, note }. A right without territory or channel
@@ -164,7 +187,8 @@ $$;
 ${userGrant(`${fn("revoke_usage_right")}(uuid)`)}
 
 -- Usage rights, soonest expiry first. filters is { nodeId, status: 'upcoming'
--- | 'active' | 'expired' | 'revoked', expiringWithinDays, limit, offset }.
+-- | 'active' | 'expired' | 'revoked', expiringWithinDays, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function ${fn("list_usage_rights")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -175,26 +199,15 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_usage_rights.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list_list_usage_rights)}
+  v_node text := nullif(v_filters ->> 'nodeId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_expiring integer := (v_filters ->> 'expiringWithinDays')::integer;
 begin
   if not ${q.allowed("list_usage_rights.tenant", q.read)} then
     ${q.forbidden("not allowed to read usage rights")}
   end if;
-  return coalesce((
-    select jsonb_agg(${q.rightJson("y")} order by y.${u("expiresOn")} nulls last, y.${u("id")})
-    from (
-      select * from ${rights} x
-      where x.${u("tenant")} = list_usage_rights.tenant
-        and (not v_filters ? 'nodeId' or x.${u("node")} = (v_filters ->> 'nodeId')::uuid)
-        and (not v_filters ? 'status' or ${q.rightStatus("x", "current_date")} = v_filters ->> 'status')
-        and (not v_filters ? 'expiringWithinDays' or (
-          x.${u("revokedAt")} is null and x.${u("expiresOn")} is not null
-          and x.${u("expiresOn")} between current_date and current_date + (v_filters ->> 'expiringWithinDays')::integer
-        ))
-      order by x.${u("expiresOn")} nulls last, x.${u("id")}
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(list_list_usage_rights)}
 end;
 $$;
 ${userGrant(`${fn("list_usage_rights")}(${idType}, jsonb)`)}

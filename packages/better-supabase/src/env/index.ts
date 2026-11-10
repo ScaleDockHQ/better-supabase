@@ -1,6 +1,14 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { SupabaseEnv } from "@supabase/server";
 
+import type { EnvIssue } from "./public.ts";
+
+import { EnvValidationError, checkKey, checkUrl } from "./public.ts";
+
+export { EnvValidationError };
+
+export type { EnvIssue };
+
 /**
  * Validated Supabase settings. Only `publicEnv()` of it is safe to ship to a
  * browser.
@@ -47,12 +55,6 @@ export interface PublicEnv {
 }
 
 export type EnvSource = Readonly<Record<string, string | undefined>>;
-
-export interface EnvIssue {
-  /** The variable names that were checked, first one preferred. */
-  readonly variables: readonly string[];
-  readonly message: string;
-}
 
 export interface EnvOptions {
   /** Settings that must be present. `url` and `publishableKey` always are. */
@@ -108,20 +110,7 @@ export const ENV_VARIABLES: {
   jwtSecret: ["SUPABASE_JWT_SECRET"],
 };
 
-const LOOPBACK = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/;
 const HOSTED = /^([a-z0-9]{20})\.supabase\.co$/;
-
-export class EnvValidationError extends Error {
-  override readonly name = "EnvValidationError";
-  readonly issues: readonly EnvIssue[];
-
-  constructor(issues: readonly EnvIssue[]) {
-    super(
-      `Invalid Supabase environment:\n${issues.map((issue) => `  - ${issue.variables[0] ?? "env"}: ${issue.message}`).join("\n")}`,
-    );
-    this.issues = issues;
-  }
-}
 
 function first(
   source: EnvSource,
@@ -247,70 +236,6 @@ function checkJwks(raw: string, issues: EnvIssue[]): InlineJwks | undefined {
   }
 
   return { keys };
-}
-
-function checkUrl(
-  value: string,
-  variables: readonly string[],
-  issues: EnvIssue[],
-): URL | undefined {
-  let url: URL;
-
-  try {
-    url = new URL(value);
-  } catch {
-    issues.push({ variables, message: "is not a valid URL" });
-
-    return undefined;
-  }
-
-  if (url.protocol === "https:") {
-    return url;
-  }
-
-  if (url.protocol === "http:" && LOOPBACK.test(url.hostname)) {
-    return url;
-  }
-
-  issues.push({
-    variables,
-    message:
-      "must use https (http is only allowed for localhost / 127.0.0.1 / [::1])",
-  });
-
-  return undefined;
-}
-
-function checkKey(
-  value: string,
-  kind: "publishable" | "secret",
-  variables: readonly string[],
-  issues: EnvIssue[],
-): boolean {
-  if (value.startsWith(`sb_${kind}_`)) {
-    return true;
-  }
-
-  if (value.startsWith("eyJ")) {
-    issues.push({
-      variables,
-      message: `is a legacy JWT key; use the new sb_${kind}_ key (Project Settings > API Keys)`,
-    });
-  } else if (
-    value.startsWith(kind === "publishable" ? "sb_secret_" : "sb_publishable_")
-  ) {
-    issues.push({
-      variables,
-      message:
-        kind === "publishable"
-          ? "holds a secret key; never expose sb_secret_ keys as publishable"
-          : "holds a publishable key, not a secret key",
-    });
-  } else {
-    issues.push({ variables, message: `must start with sb_${kind}_` });
-  }
-
-  return false;
 }
 
 /**

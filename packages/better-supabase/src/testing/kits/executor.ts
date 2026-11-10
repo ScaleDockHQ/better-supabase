@@ -3,7 +3,7 @@ import type { ExecuteContext, Executor } from "../../core/executor.ts";
 import type { Operation } from "../../ir/types.ts";
 import type { Check, ConformanceReport } from "../conformance.ts";
 
-import { provideConnectionRuntime } from "../../core/define-runtime.ts";
+import { provideConnectionRuntime } from "../../core/define-runtime-full.ts";
 import { isList } from "../../core/guards.ts";
 import { ok } from "../../core/result.ts";
 import { conform, expect, same } from "../conformance.ts";

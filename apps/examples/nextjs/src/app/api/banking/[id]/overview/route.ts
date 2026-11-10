@@ -1,5 +1,5 @@
 import { financeOverview } from "../../../../../lib/read-sets";
-import { bsb } from "../../../../../lib/supabase/server";
+import { bsbCore as bsb } from "../../../../../lib/supabase/server-core";
 
 /**
  * `GET /api/banking/:id/overview`: the bank account's reconciliation board and

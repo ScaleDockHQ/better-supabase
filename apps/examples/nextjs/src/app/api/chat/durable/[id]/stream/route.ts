@@ -4,7 +4,7 @@ import {
   durable,
   durableContext,
 } from "../../../../../../features/assistant/durable/durable-server";
-import { bsb } from "../../../../../../lib/supabase/server";
+import { bsbShell as bsb } from "../../../../../../lib/supabase/server-shell";
 
 /**
  * `GET /api/chat/durable/[id]/stream?startIndex=`: reconnects to the running

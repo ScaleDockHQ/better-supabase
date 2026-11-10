@@ -176,3 +176,19 @@ const policy = damUsageRightsToOdrl(rights, {
 `list_usage_rights(tenant, filters)`, `check_usage(tenant, node_id, filters)` and
 `notify_expiring_usage_rights(days)` (service role only) are plain SQL functions.
 In custom mode you implement them over your own tables.
+
+## Paging a list
+
+`listRights` still takes `offset`. `rightPage` pages the same list by keyset and
+returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
+`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+
+```ts
+const first = await dam.rightPage({ limit: 50, total: true }).orThrow();
+
+if (first.hasMore) {
+  const next = await dam
+    .rightPage({ limit: 50, after: first.nextCursor })
+    .orThrow();
+}
+```

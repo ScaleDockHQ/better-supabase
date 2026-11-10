@@ -13,7 +13,7 @@ import type { LocalStack } from "./as-user.ts";
 import type { Check, ConformanceReport } from "./conformance.ts";
 import type { TestJwtClaims } from "./jwt.ts";
 
-import { provideConnectionRuntime } from "../core/define-runtime.ts";
+import { provideConnectionRuntime } from "../core/define-runtime-full.ts";
 import { BetterSupabase } from "../core/define.ts";
 import { ENV_VARIABLES } from "../env/index.ts";
 import { asUser } from "./as-user.ts";

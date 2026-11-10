@@ -744,6 +744,7 @@
       "defineCliCommand",
       "emitBlockConfig",
       "emitBlockConfigModule",
+      "emitBlockReads",
       "emitClientBlocks",
       "emitModule",
       "fromCatalog",
@@ -3206,6 +3207,7 @@
     "values": [
       "decodeFilterQuery",
       "defineListQuery",
+      "enableFilterTrees",
       "encodeFilterQuery",
       "evaluateFilterQuery",
       "FILTER_OPERATOR_LABELS",
@@ -3247,6 +3249,20 @@
       "ListSearchParams",
       "OpenApiParameter",
       "ParserSpec"
+    ]
+  },
+  "./list/export": {
+    "values": [
+      "csvCell",
+      "exportListCsv",
+      "pageFromIds"
+    ],
+    "types": [
+      "ExportColumn",
+      "ExportPage",
+      "IdPage",
+      "ListExportOptions",
+      "PageFromIdsOptions"
     ]
   },
   "./storage": {
@@ -3446,6 +3462,7 @@
       "TemplateParams",
       "TemplateValues",
       "Topic",
+      "TopicBroadcast",
       "TopicEvent",
       "TopicFanOutOptions",
       "TopicHandle",

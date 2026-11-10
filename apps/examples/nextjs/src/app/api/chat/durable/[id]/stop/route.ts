@@ -4,7 +4,7 @@ import {
   durable,
   durableContext,
 } from "../../../../../../features/assistant/durable/durable-server";
-import { bsb } from "../../../../../../lib/supabase/server";
+import { bsbShell as bsb } from "../../../../../../lib/supabase/server-shell";
 
 /**
  * `POST /api/chat/durable/[id]/stop`: stops the running turn through its stop

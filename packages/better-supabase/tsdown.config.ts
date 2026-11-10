@@ -278,6 +278,7 @@ const entries = [
   "blocks/sessions/index",
   "env/index",
   "list/index",
+  "list/export/index",
   "storage/index",
   "storage/client/index",
   "realtime/index",
