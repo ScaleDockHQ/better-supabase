@@ -634,6 +634,24 @@ export const COMMANDS: readonly CommandSpec[] = [
         ],
         effects: [{ kind: "database", access: "write" }],
       },
+      {
+        name: "partition",
+        description:
+          "Moves an audit log created before options.partitioned onto monthly partitions without stopping writes",
+        docs: "/docs/cli/db#partition",
+        examples: [
+          {
+            command: "better-supabase db partition audit --dry-run",
+            description: "Checks that the conversion procedure exists",
+          },
+          {
+            command: "better-supabase db partition audit --batch-size 100000",
+            description:
+              "Copies the log in batches of 100,000 rows, then swaps the tables",
+          },
+        ],
+        effects: [{ kind: "database", access: "write" }],
+      },
     ],
   },
   {
@@ -741,6 +759,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         name: "table-modules",
         description:
           "Import schema from generated-schema and read tables in client files through the table modules",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
+        name: "account-calls",
+        description:
+          "Rewrite bsb.deleteAccount(id) and the other account methods to the functions from better-supabase/server/account",
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },

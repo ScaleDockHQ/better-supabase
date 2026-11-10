@@ -1,5 +1,5 @@
 import "server-only";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import type { NotificationRow } from "./notification-types";
 import type { loadNotificationFilters } from "./notifications-search-params";

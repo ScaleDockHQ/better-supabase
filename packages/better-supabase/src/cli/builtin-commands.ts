@@ -41,6 +41,10 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/backfill.ts").then((m) => m.dbBackfillCommand),
   ],
   [
+    "db partition",
+    () => import("./commands/partition.ts").then((m) => m.dbPartitionCommand),
+  ],
+  [
     "workflows prune",
     () =>
       import("./commands/prune-workflows.ts").then(
@@ -127,6 +131,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () =>
       import("./commands/codemod.ts").then((m) =>
         m.codemodCommand("table-modules"),
+      ),
+  ],
+  [
+    "codemod account-calls",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("account-calls"),
       ),
   ],
   [

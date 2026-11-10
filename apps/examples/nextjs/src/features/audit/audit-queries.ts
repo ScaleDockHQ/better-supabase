@@ -5,7 +5,7 @@ import type {
 } from "better-supabase/blocks/audit";
 
 import { getMembers } from "@/features/organization/organization-queries";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import type { loadAuditFilters } from "./audit-search-params";
 

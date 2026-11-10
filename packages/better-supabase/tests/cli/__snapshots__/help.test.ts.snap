@@ -297,6 +297,7 @@ Commands
   owned-columns   Declare the columns blocks add to your own tables in your schema files
   config          Remove the columns entries the render refuses: a null for a column the view lacks and a tenant that repeats sql.tenantColumn
   table-modules   Import schema from generated-schema and read tables in client files through the table modules
+  account-calls   Rewrite bsb.deleteAccount(id) and the other account methods to the functions from better-supabase/server/account
   server-imports  Import the account, csv and rate-limit helpers from their server subpaths
   generators      Import the generators from better-supabase/generators/<name> and list generators that still use the apiVersion 1 shape
   read-many       List Promise.all groups of repository reads that db.$many or a read set can load in one round trip
@@ -314,6 +315,36 @@ Global options
   --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help                 Show help
 
+Docs: https://bettersupabase.com/docs/cli/codemod
+"
+`;
+
+exports[`help > documents codemod account-calls 1`] = `
+"Usage: better-supabase codemod account-calls [options] [path...]
+
+Rewrite bsb.deleteAccount(id) and the other account methods to the functions from better-supabase/server/account
+
+Arguments
+  [path...]  Files or directories to rewrite (default: the project)
+
+Options
+  --dry-run  Show the changes without writing them
+  --check    Write nothing; exit 1 with a diff when a file would change
+
+Global options
+  --cwd <dir>                Project directory
+  --config <file>            Config file, relative to --cwd
+  --env <name>               Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                     Print one JSON document on stdout; a failure prints an error document on stderr. On by default in agent mode
+  --agent <auto|yes|no>      Agent mode (JSON output, no prompts, confirmation for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --effects-digest <digest>  The digest from a confirmation_required result; with --yes, confirms exactly those effects
+  -y, --yes                  Answer yes to every confirmation; ask nothing
+  --non-interactive          Never prompt; fail with input_required when a value is missing. On in CI and agent mode
+  --no-color                 Print no colors, like $NO_COLOR
+  --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help                 Show help
+
+Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/codemod
 "
 `;
@@ -647,10 +678,11 @@ exports[`help > documents db 1`] = `
 Runs SQL files and seeds against the database, backfills columns, and diffs the declarative schema: the local stack by default, or the one in the connection string
 
 Commands
-  query     Runs each file as one multi-statement script, in order, optionally in a single transaction
-  diff      Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start
-  seed      Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --yes
-  backfill  Fills the null values of a column in batches, from the table a foreign key references or from a literal
+  query      Runs each file as one multi-statement script, in order, optionally in a single transaction
+  diff       Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start
+  seed       Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --yes
+  backfill   Fills the null values of a column in batches, from the table a foreign key references or from a literal
+  partition  Moves an audit log created before options.partitioned onto monthly partitions without stopping writes
 
 Global options
   --cwd <dir>                Project directory
@@ -748,6 +780,45 @@ Examples
 
 Side effects: Writes to the database, writes files with --file.
 Docs: https://bettersupabase.com/docs/cli/db#diff
+"
+`;
+
+exports[`help > documents db partition 1`] = `
+"Usage: better-supabase db partition [options] <target>
+
+Moves an audit log created before options.partitioned onto monthly partitions without stopping writes
+
+Arguments
+  <target>  What to partition: audit
+
+Options
+  --batch-size <n>  Rows to copy per transaction (default 50000)
+  --drop-old        Drop the unpartitioned copy once the swap is done (it stays as <name>_unpartitioned otherwise)
+  --dry-run         Check that the procedure exists and change nothing
+  --db-url-stdin    Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --stack <name>    Use the stack in supabase/stacks/<name>/config.toml (default $BETTER_SUPABASE_STACK) instead of the default local stack
+
+Global options
+  --cwd <dir>                Project directory
+  --config <file>            Config file, relative to --cwd
+  --env <name>               Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                     Print one JSON document on stdout; a failure prints an error document on stderr. On by default in agent mode
+  --agent <auto|yes|no>      Agent mode (JSON output, no prompts, confirmation for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --effects-digest <digest>  The digest from a confirmation_required result; with --yes, confirms exactly those effects
+  -y, --yes                  Answer yes to every confirmation; ask nothing
+  --non-interactive          Never prompt; fail with input_required when a value is missing. On in CI and agent mode
+  --no-color                 Print no colors, like $NO_COLOR
+  --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help                 Show help
+
+Examples
+  # Checks that the conversion procedure exists
+  $ better-supabase db partition audit --dry-run
+  # Copies the log in batches of 100,000 rows, then swaps the tables
+  $ better-supabase db partition audit --batch-size 100000
+
+Side effects: Writes to the database.
+Docs: https://bettersupabase.com/docs/cli/db#partition
 "
 `;
 
