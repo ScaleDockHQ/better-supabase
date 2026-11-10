@@ -3249,6 +3249,20 @@
       "ParserSpec"
     ]
   },
+  "./list/export": {
+    "values": [
+      "csvCell",
+      "exportListCsv",
+      "pageFromIds"
+    ],
+    "types": [
+      "ExportColumn",
+      "ExportPage",
+      "IdPage",
+      "ListExportOptions",
+      "PageFromIdsOptions"
+    ]
+  },
   "./storage": {
     "values": [
       "avatarBucket",

@@ -343,3 +343,58 @@ The definition describes itself:
   tool arguments or JSON APIs.
 - `customerList.facets`: `{ key, column, nullable, values? }` for rendering
   filter menus.
+
+## Download a list as CSV
+
+`exportListCsv` turns a cursor list into a CSV download. It reads the list one page at a time and
+streams the file, so a large list is never held in memory. The first page is read before the response
+starts, so a failed read is an ordinary error response with the error's status, not a broken file.
+
+```ts
+import { exportListCsv } from "better-supabase/list/export";
+
+export async function GET(request: Request) {
+  const parsed = customerList.parse(new URL(request.url).searchParams);
+
+  if (!parsed.ok) {
+    return Response.json({ issues: parsed.issues }, { status: 400 });
+  }
+
+  return exportListCsv({
+    page: (after, size) =>
+      customerList.run(db, { ...parsed.value, after, size }),
+    columns: [
+      { header: "Name", value: (row) => row.name },
+      { header: "Created", value: (row) => row.createdAt },
+    ],
+    filename: "customers.csv",
+  });
+}
+```
+
+| Option     | Meaning                                                          |
+| ---------- | ---------------------------------------------------------------- |
+| `pageSize` | Rows per page, 1 to 1,000. Default 500.                          |
+| `maxRows`  | The most rows in the file; the file ends there. Default 100,000. |
+| `filename` | The download's file name. Default `export.csv`.                  |
+| `bom`      | Start the file with a byte order mark, for Excel.                |
+
+A text cell that starts with `=`, `+`, `-`, `@` or a control character gets a leading `'`, so a
+spreadsheet does not run it as a formula. Dates become ISO strings and objects become JSON.
+
+## Load the rows of a page by id
+
+`pageFromIds` builds a cursor page from two sources: a page of ids in display order (a search, a
+ranking, a queue) and a function that loads rows by id, such as the `get_<table>_by_ids` function the
+[`rpc` tag](/docs/repository/rendered-tags) renders. Rows come back in the order of the ids, and an id
+whose row is missing or hidden by row security is left out, so a page can hold fewer rows than ids.
+
+```ts
+import { pageFromIds } from "better-supabase/list/export";
+
+const page = await pageFromIds({
+  ids: searchIds(query), // PromiseLike<Result<{ ids, nextCursor, hasMore }>>
+  rows: (ids) => db.$rpc("get_customers_by_ids", { ids }),
+  idOf: (row) => row.id,
+}).orThrow();
+```

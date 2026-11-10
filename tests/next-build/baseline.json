@@ -492,7 +492,7 @@
   "/[locale]/(app)/shop/kitchen/page": {
     "raw": 1343768,
     "gzip": 424729,
-    "brotli": 369910
+    "brotli": 370841
   },
   "/[locale]/(app)/shop/orders/[id]/page": {
     "raw": 1360301,
