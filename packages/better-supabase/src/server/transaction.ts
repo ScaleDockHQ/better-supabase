@@ -3,7 +3,7 @@ import type { RequestContext } from "../core/plugin.ts";
 import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
 import type { TransactionOptions } from "./server-types.ts";
 
-import { provideConnectionRuntime } from "../core/define-runtime.ts";
+import { provideConnectionRuntime } from "../core/define-runtime-full.ts";
 
 provideConnectionRuntime();
 

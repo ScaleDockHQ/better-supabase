@@ -165,6 +165,7 @@ const POSITIONAL = new Set<string>([
   "permissions/authorizer.ts:evaluations",
   "permissions/authorizer.ts:forOperation",
   "permissions/authorizer.ts:once",
+  "pipelines/client.ts:BoardSnapshot",
   "push/push.ts:onTickets",
   "push/push.ts:send",
   "queue/backends.ts:advance",

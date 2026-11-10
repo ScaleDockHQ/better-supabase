@@ -37,7 +37,7 @@ const TABLE_ARGS = {
     type: "positional",
     required: true,
     description:
-      "The feature: realtime, audit, audit-reads, subject, json, expose, encrypted, lookup, server, events, search, vector-search, history, lifecycle, access, list or idempotency",
+      "The feature: realtime, audit, audit-reads, subject, json, expose, encrypted, lookup, server, events, search, vector-search, history, lifecycle, access, list, idempotency, rpc, rollup or copy",
   },
 } as const;
 

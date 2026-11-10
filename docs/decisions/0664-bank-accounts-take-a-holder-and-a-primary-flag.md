@@ -1,4 +1,4 @@
-# 0663: Bank accounts take a holder and a primary flag
+# 0664: Bank accounts take a holder and a primary flag
 
 - Status: accepted
 - Date: 2026-11-10

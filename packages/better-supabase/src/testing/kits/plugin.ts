@@ -12,7 +12,7 @@ import { createdByExtension } from "../../blocks/created-by/extension.ts";
 import { membershipsExtension } from "../../blocks/memberships/extension.ts";
 import { trashExtension } from "../../blocks/trash/extension.ts";
 import { updatedAtExtension } from "../../blocks/updated-at/extension.ts";
-import { provideConnectionRuntime } from "../../core/define-runtime.ts";
+import { provideConnectionRuntime } from "../../core/define-runtime-full.ts";
 import { dbError } from "../../core/errors.ts";
 import { ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";

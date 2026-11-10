@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:5e0555023b4124f424039951afd6f1b382a7d6eb16579ecb4230e66fda13d1a7
+-- @bsb-hash sha256:39a908e34727105e7b15c42bec1d4c5cbbc3d13fcb51ccd211e50e7e9d87f890
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -298,7 +298,15 @@ grant execute on function "better_supabase"."knowledge_subject_readable"(text, t
 
 create policy bsb_knowledge_documents_read on "better_supabase"."knowledge_documents"
   for select to authenticated
-  using (("tenant_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")));
+  using (("tenant_id" is null or case when "scope" = 'subject' then case "better_supabase"."knowledge_documents"."subject_type"
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."organization_id" = "better_supabase"."knowledge_documents"."tenant_id") and ("better_supabase"."knowledge_documents"."tenant_id" in (select better_supabase.tenant_ids_with('customers.read')) or "better_supabase"."is_subject_member"('customer', "better_supabase"."knowledge_documents"."subject_id"))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."tenant_id" = "better_supabase"."knowledge_documents"."tenant_id" and (("better_supabase"."knowledge_documents"."tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)) or "better_supabase"."is_subject_member"('drive_node', "better_supabase"."knowledge_documents"."subject_id")))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."id" = "better_supabase"."knowledge_documents"."tenant_id")
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."organization_id" = "better_supabase"."knowledge_documents"."tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."organization_id" = "better_supabase"."knowledge_documents"."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."organization_id" = "better_supabase"."knowledge_documents"."tenant_id")
+    else coalesce("better_supabase"."can_subject"("better_supabase"."knowledge_documents"."subject_type", "better_supabase"."knowledge_documents"."subject_id", 'read'), false)
+  end else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
 create table "better_supabase"."knowledge_chunks" (
@@ -848,7 +856,15 @@ create policy bsb_tenant_scope_select on "better_supabase"."knowledge_documents"
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")))
+    or (("tenant_id" is null or case when "scope" = 'subject' then case "better_supabase"."knowledge_documents"."subject_type"
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."organization_id" = "better_supabase"."knowledge_documents"."tenant_id") and ("better_supabase"."knowledge_documents"."tenant_id" in (select better_supabase.tenant_ids_with('customers.read')) or "better_supabase"."is_subject_member"('customer', "better_supabase"."knowledge_documents"."subject_id"))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."tenant_id" = "better_supabase"."knowledge_documents"."tenant_id" and (("better_supabase"."knowledge_documents"."tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)) or "better_supabase"."is_subject_member"('drive_node', "better_supabase"."knowledge_documents"."subject_id")))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."id" = "better_supabase"."knowledge_documents"."tenant_id")
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."organization_id" = "better_supabase"."knowledge_documents"."tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."organization_id" = "better_supabase"."knowledge_documents"."tenant_id")
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid and s."organization_id" = "better_supabase"."knowledge_documents"."tenant_id")
+    else coalesce("better_supabase"."can_subject"("better_supabase"."knowledge_documents"."subject_type", "better_supabase"."knowledge_documents"."subject_id", 'read'), false)
+  end else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."knowledge_documents" as restrictive
   for insert to public

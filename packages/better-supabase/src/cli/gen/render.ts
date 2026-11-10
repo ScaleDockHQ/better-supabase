@@ -20,6 +20,7 @@ import { apiTypeSchemas } from "./api-schemas.ts";
 import {
   emitBlockConfig,
   emitBlockConfigModule,
+  emitBlockReads,
   emitBlockModules,
   emitClientBlocks,
   generatorBlocks,
@@ -210,6 +211,14 @@ export async function render(
       : { path: config.databaseTypesOutput, contents: databaseTypes },
   );
 
+  if (!mapper) {
+    for (const copy of config.gen.types?.also ?? []) {
+      if (copy !== config.databaseTypesOutput) {
+        files.push({ path: copy, contents: databaseTypes });
+      }
+    }
+  }
+
   const main = mapper ? 0 : 1;
 
   const projected =
@@ -252,6 +261,12 @@ export async function render(
     }
 
     files.push(...emitServerBlocks(config, blockOptions));
+
+    const blockReads = emitBlockReads(config, blockOptions);
+
+    if (blockReads) {
+      files.push(blockReads);
+    }
   }
 
   files.push(...emitRecords(config));

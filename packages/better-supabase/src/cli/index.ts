@@ -36,6 +36,7 @@ export { renderFiles } from "./gen/render.ts";
 export {
   emitBlockConfig,
   emitBlockConfigModule,
+  emitBlockReads,
   emitClientBlocks,
 } from "./gen/blocks.ts";
 

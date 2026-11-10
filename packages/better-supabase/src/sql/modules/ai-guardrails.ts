@@ -138,7 +138,7 @@ create table if not exists ${decisions} (
   ${d("createdAt")} timestamptz not null default now()
 );
 create index if not exists ${sqlIdent(`${decisionsName}_agent_idx`)} on ${decisions} (${d("agent")}, ${d("createdAt")} desc);
-create index if not exists ${sqlIdent(`${decisionsName}_tenant_idx`)} on ${decisions} (${d("tenant")}, ${d("createdAt")} desc);
+create index if not exists ${sqlIdent(`${decisionsName}_tenant_idx`)} on ${decisions} (${d("tenant")}, ${d("createdAt")} desc, ${d("id")} desc);
 ${lockTable(decisions)}
 
 -- Saves the policy of an agent (or * for every agent) at a stage, replacing the

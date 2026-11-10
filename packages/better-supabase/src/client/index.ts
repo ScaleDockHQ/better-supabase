@@ -13,7 +13,7 @@ import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { BetterClient, BindClientOptions } from "./bind.ts";
 import type { ClientPorts } from "./ports.ts";
 
-import { EnvValidationError, parseEnv } from "../env/index.ts";
+import { parsePublicEnv } from "../env/public.ts";
 import { bindClient } from "./bind.ts";
 import { storageUpload } from "./ports.ts";
 import { refreshOnVisible } from "./visible-refresh.ts";
@@ -165,31 +165,20 @@ function clientFor(options: ClientOptions): SupabaseClient {
     );
   }
 
-  const checked = parseEnv({
-    SUPABASE_URL: options.env.url,
-    SUPABASE_PUBLISHABLE_KEY: options.env.publishableKey,
-  });
-
-  if (!checked.ok) {
-    throw new EnvValidationError(checked.issues);
-  }
+  const checked = parsePublicEnv(options.env);
 
   const userStorage = options.auth?.userStorage;
   const auth = userStorage ? { auth: { userStorage } } : {};
 
   if (options.storage === "local") {
     // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
-    return createSupabaseClient(
-      checked.env.url,
-      checked.env.publishableKey,
-      auth,
-    );
+    return createSupabaseClient(checked.url, checked.publishableKey, auth);
   }
 
   const encode = options.cookies?.encode;
 
   // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
-  return createBrowserClient(checked.env.url, checked.env.publishableKey, {
+  return createBrowserClient(checked.url, checked.publishableKey, {
     ...auth,
     ...(encode ? { cookies: { encode } } : {}),
   });

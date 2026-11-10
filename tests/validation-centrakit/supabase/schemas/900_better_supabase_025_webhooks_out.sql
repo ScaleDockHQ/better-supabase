@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:118b9159e04712768e46ecf0a7a4817cd333564b978bae16c32270bad876d9ec
+-- @bsb-hash sha256:621f6ec361ac552b4d70df78d8a92bbb1b1888c8e592a767bc87fe04ca74a4e1
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ create index if not exists webhook_deliveries_due_idx on "centrakit"."webhook_de
 create index if not exists webhook_deliveries_endpoint_idx on "centrakit"."webhook_deliveries" ("destination_id", "created_at" desc);
 create index if not exists webhook_deliveries_open_idx on "centrakit"."webhook_deliveries" ("destination_id") where "status" in ('pending', 'failed');
 create index if not exists webhook_deliveries_finished_idx on "centrakit"."webhook_deliveries" ("created_at") where "status" in ('completed', 'canceled', 'dead_lettered');
-create index if not exists webhook_deliveries_tenant_created_idx on "centrakit"."webhook_deliveries" ("organization_id", "created_at" desc);
+create index if not exists webhook_deliveries_tenant_created_idx on "centrakit"."webhook_deliveries" ("organization_id", "created_at" desc, "id" desc);
 -- centrakit.webhook_deliveries already has a unique key on (destination_id, event_id), so this block adds none.
 alter table "centrakit"."webhook_deliveries" enable row level security;
 grant all on "centrakit"."webhook_deliveries" to service_role;

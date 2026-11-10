@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:951d8253c07158b36cf3a9e2891e03937623e230502a724740f714c7180ec1fc
+-- @bsb-hash sha256:e2f02b42b64bd19e4012f00515207572f7451aaf8c504dc38dbb8ebe5180eb15
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ create table "better_supabase"."commission_plans" (
   constraint bsb_commission_plans_check check (("kind" = 'flat' and "rate_bps" is not null and "tiers" is null)
     or ("kind" = 'tiered' and "rate_bps" is null and "tiers" is not null))
 );
-create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc);
+create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."commission_plans" enable row level security;
 revoke all on "better_supabase"."commission_plans" from public, anon, authenticated;
 grant select on "better_supabase"."commission_plans" to authenticated;
@@ -927,7 +927,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:faf86a56cb42815157d667cbf0b3893214d4815dfc4a7d26ff8d560a35836ca5
+-- @bsb-hash sha256:423133885564872d24200974242fb11d488cbe27440830a8611d7302cbf58047
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -951,7 +951,7 @@ create table "better_supabase"."commission_plans" (
   constraint bsb_commission_plans_check check (("kind" = 'flat' and "rate_bps" is not null and "tiers" is null)
     or ("kind" = 'tiered' and "rate_bps" is null and "tiers" is not null))
 );
-create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc);
+create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."commission_plans" enable row level security;
 revoke all on "better_supabase"."commission_plans" from public, anon, authenticated;
 grant select on "better_supabase"."commission_plans" to authenticated;
@@ -1915,7 +1915,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:dd648b5e1e45ff5b8c6e5f42de0db871da3f7e568b5304ad0f5e7113c9e35191
+-- @bsb-hash sha256:dc45b15250b3a4ebae5caf5ea5b7920be1b8a6fd55f6226949afb3da137b68a1
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1943,7 +1943,7 @@ create table "app_private"."commission_plans" (
   constraint bsb_commission_plans_check check (("kind" = 'flat' and "rate_bps" is not null and "tiers" is null)
     or ("kind" = 'tiered' and "rate_bps" is null and "tiers" is not null))
 );
-create index "commission_plans_tenant_idx" on "app_private"."commission_plans" ("tenant_id", "created_at" desc);
+create index "commission_plans_tenant_idx" on "app_private"."commission_plans" ("tenant_id", "created_at" desc, "id" desc);
 alter table "app_private"."commission_plans" enable row level security;
 revoke all on "app_private"."commission_plans" from public, anon, authenticated;
 grant select on "app_private"."commission_plans" to authenticated;
@@ -2845,7 +2845,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:012107276d7301f8f10934468a1e69799d18ac5d5527f64a5e1afdc7febc1846
+-- @bsb-hash sha256:fb17e15b797057c231872a8d5e551614b86b7fb2af78fe45e98966e12cf49456
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2869,7 +2869,7 @@ create table "better_supabase"."commission_plans" (
   constraint bsb_commission_plans_check check (("kind" = 'flat' and "rate_bps" is not null and "tiers" is null)
     or ("kind" = 'tiered' and "rate_bps" is null and "tiers" is not null))
 );
-create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc);
+create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."commission_plans" enable row level security;
 revoke all on "better_supabase"."commission_plans" from public, anon, authenticated;
 grant select on "better_supabase"."commission_plans" to authenticated;
@@ -3963,7 +3963,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:a1c2317d36a5daf76b5ef80c87ee2a9644b6a3c2ecbf2065a093e6b9c0acf6f7
+-- @bsb-hash sha256:67e326677661197f31b7afa9ca4ce7e52b8ce9d6e96f85e72b63dad5bcafee88
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3981,7 +3981,7 @@ alter table "better_supabase"."commission_plans" add column if not exists "tiers
 alter table "better_supabase"."commission_plans" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."commission_plans" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."commission_plans" add column if not exists "updated_at" timestamptz not null default now();
-create index if not exists "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc);
+create index if not exists "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."commission_plans" enable row level security;
 grant select on "better_supabase"."commission_plans" to authenticated;
 grant all on "better_supabase"."commission_plans" to service_role;
@@ -4863,7 +4863,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:e981bc957730bc7cd6b727863fcf0ab0283402a16e1b99f868481c70d038dfe1
+-- @bsb-hash sha256:9dae830a6cd68b8d604e61189a197030882b6784b7750efdd0fef9b420b97d2a
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4887,7 +4887,7 @@ create table "better_supabase"."commission_plans" (
   constraint bsb_commission_plans_check check (("kind" = 'flat' and "rate_bps" is not null and "tiers" is null)
     or ("kind" = 'tiered' and "rate_bps" is null and "tiers" is not null))
 );
-create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("org_id", "created_at" desc);
+create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("org_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."commission_plans" enable row level security;
 revoke all on "better_supabase"."commission_plans" from public, anon, authenticated;
 grant select on "better_supabase"."commission_plans" to authenticated;

@@ -1,6 +1,8 @@
 import { CloudIcon } from "lucide-react";
+import { NextIntlClientProvider, useMessages } from "next-intl";
 
 import { OfflineBanner } from "@/features/offline/components/offline-banner";
+import { pick } from "@/i18n/namespaces";
 
 /**
  * Synchronous: the brand and the centered column are the static shell. The
@@ -9,16 +11,20 @@ import { OfflineBanner } from "@/features/offline/components/offline-banner";
  * `router.push("/")` would land back here.
  */
 export default function AuthLayout({ children }: LayoutProps<"/[locale]">) {
+  const messages = useMessages();
+
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/40 p-6">
-      <div className="flex items-center gap-2 text-lg font-semibold">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <CloudIcon className="size-4" />
-        </span>
-        Acme Cloud
+    <NextIntlClientProvider messages={pick(messages, ["offline"])}>
+      <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/40 p-6">
+        <div className="flex items-center gap-2 text-lg font-semibold">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <CloudIcon className="size-4" />
+          </span>
+          Acme Cloud
+        </div>
+        <OfflineBanner className="max-w-sm" />
+        <div className="w-full max-w-sm">{children}</div>
       </div>
-      <OfflineBanner className="max-w-sm" />
-      <div className="w-full max-w-sm">{children}</div>
-    </div>
+    </NextIntlClientProvider>
   );
 }

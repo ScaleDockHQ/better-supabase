@@ -1,4 +1,38 @@
-export { bindClient as createNativeClient } from "../bind.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { BetterSupabase } from "../../core/define.ts";
+import type { DbExtraHelpers } from "../../core/repository-types.ts";
+import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
+import type { BetterClient, BindClientOptions } from "../bind.ts";
+
+import { provideConnectionRuntime } from "../../core/define-runtime-full.ts";
+import { bindClient } from "../bind.ts";
+
+provideConnectionRuntime();
+
+/**
+ * Like `createClient`, with the whole `db`: the offline engine batches reads
+ * through `$many`, and apps read `$stats` and `$search` on the device.
+ */
+export function createNativeClient<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C = unknown,
+  P = unknown,
+  B = unknown,
+>(
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
+  supabase: SupabaseClient,
+  options: BindClientOptions = {},
+): BetterClient<M, F, E, C, P, B, DbExtraHelpers<M>> {
+  return bindClient<M, D, F, E, C, P, B, DbExtraHelpers<M>>(
+    betterSupabase,
+    supabase,
+    options,
+  );
+}
 
 export type {
   AuthSnapshot,

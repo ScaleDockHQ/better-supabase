@@ -4,7 +4,7 @@ import {
   assistant,
   assistantContext,
 } from "../../../../../features/assistant/assistant-server";
-import { bsb } from "../../../../../lib/supabase/server";
+import { bsbShell as bsb } from "../../../../../lib/supabase/server-shell";
 
 /** `POST /api/chat/[id]/stop`: ends the running answer; it is stored as stopped. */
 export const POST = bsb.route<{ id: string }, true>(

@@ -4,7 +4,7 @@ import {
   assistant,
   assistantContext,
 } from "../../../../../features/assistant/assistant-server";
-import { bsb } from "../../../../../lib/supabase/server";
+import { bsbShell as bsb } from "../../../../../lib/supabase/server-shell";
 
 /** `GET /api/chat/[id]/stream`: the running answer from the start, or 204. */
 export const GET = bsb.route<{ id: string }, true>(

@@ -5,7 +5,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { optionalPlainDateOf, pageRowsOf } from "../../core/block-helpers.ts";
+import { blockPage, optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
@@ -547,23 +547,7 @@ export function createRfqs(options: RfqsOptions): Rfqs {
         ),
       ),
     rfqPage: (page = {}) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "list_rfqs",
-          {
-            tenant: organizationId,
-            filters: { ...definedOf(page), paged: true },
-          },
-          (value) => {
-            const read = pageRowsOf(value, "list_rfqs");
-
-            return {
-              ...read,
-              items: read.items.map((row) => rfqOf(row, "list_rfqs")),
-            };
-          },
-        ),
-      ),
+      blockPage(call, tenant, "list_rfqs", rfqOf, definedOf(page)),
     inviteSupplier: ({ rfqId, supplier }) =>
       call(
         "invite_rfq_supplier",

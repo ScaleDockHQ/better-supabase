@@ -1,6 +1,6 @@
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
 import { tenantOf } from "better-supabase/next";
-import { DownloadIcon, ScrollTextIcon } from "lucide-react";
+import { ScrollTextIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 import { forbidden } from "next/navigation";
 import { Suspense } from "react";
@@ -32,6 +32,7 @@ import { Link } from "@/i18n/navigation";
 import type { AuditFilters as AuditFilterValues } from "../audit-queries";
 
 import { getAuditFacets } from "../audit-queries";
+import { AuditExportButton } from "./audit-export-button";
 import { AuditFilters } from "./audit-filters";
 import {
   AuditRows,
@@ -44,7 +45,7 @@ import {
  * The export of the rows on screen: the same filters and window, without the
  * page cursor.
  */
-function exportHref(filters: AuditFilterValues): string {
+function exportQuery(filters: AuditFilterValues): string {
   const params = new URLSearchParams();
 
   for (const key of ["actor", "type", "from", "to", "q"] as const) {
@@ -55,9 +56,7 @@ function exportHref(filters: AuditFilterValues): string {
     }
   }
 
-  const query = params.toString();
-
-  return query === "" ? "/api/audit/export" : `/api/audit/export?${query}`;
+  return params.toString();
 }
 
 async function AuditFiltersLoader({
@@ -125,14 +124,7 @@ export async function AuditLog({
         </CardDescription>
         <CardAction>
           <FeatureGate feature="exports">
-            <a
-              href={exportHref(filters)}
-              download
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
-              <DownloadIcon />
-              {t("Export CSV")}
-            </a>
+            <AuditExportButton query={exportQuery(filters)} />
           </FeatureGate>
         </CardAction>
       </CardHeader>

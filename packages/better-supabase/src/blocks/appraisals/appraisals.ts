@@ -1,8 +1,10 @@
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
@@ -192,6 +194,22 @@ export interface AppraisalListOptions {
   readonly offset?: number;
 }
 
+/**
+ * What `appraisalPage` reads: the filters of `listAppraisals`, paged by keyset
+ * (ADR 0642).
+ */
+export interface AppraisalPageOptions extends Omit<
+  AppraisalListOptions,
+  "offset"
+> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
+}
+
 export interface Appraisals {
   /** Creates a draft cycle; needs `appraisals.manage`. */
   createCycle(input: AppraisalCycleInput): AsyncResult<AppraisalCycle>;
@@ -245,6 +263,10 @@ export interface Appraisals {
   listAppraisals(
     options?: AppraisalListOptions,
   ): AsyncResult<readonly Appraisal[]>;
+  /** One keyset page of `listAppraisals`, with `hasMore` and a `nextCursor`. */
+  appraisalPage(
+    options?: AppraisalPageOptions,
+  ): AsyncResult<ListPage<Appraisal>>;
 }
 
 /** Options for {@link createAppraisals}. */
@@ -516,6 +538,8 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
             ),
         ),
       ),
+    appraisalPage: (page = {}) =>
+      blockPage(call, tenant, "list_appraisals", appraisalOf, definedOf(page)),
   };
 
   return withBlockHooks(client, options.hooks, {

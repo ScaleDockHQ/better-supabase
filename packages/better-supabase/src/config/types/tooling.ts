@@ -158,7 +158,16 @@ export interface GenConfig {
    * else is left out, so an app that never reads block-internal tables does not
    * type them.
    */
-  readonly types?: { readonly tables?: { readonly only?: readonly string[] } };
+  readonly types?: {
+    readonly tables?: { readonly only?: readonly string[] };
+    /**
+     * More files that get a copy of `database.types.ts`, relative to the
+     * project root, for apps in a monorepo that read the same types (a web app
+     * and a native app, or a shared package). `gen --check` fails when a copy
+     * is stale. The file is self-contained, so a copy needs nothing beside it.
+     */
+    readonly also?: readonly string[];
+  };
 }
 
 export interface PowerSyncGenConfig {

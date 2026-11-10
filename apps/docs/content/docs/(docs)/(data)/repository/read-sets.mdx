@@ -166,11 +166,11 @@ A read set can also call stable SQL functions, so a page loads a board and
 its counts in one request. `s.$fn.<name>(args)` calls any `stable` or
 `immutable` function the schema metadata lists. Each installed block that
 ships composed reads exposes them as `s.blocks.<instance>.<read>(args)`, from
-the `reads` constant in `blocks.generated.ts`, and `s.record(type, id, {
+the `reads` constant in `blocks.reads.ts`, and `s.record(type, id, {
 sections })` calls `record_summary` for one record:
 
 ```ts title="src/lib/read-sets.ts"
-import { reads } from "./supabase/blocks.generated.ts";
+import { reads } from "./supabase/blocks.reads.ts";
 
 export const pipelineOverview = defineReadSet(
   betterSupabase,
@@ -182,6 +182,11 @@ export const pipelineOverview = defineReadSet(
   }),
 );
 ```
+
+`blocks.reads.ts` imports no block, and `defineReadSet` takes any app, with or
+without blocks. Build the set over the app without blocks (`app`) and the route
+that runs it bundles only the block set of its own server (ADR 0645).
+`blocks.generated.ts` re-exports `reads` and its types for existing imports.
 
 The function runs inside the set's function as the caller, so RLS applies as
 it does for the block's own client. A function can't sit in a nested

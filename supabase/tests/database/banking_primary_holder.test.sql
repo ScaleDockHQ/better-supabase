@@ -1,4 +1,4 @@
--- Bank accounts take a holder and a primary flag (ADR 0663). The Acme owner
+-- Bank accounts take a holder and a primary flag (ADR 0664). The Acme owner
 -- (…a1) makes a second account primary, which clears the first one's flag;
 -- archiving a primary account clears its flag; the member (…a2) can't change
 -- accounts. Run with `supabase test db`.

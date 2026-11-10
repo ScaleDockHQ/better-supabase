@@ -57,7 +57,7 @@ export default function LocaleLayout({ children }: LayoutProps<"/[locale]">) {
     >
       <body className="min-h-svh bg-background font-sans text-foreground antialiased">
         <ThemeProvider storage="cookie" themes={["light", "dark"]}>
-          <NextIntlClientProvider>
+          <NextIntlClientProvider messages={null}>
             <Providers>{children}</Providers>
             <LazyToaster />
             <ServiceWorkerRegistrar />

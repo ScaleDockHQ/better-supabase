@@ -718,17 +718,6 @@ msgctxt "audit.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
-#: src/app/[locale]/(app)/settings/layout.tsx
-#: src/features/settings/components/settings-nav-links.tsx
-msgctxt "settings.D3idYv"
-msgid "Settings"
-msgstr "Instellingen"
-
-#: src/app/[locale]/(app)/settings/layout.tsx
-msgctxt "settings.59uu8y"
-msgid "Your account and your organization."
-msgstr "Je account en je organisatie."
-
 #: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
 msgctxt "members.sKwqTt"
 msgid "All members"
@@ -2184,6 +2173,21 @@ msgctxt "audit.Z1UrbQ"
 msgid "What changed, and who changed it."
 msgstr "Wat er veranderde en wie het veranderde."
 
+#: src/features/audit/components/audit-export-button.tsx
+msgctxt "audit.06TJ-E"
+msgid "The export is running. You get a notification with the download link when it is ready."
+msgstr "De export loopt. Je krijgt een melding met de downloadlink zodra hij klaar is."
+
+#: src/features/audit/components/audit-export-button.tsx
+msgctxt "audit.ZPOVlT"
+msgid "The export could not start. Try again."
+msgstr "De export kon niet starten. Probeer het opnieuw."
+
+#: src/features/audit/components/audit-export-button.tsx
+msgctxt "audit.TE51b7"
+msgid "Export CSV"
+msgstr "CSV exporteren"
+
 #: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
 msgctxt "audit.JJkC4D"
@@ -2272,11 +2276,6 @@ msgstr "Auditlog"
 msgctxt "audit.vXaH2b"
 msgid "Database changes and app events, recorded by the audit module."
 msgstr "Databasewijzigingen en app-gebeurtenissen, vastgelegd door de audit-module."
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.TE51b7"
-msgid "Export CSV"
-msgstr "CSV exporteren"
 
 #: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.ZEwCqR"
@@ -14682,6 +14681,11 @@ msgstr "Auditlog"
 msgctxt "settings._3yfCs"
 msgid "AI providers"
 msgstr "AI-providers"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.D3idYv"
+msgid "Settings"
+msgstr "Instellingen"
 
 #: src/features/shifts/components/roster-board.tsx
 msgctxt "shifts.LHKgIm"

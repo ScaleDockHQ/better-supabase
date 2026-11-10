@@ -11,7 +11,7 @@ import type { DbError } from "../core/errors.ts";
 import type {
   CursorPage,
   CursorPageParams,
-  Db,
+  CoreDb,
   DeleteOptions,
   DeleteExt,
   FindExt,
@@ -545,6 +545,16 @@ function tableQueries(
   };
 }
 
+/** The `db` the query options need: the core a browser client has. */
+type ClientQueryDb<M extends AnyModels, F extends AnyFunctions, E> = CoreDb<
+  M,
+  F,
+  E,
+  unknown,
+  unknown,
+  Record<never, never>
+>;
+
 /**
  * TanStack Query option factories for every table, framework-neutral: pass them
  * to `useQuery` (React), `createQuery` (Svelte, Solid), `useQuery` (Vue) or
@@ -564,7 +574,7 @@ export function createQueries<
   E,
 >(
   betterSupabase: BetterSupabase<M, D, F, E>,
-  db: Db<M, F, E, unknown> | (() => Db<M, F, E, unknown>),
+  db: ClientQueryDb<M, F, E> | (() => ClientQueryDb<M, F, E>),
   options: QueriesOptions = {},
 ): BetterQueries<M, E, F> {
   // SAFETY: the runtime erases schema generics and BetterQueries<M, E, F> restores them.

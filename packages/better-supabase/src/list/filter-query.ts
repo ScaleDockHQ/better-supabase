@@ -394,20 +394,6 @@ export function tableFilterFields(
   return fields;
 }
 
-/**
- * A filter tree, as a `where` may be: a root group with a combinator and its
- * rules.
- */
-export function isFilterQuery(value: unknown): value is FilterQuery {
-  return (
-    isRecord(value) &&
-    value["type"] === "group" &&
-    (value["combinator"] === "and" || value["combinator"] === "or") &&
-    typeof value["id"] === "string" &&
-    Array.isArray(value["rules"])
-  );
-}
-
 export interface FilterLimits {
   readonly maxDepth: number;
   readonly maxRules: number;
