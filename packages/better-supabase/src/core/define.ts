@@ -26,6 +26,7 @@ import type { Db } from "./repository-types.ts";
 import type { QuerySpec, Specs } from "./spec.ts";
 import type { StandardSchemaV1 } from "./standard.ts";
 
+import { addLazyTable } from "../schema/define.ts";
 import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { definitionEvents } from "./diagnostics.ts";
 import { orderPlugins } from "./plugin.ts";
@@ -426,7 +427,18 @@ export class BetterSupabase<
    * `client.table(customers)`; everything else lists its tables.
    */
   registerTable(table: SchemaMeta["tables"][string]): void {
-    connectionRuntime().registerTable(this, table);
+    const runtime = installedRuntime();
+
+    // No db has been connected yet, so only the schema needs the table; a
+    // route that registers tables before it connects (the OpenAPI document)
+    // must not need the connection runtime.
+    if (runtime === undefined) {
+      addLazyTable(this.meta, table);
+
+      return;
+    }
+
+    runtime.registerTable(this, table);
   }
 }
 
@@ -462,9 +474,13 @@ export function installConnectionRuntime(runtime: ConnectionRuntime): void {
   (globalThis as RuntimeHost)[RUNTIME_SLOT] = runtime;
 }
 
-function connectionRuntime(): ConnectionRuntime {
+function installedRuntime(): ConnectionRuntime | undefined {
   // SAFETY: the slot only ever holds a ConnectionRuntime.
-  const installed = (globalThis as RuntimeHost)[RUNTIME_SLOT];
+  return (globalThis as RuntimeHost)[RUNTIME_SLOT];
+}
+
+function connectionRuntime(): ConnectionRuntime {
+  const installed = installedRuntime();
 
   if (!installed) {
     throw new TypeError(

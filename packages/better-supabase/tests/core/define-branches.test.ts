@@ -339,6 +339,31 @@ describe("connection runtime slot", () => {
       host[slot] = installed;
     }
   });
+
+  it("registers a lazy table before any db is connected", () => {
+    const slot = Symbol.for("better-supabase.connection-runtime");
+    const host = globalThis as Record<symbol, unknown>;
+    const installed = host[slot];
+    const { tags, ...rest } = schema.meta.tables;
+
+    if (!tags) {
+      throw new Error("the fixture has no tags table");
+    }
+
+    const lazy = createSupabase(
+      defineSchema({ ...schema.meta, tables: rest, lazyTables: true }),
+    );
+
+    host[slot] = undefined;
+
+    try {
+      lazy.registerTable({ ...tags, key: "lazyTags" });
+    } finally {
+      host[slot] = installed;
+    }
+
+    expect(Object.keys(lazy.meta.tables)).toContain("lazyTags");
+  });
 });
 
 describe("tables the server loads on first use", () => {
