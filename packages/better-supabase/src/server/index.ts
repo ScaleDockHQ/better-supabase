@@ -318,6 +318,10 @@ export {
   subscribeAuthzVersions,
 } from "./authz-versions.ts";
 
+export { CRON_KEY_NAME, cronHandler, entryContext } from "./entry-context.ts";
+
+export type { ContextEntry, CronHandlerOptions } from "./entry-context.ts";
+
 export { observedFetch } from "./observed-fetch.ts";
 
 export type {
