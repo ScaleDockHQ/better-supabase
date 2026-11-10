@@ -224,6 +224,10 @@ export async function AuditTotal({
   );
 }
 
+export function AuditTotalSkeleton() {
+  return <Skeleton className="h-4 w-28" aria-busy="true" />;
+}
+
 export function AuditRowsSkeleton() {
   return <Skeleton className="h-64" aria-busy="true" />;
 }

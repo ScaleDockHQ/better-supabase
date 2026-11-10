@@ -1,4 +1,3 @@
-import { tenantOf } from "better-supabase/next";
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
@@ -10,21 +9,6 @@ import {
 } from "@/features/notifications/components/notification-history";
 import { UnreadSummary } from "@/features/notifications/components/unread-badge";
 import { loadNotificationFilters } from "@/features/notifications/notifications-search-params";
-import { getSession } from "@/features/user/user-queries";
-
-async function History({
-  filters,
-}: {
-  filters: ReturnType<typeof loadNotificationFilters>;
-}) {
-  const tenant = tenantOf(await getSession());
-
-  if (!tenant) {
-    return null;
-  }
-
-  return <NotificationHistory tenant={tenant} filters={await filters} />;
-}
 
 export default function NotificationsPage({
   searchParams,
@@ -43,7 +27,9 @@ export default function NotificationsPage({
       <UnreadSummary />
       <div data-recipe="notification-list">
         <Suspense fallback={<NotificationHistorySkeleton />}>
-          <History filters={loadNotificationFilters(searchParams)} />
+          <NotificationHistory
+            filters={searchParams.then(loadNotificationFilters)}
+          />
         </Suspense>
       </div>
     </>

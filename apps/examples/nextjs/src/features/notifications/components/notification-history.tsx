@@ -1,3 +1,4 @@
+import { tenantOf } from "better-supabase/next";
 import { BellIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
@@ -10,6 +11,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
 import type { NotificationFilters } from "../notifications-queries";
@@ -41,12 +43,17 @@ function hrefOf(filters: NotificationFilters, before: string | null) {
  * the status and type filters in the URL and Older as a link.
  */
 export async function NotificationHistory({
-  tenant,
-  filters,
+  filters: pending,
 }: {
-  tenant: string;
-  filters: NotificationFilters;
+  filters: Promise<NotificationFilters>;
 }) {
+  const [session, filters] = await Promise.all([getSession(), pending]);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
   const [t, page] = await Promise.all([
     getExtracted("notifications"),
     getNotificationPage(tenant, filters),
