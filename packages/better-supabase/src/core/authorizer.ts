@@ -341,19 +341,13 @@ function claimsProperty(claims: unknown): { readonly claims?: JsonObject } {
   return { claims: deepFreeze(cloneValue(claims) as JsonObject) };
 }
 
-/** The subject and context of a request, from the verified context only. */
-export function requestOf(
-  context: RequestContext | undefined,
-  purpose: AuthorizationPurpose = {},
-): {
-  readonly subject: AuthorizationSubject;
-  readonly context: AuthorizationContext & JsonObject;
-} {
+/** The subject of a request, from the verified context only. */
+function subjectOf(context: RequestContext | undefined): AuthorizationSubject {
   const actor = context?.actor;
   const claims = context?.claims;
   const act = claims?.["act"];
 
-  const subject: AuthorizationSubject = actor
+  return actor
     ? {
         type:
           typeof act === "object" && act !== null && actor.kind === "user"
@@ -370,27 +364,42 @@ export function requestOf(
         },
       }
     : ANONYMOUS;
+}
 
+/** The context of a request for one purpose, from the verified context only. */
+function contextOf(
+  context: RequestContext | undefined,
+  purpose: AuthorizationPurpose,
+): AuthorizationContext & JsonObject {
+  const claims = context?.claims;
   const aal = claims?.["aal"];
 
   return {
-    subject,
-    context: {
-      ...(context?.tenant === undefined ? {} : { tenant: context.tenant }),
-      ...(typeof aal === "string" ? { aal } : {}),
-      scopes: scopesOf(claims),
-      ...(purpose.intent === undefined ? {} : { intent: purpose.intent }),
-      ...(purpose.operation === undefined
-        ? {}
-        : { operation: purpose.operation }),
-      ...(typeof context?.requestId === "string"
-        ? { requestId: context.requestId }
-        : {}),
-      ...(typeof context?.approval === "string"
-        ? { approval: context.approval }
-        : {}),
-    },
+    ...(context?.tenant === undefined ? {} : { tenant: context.tenant }),
+    ...(typeof aal === "string" ? { aal } : {}),
+    scopes: scopesOf(claims),
+    ...(purpose.intent === undefined ? {} : { intent: purpose.intent }),
+    ...(purpose.operation === undefined
+      ? {}
+      : { operation: purpose.operation }),
+    ...(typeof context?.requestId === "string"
+      ? { requestId: context.requestId }
+      : {}),
+    ...(typeof context?.approval === "string"
+      ? { approval: context.approval }
+      : {}),
   };
+}
+
+/** The subject and context of a request, from the verified context only. */
+export function requestOf(
+  context: RequestContext | undefined,
+  purpose: AuthorizationPurpose = {},
+): {
+  readonly subject: AuthorizationSubject;
+  readonly context: AuthorizationContext & JsonObject;
+} {
+  return { subject: subjectOf(context), context: contextOf(context, purpose) };
 }
 
 function isOutcome(value: unknown): value is AuthorizationOutcome {
@@ -565,14 +574,16 @@ export async function outcomesOfMany<Ref>(
     return checks.map(() => undefined);
   }
 
-  const requests = checks.map(({ permission, resource, purpose }) => {
-    const { subject, context: requestContext } = requestOf(
-      context,
-      purposeOf(purpose ?? {}),
-    );
+  // The claims are cloned and frozen once for the whole batch: the subject
+  // doesn't depend on a check's purpose.
+  const subject = subjectOf(context);
 
-    return { subject, action: permission, resource, context: requestContext };
-  });
+  const requests = checks.map(({ permission, resource, purpose }) => ({
+    subject,
+    action: permission,
+    resource,
+    context: contextOf(context, purposeOf(purpose ?? {})),
+  }));
 
   try {
     const outcomes = authorizer.evaluations
