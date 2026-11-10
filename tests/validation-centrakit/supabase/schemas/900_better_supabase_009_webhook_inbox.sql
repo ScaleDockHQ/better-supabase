@@ -1,6 +1,6 @@
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:2f83c1069a796401306b2537d09c8a13727f91c86fde88086bc4512d01fe0f7d
+-- @bsb-hash sha256:6fc88144a184635f0ffa30dca2e621a8b15183052d420e0a5b848f85cf0fab3e
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -216,11 +216,11 @@ begin
     where "id" in (
       select w."id" from "centrakit"."inbound_webhook_events" w
       where ((w."status" = 'processed' and (w."processed_at" < now() - least(older_than, "better_supabase"."retention_floor"('webhooks'))
-      and w."processed_at" < now() - coalesce("better_supabase"."retention_for"('webhooks', (w."organization_id")::text), older_than)
-      and not "better_supabase"."is_held"('webhooks', (w."organization_id")::text)))
+      and w."processed_at" < now() - coalesce("better_supabase"."retention_for_memo"('webhooks', (w."organization_id")::text), older_than)
+      and not "better_supabase"."is_held_memo"('webhooks', (w."organization_id")::text)))
         or (include_dead and w."status" = 'dead' and (w."received_at" < now() - least(older_than, "better_supabase"."retention_floor"('webhooks'))
-      and w."received_at" < now() - coalesce("better_supabase"."retention_for"('webhooks', (w."organization_id")::text), older_than)
-      and not "better_supabase"."is_held"('webhooks', (w."organization_id")::text))))
+      and w."received_at" < now() - coalesce("better_supabase"."retention_for_memo"('webhooks', (w."organization_id")::text), older_than)
+      and not "better_supabase"."is_held_memo"('webhooks', (w."organization_id")::text))))
         and (for_tenant is null or w."organization_id"::text = for_tenant)
       order by w."id"
       limit batch
