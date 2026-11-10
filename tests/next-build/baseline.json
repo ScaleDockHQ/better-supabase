@@ -547,7 +547,7 @@
   "/[locale]/(app)/workflows/builder/[definition]/page": {
     "raw": 1640954,
     "gzip": 522071,
-    "brotli": 454563
+    "brotli": 455751
   },
   "/[locale]/(app)/workflows/builder/page": {
     "raw": 1302450,

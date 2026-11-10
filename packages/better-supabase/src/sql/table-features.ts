@@ -32,6 +32,9 @@ export const TABLE_FEATURES = [
   "access",
   "list",
   "idempotency",
+  "rpc",
+  "rollup",
+  "copy",
 ] as const;
 
 export type TableFeature = (typeof TABLE_FEATURES)[number];

@@ -717,17 +717,17 @@
   "/api/chat/[id]/participants/route": {
     "raw": 2857949,
     "gzip": 845650,
-    "brotli": 706869
+    "brotli": 708644
   },
   "/api/chat/[id]/stop/route": {
     "raw": 2857427,
     "gzip": 845498,
-    "brotli": 706731
+    "brotli": 708508
   },
   "/api/chat/[id]/stream/route": {
     "raw": 2857450,
     "gzip": 845505,
-    "brotli": 706741
+    "brotli": 708518
   },
   "/api/chat/durable/[id]/stop/route": {
     "raw": 4461214,
@@ -747,7 +747,7 @@
   "/api/chat/route": {
     "raw": 2857375,
     "gzip": 845482,
-    "brotli": 706707
+    "brotli": 708483
   },
   "/api/customers/[id]/fhir/route": {
     "raw": 2329155,
@@ -792,12 +792,12 @@
   "/api/invoices/[id]/send/route": {
     "raw": 2329763,
     "gzip": 703904,
-    "brotli": 587742
+    "brotli": 589222
   },
   "/api/invoices/[id]/ubl/route": {
     "raw": 2329840,
     "gzip": 703958,
-    "brotli": 587762
+    "brotli": 589244
   },
   "/api/mail/sync/route": {
     "raw": 2329944,

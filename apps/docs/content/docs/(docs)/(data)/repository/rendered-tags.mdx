@@ -1,9 +1,9 @@
 ---
 title: Tags that render SQL
-description: Turn on row access policies, a keyset list function and an idempotency index for your own tables with the access, list and idempotency tags.
+description: Turn on row access policies, a keyset list function, an idempotency index, an id lookup function, a stored rollup and a row copy function for your own tables with tags.
 ---
 
-Three `@bsb` tags in a table comment write SQL for you. `better-supabase table <name> enable <tag>`
+Six `@bsb` tags in a table comment write SQL for you. `better-supabase table <name> enable <tag>`
 reads the tag's arguments from the comment and writes the statements into the table's own file, between
 `-- @bsb-tag <name> begin` and `-- @bsb-tag <name> end`. Running it again replaces the block, and
 `disable` removes it. Run `db diff` afterwards to write the migration.
@@ -90,3 +90,67 @@ The built-in `risks` block takes the same options through `risks.page({ after, l
 `idempotency` writes a unique index on the tenant column and the `idempotency_key` column
 (`column=` names another), only for rows that have a key. A retried insert with the same key
 then fails with a unique violation instead of writing twice. The table declares the column.
+
+## rpc
+
+`rpc` renders `get_<table>_by_ids(ids)`, a `security invoker` function that returns the rows for a list
+of ids as a jsonb array, in the order of the ids. Ids that match no row, or that row security hides,
+are left out. It is the source a list that loads its rows by id reads from.
+
+| Argument  | Meaning                                                                    |
+| --------- | -------------------------------------------------------------------------- |
+| `name`    | The function name. Default `get_<table>_by_ids`.                           |
+| `columns` | Comma list of columns to return. Default every column.                     |
+| `id`      | The id column. Default `id`; `id-type` sets its type (default `uuid`).     |
+| `max`     | The most ids one call reads, 1 to 5000. Default 500; the rest are dropped. |
+
+```ts
+const rows = await db
+  .$rpc("get_projects_by_ids", { ids: [idB, idA] })
+  .orThrow();
+```
+
+## rollup
+
+`rollup stored` keeps a number on a parent row equal to what the child table holds. The trigger
+`bsb_rollup_<table>_<column>` runs after insert, update and delete on the child, and a `security
+definer` function writes the parent so a member who may only write children still keeps the total
+right. One rollup per child table; the tag is always written `rollup stored`.
+
+| Argument     | Meaning                                                                            |
+| ------------ | ---------------------------------------------------------------------------------- |
+| `to`         | The parent table, as `schema.table`.                                               |
+| `key`        | The child column that references the parent.                                       |
+| `column`     | The parent column that stores the value. It must be a number, not null, default 0. |
+| `sum`        | A child column to add up. Without it the rollup counts rows.                       |
+| `parent-key` | The parent's key column. Default `id`.                                             |
+
+```sql
+comment on table public.tasks is
+  'Tasks. @bsb rollup stored to=public.projects key=project_id column=task_count';
+```
+
+The trigger keeps the column right from the moment it exists. Backfill the column once when you turn
+the tag on, for example with `better-supabase db backfill`. A row that moves to another parent leaves
+the old total and joins the new one.
+
+## copy
+
+`copy` renders `copy_<table>(source)`, a `security invoker` function that inserts a copy of one row and
+returns it. Row security decides what the caller may read and insert.
+
+| Argument  | Meaning                                                                |
+| --------- | ---------------------------------------------------------------------- |
+| `columns` | Required. The columns to copy. Leave out the id and generated columns. |
+| `suffix`  | Comma list of `column:text` pairs that append text to a copied column. |
+| `name`    | The function name. Default `copy_<table>`.                             |
+| `id`      | The id column. Default `id`; `id-type` sets its type.                  |
+
+```sql
+comment on table public.tasks is
+  'Tasks. @bsb copy columns=tenant_id,project_id,title,hours suffix="title: (copy)"';
+```
+
+```ts
+const copy = await db.$rpc("copy_tasks", { source: taskId }).orThrow();
+```
