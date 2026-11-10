@@ -1381,7 +1381,6 @@ describe("app tables without a mapped column (BS330)", () => {
 
     expect(findings.map((finding) => finding.target)).toEqual([
       "public.integration_secrets.key",
-      "public.integration_secrets.updated_at",
     ]);
     expect(findings[0]).toEqual(
       expect.objectContaining({
@@ -1391,6 +1390,38 @@ describe("app tables without a mapped column (BS330)", () => {
         ),
       }),
     );
+    expect(findings[0]?.message).toContain("codemod owned-columns");
+  });
+
+  it("skips an optional column the table lacks unless the config names it", async () => {
+    const named = await run(
+      "BS330",
+      context(
+        secrets,
+        {
+          database: live(
+            columns("provider", "key", "organization_id", "vault_id"),
+          ),
+        },
+        {
+          blocks: {
+            credentials: {
+              ...credentials.blocks.credentials,
+              columns: {
+                secrets: {
+                  ...credentials.blocks.credentials.columns.secrets,
+                  updatedAt: "changed_at",
+                },
+              },
+            },
+          },
+        },
+      ),
+    );
+
+    expect(named.map((finding) => finding.target)).toEqual([
+      "public.integration_secrets.changed_at",
+    ]);
   });
 
   it("reports a missing table, and passes a complete one, the block's own tables and no database", async () => {

@@ -1248,7 +1248,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(check.output).toContain("-- edited");
   });
 
-  it("fails upgrade --check when a module file still pastes a prelude function", async () => {
+  it("fails upgrade --check when a module file still pastes a prelude function, and drops it once upgrade rewrites the file", async () => {
     const config: ResolveInput = { blocks: ["mfa"] };
     await sql(["sync"], config);
 
@@ -1267,6 +1267,17 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(check.error).toContain(
       "better_supabase.actor_may_write, which the prelude defines",
     );
+
+    const dry = await sql(["upgrade", "--dry-run", "--force"], config);
+    expect(dry.data).toHaveProperty("problems");
+
+    const kept = await sql(["upgrade"], config);
+    expect(kept.code).toBe(1);
+    expect(kept.data).toHaveProperty("problems");
+
+    const written = await sql(["upgrade", "--force"], config);
+    expect(written.code).toBe(0);
+    expect(written.data).not.toHaveProperty("problems");
   });
 
   it("fails upgrade --check on a hand edit a schema diff would trip over", async () => {

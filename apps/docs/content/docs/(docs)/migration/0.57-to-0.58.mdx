@@ -10,8 +10,8 @@ name fails with a message that names the new one. Most changes have a codemod;
 three need you: the `organization` config key, scripts that pass renamed CLI
 flags, and a cloud design URL that you saved before this release.
 
-An app on an older version than 0.57 upgrades to 0.57 first, then follows this
-guide. Each change is also in the
+An app on 0.54 to 0.57 follows this guide directly. An app older than 0.54
+follows the [0.53 to 0.54 guide](/docs/migration/0.53-to-0.54) first. Each change is also in the
 [changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
 
 | Section                                                     | Needs code                                                    |
@@ -21,11 +21,13 @@ guide. Each change is also in the
 | [Exports and types](#exports-and-types)                     | Run `codemod naming` and `codemod generators`                 |
 | [Blocks](#blocks)                                           | Run `codemod naming`, then `upgrade`                          |
 | [Invoice numbers](#invoice-numbers)                         | Remove `options.uniqueNumber` before `codemod naming`         |
+| [Import targets](#import-targets)                           | Set `replaces: true` on a target a block now imports          |
+| [Employees on teams](#employees-on-teams)                   | Keep your `team_members` user-only, or give it its own key    |
 | [Counts](#counts)                                           | Pass `count({ mode: "exact" })` where the total must be exact |
 | [RPC JSON keys](#rpc-json-keys)                             | Read the renamed keys, such as `purge_at`                     |
 | [Database names](#database-names)                           | Run `codemod naming`, `upgrade`, then apply the migration     |
 | [Declarative module files](#declarative-module-files)       | Run `upgrade` and commit the result                           |
-| [Your own columns and tables](#your-own-columns-and-tables) | Run `codemod extra-columns`, `owned-columns` and `config`     |
+| [Your own columns and tables](#your-own-columns-and-tables) | Run `codemod extra-columns`, `config` and `owned-columns`     |
 | [Generated client code](#generated-client-code)             | Run `gen`, then `codemod table-modules`                       |
 | [CLI](#cli)                                                 | Change scripts, CI and cron entries                           |
 | [Removed](#removed)                                         | Check that nothing depends on a shim                          |
@@ -33,44 +35,57 @@ guide. Each change is also in the
 
 ## Order of work
 
-1. Move to 0.57, run `better-supabase doctor`, and commit a clean tree.
+1. Run `better-supabase doctor` on your current version, and commit a clean tree.
 2. Bump `better-supabase` to 0.58 and the peers it lists.
 3. Edit the config by hand so it loads, then commit:
    - Move `organization` to `auth.tenant` ([Config keys](#config-keys)).
    - Delete `blocks.invoices.options.uniqueNumber` ([Invoice numbers](#invoice-numbers)).
    - Point generator imports in the config file at `better-supabase/generators/<name>` ([Exports and types](#exports-and-types)).
+   - Set `replaces: true` on each `blocks.imports.options.targets` entry that a
+     block now imports ([Import targets](#import-targets)).
 4. Run the codemods, in this order, and commit after each one:
 
    ```bash
    better-supabase codemod naming
-   better-supabase codemod owned-columns
    better-supabase codemod extra-columns
    better-supabase codemod config
+   better-supabase codemod owned-columns
    better-supabase codemod generators
    better-supabase codemod server-imports
    better-supabase codemod table-modules
    ```
 
-   `codemod naming` exits with `config_invalid` when the config does not load
-   or a block context refuses it. It still rewrites the source it can, and it
-   leaves the column renames out until the config loads. `owned-columns`,
-   `extra-columns` and `config` stop with `config_invalid` in that case too.
-   They come before `generators` because they read options and columns that
-   this release stops accepting.
+   `codemod naming` loads the config as it rewrites it, so the renamed keys
+   (`subjects`, `gen.output` and the others in [Config keys](#config-keys)) and
+   the `extraColumns` options that `extra-columns` moves later don't stop the
+   column renames. It exits with `config_invalid` when the config still does
+   not load after its own key renames, or a block context refuses it. It then
+   leaves the column renames out: fix what it names and run it again before
+   you go on. `extra-columns`, `config` and `owned-columns` stop with
+   `config_invalid` in that case too. `owned-columns` renders the blocks, so it
+   runs after `extra-columns` and `config` have moved the options this release
+   refuses. All of them come before `generators` because they read options and
+   columns that this release stops accepting.
 
-5. Run `better-supabase gen` to rewrite the generated files, then
+5. Check `team_members` if you install `employees` next to `teams` over your
+   own table ([Employees on teams](#employees-on-teams)). Doctor BS631 reports
+   a table that keeps employees while its user column is required.
+
+6. Run `better-supabase gen` to rewrite the generated files, then
    `better-supabase upgrade` to rewrite the module files.
-6. Write the migration with your SQL workflow (`supabase db schema declarative
+7. Write the migration with your SQL workflow (`supabase db schema declarative
 sync` for pg-delta, or `better-supabase db diff`) and read it before you
    apply it. This step holds only when `codemod naming` ran with a loaded
    config: it has then written the rename migrations for columns, tables,
    constraints, policies and permission keys, so the diff holds only what is
    left. If naming exited `config_invalid`, fix the config and run it again
    before you diff.
-7. Run `better-supabase doctor` and clear what it reports. BS260 lists a source
+8. Run `better-supabase doctor` and clear what it reports. BS260 lists a source
    file that still compares against an old hint code. BS625 lists a
    `block-columns.sql` line that adds a column you pinned to an old name.
-   BS626 lists an old column name in an `audit` list or a `->>` key.
+   BS626 lists an old column name in an `audit` list, an `audit_row_change`
+   trigger argument or a `->>` key. BS631 lists a `team_members` table that
+   keeps employees but requires a user.
 
 ## Config keys
 
@@ -210,14 +225,30 @@ Use your own table and column names if you map the block to your table.
 Give each row a distinct `identifier`, or renumber the duplicates, before you
 apply the migration.
 
+## Import targets
+
+Blocks now contribute import targets for their own records: contacts imports
+`party`, `party_contact`, `contact_method`, `party_location` and
+`party_bank_account`, and catalog, assets and other blocks add theirs. An
+entry in `blocks.imports.options.targets` with the same entity name stops the
+render with a message that lists each one. Set `replaces: true` on the entry
+to keep your own write function, or delete the entry to use the block's.
+
 ## Employees on teams
 
 An app that installs `employees` next to `teams` gets employees as team members.
 `team_members` gains `employee_id`, `user_id` becomes nullable, and the primary
 key `(team_id, user_id)` gives way to two partial unique indexes. The schema diff
 writes that change for the block's own table. When `team_members` is your own
-table, drop its primary key and the `not null` on its user column yourself, or
-map `blocks.teams.columns.members.employee` to `null` to keep user-only members.
+table, it stays user-only until your schema declares `employee_id`:
+`codemod owned-columns` does not add the column, and the block renders no
+employee functions or triggers for a table without it. To keep employees on
+your table, give it its own primary key, drop the `not null` on its user
+column, add `employee_id uuid`, and replace the primary key on
+`(team_id, user_id)` with unique indexes on `(team_id, user_id)` and
+`(team_id, employee_id)`. Doctor BS631 reports a table that has `employee_id`
+while its user column is still `not null`: removing a member or a user who has
+an employee record, and adding an employee without an account, fail there.
 `add --adopt` then turns the teams data file into a migration that fills
 `employee_id` for members with an employee record and adds each employee to the
 team in `employees.team_id`. Apps without `employees` see no change. See
@@ -235,7 +266,10 @@ JSON keys that a block function returns follow the column renames in
 [Database names](#database-names). `purge_after` is `purge_at`. The same list
 covers `scheduled_for`, `not_before`, `effective_from` and the `*_user_id`
 columns. `codemod naming` rewrites `'{...}'` arguments of
-`better_supabase.audit`. Doctor BS626 reports a key that is still the old name.
+`better_supabase.audit`, but not string literals elsewhere: the JSON argument
+of an `audit_row_change()` trigger (`"ignore": ["window_start"]`) and a
+`->> 'purge_after'` read keep the old name until you change them. Doctor BS626
+reports both.
 
 ## Database names
 
@@ -326,6 +360,9 @@ The server's schema is `generated-schema.ts`, and `generated.ts` exports
 3. To keep the single module, set `gen.tableModules: false` and
    `gen.blockModules: false`.
 
+`blocks.config.ts` re-exports `permissions` and `PermissionKey` with a
+`@public` tag, so Knip does not report them when no file imports them.
+
 The `Vue`, `Solid` and `Svelte` hooks read through the table module like the
 React hooks do, and doctor BS621 warns when a `"use client"` file imports
 `generated-schema`, `blocks.generated` or `blocks.config`. Frameworks are
@@ -368,10 +405,10 @@ forms. `better-supabase cache purge [--dry-run]` deletes the CLI cache.
 
 - Rows keep the configured casing, and `$client` and `queryRaw` use database
   names.
-- The generated file layout (`schema.ts`, `tables/`, `blocks/<instance>.ts`)
-  does not change in 0.58. ADR 0393 lists what is deferred: reads through a view
-  named after a block instance, child PowerSync streams, the owned-column default flip and the drive `grants`
-  mode.
+- ADR 0393 lists what is deferred: reads through a view named after a block
+  instance, child PowerSync streams and the drive `grants` mode. The generated
+  file layout changes as [Generated client code](#generated-client-code)
+  describes.
 - Cloud design URLs that you saved before this release carry the old
   `integrations` field. Ask the cloud app to open and save the design again, or
   rename the field to `adapters` in the design file.

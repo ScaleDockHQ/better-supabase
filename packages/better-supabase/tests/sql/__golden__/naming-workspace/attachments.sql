@@ -1093,7 +1093,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
 -- ==== data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:d479ca3c49bb53afc1d0fde215b4b72a12ce07df42bb1814331d8e8e56f82c27
+-- @bsb-hash sha256:b070f56f5c58ec8adc66538ad4afebb82803f638ed5d7c964a7aaa919c33fb8d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1102,9 +1102,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do update set public = excluded.public;
--- options.path: a row whose path no longer matches the template gets a new one.
+-- options.path: a row whose path no longer matches the template, and that has no stored object, gets a new one.
 update "better_supabase"."attachments" as x set "object_path" = null
-where x."object_path" is distinct from (select "tenant_id"::text || '/attachments/' || "id"::text from (select x.*) as r);
+where x."object_path" is distinct from (select "tenant_id"::text || '/attachments/' || "id"::text from (select x.*) as r)
+  and not exists (select 1 from storage.objects o where o.bucket_id = x."bucket" and o.name = x."object_path");
 -- A record uploaded before the storage status existed is stored.
 update "better_supabase"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
 

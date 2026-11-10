@@ -132,6 +132,36 @@ const AUDIT_CALL = /better_supabase\.audit\s*\(\s*'([^']*)'([\s\S]*?)\)\s*;/gi;
 
 const ARRAY_ARG = /(ignore|redact)\s*=>\s*'\{([^}]*)\}'/gi;
 
+const AUDIT_TRIGGER =
+  /\btrigger\s[^;]*?\bon\s+((?:"?[\w$]+"?\s*\.\s*)?"?[\w$]+"?)[^;]*?\baudit_row_change\s*\(\s*'([^']*)'/gi;
+
+/** The `ignore` and `redact` lists of an `audit_row_change` trigger argument. */
+function triggerLists(json: string): [kind: string, names: string[]][] {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    return [];
+  }
+
+  return (["ignore", "redact"] as const).map((kind) => {
+    // SAFETY: `parsed` is a non-null object, checked above.
+    const list: unknown = (parsed as Record<string, unknown>)[kind];
+
+    return [
+      kind,
+      Array.isArray(list)
+        ? list.filter((name): name is string => typeof name === "string")
+        : [],
+    ];
+  });
+}
+
 /**
  * Old column names still passed to `audit` `ignore` or `redact`, and old `->>
  * '...'` keys in the app's own SQL (BS626). Block files are skipped: `upgrade`
@@ -152,29 +182,43 @@ export function staleRenameKeys(
       continue;
     }
 
+    const lists: [table: string, kind: string, names: string[]][] = [];
+
     for (const match of file.text.matchAll(AUDIT_CALL)) {
       const table = (match[1] ?? "").replaceAll('"', "");
-      const args = match[2] ?? "";
 
-      for (const arg of args.matchAll(ARRAY_ARG)) {
-        const kind = arg[1] ?? "ignore";
-        const names = (arg[2] ?? "").split(",").map((part) => part.trim());
+      for (const arg of (match[2] ?? "").matchAll(ARRAY_ARG)) {
+        lists.push([
+          table,
+          arg[1] ?? "ignore",
+          (arg[2] ?? "").split(",").map((part) => part.trim()),
+        ]);
+      }
+    }
 
-        for (const name of names) {
-          const rename = columns.find(
-            (candidate) =>
-              candidate.from === name &&
-              (candidate.table === table ||
-                candidate.table?.endsWith(`.${table}`) === true ||
-                table.endsWith(`.${candidate.table?.split(".").at(-1)}`)),
-          );
+    for (const match of file.text.matchAll(AUDIT_TRIGGER)) {
+      const table = (match[1] ?? "").replaceAll(/["\s]/g, "");
 
-          if (rename !== undefined) {
-            findings.push({
-              message: `${file.path} passes "${name}" to audit ${kind} for ${table}. 0.58 names that column "${rename.to}".`,
-              target: `${file.path}:${name}`,
-            });
-          }
+      for (const [kind, names] of triggerLists(match[2] ?? "")) {
+        lists.push([table, kind, names]);
+      }
+    }
+
+    for (const [table, kind, names] of lists) {
+      for (const name of names) {
+        const rename = columns.find(
+          (candidate) =>
+            candidate.from === name &&
+            (candidate.table === table ||
+              candidate.table?.endsWith(`.${table}`) === true ||
+              table.endsWith(`.${candidate.table?.split(".").at(-1)}`)),
+        );
+
+        if (rename !== undefined) {
+          findings.push({
+            message: `${file.path} passes "${name}" to audit ${kind} for ${table}. 0.58 names that column "${rename.to}".`,
+            target: `${file.path}:${name}`,
+          });
         }
       }
     }

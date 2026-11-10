@@ -156,8 +156,6 @@ const config: KnipConfig = {
         ...exampleIgnore,
         "src/hooks/use-*.ts",
         "src/lib/supabase/records/**",
-        // Generated; it re-exports `permissions`, which the records import from `blocks/`.
-        "src/lib/supabase/blocks.config.ts",
         // `better-supabase gen` writes the PowerSync schema with one export per table.
         "powersync/schema.ts",
       ],

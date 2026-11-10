@@ -166,6 +166,20 @@ export function targetsOf(
   const added = own.filter((target) => target.replaces !== true);
   const replaced = new Set(replacing.map((target) => target.entity));
 
+  const contributed = new Set(
+    ctx.contributions("imports").map((target) => target.entity),
+  );
+
+  const clashes = added
+    .filter((target) => contributed.has(target.entity))
+    .map((target) => target.entity);
+
+  if (clashes.length > 0) {
+    throw new TypeError(
+      `${where}: an installed block already imports ${clashes.map((entity) => `"${entity}"`).join(", ")}. Set \`replaces: true\` on each entry to keep your target, or remove it to use the block's.`,
+    );
+  }
+
   return uniqueContributions(
     "imports",
     [

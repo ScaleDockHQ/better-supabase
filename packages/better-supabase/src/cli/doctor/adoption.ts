@@ -42,6 +42,7 @@ import {
   duplicatedBlockObjects,
 } from "./owned-columns.ts";
 import { catalogOf, qualified } from "./shared.ts";
+import { requiredTeamMemberUser } from "./team-members.ts";
 import { appTriggerGuards } from "./tenant-triggers.ts";
 
 const tagText = (notNull: true | readonly string[]): string =>
@@ -425,8 +426,16 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "SQL still names a column 0.58 renamed",
     description:
-      "An `audit` `ignore` or `redact` list, or a `->> '...'` key in your own SQL, still uses a column name this release renamed. `codemod naming` rewrites the audit lists. Update a JSON key that a block function used to return, such as `purge_after`, to the name in the 0.58 guide. `organization_id` in your own JSON is left alone.",
+      "An `audit` `ignore` or `redact` list (a `better_supabase.audit()` call or the JSON argument of an `audit_row_change()` trigger), or a `->> '...'` key in your own SQL, still uses a column name this release renamed. `codemod naming` rewrites the `audit()` lists. Update a JSON key that a block function used to return, such as `purge_after`, to the name in the 0.58 guide. `organization_id` in your own JSON is left alone.",
     check: (context) => staleRenameKeys(context.sqlFiles ?? []),
+  },
+  {
+    code: "BS631",
+    severity: "error",
+    title: "Team members keep employees, but the user column is required",
+    description:
+      "The teams and employees blocks run over the app's own `team_members` table, which has the employee column, so teams keeps an employee on a team without a user. The table's user column is `not null`, often because it is part of the primary key, so removing a member or a user who has an employee record, and adding an employee without an account, fail. Drop the employee column or map `blocks.teams.columns.members.employee` to `null` for user-only members, or give the table its own key and make the user column nullable.",
+    check: requiredTeamMemberUser,
   },
   {
     code: "BS350",
