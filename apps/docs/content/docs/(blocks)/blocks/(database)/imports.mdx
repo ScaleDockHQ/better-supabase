@@ -229,6 +229,17 @@ again, with the same warnings as a first import. A table of your own that
 guards the quote `status` column with a trigger has to skip the change in
 import mode, with `better_supabase.importing()`.
 
+The inventory block contributes the `stock_allocation` entity, written by
+`import_stock_allocation` (the invoices block already owns `import_allocation`
+for payment allocations). The data is `variantId` or `sku`, `locationId` or
+`location` (a code), `documentType`, `documentId`, `lineId`, `quantity`, and the
+`allocated` and `fulfilled` parts, with `status` of `open`, `fulfilled` or
+`released`. An open allocation adds what it holds to the location's reserved
+stock; a fulfilled or released one holds nothing. No stock movement or event is
+written, so import the stock itself through its own target. A later run
+replaces an open allocation and keeps a fulfilled or released one as
+imported, with `IMPORT_DOCUMENT_CHANGED`.
+
 A state machine accepts any declared status on insert in import mode. It
 writes one history row from no status to the inserted status with the reason
 `imported`, and no `status.changed` event.
