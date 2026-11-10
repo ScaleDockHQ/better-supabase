@@ -173,7 +173,7 @@ create table if not exists ${posts} (
   ${p("createdAt")} timestamptz not null default now()${q.hasPost("updatedAt") ? `,\n  ${p("updatedAt")} timestamptz not null default now()` : ""}
 );
 create index if not exists ${name("posts", "board_idx")} on ${posts} (${boardOrder});
-create index if not exists ${name("posts", "tenant_idx")} on ${posts} (${p("tenant")}, ${p("createdAt")} desc);
+create index if not exists ${name("posts", "tenant_idx")} on ${posts} (${p("tenant")}, ${p("createdAt")} desc, ${p("id")} desc);
 create index if not exists ${name("posts", "author_idx")} on ${posts} (${p("author")});
 create index if not exists ${name("posts", "merged_idx")} on ${posts} (${p("mergedInto")});
 

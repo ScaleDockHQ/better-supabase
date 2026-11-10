@@ -1,10 +1,35 @@
 import { guard, problemErrorHandler, toExpress } from "better-supabase/node";
-import { createServer, withBetterSupabase } from "better-supabase/server";
+import {
+  createServer,
+  cronHandler,
+  observedFetch,
+  withBetterSupabase,
+} from "better-supabase/server";
 import express from "express";
 
 import { betterSupabase } from "./lib/supabase/index.ts";
 
-const bsb = createServer(betterSupabase);
+/** Supabase calls of the process by status, for a metrics endpoint. */
+export const supabaseCalls = new Map<string, number>();
+
+const bsb = createServer(betterSupabase, {
+  fetch: observedFetch({
+    onCall: ({ status }) => {
+      const key = String(status ?? "error");
+
+      supabaseCalls.set(key, (supabaseCalls.get(key) ?? 0) + 1);
+    },
+  }),
+});
+
+/**
+ * A cron route that counts the customers as the service role. Mount it where
+ * the scheduler calls, with the secret the deployment sets.
+ */
+export const customersCron = (secret: string) =>
+  cronHandler(bsb, { name: "customers", secret }, async (ctx) => ({
+    customers: await ctx.db.customers.count().orThrow(),
+  }));
 
 const customer = ["id", "name", "status", "organizationId"] as const;
 

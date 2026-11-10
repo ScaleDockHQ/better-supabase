@@ -1,6 +1,6 @@
 -- better-supabase module: prelude
 -- @bsb-block prelude@1 managed
--- @bsb-hash sha256:40867f1d9c061c0e4599d9471b1c82c45e98af8f0b6b2f57cdcc28278f821850
+-- @bsb-hash sha256:28a8e16f06211a804977393841b1bf06012bc7facc35d095c7db66bf2532d775
 -- The schema, the blocks table and the helper functions every block calls, each defined once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -227,6 +227,26 @@ volatile
 set search_path = ''
 as $$
   select pg_catalog.set_config('better_supabase.memo.' || key, value, true)
+$$;
+
+create or replace function better_supabase.memo_slot_get(key text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select case when pg_catalog.split_part(v.slot, pg_catalog.chr(31), 1) = key
+    then nullif(pg_catalog.substr(v.slot, pg_catalog.length(key) + 2), '') end
+  from (select pg_catalog.current_setting('better_supabase.memo.s' || (pg_catalog.hashtext(key) & 255)::text, true) as slot) v
+$$;
+
+create or replace function better_supabase.memo_slot_set(key text, value text)
+returns text
+language sql
+volatile
+set search_path = ''
+as $$
+  select pg_catalog.set_config('better_supabase.memo.s' || (pg_catalog.hashtext(key) & 255)::text, key || pg_catalog.chr(31) || coalesce(value, ''), true)
 $$;
 
 create or replace function better_supabase.replace_equivalent_triggers(

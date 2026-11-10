@@ -39,3 +39,8 @@ these routes keep the full browser client, which the badge already loaded.
 
 An export of any size completes in the background and the download link is one notification away.
 The unread count no longer costs a server invocation per broadcast.
+
+The audit export job adds three routes and code to the routes that import the audit block. The First
+Load JS baseline (raw up to about 800 bytes, 109 entries) and the server baseline (five entries,
+raw up to 280 bytes) are re-measured from a fresh build of this branch after merging main, and the
+three new routes are added by `update`. The guard in `next-build.test.ts` is unchanged.

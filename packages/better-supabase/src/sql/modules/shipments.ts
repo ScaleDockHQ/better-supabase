@@ -286,7 +286,7 @@ create table if not exists ${shipments} (
   check ((${h("labelCost")} is null) = (${h("currency")} is null)),
   check (${h("status")} in ('draft', 'cancelled') or (${h("carrier")} is not null and ${h("trackingNumber")} is not null))
 );
-create index if not exists ${index("shipments", "tenant_idx")} on ${shipments} (${h("tenant")}, ${h("createdAt")} desc);
+create index if not exists ${index("shipments", "tenant_idx")} on ${shipments} (${h("tenant")}, ${h("createdAt")} desc, ${h("id")} desc);
 create index if not exists ${index("shipments", "status_idx")} on ${shipments} (${h("tenant")}, ${h("status")});
 create unique index if not exists ${index("shipments", "tracking_key")} on ${shipments} (${h("carrier")}, ${h("trackingNumber")}) where ${h("trackingNumber")} is not null;${subject ? `\ncreate index if not exists ${index("shipments", "subject_idx")} on ${shipments} (${h("tenant")}, ${h("subjectType")}, ${h("subjectId")});` : ""}${ctx.has("shipments", "fromLocation") ? `\ncreate index if not exists ${index("shipments", "location_idx")} on ${shipments} (${h("fromLocation")});` : ""}
 ${lockModuleTable(ctx, "shipments", { read: true })}

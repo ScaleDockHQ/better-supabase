@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:75224ba69b4edc0ffa8575d2e2675b74980b5a066f6b76032fbf6a8677ea2504
+-- @bsb-hash sha256:3e2e3db6c1b71ae3eb79292ddc09dae7aa23d8960d397396e5dd1ee7e9c41985
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,7 +87,7 @@ create index webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries
 create index webhook_deliveries_endpoint_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "created_at" desc);
 create index webhook_deliveries_open_idx on "better_supabase"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
 create index webhook_deliveries_finished_idx on "better_supabase"."webhook_deliveries" ("created_at") where "status" in ('succeeded', 'canceled', 'dead');
-create index webhook_deliveries_tenant_created_idx on "better_supabase"."webhook_deliveries" ("tenant_id", "created_at" desc);
+create index webhook_deliveries_tenant_created_idx on "better_supabase"."webhook_deliveries" ("tenant_id", "created_at" desc, "id" desc);
 create unique index webhook_deliveries_endpoint_event_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "event_id") where "event_id" is not null;
 alter table "better_supabase"."webhook_deliveries" enable row level security;
 revoke all on "better_supabase"."webhook_deliveries" from public, anon, authenticated;

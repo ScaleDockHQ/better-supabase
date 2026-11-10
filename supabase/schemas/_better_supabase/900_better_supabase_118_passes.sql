@@ -1,6 +1,6 @@
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:9de38a8110ae34ec6900f9ef82b960b9ec7c25a6eda158be9efd7373962de34e
+-- @bsb-hash sha256:35db93e4b1a5d384447a48b462fe91c09af8aa0b891b86b88b3d789d688d3020
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,7 +36,7 @@ create table "better_supabase"."passes" (
   constraint bsb_passes_check1 check ("uses_allowed" is null or "uses" <= "uses_allowed"),
   constraint bsb_passes_check2 check ("expires_at" is null or "expires_at" > "starts_at")
 );
-create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
+create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc, "id" desc);
 create index "passes_holder_idx" on "better_supabase"."passes" ("holder_id");
 create index "passes_booking_idx" on "better_supabase"."passes" ("booking_id");
 create index "passes_resource_idx" on "better_supabase"."passes" ("resource_id");
