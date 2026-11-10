@@ -7,13 +7,15 @@ import type { BlockSqlEntitlementsProvider } from "../../sql/index.ts";
 import type { ProviderRequirement } from "../authorization.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
-import { FormerPermissionKeyError } from "../../config/former-permission-keys.ts";
-import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
-import { templatePlaceholderProblems } from "../../core/access-sql.ts";
+import {
+  DEFAULT_ACTIVE_TENANT,
+  FormerPermissionKeyError,
+} from "../../config/index.ts";
 import {
   modulePermissionKeys,
   sameTemplateFunction,
   SQL_MODULES,
+  templatePlaceholderProblems,
 } from "../../sql/index.ts";
 import {
   accessRequirements,

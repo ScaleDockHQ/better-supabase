@@ -12,14 +12,19 @@ import type {
 } from "../sql/index.ts";
 
 import { DEFAULT_CLAIMS, splitPermissionLevel } from "../config/index.ts";
-import { TEAM_IDS_TRUNCATED_CLAIM } from "../core/claim-names.ts";
-import { isRecord } from "../core/guards.ts";
 import {
   MODULE_ID_TYPES,
   moduleIdType,
   scopeProblems,
   templateFunctions,
 } from "../sql/index.ts";
+
+/** The claim a hook sets when `team_ids` is not the user's whole list. */
+const TEAM_IDS_TRUNCATED_CLAIM = "team_ids_truncated";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 /** How findings name the provider. */
 export const providerLabel = (provider: AuthorizationProvider): string =>
