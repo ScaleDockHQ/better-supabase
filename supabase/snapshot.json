@@ -169180,8 +169180,8 @@
         "schema": "better_supabase",
         "name": "audit",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  keys text[];\n  path_steps jsonb := '[]';\n  path_column text;\n  parts text[];\n  cur_rel regclass := target;\n  cur_col text;\n  ref_rel regclass;\n  ref_col text;\n  segment text;\n  seg_table text;\n  seg_read text;\n  base_settings jsonb;\n  trigger_kind text := case when audit.deferred then 'constraint ' else '' end;\n  trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;\nbegin\n  if audit.statement then\n    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then\n      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';\n    end if;\n    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then\n      raise exception 'audit(statement => true) needs a primary key on %', audit.target;\n    end if;\n  end if;\n  if audit.tenant_path is not null then\n    parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');\n    if coalesce(array_length(parts, 1), 0) < 2 then\n      raise exception 'tenant_path % needs a column and at least one table.column hop', audit.tenant_path;\n    end if;\n    path_column := parts[1];\n    cur_col := path_column;\n    for i in 2..array_length(parts, 1) loop\n      segment := parts[i];\n      seg_read := substring(segment from '[^.]+$');\n      seg_table := substring(segment from '^(.*)\\.[^.]+$');\n      if seg_read is null or seg_table is null then\n        raise exception 'tenant_path hop % must be table.column', segment;\n      end if;\n      select con.confrelid::regclass, a.attname::text into ref_rel, ref_col\n      from pg_catalog.pg_constraint con\n      join pg_catalog.pg_attribute a on a.attrelid = con.confrelid and a.attnum = con.confkey[1]\n      where con.contype = 'f' and con.conrelid = cur_rel and array_length(con.conkey, 1) = 1\n        and con.conkey[1] = (\n          select c.attnum from pg_catalog.pg_attribute c\n          where c.attrelid = cur_rel and c.attname = cur_col and not c.attisdropped\n        );\n      if ref_rel is null then\n        raise exception 'tenant_path: % has no foreign key on column %', cur_rel, cur_col;\n      end if;\n      if pg_catalog.to_regclass(case when position('.' in seg_table) > 0 then seg_table else (select n.nspname from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.oid = audit.target) || '.' || seg_table end) is distinct from ref_rel then\n        raise exception 'tenant_path: % does not reference %', cur_col, seg_table;\n      end if;\n      path_steps := path_steps || jsonb_build_array(jsonb_build_object('table', ref_rel::text, 'ref', ref_col, 'read', seg_read));\n      cur_rel := ref_rel;\n      cur_col := seg_read;\n    end loop;\n  end if;\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bsb_audit', 'audit', replace_trigger\n  );\n  select array_agg(c.attname::text order by k.ord) into keys\n  from pg_catalog.pg_index i\n  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)\n  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum\n  where i.indrelid = audit.target and i.indisprimary;\n  delete from \"better_supabase\".\"audited_tables\" a where a.\"target\" = audit.target;\n  base_settings := jsonb_strip_nulls(jsonb_build_object(\n    'ignore', to_jsonb(coalesce(audit.ignore, '{}')),\n    'redact', to_jsonb(coalesce(audit.redact, '{}')),\n    'key_columns', to_jsonb(keys),\n    'category', audit.category,\n    'event_prefix', audit.event_prefix,\n    'target_type', audit.target_type,\n    'tenant_column', audit.tenant_column,\n    'label_column', audit.label_column,\n    'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,\n    'tenant_function', audit.tenant_function::text\n  ));\n  execute format('drop trigger if exists bsb_audit on %s', target);\n  execute format('drop trigger if exists bsb_audit_update on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);\n  if audit.statement then\n    execute format(\n      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then\n    execute format(\n      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, base_settings::text\n    );\n    execute format(\n      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text\n    );\n  else\n    execute format(\n      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, base_settings::text\n    );\n  end if;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.audit(target regclass, ignore text[] DEFAULT '{}'::text[], replace_trigger boolean DEFAULT false, redact text[] DEFAULT '{}'::text[], category text DEFAULT NULL::text, event_prefix text DEFAULT NULL::text, target_type text DEFAULT NULL::text, tenant_column text DEFAULT NULL::text, label_column text DEFAULT NULL::text, tenant_path text DEFAULT NULL::text, tenant_function regprocedure DEFAULT NULL::regprocedure, deferred boolean DEFAULT false, statement boolean DEFAULT false)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  keys text[];\n  path_steps jsonb := '[]';\n  path_column text;\n  parts text[];\n  cur_rel regclass := target;\n  cur_col text;\n  ref_rel regclass;\n  ref_col text;\n  segment text;\n  seg_table text;\n  seg_read text;\n  base_settings jsonb;\n  trigger_kind text := case when audit.deferred then 'constraint ' else '' end;\n  trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;\nbegin\n  if audit.statement then\n    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then\n      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';\n    end if;\n    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then\n      raise exception 'audit(statement => true) needs a primary key on %', audit.target;\n    end if;\n  end if;\n  if audit.tenant_path is not null then\n    parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');\n    if coalesce(array_length(parts, 1), 0) < 2 then\n      raise exception 'tenant_path % needs a column and at least one table.column hop', audit.tenant_path;\n    end if;\n    path_column := parts[1];\n    cur_col := path_column;\n    for i in 2..array_length(parts, 1) loop\n      segment := parts[i];\n      seg_read := substring(segment from '[^.]+$');\n      seg_table := substring(segment from '^(.*)\\.[^.]+$');\n      if seg_read is null or seg_table is null then\n        raise exception 'tenant_path hop % must be table.column', segment;\n      end if;\n      select con.confrelid::regclass, a.attname::text into ref_rel, ref_col\n      from pg_catalog.pg_constraint con\n      join pg_catalog.pg_attribute a on a.attrelid = con.confrelid and a.attnum = con.confkey[1]\n      where con.contype = 'f' and con.conrelid = cur_rel and array_length(con.conkey, 1) = 1\n        and con.conkey[1] = (\n          select c.attnum from pg_catalog.pg_attribute c\n          where c.attrelid = cur_rel and c.attname = cur_col and not c.attisdropped\n        );\n      if ref_rel is null then\n        raise exception 'tenant_path: % has no foreign key on column %', cur_rel, cur_col;\n      end if;\n      if pg_catalog.to_regclass(case when position('.' in seg_table) > 0 then seg_table else (select n.nspname from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.oid = audit.target) || '.' || seg_table end) is distinct from ref_rel then\n        raise exception 'tenant_path: % does not reference %', cur_col, seg_table;\n      end if;\n      path_steps := path_steps || jsonb_build_array(jsonb_build_object('table', ref_rel::text, 'ref', ref_col, 'read', seg_read));\n      cur_rel := ref_rel;\n      cur_col := seg_read;\n    end loop;\n  end if;\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bsb_audit', 'audit', replace_trigger\n  );\n  select array_agg(c.attname::text order by k.ord) into keys\n  from pg_catalog.pg_index i\n  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)\n  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum\n  where i.indrelid = audit.target and i.indisprimary;\n  delete from \"better_supabase\".\"audited_tables\" a where a.\"target\" = audit.target;\n  base_settings := jsonb_strip_nulls(jsonb_build_object(\n    'ignore', to_jsonb(coalesce(audit.ignore, '{}')),\n    'redact', to_jsonb(coalesce(audit.redact, '{}')),\n    'key_columns', to_jsonb(keys),\n    'category', audit.category,\n    'event_prefix', audit.event_prefix,\n    'target_type', audit.target_type,\n    'tenant_column', audit.tenant_column,\n    'label_column', audit.label_column,\n    'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,\n    'tenant_function', audit.tenant_function::text\n  ));\n  execute format('drop trigger if exists bsb_audit on %s', target);\n  execute format('drop trigger if exists bsb_audit_update on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);\n  if audit.statement then\n    execute format(\n      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then\n    execute format(\n      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, base_settings::text\n    );\n    execute format(\n      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text\n    );\n  else\n    execute format(\n      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, base_settings::text\n    );\n  end if;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  keys text[];\n  path_steps jsonb := '[]';\n  path_column text;\n  parts text[];\n  cur_rel regclass := target;\n  cur_col text;\n  ref_rel regclass;\n  ref_col text;\n  segment text;\n  seg_table text;\n  seg_read text;\n  base_settings jsonb;\n  trigger_kind text := case when audit.deferred then 'constraint ' else '' end;\n  trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;\nbegin\n  if audit.statement then\n    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then\n      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';\n    end if;\n    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then\n      raise exception 'audit(statement => true) needs a primary key on %', audit.target;\n    end if;\n  end if;\n  if audit.tenant_path is not null then\n    parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');\n    if coalesce(array_length(parts, 1), 0) < 2 then\n      raise exception 'tenant_path % needs a column and at least one table.column hop', audit.tenant_path;\n    end if;\n    path_column := parts[1];\n    cur_col := path_column;\n    for i in 2..array_length(parts, 1) loop\n      segment := parts[i];\n      seg_read := substring(segment from '[^.]+$');\n      seg_table := substring(segment from '^(.*)\\.[^.]+$');\n      if seg_read is null or seg_table is null then\n        raise exception 'tenant_path hop % must be table.column', segment;\n      end if;\n      select con.confrelid::regclass, a.attname::text into ref_rel, ref_col\n      from pg_catalog.pg_constraint con\n      join pg_catalog.pg_attribute a on a.attrelid = con.confrelid and a.attnum = con.confkey[1]\n      where con.contype = 'f' and con.conrelid = cur_rel and array_length(con.conkey, 1) = 1\n        and con.conkey[1] = (\n          select c.attnum from pg_catalog.pg_attribute c\n          where c.attrelid = cur_rel and c.attname = cur_col and not c.attisdropped\n        );\n      if ref_rel is null then\n        raise exception 'tenant_path: % has no foreign key on column %', cur_rel, cur_col;\n      end if;\n      if pg_catalog.to_regclass(case when position('.' in seg_table) > 0 then seg_table else (select n.nspname from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.oid = audit.target) || '.' || seg_table end) is distinct from ref_rel then\n        raise exception 'tenant_path: % does not reference %', cur_col, seg_table;\n      end if;\n      path_steps := path_steps || jsonb_build_array(jsonb_build_object('table', ref_rel::text, 'ref', ref_col, 'read', seg_read));\n      cur_rel := ref_rel;\n      cur_col := seg_read;\n    end loop;\n  end if;\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bsb_audit', 'audit', replace_trigger\n  );\n  select array_agg(c.attname::text order by k.ord) into keys\n  from pg_catalog.pg_index i\n  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)\n  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum\n  where i.indrelid = audit.target and i.indisprimary;\n  delete from \"better_supabase\".\"audited_tables\" a where a.\"target\" = audit.target;\n  base_settings := jsonb_strip_nulls(jsonb_build_object(\n    'ignore', to_jsonb(coalesce(audit.ignore, '{}')),\n    'redact', to_jsonb(coalesce(audit.redact, '{}')),\n    'key_columns', to_jsonb(keys),\n    'category', audit.category,\n    'event_prefix', audit.event_prefix,\n    'target_type', audit.target_type,\n    'tenant_column', audit.tenant_column,\n    'label_column', audit.label_column,\n    'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,\n    'tenant_function', audit.tenant_function::text\n  ));\n  execute format('drop trigger if exists bsb_audit on %s', target);\n  execute format('drop trigger if exists bsb_audit_update on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);\n  if audit.statement then\n    execute format(\n      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then\n    execute format(\n      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, base_settings::text\n    );\n    execute format(\n      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text\n    );\n  else\n    execute format(\n      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, base_settings::text\n    );\n  end if;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.audit(target regclass, ignore text[] DEFAULT '{}'::text[], replace_trigger boolean DEFAULT false, redact text[] DEFAULT '{}'::text[], category text DEFAULT NULL::text, event_prefix text DEFAULT NULL::text, target_type text DEFAULT NULL::text, tenant_column text DEFAULT NULL::text, label_column text DEFAULT NULL::text, tenant_path text DEFAULT NULL::text, tenant_function regprocedure DEFAULT NULL::regprocedure, deferred boolean DEFAULT false, statement boolean DEFAULT false)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  keys text[];\n  path_steps jsonb := '[]';\n  path_column text;\n  parts text[];\n  cur_rel regclass := target;\n  cur_col text;\n  ref_rel regclass;\n  ref_col text;\n  segment text;\n  seg_table text;\n  seg_read text;\n  base_settings jsonb;\n  trigger_kind text := case when audit.deferred then 'constraint ' else '' end;\n  trigger_timing text := case when audit.deferred then 'deferrable initially deferred ' else '' end;\nbegin\n  if audit.statement then\n    if audit.deferred or audit.tenant_path is not null or audit.tenant_function is not null then\n      raise exception 'audit(statement => true) does not combine with deferred, tenant_path or tenant_function';\n    end if;\n    if not exists (select 1 from pg_catalog.pg_index i where i.indrelid = audit.target and i.indisprimary) then\n      raise exception 'audit(statement => true) needs a primary key on %', audit.target;\n    end if;\n  end if;\n  if audit.tenant_path is not null then\n    parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');\n    if coalesce(array_length(parts, 1), 0) < 2 then\n      raise exception 'tenant_path % needs a column and at least one table.column hop', audit.tenant_path;\n    end if;\n    path_column := parts[1];\n    cur_col := path_column;\n    for i in 2..array_length(parts, 1) loop\n      segment := parts[i];\n      seg_read := substring(segment from '[^.]+$');\n      seg_table := substring(segment from '^(.*)\\.[^.]+$');\n      if seg_read is null or seg_table is null then\n        raise exception 'tenant_path hop % must be table.column', segment;\n      end if;\n      select con.confrelid::regclass, a.attname::text into ref_rel, ref_col\n      from pg_catalog.pg_constraint con\n      join pg_catalog.pg_attribute a on a.attrelid = con.confrelid and a.attnum = con.confkey[1]\n      where con.contype = 'f' and con.conrelid = cur_rel and array_length(con.conkey, 1) = 1\n        and con.conkey[1] = (\n          select c.attnum from pg_catalog.pg_attribute c\n          where c.attrelid = cur_rel and c.attname = cur_col and not c.attisdropped\n        );\n      if ref_rel is null then\n        raise exception 'tenant_path: % has no foreign key on column %', cur_rel, cur_col;\n      end if;\n      if pg_catalog.to_regclass(case when position('.' in seg_table) > 0 then seg_table else (select n.nspname from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.oid = audit.target) || '.' || seg_table end) is distinct from ref_rel then\n        raise exception 'tenant_path: % does not reference %', cur_col, seg_table;\n      end if;\n      path_steps := path_steps || jsonb_build_array(jsonb_build_object('table', ref_rel::text, 'ref', ref_col, 'read', seg_read));\n      cur_rel := ref_rel;\n      cur_col := seg_read;\n    end loop;\n  end if;\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bsb_audit', 'audit', replace_trigger\n  );\n  select array_agg(c.attname::text order by k.ord) into keys\n  from pg_catalog.pg_index i\n  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)\n  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum\n  where i.indrelid = audit.target and i.indisprimary;\n  delete from \"better_supabase\".\"audited_tables\" a where a.\"target\" = audit.target;\n  base_settings := jsonb_strip_nulls(jsonb_build_object(\n    'ignore', to_jsonb(coalesce(audit.ignore, '{}')),\n    'redact', to_jsonb(coalesce(audit.redact, '{}')),\n    'key_columns', to_jsonb(keys),\n    'category', audit.category,\n    'event_prefix', audit.event_prefix,\n    'target_type', audit.target_type,\n    'tenant_column', audit.tenant_column,\n    'label_column', audit.label_column,\n    'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,\n    'tenant_function', audit.tenant_function::text\n  ));\n  execute format('drop trigger if exists bsb_audit on %s', target);\n  execute format('drop trigger if exists bsb_audit_update on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_insert on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);\n  execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);\n  if audit.statement then\n    execute format(\n      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_statement_change(%L)',\n      target, base_settings::text\n    );\n  elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then\n    execute format(\n      'create %strigger bsb_audit after insert or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, base_settings::text\n    );\n    execute format(\n      'create %strigger bsb_audit_update after update on %s %sfor each row when (((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) and (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'')) execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, audit.ignore, audit.ignore, base_settings::text\n    );\n  else\n    execute format(\n      'create %strigger bsb_audit after insert or update or delete on %s %sfor each row when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_row_change(%L)',\n      trigger_kind, target, trigger_timing, base_settings::text\n    );\n  end if;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -194928,8 +194928,8 @@
         "schema": "better_supabase",
         "name": "finish_import_run",
         "language": "plpgsql",
-        "definition": "\n#variable_conflict use_column\ndeclare\n  v_run_id uuid := finish_import_run.run;\n  v_run \"better_supabase\".\"import_runs\";\n  v_entity text;\n  v_missing integer;\n  v_total integer := 0;\n  v_counts jsonb;\n  v_outcome text := 'completed';\n  v_expected integer;\n  v_applied integer;\nbegin\n  select * into v_run from \"better_supabase\".\"import_runs\" r where r.\"id\" = v_run_id for update;\n  if not found then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if v_run.\"status\" <> 'running' then\n    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';\n  end if;\n  v_counts := v_run.\"counts\";\n\n  if v_run.\"full\" then\n    for v_entity in select k.key from jsonb_object_keys(v_run.\"counts\") k(key) loop\n      select count(*)::integer into v_missing from \"better_supabase\".\"import_records\" x\n      where x.\"tenant_id\" = v_run.\"tenant_id\" and x.\"source\" = v_run.\"source\" and x.\"entity\" = v_entity\n        and x.\"role\" = 'primary' and x.\"last_run_id\" <> v_run_id\n        and x.\"scope\" in (select y.\"scope\" from \"better_supabase\".\"import_records\" y where y.\"tenant_id\" = v_run.\"tenant_id\" and y.\"source\" = v_run.\"source\" and y.\"entity\" = v_entity and y.\"last_run_id\" = v_run_id);\n      if not v_run.\"dry_run\" then\n        update \"better_supabase\".\"import_records\" x set \"went_missing_at\" = coalesce(x.\"went_missing_at\", now())\n        where x.\"tenant_id\" = v_run.\"tenant_id\" and x.\"source\" = v_run.\"source\" and x.\"entity\" = v_entity\n          and x.\"last_run_id\" <> v_run_id\n          and x.\"scope\" in (select y.\"scope\" from \"better_supabase\".\"import_records\" y where y.\"tenant_id\" = v_run.\"tenant_id\" and y.\"source\" = v_run.\"source\" and y.\"entity\" = v_entity and y.\"last_run_id\" = v_run_id);\n      end if;\n      v_counts := jsonb_set(v_counts, array[v_entity, 'missing'], to_jsonb(v_missing));\n    end loop;\n  end if;\n\n  if v_run.\"plan\" is not null and jsonb_typeof(v_run.\"plan\") = 'object' then\n    for v_entity in select k.key from jsonb_object_keys(v_run.\"plan\") k(key) loop\n      v_expected := coalesce((v_run.\"plan\" ->> v_entity)::integer, 0);\n      v_applied := coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0)\n        + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0)\n        + coalesce((v_counts -> v_entity ->> 'unchanged')::integer, 0);\n      if v_applied < v_expected then\n        v_outcome := 'incomplete';\n        v_counts := jsonb_set(coalesce(v_counts, '{}'::jsonb), array[v_entity, 'missing'], to_jsonb(v_expected - v_applied), true);\n      end if;\n    end loop;\n  end if;\n  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run.\"errors\", '[]'::jsonb)) > 0 or v_counts::text like '%\"conflicted\":%') then\n    v_outcome := 'completed_with_issues';\n  end if;\n\n  update \"better_supabase\".\"import_runs\" r set \"status\" = 'completed', \"outcome\" = v_outcome, \"finished_at\" = now(), \"counts\" = v_counts\n  where r.\"id\" = v_run_id;\n\n  if not v_run.\"dry_run\" then\n    for v_entity in select k.key from jsonb_object_keys(v_counts) k(key) loop\n      v_total := v_total + coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0);\n      perform \"better_supabase\".emit_event('import.entity_completed', jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity), 'imports/' || v_run_id::text, (v_run.\"tenant_id\")::text, null, 'better-supabase/imports');\n      if coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0) > 0 then\n        perform better_supabase.audit_event(\n    event_type => 'import.entity_completed',\n    category => 'integration',\n    target_type => 'import',\n    record_id => v_run_id::text,\n    target_label => v_entity,\n    summary => 'imported ' || v_entity,\n    tenant => (v_run.\"tenant_id\")::uuid,\n    metadata => jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity),\n    idempotency_key => 'import:' || v_run_id::text || ':' || v_entity,\n    actor_kind => 'integration',\n    correlation_id => 'import:' || v_run_id::text\n  );\n      end if;\n    end loop;\n    perform \"better_supabase\".emit_event('import.completed', jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'count', v_total), 'imports/' || v_run_id::text, (v_run.\"tenant_id\")::text, null, 'better-supabase/imports');\n  end if;\n  return v_counts;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.finish_import_run(run uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\ndeclare\n  v_run_id uuid := finish_import_run.run;\n  v_run \"better_supabase\".\"import_runs\";\n  v_entity text;\n  v_missing integer;\n  v_total integer := 0;\n  v_counts jsonb;\n  v_outcome text := 'completed';\n  v_expected integer;\n  v_applied integer;\nbegin\n  select * into v_run from \"better_supabase\".\"import_runs\" r where r.\"id\" = v_run_id for update;\n  if not found then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if v_run.\"status\" <> 'running' then\n    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';\n  end if;\n  v_counts := v_run.\"counts\";\n\n  if v_run.\"full\" then\n    for v_entity in select k.key from jsonb_object_keys(v_run.\"counts\") k(key) loop\n      select count(*)::integer into v_missing from \"better_supabase\".\"import_records\" x\n      where x.\"tenant_id\" = v_run.\"tenant_id\" and x.\"source\" = v_run.\"source\" and x.\"entity\" = v_entity\n        and x.\"role\" = 'primary' and x.\"last_run_id\" <> v_run_id\n        and x.\"scope\" in (select y.\"scope\" from \"better_supabase\".\"import_records\" y where y.\"tenant_id\" = v_run.\"tenant_id\" and y.\"source\" = v_run.\"source\" and y.\"entity\" = v_entity and y.\"last_run_id\" = v_run_id);\n      if not v_run.\"dry_run\" then\n        update \"better_supabase\".\"import_records\" x set \"went_missing_at\" = coalesce(x.\"went_missing_at\", now())\n        where x.\"tenant_id\" = v_run.\"tenant_id\" and x.\"source\" = v_run.\"source\" and x.\"entity\" = v_entity\n          and x.\"last_run_id\" <> v_run_id\n          and x.\"scope\" in (select y.\"scope\" from \"better_supabase\".\"import_records\" y where y.\"tenant_id\" = v_run.\"tenant_id\" and y.\"source\" = v_run.\"source\" and y.\"entity\" = v_entity and y.\"last_run_id\" = v_run_id);\n      end if;\n      v_counts := jsonb_set(v_counts, array[v_entity, 'missing'], to_jsonb(v_missing));\n    end loop;\n  end if;\n\n  if v_run.\"plan\" is not null and jsonb_typeof(v_run.\"plan\") = 'object' then\n    for v_entity in select k.key from jsonb_object_keys(v_run.\"plan\") k(key) loop\n      v_expected := coalesce((v_run.\"plan\" ->> v_entity)::integer, 0);\n      v_applied := coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0)\n        + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0)\n        + coalesce((v_counts -> v_entity ->> 'unchanged')::integer, 0);\n      if v_applied < v_expected then\n        v_outcome := 'incomplete';\n        v_counts := jsonb_set(coalesce(v_counts, '{}'::jsonb), array[v_entity, 'missing'], to_jsonb(v_expected - v_applied), true);\n      end if;\n    end loop;\n  end if;\n  if v_outcome = 'completed' and (jsonb_array_length(coalesce(v_run.\"errors\", '[]'::jsonb)) > 0 or v_counts::text like '%\"conflicted\":%') then\n    v_outcome := 'completed_with_issues';\n  end if;\n\n  update \"better_supabase\".\"import_runs\" r set \"status\" = 'completed', \"outcome\" = v_outcome, \"finished_at\" = now(), \"counts\" = v_counts\n  where r.\"id\" = v_run_id;\n\n  if not v_run.\"dry_run\" then\n    for v_entity in select k.key from jsonb_object_keys(v_counts) k(key) loop\n      v_total := v_total + coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0);\n      perform \"better_supabase\".emit_event('import.entity_completed', jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity), 'imports/' || v_run_id::text, (v_run.\"tenant_id\")::text, null, 'better-supabase/imports');\n      if coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0) > 0 then\n        perform better_supabase.audit_event(\n    event_type => 'import.entity_completed',\n    category => 'integration',\n    target_type => 'import',\n    record_id => v_run_id::text,\n    target_label => v_entity,\n    summary => 'imported ' || v_entity,\n    tenant => (v_run.\"tenant_id\")::uuid,\n    metadata => jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity),\n    idempotency_key => 'import:' || v_run_id::text || ':' || v_entity,\n    actor_kind => 'integration',\n    correlation_id => 'import:' || v_run_id::text\n  );\n      end if;\n    end loop;\n    perform \"better_supabase\".emit_event('import.completed', jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'count', v_total), 'imports/' || v_run_id::text, (v_run.\"tenant_id\")::text, null, 'better-supabase/imports');\n  end if;\n  return v_counts;\nend;\n$function$\n",
+        "definition": "\n#variable_conflict use_column\ndeclare\n  v_run_id uuid := finish_import_run.run;\n  v_run \"better_supabase\".\"import_runs\";\n  v_entity text;\n  v_missing integer;\n  v_total integer := 0;\n  v_counts jsonb;\n  v_outcome text := 'completed';\n  v_expected integer;\n  v_applied integer;\nbegin\n  select * into v_run from \"better_supabase\".\"import_runs\" r where r.\"id\" = v_run_id for update;\n  if not found then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if v_run.\"status\" <> 'running' then\n    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';\n  end if;\n  v_counts := v_run.\"counts\";\n\n  if v_run.\"full\" then\n    for v_entity in select k.key from jsonb_object_keys(v_run.\"counts\") k(key) loop\n      select count(*)::integer into v_missing from \"better_supabase\".\"import_records\" x\n      where x.\"tenant_id\" = v_run.\"tenant_id\" and x.\"source\" = v_run.\"source\" and x.\"entity\" = v_entity\n        and x.\"role\" = 'primary' and x.\"last_run_id\" <> v_run_id\n        and x.\"scope\" in (select y.\"scope\" from \"better_supabase\".\"import_records\" y where y.\"tenant_id\" = v_run.\"tenant_id\" and y.\"source\" = v_run.\"source\" and y.\"entity\" = v_entity and y.\"last_run_id\" = v_run_id);\n      if not v_run.\"dry_run\" then\n        update \"better_supabase\".\"import_records\" x set \"went_missing_at\" = coalesce(x.\"went_missing_at\", now())\n        where x.\"tenant_id\" = v_run.\"tenant_id\" and x.\"source\" = v_run.\"source\" and x.\"entity\" = v_entity\n          and x.\"last_run_id\" <> v_run_id\n          and x.\"scope\" in (select y.\"scope\" from \"better_supabase\".\"import_records\" y where y.\"tenant_id\" = v_run.\"tenant_id\" and y.\"source\" = v_run.\"source\" and y.\"entity\" = v_entity and y.\"last_run_id\" = v_run_id);\n      end if;\n      v_counts := jsonb_set(v_counts, array[v_entity, 'missing'], to_jsonb(v_missing));\n    end loop;\n  end if;\n\n  if v_run.\"plan\" is not null and jsonb_typeof(v_run.\"plan\") = 'object' then\n    for v_entity in select k.key from jsonb_object_keys(v_run.\"plan\") k(key) loop\n      v_expected := coalesce((v_run.\"plan\" ->> v_entity)::integer, 0);\n      v_applied := coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0)\n        + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0)\n        + coalesce((v_counts -> v_entity ->> 'unchanged')::integer, 0);\n      if v_applied < v_expected then\n        v_outcome := 'incomplete';\n        v_counts := jsonb_set(coalesce(v_counts, '{}'::jsonb), array[v_entity, 'missing'], to_jsonb(v_expected - v_applied), true);\n      end if;\n    end loop;\n  end if;\n  if v_outcome = 'completed' and (\n    jsonb_array_length(coalesce(v_run.\"errors\", '[]'::jsonb)) > 0\n    or exists (\n      select 1 from jsonb_each(coalesce(v_counts, '{}'::jsonb)) v_entity_counts(key, value)\n      where coalesce((v_entity_counts.value ->> 'conflicted')::integer, 0) > 0\n    )\n  ) then\n    v_outcome := 'completed_with_issues';\n  end if;\n\n  update \"better_supabase\".\"import_runs\" r set \"status\" = 'completed', \"outcome\" = v_outcome, \"finished_at\" = now(), \"counts\" = v_counts\n  where r.\"id\" = v_run_id;\n\n  if not v_run.\"dry_run\" then\n    for v_entity in select k.key from jsonb_object_keys(v_counts) k(key) loop\n      v_total := v_total + coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0);\n      perform \"better_supabase\".emit_event('import.entity_completed', jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity), 'imports/' || v_run_id::text, (v_run.\"tenant_id\")::text, null, 'better-supabase/imports');\n      if coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0) > 0 then\n        perform better_supabase.audit_event(\n    event_type => 'import.entity_completed',\n    category => 'integration',\n    target_type => 'import',\n    record_id => v_run_id::text,\n    target_label => v_entity,\n    summary => 'imported ' || v_entity,\n    tenant => (v_run.\"tenant_id\")::uuid,\n    metadata => jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity),\n    idempotency_key => 'import:' || v_run_id::text || ':' || v_entity,\n    actor_kind => 'integration',\n    correlation_id => 'import:' || v_run_id::text\n  );\n      end if;\n    end loop;\n    perform \"better_supabase\".emit_event('import.completed', jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'count', v_total), 'imports/' || v_run_id::text, (v_run.\"tenant_id\")::text, null, 'better-supabase/imports');\n  end if;\n  return v_counts;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.finish_import_run(run uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\ndeclare\n  v_run_id uuid := finish_import_run.run;\n  v_run \"better_supabase\".\"import_runs\";\n  v_entity text;\n  v_missing integer;\n  v_total integer := 0;\n  v_counts jsonb;\n  v_outcome text := 'completed';\n  v_expected integer;\n  v_applied integer;\nbegin\n  select * into v_run from \"better_supabase\".\"import_runs\" r where r.\"id\" = v_run_id for update;\n  if not found then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if v_run.\"status\" <> 'running' then\n    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';\n  end if;\n  v_counts := v_run.\"counts\";\n\n  if v_run.\"full\" then\n    for v_entity in select k.key from jsonb_object_keys(v_run.\"counts\") k(key) loop\n      select count(*)::integer into v_missing from \"better_supabase\".\"import_records\" x\n      where x.\"tenant_id\" = v_run.\"tenant_id\" and x.\"source\" = v_run.\"source\" and x.\"entity\" = v_entity\n        and x.\"role\" = 'primary' and x.\"last_run_id\" <> v_run_id\n        and x.\"scope\" in (select y.\"scope\" from \"better_supabase\".\"import_records\" y where y.\"tenant_id\" = v_run.\"tenant_id\" and y.\"source\" = v_run.\"source\" and y.\"entity\" = v_entity and y.\"last_run_id\" = v_run_id);\n      if not v_run.\"dry_run\" then\n        update \"better_supabase\".\"import_records\" x set \"went_missing_at\" = coalesce(x.\"went_missing_at\", now())\n        where x.\"tenant_id\" = v_run.\"tenant_id\" and x.\"source\" = v_run.\"source\" and x.\"entity\" = v_entity\n          and x.\"last_run_id\" <> v_run_id\n          and x.\"scope\" in (select y.\"scope\" from \"better_supabase\".\"import_records\" y where y.\"tenant_id\" = v_run.\"tenant_id\" and y.\"source\" = v_run.\"source\" and y.\"entity\" = v_entity and y.\"last_run_id\" = v_run_id);\n      end if;\n      v_counts := jsonb_set(v_counts, array[v_entity, 'missing'], to_jsonb(v_missing));\n    end loop;\n  end if;\n\n  if v_run.\"plan\" is not null and jsonb_typeof(v_run.\"plan\") = 'object' then\n    for v_entity in select k.key from jsonb_object_keys(v_run.\"plan\") k(key) loop\n      v_expected := coalesce((v_run.\"plan\" ->> v_entity)::integer, 0);\n      v_applied := coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0)\n        + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0)\n        + coalesce((v_counts -> v_entity ->> 'unchanged')::integer, 0);\n      if v_applied < v_expected then\n        v_outcome := 'incomplete';\n        v_counts := jsonb_set(coalesce(v_counts, '{}'::jsonb), array[v_entity, 'missing'], to_jsonb(v_expected - v_applied), true);\n      end if;\n    end loop;\n  end if;\n  if v_outcome = 'completed' and (\n    jsonb_array_length(coalesce(v_run.\"errors\", '[]'::jsonb)) > 0\n    or exists (\n      select 1 from jsonb_each(coalesce(v_counts, '{}'::jsonb)) v_entity_counts(key, value)\n      where coalesce((v_entity_counts.value ->> 'conflicted')::integer, 0) > 0\n    )\n  ) then\n    v_outcome := 'completed_with_issues';\n  end if;\n\n  update \"better_supabase\".\"import_runs\" r set \"status\" = 'completed', \"outcome\" = v_outcome, \"finished_at\" = now(), \"counts\" = v_counts\n  where r.\"id\" = v_run_id;\n\n  if not v_run.\"dry_run\" then\n    for v_entity in select k.key from jsonb_object_keys(v_counts) k(key) loop\n      v_total := v_total + coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0);\n      perform \"better_supabase\".emit_event('import.entity_completed', jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity), 'imports/' || v_run_id::text, (v_run.\"tenant_id\")::text, null, 'better-supabase/imports');\n      if coalesce((v_counts -> v_entity ->> 'inserted')::integer, 0) + coalesce((v_counts -> v_entity ->> 'updated')::integer, 0) > 0 then\n        perform better_supabase.audit_event(\n    event_type => 'import.entity_completed',\n    category => 'integration',\n    target_type => 'import',\n    record_id => v_run_id::text,\n    target_label => v_entity,\n    summary => 'imported ' || v_entity,\n    tenant => (v_run.\"tenant_id\")::uuid,\n    metadata => jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'entity', v_entity, 'counts', v_counts -> v_entity),\n    idempotency_key => 'import:' || v_run_id::text || ':' || v_entity,\n    actor_kind => 'integration',\n    correlation_id => 'import:' || v_run_id::text\n  );\n      end if;\n    end loop;\n    perform \"better_supabase\".emit_event('import.completed', jsonb_build_object('organizationId', v_run.\"tenant_id\", 'id', v_run_id, 'count', v_total), 'imports/' || v_run_id::text, (v_run.\"tenant_id\")::text, null, 'better-supabase/imports');\n  end if;\n  return v_counts;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -247131,8 +247131,8 @@
         "schema": "better_supabase",
         "name": "search_refresh",
         "language": "plpgsql",
-        "definition": "\n#variable_conflict use_column\ndeclare\n  v_tenant uuid;\n  v_title text;\n  v_body text;\n  v_url text;\n  v_found boolean := false;\n  v_hash text;\nbegin\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"before_search_document_index\"(text, text)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::text, $2::text)', v_hook::oid::regproc)\n        using search_refresh.subject_type, search_refresh.subject_id;\n    end if;\n  end;\n  case search_refresh.subject_type\n    when 'message' then\n      select s.\"tenant_id\", s.\"body\"::text, null, null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"messages\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'channel' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"topic\"::text, s.\"purpose\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"channels\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'company' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"domain\"::text), ''), '/crm/contacts/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"companies\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'person' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"email\"::text, s.\"title\"::text), ''), '/crm/contacts/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"people\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'deal' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"identifier\"::text, s.\"note\"::text), ''), '/crm/deals'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"deals\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'course' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"courses\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'post' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"body\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"posts\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'activity' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"body\"::text, s.\"outcome\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"activities\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'work_item' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"identifier\"::text, s.\"body\"::text), ''), '/work'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"work_items\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'employee' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"email\"::text, s.\"job_title\"::text), ''), '/people'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"employees\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'product' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"description\"::text, s.\"slug\"::text), ''), '/shop'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"products\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'product_variant' then\n      select s.\"tenant_id\", s.\"sku\"::text, nullif(concat_ws(E'\\n', s.\"title\"::text, s.\"barcode\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"product_variants\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'calendar_event' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"description\"::text, s.\"location\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"calendar_events\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'risk' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"description\"::text, s.\"cause\"::text, s.\"consequence\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"risks\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'case' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"description\"::text, s.\"root_cause\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"cases\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'inspection' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"scope\"::text, s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"inspections\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'meeting' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"location\"::text, s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"meetings\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'production_order' then\n      select s.\"tenant_id\", s.\"number\"::text, nullif(concat_ws(E'\\n', s.\"note\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"production_orders\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'content_entry' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"content_entries\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'customer' then\n      select s.\"organization_id\", s.\"name\"::text, null, '/customers/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"public\".\"customers\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'drive_node' then\n      select s.\"tenant_id\", f.\"name\"::text, nullif(concat_ws(E'\\n', f.\"content\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"drive_nodes\" s\n        join \"better_supabase\".\"drive_node_search\" f on f.\"id\"::text = s.\"id\"::text\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'project' then\n      select s.\"organization_id\", s.\"name\"::text, null, '/projects/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"public\".\"projects\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"deleted_at\" is null;\n      v_found := found;\n    else\n      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';\n  end case;\n  if not v_found then\n    delete from \"better_supabase\".\"search_documents\"\n    where \"subject_type\" = search_refresh.subject_type and \"subject_id\" = search_refresh.subject_id;\n    return false;\n  end if;\n  v_hash := md5(coalesce(v_title, '') || E'\\x1f' || coalesce(v_body, ''));\n  insert into \"better_supabase\".\"search_documents\" (\"tenant_id\", \"subject_type\", \"subject_id\", \"title\", \"title_search\", \"body\", \"url\", \"tsv\", \"content_hash\", \"updated_at\")\n  values (\n    v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, \"better_supabase\".\"search_normalize\"(v_title), v_body, v_url,\n    setweight(to_tsvector('simple', \"better_supabase\".\"search_normalize\"(v_title)), 'A')\n      || setweight(to_tsvector('simple', \"better_supabase\".\"search_normalize\"(v_body)), 'B'),\n    v_hash, now()\n  )\n  on conflict (\"subject_type\", \"subject_id\") do update set\n    \"tenant_id\" = excluded.\"tenant_id\",\n    \"title\" = excluded.\"title\",\n    \"title_search\" = excluded.\"title_search\",\n    \"body\" = excluded.\"body\",\n    \"url\" = excluded.\"url\",\n    \"tsv\" = excluded.\"tsv\",\n    \"content_hash\" = excluded.\"content_hash\",\n    \"updated_at\" = now()\n  where (\"better_supabase\".\"search_documents\".\"tenant_id\", \"better_supabase\".\"search_documents\".\"title\", \"better_supabase\".\"search_documents\".\"body\", \"better_supabase\".\"search_documents\".\"url\")\n    is distinct from (excluded.\"tenant_id\", excluded.\"title\", excluded.\"body\", excluded.\"url\");\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"after_search_document_index\"(text, text)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::text, $2::text)', v_hook::oid::regproc)\n        using search_refresh.subject_type, search_refresh.subject_id;\n    end if;\n  end;\n  return true;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.search_refresh(subject_type text, subject_id text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\ndeclare\n  v_tenant uuid;\n  v_title text;\n  v_body text;\n  v_url text;\n  v_found boolean := false;\n  v_hash text;\nbegin\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"before_search_document_index\"(text, text)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::text, $2::text)', v_hook::oid::regproc)\n        using search_refresh.subject_type, search_refresh.subject_id;\n    end if;\n  end;\n  case search_refresh.subject_type\n    when 'message' then\n      select s.\"tenant_id\", s.\"body\"::text, null, null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"messages\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'channel' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"topic\"::text, s.\"purpose\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"channels\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'company' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"domain\"::text), ''), '/crm/contacts/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"companies\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'person' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"email\"::text, s.\"title\"::text), ''), '/crm/contacts/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"people\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'deal' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"identifier\"::text, s.\"note\"::text), ''), '/crm/deals'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"deals\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'course' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"courses\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'post' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"body\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"posts\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'activity' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"body\"::text, s.\"outcome\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"activities\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'work_item' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"identifier\"::text, s.\"body\"::text), ''), '/work'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"work_items\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'employee' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"email\"::text, s.\"job_title\"::text), ''), '/people'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"employees\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'product' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"description\"::text, s.\"slug\"::text), ''), '/shop'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"products\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'product_variant' then\n      select s.\"tenant_id\", s.\"sku\"::text, nullif(concat_ws(E'\\n', s.\"title\"::text, s.\"barcode\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"product_variants\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'calendar_event' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"description\"::text, s.\"location\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"calendar_events\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'risk' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"description\"::text, s.\"cause\"::text, s.\"consequence\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"risks\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'case' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"description\"::text, s.\"root_cause\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"cases\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'inspection' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"scope\"::text, s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"inspections\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'meeting' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"location\"::text, s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"meetings\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'production_order' then\n      select s.\"tenant_id\", s.\"number\"::text, nullif(concat_ws(E'\\n', s.\"note\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"production_orders\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'content_entry' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"content_entries\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'customer' then\n      select s.\"organization_id\", s.\"name\"::text, null, '/customers/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"public\".\"customers\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'drive_node' then\n      select s.\"tenant_id\", f.\"name\"::text, nullif(concat_ws(E'\\n', f.\"content\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"drive_nodes\" s\n        join \"better_supabase\".\"drive_node_search\" f on f.\"id\"::text = s.\"id\"::text\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'project' then\n      select s.\"organization_id\", s.\"name\"::text, null, '/projects/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"public\".\"projects\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"deleted_at\" is null;\n      v_found := found;\n    else\n      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';\n  end case;\n  if not v_found then\n    delete from \"better_supabase\".\"search_documents\"\n    where \"subject_type\" = search_refresh.subject_type and \"subject_id\" = search_refresh.subject_id;\n    return false;\n  end if;\n  v_hash := md5(coalesce(v_title, '') || E'\\x1f' || coalesce(v_body, ''));\n  insert into \"better_supabase\".\"search_documents\" (\"tenant_id\", \"subject_type\", \"subject_id\", \"title\", \"title_search\", \"body\", \"url\", \"tsv\", \"content_hash\", \"updated_at\")\n  values (\n    v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, \"better_supabase\".\"search_normalize\"(v_title), v_body, v_url,\n    setweight(to_tsvector('simple', \"better_supabase\".\"search_normalize\"(v_title)), 'A')\n      || setweight(to_tsvector('simple', \"better_supabase\".\"search_normalize\"(v_body)), 'B'),\n    v_hash, now()\n  )\n  on conflict (\"subject_type\", \"subject_id\") do update set\n    \"tenant_id\" = excluded.\"tenant_id\",\n    \"title\" = excluded.\"title\",\n    \"title_search\" = excluded.\"title_search\",\n    \"body\" = excluded.\"body\",\n    \"url\" = excluded.\"url\",\n    \"tsv\" = excluded.\"tsv\",\n    \"content_hash\" = excluded.\"content_hash\",\n    \"updated_at\" = now()\n  where (\"better_supabase\".\"search_documents\".\"tenant_id\", \"better_supabase\".\"search_documents\".\"title\", \"better_supabase\".\"search_documents\".\"body\", \"better_supabase\".\"search_documents\".\"url\")\n    is distinct from (excluded.\"tenant_id\", excluded.\"title\", excluded.\"body\", excluded.\"url\");\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"after_search_document_index\"(text, text)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::text, $2::text)', v_hook::oid::regproc)\n        using search_refresh.subject_type, search_refresh.subject_id;\n    end if;\n  end;\n  return true;\nend;\n$function$\n",
+        "definition": "\n#variable_conflict use_column\ndeclare\n  v_tenant uuid;\n  v_title text;\n  v_body text;\n  v_url text;\n  v_found boolean := false;\n  v_hash text;\nbegin\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"before_search_document_index\"(text, text)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::text, $2::text)', v_hook::oid::regproc)\n        using search_refresh.subject_type, search_refresh.subject_id;\n    end if;\n  end;\n  case search_refresh.subject_type\n    when 'message' then\n      select s.\"tenant_id\", s.\"body\"::text, null, null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"messages\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'channel' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"topic\"::text, s.\"purpose\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"channels\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'company' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"domain\"::text), ''), '/crm/contacts/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"companies\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'person' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"email\"::text, s.\"title\"::text), ''), '/crm/contacts/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"people\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'deal' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"identifier\"::text, s.\"note\"::text), ''), '/crm/deals'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"deals\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'course' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"courses\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'post' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"body\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"posts\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'activity' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"body\"::text, s.\"outcome\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"activities\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'work_item' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"identifier\"::text, s.\"body\"::text), ''), '/work'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"work_items\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'employee' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"email\"::text, s.\"job_title\"::text), ''), '/people'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"employees\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'product' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"description\"::text, s.\"slug\"::text), ''), '/shop'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"products\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'product_variant' then\n      select s.\"tenant_id\", s.\"sku\"::text, nullif(concat_ws(E'\\n', s.\"title\"::text, s.\"barcode\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"product_variants\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'calendar_event' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"description\"::text, s.\"location\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"calendar_events\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'risk' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"description\"::text, s.\"cause\"::text, s.\"consequence\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"risks\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'case' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"description\"::text, s.\"root_cause\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"cases\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'inspection' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"scope\"::text, s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"inspections\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'meeting' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"location\"::text, s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"meetings\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'production_order' then\n      select s.\"tenant_id\", s.\"number\"::text, nullif(concat_ws(E'\\n', s.\"note\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"production_orders\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'content_entry' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"content_entries\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'customer' then\n      select s.\"organization_id\", s.\"name\"::text, null, '/customers/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"public\".\"customers\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'drive_node' then\n      select s.\"tenant_id\", f.\"name\"::text, nullif(concat_ws(E'\\n', f.\"content\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"drive_nodes\" s\n        join \"better_supabase\".\"drive_node_search\" f on f.\"id\" = s.\"id\"\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and f.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'project' then\n      select s.\"organization_id\", s.\"name\"::text, null, '/projects/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"public\".\"projects\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"deleted_at\" is null;\n      v_found := found;\n    else\n      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';\n  end case;\n  if not v_found then\n    delete from \"better_supabase\".\"search_documents\"\n    where \"subject_type\" = search_refresh.subject_type and \"subject_id\" = search_refresh.subject_id;\n    return false;\n  end if;\n  v_hash := md5(coalesce(v_title, '') || E'\\x1f' || coalesce(v_body, ''));\n  insert into \"better_supabase\".\"search_documents\" (\"tenant_id\", \"subject_type\", \"subject_id\", \"title\", \"title_search\", \"body\", \"url\", \"tsv\", \"content_hash\", \"updated_at\")\n  values (\n    v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, \"better_supabase\".\"search_normalize\"(v_title), v_body, v_url,\n    setweight(to_tsvector('simple', \"better_supabase\".\"search_normalize\"(v_title)), 'A')\n      || setweight(to_tsvector('simple', \"better_supabase\".\"search_normalize\"(v_body)), 'B'),\n    v_hash, now()\n  )\n  on conflict (\"subject_type\", \"subject_id\") do update set\n    \"tenant_id\" = excluded.\"tenant_id\",\n    \"title\" = excluded.\"title\",\n    \"title_search\" = excluded.\"title_search\",\n    \"body\" = excluded.\"body\",\n    \"url\" = excluded.\"url\",\n    \"tsv\" = excluded.\"tsv\",\n    \"content_hash\" = excluded.\"content_hash\",\n    \"updated_at\" = now()\n  where (\"better_supabase\".\"search_documents\".\"tenant_id\", \"better_supabase\".\"search_documents\".\"title\", \"better_supabase\".\"search_documents\".\"body\", \"better_supabase\".\"search_documents\".\"url\")\n    is distinct from (excluded.\"tenant_id\", excluded.\"title\", excluded.\"body\", excluded.\"url\");\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"after_search_document_index\"(text, text)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::text, $2::text)', v_hook::oid::regproc)\n        using search_refresh.subject_type, search_refresh.subject_id;\n    end if;\n  end;\n  return true;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.search_refresh(subject_type text, subject_id text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\ndeclare\n  v_tenant uuid;\n  v_title text;\n  v_body text;\n  v_url text;\n  v_found boolean := false;\n  v_hash text;\nbegin\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"before_search_document_index\"(text, text)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::text, $2::text)', v_hook::oid::regproc)\n        using search_refresh.subject_type, search_refresh.subject_id;\n    end if;\n  end;\n  case search_refresh.subject_type\n    when 'message' then\n      select s.\"tenant_id\", s.\"body\"::text, null, null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"messages\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'channel' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"topic\"::text, s.\"purpose\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"channels\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'company' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"domain\"::text), ''), '/crm/contacts/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"companies\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'person' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"email\"::text, s.\"title\"::text), ''), '/crm/contacts/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"people\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'deal' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"identifier\"::text, s.\"note\"::text), ''), '/crm/deals'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"deals\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'course' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"courses\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'post' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"body\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"posts\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'activity' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"body\"::text, s.\"outcome\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"activities\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'work_item' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"identifier\"::text, s.\"body\"::text), ''), '/work'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"work_items\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'employee' then\n      select s.\"tenant_id\", s.\"name\"::text, nullif(concat_ws(E'\\n', s.\"email\"::text, s.\"job_title\"::text), ''), '/people'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"employees\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'product' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"description\"::text, s.\"slug\"::text), ''), '/shop'\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"products\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'product_variant' then\n      select s.\"tenant_id\", s.\"sku\"::text, nullif(concat_ws(E'\\n', s.\"title\"::text, s.\"barcode\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"product_variants\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'calendar_event' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"description\"::text, s.\"location\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"calendar_events\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'risk' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"description\"::text, s.\"cause\"::text, s.\"consequence\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"risks\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'case' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"description\"::text, s.\"root_cause\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"cases\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'inspection' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"number\"::text, s.\"scope\"::text, s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"inspections\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'meeting' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"location\"::text, s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"meetings\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'production_order' then\n      select s.\"tenant_id\", s.\"number\"::text, nullif(concat_ws(E'\\n', s.\"note\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"production_orders\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'content_entry' then\n      select s.\"tenant_id\", s.\"title\"::text, nullif(concat_ws(E'\\n', s.\"summary\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"content_entries\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid;\n      v_found := found;\n    when 'customer' then\n      select s.\"organization_id\", s.\"name\"::text, null, '/customers/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"public\".\"customers\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'drive_node' then\n      select s.\"tenant_id\", f.\"name\"::text, nullif(concat_ws(E'\\n', f.\"content\"::text), ''), null\n        into v_tenant, v_title, v_body, v_url\n        from \"better_supabase\".\"drive_nodes\" s\n        join \"better_supabase\".\"drive_node_search\" f on f.\"id\" = s.\"id\"\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and f.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"archived_at\" is null;\n      v_found := found;\n    when 'project' then\n      select s.\"organization_id\", s.\"name\"::text, null, '/projects/' || s.\"id\"::text\n        into v_tenant, v_title, v_body, v_url\n        from \"public\".\"projects\" s\n        where s.\"id\" = (search_refresh.subject_id)::uuid\n        and s.\"deleted_at\" is null;\n      v_found := found;\n    else\n      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';\n  end case;\n  if not v_found then\n    delete from \"better_supabase\".\"search_documents\"\n    where \"subject_type\" = search_refresh.subject_type and \"subject_id\" = search_refresh.subject_id;\n    return false;\n  end if;\n  v_hash := md5(coalesce(v_title, '') || E'\\x1f' || coalesce(v_body, ''));\n  insert into \"better_supabase\".\"search_documents\" (\"tenant_id\", \"subject_type\", \"subject_id\", \"title\", \"title_search\", \"body\", \"url\", \"tsv\", \"content_hash\", \"updated_at\")\n  values (\n    v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, \"better_supabase\".\"search_normalize\"(v_title), v_body, v_url,\n    setweight(to_tsvector('simple', \"better_supabase\".\"search_normalize\"(v_title)), 'A')\n      || setweight(to_tsvector('simple', \"better_supabase\".\"search_normalize\"(v_body)), 'B'),\n    v_hash, now()\n  )\n  on conflict (\"subject_type\", \"subject_id\") do update set\n    \"tenant_id\" = excluded.\"tenant_id\",\n    \"title\" = excluded.\"title\",\n    \"title_search\" = excluded.\"title_search\",\n    \"body\" = excluded.\"body\",\n    \"url\" = excluded.\"url\",\n    \"tsv\" = excluded.\"tsv\",\n    \"content_hash\" = excluded.\"content_hash\",\n    \"updated_at\" = now()\n  where (\"better_supabase\".\"search_documents\".\"tenant_id\", \"better_supabase\".\"search_documents\".\"title\", \"better_supabase\".\"search_documents\".\"body\", \"better_supabase\".\"search_documents\".\"url\")\n    is distinct from (excluded.\"tenant_id\", excluded.\"title\", excluded.\"body\", excluded.\"url\");\n  declare\n    v_hook regprocedure := to_regprocedure('\"public\".\"after_search_document_index\"(text, text)');\n  begin\n    if v_hook is not null then\n      execute format('select %s($1::text, $2::text)', v_hook::oid::regproc)\n        using search_refresh.subject_type, search_refresh.subject_id;\n    end if;\n  end;\n  return true;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -262021,8 +262021,8 @@
         "schema": "better_supabase",
         "name": "usage_overview",
         "language": "plpgsql",
-        "definition": "\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  return (\n    select coalesce(jsonb_agg(\"better_supabase\".\"usage_status\"(usage_overview.tenant, m.meter) order by m.meter), '[]'::jsonb)\n    from (\n      select jsonb_object_keys(\"better_supabase\".\"usage_meters\"()) as meter\n      union\n      select q.\"meter\" from \"better_supabase\".\"usage_quotas\" q\n      where q.\"tenant_id\" = usage_overview.tenant\n        or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(usage_overview.tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(usage_overview.tenant))))\n      union\n      select distinct c.\"meter\" from \"better_supabase\".\"usage_counters\" c\n      where c.\"tenant_id\" = usage_overview.tenant\n    ) m\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.usage_overview(tenant uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  return (\n    select coalesce(jsonb_agg(\"better_supabase\".\"usage_status\"(usage_overview.tenant, m.meter) order by m.meter), '[]'::jsonb)\n    from (\n      select jsonb_object_keys(\"better_supabase\".\"usage_meters\"()) as meter\n      union\n      select q.\"meter\" from \"better_supabase\".\"usage_quotas\" q\n      where q.\"tenant_id\" = usage_overview.tenant\n        or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(usage_overview.tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(usage_overview.tenant))))\n      union\n      select distinct c.\"meter\" from \"better_supabase\".\"usage_counters\" c\n      where c.\"tenant_id\" = usage_overview.tenant\n    ) m\n  );\nend;\n$function$\n",
+        "definition": "\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  return (\n    with meters as (\n      select jsonb_object_keys(\"better_supabase\".\"usage_meters\"()) as meter\n      union\n      select q.\"meter\" from \"better_supabase\".\"usage_quotas\" q\n      where q.\"tenant_id\" = usage_overview.tenant\n        or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(usage_overview.tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(usage_overview.tenant))))\n      union\n      select distinct c.\"meter\" from \"better_supabase\".\"usage_counters\" c\n      where c.\"tenant_id\" = usage_overview.tenant\n    ),\n    quota as (\n      select distinct on (q.\"meter\")\n        q.\"meter\" as meter,\n        q.\"limit\" as quota_limit,\n        q.\"period\" as period\n      from \"better_supabase\".\"usage_quotas\" q\n      join meters m on m.meter = q.\"meter\"\n      where q.\"tenant_id\" = usage_overview.tenant\n        or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(usage_overview.tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(usage_overview.tenant))))\n      order by q.\"meter\", (q.\"tenant_id\" is not null) desc, q.\"limit\" desc nulls first\n    ),\n    chosen as (\n      select m.meter,\n        quota.quota_limit,\n        quota.period as quota_period,\n        coalesce(quota.period, 'month') as period\n      from meters m\n      left join quota on quota.meter = m.meter\n    ),\n    win as (\n      select p.period, w.starts_at, w.ends_at\n      from (select distinct chosen.period from chosen) p\n      cross join lateral \"better_supabase\".\"usage_window\"(usage_overview.tenant, p.period) w\n    ),\n    used as (\n      select ch.meter, coalesce(sum(c.\"value\"), 0)::numeric as used\n      from chosen ch\n      join win w on w.period = ch.period\n      left join \"better_supabase\".\"usage_counters\" c\n        on c.\"tenant_id\" = usage_overview.tenant\n        and c.\"meter\" = ch.meter\n        and c.\"day\" >= (w.starts_at at time zone 'utc')::date\n        and c.\"day\" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)\n      group by ch.meter\n    ),\n    catalog as (\n      select \"better_supabase\".\"usage_meters\"() as meters\n    )\n    select coalesce(jsonb_agg(\n      jsonb_build_object(\n        'meter', ch.meter,\n        'used', u.used,\n        'limit', ch.quota_limit,\n        'remaining', case\n          when ch.quota_limit is null then null\n          else greatest(ch.quota_limit - u.used, 0)\n        end,\n        'unlimited', ch.quota_period is not null and ch.quota_limit is null,\n        'period', ch.period,\n        'resets_at', w.ends_at,\n        'starts_at', w.starts_at\n      ) || coalesce(catalog.meters -> ch.meter, '{}'::jsonb)\n      order by ch.meter\n    ), '[]'::jsonb)\n    from chosen ch\n    join used u on u.meter = ch.meter\n    join win w on w.period = ch.period\n    cross join catalog\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.usage_overview(tenant uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  return (\n    with meters as (\n      select jsonb_object_keys(\"better_supabase\".\"usage_meters\"()) as meter\n      union\n      select q.\"meter\" from \"better_supabase\".\"usage_quotas\" q\n      where q.\"tenant_id\" = usage_overview.tenant\n        or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(usage_overview.tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(usage_overview.tenant))))\n      union\n      select distinct c.\"meter\" from \"better_supabase\".\"usage_counters\" c\n      where c.\"tenant_id\" = usage_overview.tenant\n    ),\n    quota as (\n      select distinct on (q.\"meter\")\n        q.\"meter\" as meter,\n        q.\"limit\" as quota_limit,\n        q.\"period\" as period\n      from \"better_supabase\".\"usage_quotas\" q\n      join meters m on m.meter = q.\"meter\"\n      where q.\"tenant_id\" = usage_overview.tenant\n        or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(usage_overview.tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(usage_overview.tenant))))\n      order by q.\"meter\", (q.\"tenant_id\" is not null) desc, q.\"limit\" desc nulls first\n    ),\n    chosen as (\n      select m.meter,\n        quota.quota_limit,\n        quota.period as quota_period,\n        coalesce(quota.period, 'month') as period\n      from meters m\n      left join quota on quota.meter = m.meter\n    ),\n    win as (\n      select p.period, w.starts_at, w.ends_at\n      from (select distinct chosen.period from chosen) p\n      cross join lateral \"better_supabase\".\"usage_window\"(usage_overview.tenant, p.period) w\n    ),\n    used as (\n      select ch.meter, coalesce(sum(c.\"value\"), 0)::numeric as used\n      from chosen ch\n      join win w on w.period = ch.period\n      left join \"better_supabase\".\"usage_counters\" c\n        on c.\"tenant_id\" = usage_overview.tenant\n        and c.\"meter\" = ch.meter\n        and c.\"day\" >= (w.starts_at at time zone 'utc')::date\n        and c.\"day\" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)\n      group by ch.meter\n    ),\n    catalog as (\n      select \"better_supabase\".\"usage_meters\"() as meters\n    )\n    select coalesce(jsonb_agg(\n      jsonb_build_object(\n        'meter', ch.meter,\n        'used', u.used,\n        'limit', ch.quota_limit,\n        'remaining', case\n          when ch.quota_limit is null then null\n          else greatest(ch.quota_limit - u.used, 0)\n        end,\n        'unlimited', ch.quota_period is not null and ch.quota_limit is null,\n        'period', ch.period,\n        'resets_at', w.ends_at,\n        'starts_at', w.starts_at\n      ) || coalesce(catalog.meters -> ch.meter, '{}'::jsonb)\n      order by ch.meter\n    ), '[]'::jsonb)\n    from chosen ch\n    join used u on u.meter = ch.meter\n    join win w on w.period = ch.period\n    cross join catalog\n  );\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -262093,10 +262093,10 @@
       {
         "id": 3002629,
         "schema": "better_supabase",
-        "name": "usage_status",
+        "name": "usage_remaining",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  quota record;\n  used numeric;\n  win record;\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  select * into quota from \"better_supabase\".\"usage_quota\"(tenant, meter);\n  select * into win from \"better_supabase\".\"usage_window\"(tenant, coalesce(quota.period, 'month'));\n  used := \"better_supabase\".\"usage_used\"(tenant, meter, coalesce(quota.period, 'month'));\n  return jsonb_build_object(\n    'meter', meter,\n    'used', used,\n    'limit', quota.quota_limit,\n    'remaining', case when quota.quota_limit is null then null else greatest(quota.quota_limit - used, 0) end,\n    'unlimited', quota.period is not null and quota.quota_limit is null,\n    'period', coalesce(quota.period, 'month'),\n    'resets_at', win.ends_at,\n    'starts_at', win.starts_at\n  ) || coalesce(\"better_supabase\".\"usage_meters\"() -> meter, '{}'::jsonb);\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.usage_status(tenant uuid, meter text)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  quota record;\n  used numeric;\n  win record;\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  select * into quota from \"better_supabase\".\"usage_quota\"(tenant, meter);\n  select * into win from \"better_supabase\".\"usage_window\"(tenant, coalesce(quota.period, 'month'));\n  used := \"better_supabase\".\"usage_used\"(tenant, meter, coalesce(quota.period, 'month'));\n  return jsonb_build_object(\n    'meter', meter,\n    'used', used,\n    'limit', quota.quota_limit,\n    'remaining', case when quota.quota_limit is null then null else greatest(quota.quota_limit - used, 0) end,\n    'unlimited', quota.period is not null and quota.quota_limit is null,\n    'period', coalesce(quota.period, 'month'),\n    'resets_at', win.ends_at,\n    'starts_at', win.starts_at\n  ) || coalesce(\"better_supabase\".\"usage_meters\"() -> meter, '{}'::jsonb);\nend;\n$function$\n",
+        "definition": "\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  return (\n    with quota as (\n      select q.\"limit\" as quota_limit, q.\"period\" as period\n      from \"better_supabase\".\"usage_quotas\" q\n      where q.\"meter\" = usage_remaining.meter\n        and (q.\"tenant_id\" = usage_remaining.tenant or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(tenant)))))\n      order by (q.\"tenant_id\" is not null) desc, q.\"limit\" desc nulls first\n      limit 1\n    ),\n    win as (\n      select w.starts_at, w.ends_at\n      from \"better_supabase\".\"usage_window\"(usage_remaining.tenant, coalesce((select quota.period from quota), 'month')) w\n    ),\n    used as (\n      select coalesce(sum(c.\"value\"), 0)::numeric as used\n      from \"better_supabase\".\"usage_counters\" c\n      cross join win w\n      where c.\"tenant_id\" = usage_remaining.tenant\n        and c.\"meter\" = usage_remaining.meter\n        and c.\"day\" >= (w.starts_at at time zone 'utc')::date\n        and c.\"day\" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)\n    )\n    select jsonb_build_object(\n      'used', (select used.used from used),\n      'limit', (select quota.quota_limit from quota),\n      'remaining', case\n        when (select quota.quota_limit from quota) is null then null\n        else greatest((select quota.quota_limit from quota) - (select used.used from used), 0)\n      end,\n      'resets_at', (select win.ends_at from win)\n    )\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.usage_remaining(tenant uuid, meter text)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  return (\n    with quota as (\n      select q.\"limit\" as quota_limit, q.\"period\" as period\n      from \"better_supabase\".\"usage_quotas\" q\n      where q.\"meter\" = usage_remaining.meter\n        and (q.\"tenant_id\" = usage_remaining.tenant or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(tenant)))))\n      order by (q.\"tenant_id\" is not null) desc, q.\"limit\" desc nulls first\n      limit 1\n    ),\n    win as (\n      select w.starts_at, w.ends_at\n      from \"better_supabase\".\"usage_window\"(usage_remaining.tenant, coalesce((select quota.period from quota), 'month')) w\n    ),\n    used as (\n      select coalesce(sum(c.\"value\"), 0)::numeric as used\n      from \"better_supabase\".\"usage_counters\" c\n      cross join win w\n      where c.\"tenant_id\" = usage_remaining.tenant\n        and c.\"meter\" = usage_remaining.meter\n        and c.\"day\" >= (w.starts_at at time zone 'utc')::date\n        and c.\"day\" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)\n    )\n    select jsonb_build_object(\n      'used', (select used.used from used),\n      'limit', (select quota.quota_limit from quota),\n      'remaining', case\n        when (select quota.quota_limit from quota) is null then null\n        else greatest((select quota.quota_limit from quota) - (select used.used from used), 0)\n      end,\n      'resets_at', (select win.ends_at from win)\n    )\n  );\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -262126,6 +262126,40 @@
       },
       {
         "id": 3002630,
+        "schema": "better_supabase",
+        "name": "usage_status",
+        "language": "plpgsql",
+        "definition": "\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  return (\n    with quota as (\n      select q.\"limit\" as quota_limit, q.\"period\" as period\n      from \"better_supabase\".\"usage_quotas\" q\n      where q.\"meter\" = usage_status.meter\n        and (q.\"tenant_id\" = usage_status.tenant or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(tenant)))))\n      order by (q.\"tenant_id\" is not null) desc, q.\"limit\" desc nulls first\n      limit 1\n    ),\n    win as (\n      select w.starts_at, w.ends_at\n      from \"better_supabase\".\"usage_window\"(usage_status.tenant, coalesce((select quota.period from quota), 'month')) w\n    ),\n    used as (\n      select coalesce(sum(c.\"value\"), 0)::numeric as used\n      from \"better_supabase\".\"usage_counters\" c\n      cross join win w\n      where c.\"tenant_id\" = usage_status.tenant\n        and c.\"meter\" = usage_status.meter\n        and c.\"day\" >= (w.starts_at at time zone 'utc')::date\n        and c.\"day\" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)\n    )\n    select jsonb_build_object(\n      'meter', usage_status.meter,\n      'used', (select used.used from used),\n      'limit', (select quota.quota_limit from quota),\n      'remaining', case\n        when (select quota.quota_limit from quota) is null then null\n        else greatest((select quota.quota_limit from quota) - (select used.used from used), 0)\n      end,\n      'unlimited', (select quota.period from quota) is not null and (select quota.quota_limit from quota) is null,\n      'period', coalesce((select quota.period from quota), 'month'),\n      'resets_at', (select win.ends_at from win),\n      'starts_at', (select win.starts_at from win)\n    ) || coalesce(\"better_supabase\".\"usage_meters\"() -> usage_status.meter, '{}'::jsonb)\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.usage_status(tenant uuid, meter text)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'usage.read'), false)) then\n    raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';\n  end if;\n  return (\n    with quota as (\n      select q.\"limit\" as quota_limit, q.\"period\" as period\n      from \"better_supabase\".\"usage_quotas\" q\n      where q.\"meter\" = usage_status.meter\n        and (q.\"tenant_id\" = usage_status.tenant or (q.\"tenant_id\" is null and (q.\"plan\" = '*' or q.\"plan\" = any (better_supabase.tenant_entitlements(tenant)) or q.\"plan\" = any (better_supabase.tenant_plans(tenant)))))\n      order by (q.\"tenant_id\" is not null) desc, q.\"limit\" desc nulls first\n      limit 1\n    ),\n    win as (\n      select w.starts_at, w.ends_at\n      from \"better_supabase\".\"usage_window\"(usage_status.tenant, coalesce((select quota.period from quota), 'month')) w\n    ),\n    used as (\n      select coalesce(sum(c.\"value\"), 0)::numeric as used\n      from \"better_supabase\".\"usage_counters\" c\n      cross join win w\n      where c.\"tenant_id\" = usage_status.tenant\n        and c.\"meter\" = usage_status.meter\n        and c.\"day\" >= (w.starts_at at time zone 'utc')::date\n        and c.\"day\" < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)\n    )\n    select jsonb_build_object(\n      'meter', usage_status.meter,\n      'used', (select used.used from used),\n      'limit', (select quota.quota_limit from quota),\n      'remaining', case\n        when (select quota.quota_limit from quota) is null then null\n        else greatest((select quota.quota_limit from quota) - (select used.used from used), 0)\n      end,\n      'unlimited', (select quota.period from quota) is not null and (select quota.quota_limit from quota) is null,\n      'period', coalesce((select quota.period from quota), 'month'),\n      'resets_at', (select win.ends_at from win),\n      'starts_at', (select win.starts_at from win)\n    ) || coalesce(\"better_supabase\".\"usage_meters\"() -> usage_status.meter, '{}'::jsonb)\n  );\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "meter",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "tenant",
+            "type_id": 2950,
+            "has_default": false
+          }
+        ],
+        "argument_types": "tenant uuid, meter text",
+        "identity_argument_types": "tenant uuid, meter text",
+        "return_type_id": 3802,
+        "return_type": "jsonb",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3002631,
         "schema": "better_supabase",
         "name": "usage_used",
         "language": "sql",
@@ -262165,7 +262199,7 @@
         }
       },
       {
-        "id": 3002631,
+        "id": 3002632,
         "schema": "better_supabase",
         "name": "usage_window",
         "language": "plpgsql",
@@ -262211,7 +262245,7 @@
         }
       },
       {
-        "id": 3002632,
+        "id": 3002633,
         "schema": "better_supabase",
         "name": "usage_window_start",
         "language": "plpgsql",
@@ -262251,7 +262285,7 @@
         }
       },
       {
-        "id": 3002633,
+        "id": 3002634,
         "schema": "better_supabase",
         "name": "user_disabled",
         "language": "sql",
@@ -262279,7 +262313,7 @@
         }
       },
       {
-        "id": 3002634,
+        "id": 3002635,
         "schema": "better_supabase",
         "name": "validate_deadline_rules",
         "language": "plpgsql",
@@ -262307,7 +262341,7 @@
         }
       },
       {
-        "id": 3002635,
+        "id": 3002636,
         "schema": "better_supabase",
         "name": "validate_document_template",
         "language": "plpgsql",
@@ -262347,7 +262381,7 @@
         }
       },
       {
-        "id": 3002636,
+        "id": 3002637,
         "schema": "better_supabase",
         "name": "validate_iban",
         "language": "plpgsql",
@@ -262375,7 +262409,7 @@
         }
       },
       {
-        "id": 3002637,
+        "id": 3002638,
         "schema": "better_supabase",
         "name": "validate_workflow_graph",
         "language": "plpgsql",
@@ -262403,7 +262437,7 @@
         }
       },
       {
-        "id": 3002638,
+        "id": 3002639,
         "schema": "better_supabase",
         "name": "value_unsupported",
         "language": "plpgsql",
@@ -262431,7 +262465,7 @@
         }
       },
       {
-        "id": 3002639,
+        "id": 3002640,
         "schema": "better_supabase",
         "name": "variant_identifiers",
         "language": "sql",
@@ -262459,7 +262493,7 @@
         }
       },
       {
-        "id": 3002640,
+        "id": 3002641,
         "schema": "better_supabase",
         "name": "variant_price",
         "language": "sql",
@@ -262505,7 +262539,7 @@
         }
       },
       {
-        "id": 3002641,
+        "id": 3002642,
         "schema": "better_supabase",
         "name": "variant_relations",
         "language": "sql",
@@ -262539,7 +262573,7 @@
         }
       },
       {
-        "id": 3002642,
+        "id": 3002643,
         "schema": "better_supabase",
         "name": "verify_api_key",
         "language": "plpgsql",
@@ -262573,7 +262607,7 @@
         }
       },
       {
-        "id": 3002643,
+        "id": 3002644,
         "schema": "better_supabase",
         "name": "verify_chain",
         "language": "plpgsql",
@@ -262614,7 +262648,7 @@
         }
       },
       {
-        "id": 3002644,
+        "id": 3002645,
         "schema": "better_supabase",
         "name": "verify_course_certificate",
         "language": "sql",
@@ -262642,7 +262676,7 @@
         }
       },
       {
-        "id": 3002645,
+        "id": 3002646,
         "schema": "better_supabase",
         "name": "verify_data_subject_request",
         "language": "plpgsql",
@@ -262676,7 +262710,7 @@
         }
       },
       {
-        "id": 3002646,
+        "id": 3002647,
         "schema": "better_supabase",
         "name": "verify_organization_domain",
         "language": "plpgsql",
@@ -262710,7 +262744,7 @@
         }
       },
       {
-        "id": 3002647,
+        "id": 3002648,
         "schema": "better_supabase",
         "name": "version_content_hash",
         "language": "sql",
@@ -262756,7 +262790,7 @@
         }
       },
       {
-        "id": 3002648,
+        "id": 3002649,
         "schema": "better_supabase",
         "name": "version_insert",
         "language": "plpgsql",
@@ -262838,7 +262872,7 @@
         }
       },
       {
-        "id": 3002649,
+        "id": 3002650,
         "schema": "better_supabase",
         "name": "void_donation_receipt",
         "language": "plpgsql",
@@ -262872,7 +262906,7 @@
         }
       },
       {
-        "id": 3002650,
+        "id": 3002651,
         "schema": "better_supabase",
         "name": "void_invoice",
         "language": "plpgsql",
@@ -262912,7 +262946,7 @@
         }
       },
       {
-        "id": 3002651,
+        "id": 3002652,
         "schema": "better_supabase",
         "name": "void_referral",
         "language": "plpgsql",
@@ -262946,7 +262980,7 @@
         }
       },
       {
-        "id": 3002652,
+        "id": 3002653,
         "schema": "better_supabase",
         "name": "vote",
         "language": "plpgsql",
@@ -262998,7 +263032,7 @@
         }
       },
       {
-        "id": 3002653,
+        "id": 3002654,
         "schema": "better_supabase",
         "name": "vote_on_post",
         "language": "plpgsql",
@@ -263032,7 +263066,7 @@
         }
       },
       {
-        "id": 3002654,
+        "id": 3002655,
         "schema": "better_supabase",
         "name": "vote_summary",
         "language": "sql",
@@ -263072,7 +263106,7 @@
         }
       },
       {
-        "id": 3002655,
+        "id": 3002656,
         "schema": "better_supabase",
         "name": "vote_tally",
         "language": "sql",
@@ -263112,7 +263146,7 @@
         }
       },
       {
-        "id": 3002656,
+        "id": 3002657,
         "schema": "better_supabase",
         "name": "waitlist_admit",
         "language": "plpgsql",
@@ -263146,7 +263180,7 @@
         }
       },
       {
-        "id": 3002657,
+        "id": 3002658,
         "schema": "better_supabase",
         "name": "wake_snoozed_conversations",
         "language": "plpgsql",
@@ -263167,7 +263201,7 @@
         }
       },
       {
-        "id": 3002658,
+        "id": 3002659,
         "schema": "better_supabase",
         "name": "watch_maintenance_request",
         "language": "plpgsql",
@@ -263201,7 +263235,7 @@
         }
       },
       {
-        "id": 3002659,
+        "id": 3002660,
         "schema": "better_supabase",
         "name": "watch_work_item",
         "language": "plpgsql",
@@ -263235,7 +263269,7 @@
         }
       },
       {
-        "id": 3002660,
+        "id": 3002661,
         "schema": "better_supabase",
         "name": "webhook_secrets",
         "language": "sql",
@@ -263263,7 +263297,7 @@
         }
       },
       {
-        "id": 3002661,
+        "id": 3002662,
         "schema": "better_supabase",
         "name": "wip_valuation",
         "language": "plpgsql",
@@ -263297,7 +263331,7 @@
         }
       },
       {
-        "id": 3002662,
+        "id": 3002663,
         "schema": "better_supabase",
         "name": "withdraw_consent",
         "language": "plpgsql",
@@ -263331,7 +263365,7 @@
         }
       },
       {
-        "id": 3002663,
+        "id": 3002664,
         "schema": "better_supabase",
         "name": "withdraw_quote",
         "language": "plpgsql",
@@ -263371,7 +263405,7 @@
         }
       },
       {
-        "id": 3002664,
+        "id": 3002665,
         "schema": "better_supabase",
         "name": "withdraw_rfq_quote",
         "language": "plpgsql",
@@ -263399,7 +263433,7 @@
         }
       },
       {
-        "id": 3002665,
+        "id": 3002666,
         "schema": "better_supabase",
         "name": "within_quota",
         "language": "plpgsql",
@@ -263439,7 +263473,7 @@
         }
       },
       {
-        "id": 3002666,
+        "id": 3002667,
         "schema": "better_supabase",
         "name": "work_item_tree",
         "language": "sql",
@@ -263467,7 +263501,7 @@
         }
       },
       {
-        "id": 3002667,
+        "id": 3002668,
         "schema": "better_supabase",
         "name": "workflow_admission_active",
         "language": "sql",
@@ -263495,7 +263529,7 @@
         }
       },
       {
-        "id": 3002668,
+        "id": 3002669,
         "schema": "better_supabase",
         "name": "workflow_alerts_list",
         "language": "sql",
@@ -263523,7 +263557,7 @@
         }
       },
       {
-        "id": 3002669,
+        "id": 3002670,
         "schema": "better_supabase",
         "name": "workflow_claim_run_key",
         "language": "plpgsql",
@@ -263569,7 +263603,7 @@
         }
       },
       {
-        "id": 3002670,
+        "id": 3002671,
         "schema": "better_supabase",
         "name": "workflow_credential_get",
         "language": "sql",
@@ -263597,7 +263631,7 @@
         }
       },
       {
-        "id": 3002671,
+        "id": 3002672,
         "schema": "better_supabase",
         "name": "workflow_credentials_list",
         "language": "sql",
@@ -263625,7 +263659,7 @@
         }
       },
       {
-        "id": 3002672,
+        "id": 3002673,
         "schema": "better_supabase",
         "name": "workflow_definition_get",
         "language": "sql",
@@ -263653,7 +263687,7 @@
         }
       },
       {
-        "id": 3002673,
+        "id": 3002674,
         "schema": "better_supabase",
         "name": "workflow_definition_grants_list",
         "language": "sql",
@@ -263681,7 +263715,7 @@
         }
       },
       {
-        "id": 3002674,
+        "id": 3002675,
         "schema": "better_supabase",
         "name": "workflow_definitions_list",
         "language": "sql",
@@ -263715,7 +263749,7 @@
         }
       },
       {
-        "id": 3002675,
+        "id": 3002676,
         "schema": "better_supabase",
         "name": "workflow_graph_permissions",
         "language": "sql",
@@ -263743,7 +263777,7 @@
         }
       },
       {
-        "id": 3002676,
+        "id": 3002677,
         "schema": "better_supabase",
         "name": "workflow_node_kinds_list",
         "language": "sql",
@@ -263764,7 +263798,7 @@
         }
       },
       {
-        "id": 3002677,
+        "id": 3002678,
         "schema": "better_supabase",
         "name": "workflow_node_runs_list",
         "language": "sql",
@@ -263792,7 +263826,7 @@
         }
       },
       {
-        "id": 3002678,
+        "id": 3002679,
         "schema": "better_supabase",
         "name": "workflow_open_hooks",
         "language": "sql",
@@ -263880,7 +263914,7 @@
         }
       },
       {
-        "id": 3002679,
+        "id": 3002680,
         "schema": "better_supabase",
         "name": "workflow_purge_runs",
         "language": "plpgsql",
@@ -263920,7 +263954,7 @@
         }
       },
       {
-        "id": 3002680,
+        "id": 3002681,
         "schema": "better_supabase",
         "name": "workflow_release_run_key",
         "language": "sql",
@@ -263948,7 +263982,7 @@
         }
       },
       {
-        "id": 3002681,
+        "id": 3002682,
         "schema": "better_supabase",
         "name": "workflow_run_get",
         "language": "sql",
@@ -263976,7 +264010,7 @@
         }
       },
       {
-        "id": 3002682,
+        "id": 3002683,
         "schema": "better_supabase",
         "name": "workflow_run_principal",
         "language": "plpgsql",
@@ -264010,7 +264044,7 @@
         }
       },
       {
-        "id": 3002683,
+        "id": 3002684,
         "schema": "better_supabase",
         "name": "workflow_runs_list",
         "language": "sql",
@@ -264080,7 +264114,7 @@
         }
       },
       {
-        "id": 3002684,
+        "id": 3002685,
         "schema": "better_supabase",
         "name": "workflow_schedules_list",
         "language": "sql",
@@ -264108,7 +264142,7 @@
         }
       },
       {
-        "id": 3002685,
+        "id": 3002686,
         "schema": "better_supabase",
         "name": "workflow_set_run_key",
         "language": "sql",
@@ -264142,7 +264176,7 @@
         }
       },
       {
-        "id": 3002686,
+        "id": 3002687,
         "schema": "better_supabase",
         "name": "workflow_start_target",
         "language": "plpgsql",
@@ -264176,7 +264210,7 @@
         }
       },
       {
-        "id": 3002687,
+        "id": 3002688,
         "schema": "better_supabase",
         "name": "workflow_steps_list",
         "language": "sql",
@@ -264197,7 +264231,7 @@
         }
       },
       {
-        "id": 3002688,
+        "id": 3002689,
         "schema": "better_supabase",
         "name": "workflow_subject_start_target",
         "language": "plpgsql",
@@ -264243,7 +264277,7 @@
         }
       },
       {
-        "id": 3002689,
+        "id": 3002690,
         "schema": "better_supabase",
         "name": "workflow_triggers_list",
         "language": "sql",
@@ -264271,7 +264305,7 @@
         }
       },
       {
-        "id": 3002690,
+        "id": 3002691,
         "schema": "better_supabase",
         "name": "workflow_version_get",
         "language": "sql",
@@ -264299,7 +264333,7 @@
         }
       },
       {
-        "id": 3002691,
+        "id": 3002692,
         "schema": "better_supabase",
         "name": "workflow_versions_list",
         "language": "sql",
@@ -264327,7 +264361,7 @@
         }
       },
       {
-        "id": 3002692,
+        "id": 3002693,
         "schema": "better_supabase",
         "name": "workflow_webhook_target",
         "language": "sql",
@@ -264355,7 +264389,7 @@
         }
       },
       {
-        "id": 3002693,
+        "id": 3002694,
         "schema": "better_supabase",
         "name": "write_knowledge_chunks",
         "language": "plpgsql",
@@ -264395,7 +264429,7 @@
         }
       },
       {
-        "id": 3002694,
+        "id": 3002695,
         "schema": "better_supabase",
         "name": "write_off_invoice",
         "language": "plpgsql",
@@ -264435,7 +264469,7 @@
         }
       },
       {
-        "id": 3002695,
+        "id": 3002696,
         "schema": "better_supabase",
         "name": "yearly_giving_summary",
         "language": "plpgsql",
@@ -264481,7 +264515,7 @@
         }
       },
       {
-        "id": 3002696,
+        "id": 3002697,
         "schema": "public",
         "name": "app_table_set",
         "language": "plpgsql",
@@ -264527,7 +264561,7 @@
         }
       },
       {
-        "id": 3002697,
+        "id": 3002698,
         "schema": "public",
         "name": "client_notes_reveal",
         "language": "sql",
@@ -264573,7 +264607,7 @@
         }
       },
       {
-        "id": 3002698,
+        "id": 3002699,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -264619,7 +264653,7 @@
         }
       },
       {
-        "id": 3002699,
+        "id": 3002700,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -264653,7 +264687,7 @@
         }
       },
       {
-        "id": 3002700,
+        "id": 3002701,
         "schema": "public",
         "name": "import_customer",
         "language": "plpgsql",
@@ -264693,7 +264727,7 @@
         }
       },
       {
-        "id": 3002701,
+        "id": 3002702,
         "schema": "public",
         "name": "import_customer_batch",
         "language": "plpgsql",
@@ -264727,7 +264761,7 @@
         }
       },
       {
-        "id": 3002702,
+        "id": 3002703,
         "schema": "public",
         "name": "import_customer_updated_at",
         "language": "sql",
@@ -264755,7 +264789,7 @@
         }
       },
       {
-        "id": 3002703,
+        "id": 3002704,
         "schema": "public",
         "name": "island_counts",
         "language": "sql",
@@ -264783,7 +264817,7 @@
         }
       },
       {
-        "id": 3002704,
+        "id": 3002705,
         "schema": "public",
         "name": "my_organizations",
         "language": "sql",
@@ -264865,7 +264899,7 @@
         }
       },
       {
-        "id": 3002705,
+        "id": 3002706,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
@@ -264917,7 +264951,7 @@
         }
       },
       {
-        "id": 3002706,
+        "id": 3002707,
         "schema": "public",
         "name": "organization_invitations",
         "language": "sql",
@@ -264981,7 +265015,7 @@
         }
       },
       {
-        "id": 3002707,
+        "id": 3002708,
         "schema": "public",
         "name": "organization_members",
         "language": "sql",
@@ -265051,7 +265085,7 @@
         }
       },
       {
-        "id": 3002708,
+        "id": 3002709,
         "schema": "public",
         "name": "rs_finance_overview",
         "language": "sql",
@@ -265079,7 +265113,7 @@
         }
       },
       {
-        "id": 3002709,
+        "id": 3002710,
         "schema": "public",
         "name": "rs_pipeline_overview",
         "language": "sql",
@@ -265107,7 +265141,7 @@
         }
       },
       {
-        "id": 3002710,
+        "id": 3002711,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -265135,7 +265169,7 @@
         }
       },
       {
-        "id": 3002711,
+        "id": 3002712,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -265169,7 +265203,7 @@
         }
       },
       {
-        "id": 3002712,
+        "id": 3002713,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -265215,7 +265249,7 @@
         }
       },
       {
-        "id": 3002713,
+        "id": 3002714,
         "schema": "public",
         "name": "set_my_avatar_path",
         "language": "plpgsql",
@@ -265243,7 +265277,7 @@
         }
       },
       {
-        "id": 3002714,
+        "id": 3002715,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -309809,8 +309843,16 @@
             "timing": "after",
             "events": [
               "insert",
-              "update",
               "delete"
+            ],
+            "level": "row",
+            "function": "better_supabase.search_watch_drive_node_0"
+          },
+          {
+            "name": "bsb_search_drive_node_watch_0_u",
+            "timing": "after",
+            "events": [
+              "update"
             ],
             "level": "row",
             "function": "better_supabase.search_watch_drive_node_0"
@@ -404894,6 +404936,20 @@
           "search_path": "\"\""
         },
         "execute": []
+      },
+      {
+        "schema": "better_supabase",
+        "name": "usage_remaining",
+        "signature": "tenant uuid, meter text",
+        "language": "plpgsql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": [
+          "authenticated"
+        ]
       },
       {
         "schema": "better_supabase",
