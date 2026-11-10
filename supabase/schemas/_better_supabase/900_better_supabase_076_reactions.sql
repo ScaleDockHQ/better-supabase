@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:826ce195acdd7280bf6f109136578c138c703b05630354bed6f36e3197ffe2c5
+-- @bsb-hash sha256:d5eac93ddcff9a19d68fcdbdbc389420642b036515285f59fded19a9c4c563b1
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -144,20 +144,56 @@ grant execute on function "better_supabase"."reaction_subject_visible"(text, tex
 
 create policy bsb_reactions_read on "better_supabase"."reactions"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and case "better_supabase"."reactions"."subject_type"
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('calendar.read'))
+    when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('bookings.read'))
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id" and s."archived_at" is null) and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id" and s."archived_at" is null and ("better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."id" = "better_supabase"."reactions"."tenant_id")
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id" and s."deleted_at" is null)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id")
+    else "better_supabase"."reaction_subject_visible"("better_supabase"."reactions"."subject_type", "better_supabase"."reactions"."subject_id", "better_supabase"."reactions"."tenant_id")
+  end);
 create policy bsb_reactions_insert on "better_supabase"."reactions"
   for insert to authenticated
   with check (("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id")) and (select better_supabase.actor_may_write()));
+    and case "better_supabase"."reactions"."subject_type"
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('calendar.read'))
+    when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('bookings.read'))
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id" and s."archived_at" is null) and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id" and s."archived_at" is null and ("better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."id" = "better_supabase"."reactions"."tenant_id")
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id" and s."deleted_at" is null)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id")
+    else "better_supabase"."reaction_subject_visible"("better_supabase"."reactions"."subject_type", "better_supabase"."reactions"."subject_id", "better_supabase"."reactions"."tenant_id")
+  end) and (select better_supabase.actor_may_write()));
 create policy bsb_reactions_delete on "better_supabase"."reactions"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create policy bsb_reaction_scores_read on "better_supabase"."reaction_scores"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and case "better_supabase"."reaction_scores"."subject_type"
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id") and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id") and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id") and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('calendar.read'))
+    when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id") and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('bookings.read'))
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."organization_id" = "better_supabase"."reaction_scores"."tenant_id" and s."archived_at" is null) and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id" and s."archived_at" is null and ("better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."id" = "better_supabase"."reaction_scores"."tenant_id")
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."organization_id" = "better_supabase"."reaction_scores"."tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."organization_id" = "better_supabase"."reaction_scores"."tenant_id" and s."deleted_at" is null)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."organization_id" = "better_supabase"."reaction_scores"."tenant_id")
+    else "better_supabase"."reaction_subject_visible"("better_supabase"."reaction_scores"."subject_type", "better_supabase"."reaction_scores"."subject_id", "better_supabase"."reaction_scores"."tenant_id")
+  end);
 
 -- A custom emoji's :shortcode: must exist in the reaction's tenant.
 create or replace function "better_supabase"."reactions_check"()
@@ -580,7 +616,19 @@ create policy bsb_tenant_scope_select on "better_supabase"."reactions" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and case "better_supabase"."reactions"."subject_type"
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('calendar.read'))
+    when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('bookings.read'))
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id" and s."archived_at" is null) and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id" and s."archived_at" is null and ("better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."id" = "better_supabase"."reactions"."tenant_id")
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id" and s."deleted_at" is null)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id")
+    else "better_supabase"."reaction_subject_visible"("better_supabase"."reactions"."subject_type", "better_supabase"."reactions"."subject_id", "better_supabase"."reactions"."tenant_id")
+  end)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restrictive
   for insert to public
@@ -589,7 +637,19 @@ create policy bsb_tenant_scope_insert on "better_supabase"."reactions" as restri
     or ("user_id" = (select auth.uid())
     and "actor" = (select auth.uid())::text
     and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
-    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    and case "better_supabase"."reactions"."subject_type"
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('calendar.read'))
+    when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id") and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('bookings.read'))
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id" and s."archived_at" is null) and "better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reactions"."tenant_id" and s."archived_at" is null and ("better_supabase"."reactions"."tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."id" = "better_supabase"."reactions"."tenant_id")
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id" and s."deleted_at" is null)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("better_supabase"."reactions"."subject_id")::uuid and s."organization_id" = "better_supabase"."reactions"."tenant_id")
+    else "better_supabase"."reaction_subject_visible"("better_supabase"."reactions"."subject_type", "better_supabase"."reactions"."subject_id", "better_supabase"."reactions"."tenant_id")
+  end)
   );
 create policy bsb_tenant_scope_update on "better_supabase"."reactions" as restrictive
   for update to public
@@ -605,7 +665,19 @@ create policy bsb_tenant_scope_select on "better_supabase"."reaction_scores" as 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and case "better_supabase"."reaction_scores"."subject_type"
+    when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id") and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id") and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
+    when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id") and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('calendar.read'))
+    when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id") and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('bookings.read'))
+    when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."organization_id" = "better_supabase"."reaction_scores"."tenant_id" and s."archived_at" is null) and "better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('customers.read'))
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."tenant_id" = "better_supabase"."reaction_scores"."tenant_id" and s."archived_at" is null and ("better_supabase"."reaction_scores"."tenant_id" in (select better_supabase.tenant_ids_with('drive.read')) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."id" = "better_supabase"."reaction_scores"."tenant_id")
+    when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."organization_id" = "better_supabase"."reaction_scores"."tenant_id")
+    when 'project' then exists (select 1 from "public"."projects" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."organization_id" = "better_supabase"."reaction_scores"."tenant_id" and s."deleted_at" is null)
+    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = ("better_supabase"."reaction_scores"."subject_id")::uuid and s."organization_id" = "better_supabase"."reaction_scores"."tenant_id")
+    else "better_supabase"."reaction_subject_visible"("better_supabase"."reaction_scores"."subject_type", "better_supabase"."reaction_scores"."subject_id", "better_supabase"."reaction_scores"."tenant_id")
+  end)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."reaction_scores" as restrictive
   for insert to public

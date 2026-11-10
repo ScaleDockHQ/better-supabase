@@ -190,12 +190,22 @@ export function inlineSubjectReadable(
     readonly tenant: string;
     readonly fallback: string;
   },
+  options: {
+    /** The module whose later modules' tables go through `fallback`. */
+    readonly module?: string;
+    /** Let in a guest granted `read` on the record. Default true. */
+    readonly guest?: boolean;
+    /** Also require the subject row to be live. */
+    readonly live?: boolean;
+    /** Skip the `type is null` guard of a column that is not null. */
+    readonly typeNotNull?: boolean;
+  } = {},
 ): string {
   if (subjects.length === 0) {
     return "true";
   }
 
-  const later = laterTables(ctx, layout, "attachments");
+  const later = laterTables(ctx, layout, options.module ?? "attachments");
 
   const known = installedTables(ctx, layout);
   const own = `"${ctx.schemaName}".`;
@@ -212,10 +222,13 @@ export function inlineSubjectReadable(
   const { fallback, ...args } = columns;
 
   const readable = subjectReadable(ctx, early, args, {
-    guest: true,
+    guest: options.guest ?? true,
+    ...(options.live === true ? { live: true } : {}),
     tenantColumn: true,
     fallback,
   });
 
-  return `(${columns.type} is null or ${readable})`;
+  return options.typeNotNull === true
+    ? readable
+    : `(${columns.type} is null or ${readable})`;
 }
