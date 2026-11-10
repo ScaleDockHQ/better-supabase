@@ -718,17 +718,6 @@ msgctxt "audit.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
-#: src/app/[locale]/(app)/settings/layout.tsx
-#: src/features/settings/components/settings-nav-links.tsx
-msgctxt "settings.D3idYv"
-msgid "Settings"
-msgstr "Instellingen"
-
-#: src/app/[locale]/(app)/settings/layout.tsx
-msgctxt "settings.59uu8y"
-msgid "Your account and your organization."
-msgstr "Je account en je organisatie."
-
 #: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
 msgctxt "members.sKwqTt"
 msgid "All members"
@@ -14692,6 +14681,11 @@ msgstr "Auditlog"
 msgctxt "settings._3yfCs"
 msgid "AI providers"
 msgstr "AI-providers"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.D3idYv"
+msgid "Settings"
+msgstr "Instellingen"
 
 #: src/features/shifts/components/roster-board.tsx
 msgctxt "shifts.LHKgIm"

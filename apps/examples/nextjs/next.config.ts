@@ -17,6 +17,7 @@ const withNextIntl = createNextIntlPlugin({
       format: "po",
       locales: "infer",
       sourceLocale: "en",
+      precompile: true,
     },
     srcPath: "./src",
   },

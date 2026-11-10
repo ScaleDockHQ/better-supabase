@@ -1,4 +1,4 @@
-import { useExtracted } from "next-intl";
+import { NextIntlClientProvider, useExtracted, useMessages } from "next-intl";
 import { Suspense } from "react";
 
 import { DataProviders } from "@/app/data-providers";
@@ -30,6 +30,7 @@ import {
   UserMenu,
   UserMenuSkeleton,
 } from "@/features/user/components/user-menu";
+import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
 
 // A default <Link> into the app loads only this static frame; everything
 // that reads the session renders on a per-link prefetch or the navigation.
@@ -44,54 +45,57 @@ export const ensureStatic = "shell";
 export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
   const t = useExtracted("navigation");
   const toggle = t("Toggle sidebar");
+  const messages = useMessages();
 
   return (
-    <DataProviders>
-      <SidebarProvider>
-        <Sidebar collapsible="icon">
-          <SidebarHeader>
-            <Suspense fallback={<OrganizationSwitcherSkeleton />}>
-              <OrganizationSwitcher />
-            </Suspense>
-          </SidebarHeader>
-          <SidebarContent>
-            <Suspense fallback={<SideNavSkeleton />}>
-              <AppNav />
-            </Suspense>
-          </SidebarContent>
-          <SidebarFooter>
-            <Suspense fallback={<UserMenuSkeleton />}>
-              <UserMenu />
-            </Suspense>
-          </SidebarFooter>
-          <SidebarRail aria-label={toggle} title={toggle} />
-        </Sidebar>
-        <SidebarInset>
-          <AppHeader
-            breadcrumbs={
-              <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
-                <AppBreadcrumbs
-                  organization={
-                    <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
-                      <ActiveOrganizationName />
-                    </Suspense>
-                  }
-                />
+    <NextIntlClientProvider messages={pick(messages, APP_NAMESPACES)}>
+      <DataProviders>
+        <SidebarProvider>
+          <Sidebar collapsible="icon">
+            <SidebarHeader>
+              <Suspense fallback={<OrganizationSwitcherSkeleton />}>
+                <OrganizationSwitcher />
               </Suspense>
-            }
-          />
-          <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-            <OfflineBanner />
-            <Suspense fallback={null}>
-              <ImpersonationBanner />
-            </Suspense>
-            <Suspense fallback={null}>
-              <Announcements />
-            </Suspense>
-            {children}
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-    </DataProviders>
+            </SidebarHeader>
+            <SidebarContent>
+              <Suspense fallback={<SideNavSkeleton />}>
+                <AppNav />
+              </Suspense>
+            </SidebarContent>
+            <SidebarFooter>
+              <Suspense fallback={<UserMenuSkeleton />}>
+                <UserMenu />
+              </Suspense>
+            </SidebarFooter>
+            <SidebarRail aria-label={toggle} title={toggle} />
+          </Sidebar>
+          <SidebarInset>
+            <AppHeader
+              breadcrumbs={
+                <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+                  <AppBreadcrumbs
+                    organization={
+                      <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+                        <ActiveOrganizationName />
+                      </Suspense>
+                    }
+                  />
+                </Suspense>
+              }
+            />
+            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+              <OfflineBanner />
+              <Suspense fallback={null}>
+                <ImpersonationBanner />
+              </Suspense>
+              <Suspense fallback={null}>
+                <Announcements />
+              </Suspense>
+              {children}
+            </div>
+          </SidebarInset>
+        </SidebarProvider>
+      </DataProviders>
+    </NextIntlClientProvider>
   );
 }
