@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:127c8e5807b905a98f83b3605f24c797311fcc08745749719d6fd730fc5f18e5
+-- @bsb-hash sha256:aad3f7350e7ddb54f4a0c4f8c055d679e942d31fd06412842988dbba398ea240
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -33,6 +33,7 @@ create table "better_supabase"."rfqs" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
+create index "rfqs_list_idx" on "better_supabase"."rfqs" ("tenant_id", "sequence" desc, "id");
 create index "rfqs_status_idx" on "better_supabase"."rfqs" ("tenant_id", "status");
 alter table "better_supabase"."rfqs" enable row level security;
 revoke all on "better_supabase"."rfqs" from public, anon, authenticated;
@@ -314,7 +315,7 @@ $$;
 revoke execute on function "better_supabase"."get_rfq"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_rfq"(uuid) to authenticated, service_role;
 
--- Requests, newest first. filters is { status, limit, offset }.
+-- Requests, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_rfqs"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -326,20 +327,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_rfqs.tenant is not null and coalesce(better_supabase.can('tenant', list_rfqs.tenant, 'rfqs.read'), false))) then
     raise exception 'not allowed to read requests for quotation' using errcode = '42501', hint = 'RFQ_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'status', y."status", 'currency', y."currency", 'dueAt', y."due_at", 'notes', y."notes", 'awardedQuoteId', y."awarded_quote_id", 'purchaseOrderId', y."purchase_order_id", 'cancelReason', y."cancel_reason", 'openedAt', y."opened_at", 'closedAt', y."closed_at", 'awardedAt', y."awarded_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'status', x."status", 'currency', x."currency", 'dueAt', x."due_at", 'notes', x."notes", 'awardedQuoteId', x."awarded_quote_id", 'purchaseOrderId', x."purchase_order_id", 'cancelReason', x."cancel_reason", 'openedAt', x."opened_at", 'closedAt', x."closed_at", 'awardedAt', x."awarded_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."rfqs" x
+      where x."tenant_id" = list_rfqs.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_rfqs"(uuid, jsonb) from public, anon;
@@ -927,7 +962,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:10529be98b8cc59d2be8f6553bf04c49c840bc72acbec6fbb4e51be17058297a
+-- @bsb-hash sha256:613da6edd0f905a216b27b7bc4d06d04f7a977700ee369664cdfd4f7ff689c71
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -959,6 +994,7 @@ create table "better_supabase"."rfqs" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
+create index "rfqs_list_idx" on "better_supabase"."rfqs" ("tenant_id", "sequence" desc, "id");
 create index "rfqs_status_idx" on "better_supabase"."rfqs" ("tenant_id", "status");
 alter table "better_supabase"."rfqs" enable row level security;
 revoke all on "better_supabase"."rfqs" from public, anon, authenticated;
@@ -1250,7 +1286,7 @@ $$;
 revoke execute on function "better_supabase"."get_rfq"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_rfq"(uuid) to authenticated, service_role;
 
--- Requests, newest first. filters is { status, limit, offset }.
+-- Requests, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_rfqs"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1262,20 +1298,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_rfqs.tenant is not null and coalesce(better_supabase.can('tenant', list_rfqs.tenant, 'rfqs.read'), false))) then
     raise exception 'not allowed to read requests for quotation' using errcode = '42501', hint = 'RFQ_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'status', y."status", 'currency', y."currency", 'dueAt', y."due_at", 'notes', y."notes", 'awardedQuoteId', y."awarded_quote_id", 'purchaseOrderId', y."purchase_order_id", 'cancelReason', y."cancel_reason", 'openedAt', y."opened_at", 'closedAt', y."closed_at", 'awardedAt', y."awarded_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'status', x."status", 'currency', x."currency", 'dueAt', x."due_at", 'notes', x."notes", 'awardedQuoteId', x."awarded_quote_id", 'purchaseOrderId', x."purchase_order_id", 'cancelReason', x."cancel_reason", 'openedAt', x."opened_at", 'closedAt', x."closed_at", 'awardedAt', x."awarded_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."rfqs" x
+      where x."tenant_id" = list_rfqs.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_rfqs"(uuid, jsonb) from public, anon;
@@ -1944,7 +2014,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:c0b5696d5a91ce7cc768002a8193decb8d2391425d312c5dbe0ccb869cef4296
+-- @bsb-hash sha256:5388daadae539431e46ea653680c25fcbf550aafe3758bdb7469a5a724e82746
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1981,6 +2051,7 @@ create table "app_private"."rfqs" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
+create index "rfqs_list_idx" on "app_private"."rfqs" ("tenant_id", "sequence" desc, "id");
 create index "rfqs_status_idx" on "app_private"."rfqs" ("tenant_id", "status");
 alter table "app_private"."rfqs" enable row level security;
 revoke all on "app_private"."rfqs" from public, anon, authenticated;
@@ -2262,7 +2333,7 @@ $$;
 revoke execute on function "app_private"."get_rfq"(uuid) from public, anon;
 grant execute on function "app_private"."get_rfq"(uuid) to authenticated, service_role;
 
--- Requests, newest first. filters is { status, limit, offset }.
+-- Requests, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "app_private"."list_rfqs"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2274,20 +2345,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_rfqs.tenant is not null and coalesce(better_supabase.can('tenant', list_rfqs.tenant, 'rfqs.read'), false))) then
     raise exception 'not allowed to read requests for quotation' using errcode = '42501', hint = 'RFQ_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'status', y."status", 'currency', y."currency", 'dueAt', y."due_at", 'notes', y."notes", 'awardedQuoteId', y."awarded_quote_id", 'purchaseOrderId', y."purchase_order_id", 'cancelReason', y."cancel_reason", 'openedAt', y."opened_at", 'closedAt', y."closed_at", 'awardedAt', y."awarded_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'status', x."status", 'currency', x."currency", 'dueAt', x."due_at", 'notes', x."notes", 'awardedQuoteId', x."awarded_quote_id", 'purchaseOrderId', x."purchase_order_id", 'cancelReason', x."cancel_reason", 'openedAt', x."opened_at", 'closedAt', x."closed_at", 'awardedAt', x."awarded_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."rfqs" x
+      where x."tenant_id" = list_rfqs.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_rfqs"(uuid, jsonb) from public, anon;
@@ -2875,7 +2980,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:57b6ab47f1b10e27e483d832b2914a5cd69ec1873aee5d00e5577221ee410457
+-- @bsb-hash sha256:e505f046b63fcc68b4dd5c1bbc355b1f721be1de1df55f87f93dea8289872927
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2907,6 +3012,7 @@ create table "better_supabase"."rfqs" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "sequence")
 );
+create index "rfqs_list_idx" on "better_supabase"."rfqs" ("tenant_id", "sequence" desc, "id");
 create index "rfqs_status_idx" on "better_supabase"."rfqs" ("tenant_id", "status");
 alter table "better_supabase"."rfqs" enable row level security;
 revoke all on "better_supabase"."rfqs" from public, anon, authenticated;
@@ -3188,7 +3294,7 @@ $$;
 revoke execute on function "better_supabase"."get_rfq"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_rfq"(uuid) to authenticated, service_role;
 
--- Requests, newest first. filters is { status, limit, offset }.
+-- Requests, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_rfqs"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3200,20 +3306,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_rfqs.tenant is not null and coalesce(better_supabase.can('tenant', list_rfqs.tenant, 'rfqs.read'), false))) then
     raise exception 'not allowed to read requests for quotation' using errcode = '42501', hint = 'RFQ_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'status', y."status", 'currency', y."currency", 'dueAt', y."due_at", 'notes', y."notes", 'awardedQuoteId', y."awarded_quote_id", 'purchaseOrderId', y."purchase_order_id", 'cancelReason', y."cancel_reason", 'openedAt', y."opened_at", 'closedAt', y."closed_at", 'awardedAt', y."awarded_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'status', x."status", 'currency', x."currency", 'dueAt', x."due_at", 'notes', x."notes", 'awardedQuoteId', x."awarded_quote_id", 'purchaseOrderId', x."purchase_order_id", 'cancelReason', x."cancel_reason", 'openedAt', x."opened_at", 'closedAt', x."closed_at", 'awardedAt', x."awarded_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."rfqs" x
+      where x."tenant_id" = list_rfqs.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_rfqs"(uuid, jsonb) from public, anon;
@@ -3925,7 +4065,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:e9b810b3caef3815be502e1ceaac24570a5d183d21c20d1b77bb32a33199cd00
+-- @bsb-hash sha256:dbfd60c522ec7167cabf4b2b32ba8d9d76365aa19c0ab570e34e8e2434a97b85
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3956,6 +4096,7 @@ alter table "better_supabase"."rfqs" add column if not exists "created_by" uuid;
 alter table "better_supabase"."rfqs" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."rfqs" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_rfqs_tenant_id_key" on "better_supabase"."rfqs" ("tenant_id", "id");
+create index if not exists "rfqs_list_idx" on "better_supabase"."rfqs" ("tenant_id", "sequence" desc, "id");
 create index if not exists "rfqs_status_idx" on "better_supabase"."rfqs" ("tenant_id", "status");
 alter table "better_supabase"."rfqs" enable row level security;
 grant select on "better_supabase"."rfqs" to authenticated;
@@ -4228,7 +4369,7 @@ $$;
 revoke execute on function "better_supabase"."get_rfq"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_rfq"(uuid) to authenticated, service_role;
 
--- Requests, newest first. filters is { status, limit, offset }.
+-- Requests, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_rfqs"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -4240,20 +4381,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_rfqs.tenant is not null and coalesce(better_supabase.can('tenant', list_rfqs.tenant, 'rfqs.read'), false))) then
     raise exception 'not allowed to read requests for quotation' using errcode = '42501', hint = 'RFQ_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'number', y."number", 'title', y."title", 'status', y."status", 'currency', y."currency", 'dueAt', y."due_at", 'notes', y."notes", 'awardedQuoteId', y."awarded_quote_id", 'purchaseOrderId', y."purchase_order_id", 'cancelReason', y."cancel_reason", 'openedAt', y."opened_at", 'closedAt', y."closed_at", 'awardedAt', y."awarded_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'title', x."title", 'status', x."status", 'currency', x."currency", 'dueAt', x."due_at", 'notes', x."notes", 'awardedQuoteId', x."awarded_quote_id", 'purchaseOrderId', x."purchase_order_id", 'cancelReason', x."cancel_reason", 'openedAt', x."opened_at", 'closedAt', x."closed_at", 'awardedAt', x."awarded_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."rfqs" x
+      where x."tenant_id" = list_rfqs.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_rfqs"(uuid, jsonb) from public, anon;
@@ -4841,7 +5016,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:dec0ab6ed8a4d3e1aa45e7fc5e4c845be349bba1700574548f15783002ad4b74
+-- @bsb-hash sha256:13770fefa6092f990d4ecd4eeebacaf6faf4df31934c4b15d2335f6acc885df6
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4873,6 +5048,7 @@ create table "better_supabase"."rfqs" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "sequence")
 );
+create index "rfqs_list_idx" on "better_supabase"."rfqs" ("org_id", "sequence" desc, "id");
 create index "rfqs_status_idx" on "better_supabase"."rfqs" ("org_id", "status");
 alter table "better_supabase"."rfqs" enable row level security;
 revoke all on "better_supabase"."rfqs" from public, anon, authenticated;
@@ -5154,7 +5330,7 @@ $$;
 revoke execute on function "better_supabase"."get_rfq"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_rfq"(uuid) to authenticated, service_role;
 
--- Requests, newest first. filters is { status, limit, offset }.
+-- Requests, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
 create or replace function "better_supabase"."list_rfqs"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -5166,20 +5342,54 @@ as $$
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_rfqs.tenant is not null and coalesce(better_supabase.can('tenant', list_rfqs.tenant, 'rfqs.read'), false))) then
     raise exception 'not allowed to read requests for quotation' using errcode = '42501', hint = 'RFQ_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'number', y."number", 'title', y."title", 'status', y."status", 'currency', y."currency", 'dueAt', y."due_at", 'notes', y."notes", 'awardedQuoteId', y."awarded_quote_id", 'purchaseOrderId', y."purchase_order_id", 'cancelReason', y."cancel_reason", 'openedAt', y."opened_at", 'closedAt', y."closed_at", 'awardedAt', y."awarded_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."sequence" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'RFQ_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'number', x."number", 'title', x."title", 'status', x."status", 'currency', x."currency", 'dueAt', x."due_at", 'notes', x."notes", 'awardedQuoteId', x."awarded_quote_id", 'purchaseOrderId', x."purchase_order_id", 'cancelReason', x."cancel_reason", 'openedAt', x."opened_at", 'closedAt', x."closed_at", 'awardedAt', x."awarded_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."sequence" desc
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."rfqs" x
+      where x."org_id" = list_rfqs.tenant
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_rfqs"(uuid, jsonb) from public, anon;

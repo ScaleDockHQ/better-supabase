@@ -1,8 +1,10 @@
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { pageRowsOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
@@ -185,6 +187,22 @@ export interface MaintenanceCalibrationListOptions {
   readonly offset?: number;
 }
 
+/**
+ * What `calibrationPage` reads: the filters of the list, paged by keyset (ADR
+ * 0642).
+ */
+export interface MaintenanceCalibrationPageOptions extends Omit<
+  MaintenanceCalibrationListOptions,
+  "offset"
+> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
+}
+
 export interface Maintenance {
   /** Creates a plan; needs `maintenance.manage`. */
   createPlan(input: MaintenancePlanInput): AsyncResult<MaintenancePlan>;
@@ -223,6 +241,10 @@ export interface Maintenance {
   listCalibrations(
     options?: MaintenanceCalibrationListOptions,
   ): AsyncResult<readonly MaintenanceCalibration[]>;
+  /** One keyset page of `listCalibrations`, with `hasMore` and a `nextCursor`. */
+  calibrationPage(
+    options?: MaintenanceCalibrationPageOptions,
+  ): AsyncResult<ListPage<MaintenanceCalibration>>;
 }
 
 /** Options for {@link createMaintenance}. */
@@ -488,6 +510,36 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
             recordsOf(value, "list_calibrations").map((row) =>
               calibrationOf(row, "list_calibrations"),
             ),
+        ),
+      ),
+    calibrationPage: (page = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_calibrations",
+          {
+            tenant: organizationId,
+            filters: {
+              ...definedOf({
+                assetId: page.assetId,
+                dueBefore: page.dueBefore?.toString(),
+                limit: page.limit,
+                after: page.after,
+                total: page.total,
+                totalCap: page.totalCap,
+              }),
+              paged: true,
+            },
+          },
+          (value) => {
+            const read = pageRowsOf(value, "list_calibrations");
+
+            return {
+              ...read,
+              items: read.items.map((row) =>
+                calibrationOf(row, "list_calibrations"),
+              ),
+            };
+          },
         ),
       ),
   };

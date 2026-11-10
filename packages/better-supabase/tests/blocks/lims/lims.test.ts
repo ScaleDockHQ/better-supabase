@@ -152,6 +152,32 @@ describe("createLims", () => {
     ]);
   });
 
+  it("pages samples by keyset", async () => {
+    const t = fieldsTransport({
+      list_samples: () => ({
+        items: [SAMPLE],
+        hasMore: true,
+        nextCursor: ["5", "s1"],
+      }),
+    });
+
+    const lims = createLims({ transport: t, tenant: "org-1" });
+
+    const page = await lims
+      .samplePage({ limit: 1, after: ["9", "s0"] })
+      .orThrow();
+
+    expect(page.items.map((sample) => sample.number)).toEqual(["SMP-1"]);
+    expect(page).toMatchObject({ hasMore: true, nextCursor: ["5", "s1"] });
+    expect(t.calls[0]).toEqual([
+      "list_samples",
+      {
+        tenant: "org-1",
+        filters: { limit: 1, after: ["9", "s0"], paged: true },
+      },
+    ]);
+  });
+
   it("records a result and checks an instrument", async () => {
     const t = fieldsTransport({
       record_lims_result: () => RESULT,
