@@ -406,3 +406,26 @@ describe("audit log edges", () => {
     expect(errors).toHaveLength(1);
   });
 });
+
+describe("createAudit answers that are not what a database returns", () => {
+  it("reads a missing entry as null and an unusable type list as empty", async () => {
+    const { t } = transport({
+      get_audit_event: null,
+      audit_event_types: "none",
+    });
+
+    const audit = createAudit({ transport: t });
+
+    expect(await audit.get("9").orThrow()).toBeNull();
+    expect(await audit.eventTypes().orThrow()).toEqual([]);
+  });
+
+  it("keeps only the string event types", async () => {
+    const { t } = transport({ audit_event_types: ["a.b", 3, "c.d"] });
+
+    expect(await createAudit({ transport: t }).eventTypes().orThrow()).toEqual([
+      "a.b",
+      "c.d",
+    ]);
+  });
+});

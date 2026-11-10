@@ -422,6 +422,26 @@ describe("function result nullability", () => {
         gen: { functions: { open_count: { returns: { import: "nope" } } } },
       }),
     ).rejects.toThrow("functions.open_count.returns.import must look like");
+    await expect(
+      withScalars({
+        gen: { functions: { open_count: { returns: { schema: "nope" } } } },
+      }),
+    ).rejects.toThrow("functions.open_count.returns.schema must look like");
+  });
+
+  it("types a result from the @bsb returns tag and refuses a malformed one", async () => {
+    const tagged = await withScalars(
+      {},
+      { "public.open_count()": "@bsb returns=./totals.ts#openCount" },
+    );
+
+    expect(tagged("open_count")).toBe(
+      "StandardSchemaV1.InferOutput<typeof openCount>",
+    );
+
+    await expect(
+      withScalars({}, { "public.open_count()": "@bsb returns=totals" }),
+    ).rejects.toThrow("@bsb returns on public.open_count must look like");
   });
 
   it("reads @notNull from the function comment, and the config wins", async () => {

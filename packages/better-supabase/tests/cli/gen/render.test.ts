@@ -292,6 +292,47 @@ describe("render with gen.blockModules", () => {
   });
 });
 
+describe("render with gen.blockModules and renamed instances", () => {
+  const renamed: BetterSupabaseConfig = {
+    blocks: {
+      pipelines: {},
+      tasks: { names: { task: "todo" } },
+      tickets: {
+        block: "tasks",
+        entities: { task: "ticket" },
+        uses: { pipelines: "pipelines" },
+      },
+    },
+  };
+
+  it("writes one module per renamed instance, importing only the names it uses", async () => {
+    const { files } = await render(
+      resolveConfig(
+        { ...renamed, gen: { tableModules: false, blockModules: true } },
+        "/app",
+      ),
+      await loadFixtureSnapshot(),
+    );
+
+    const todos = files.find((file) =>
+      file.path.endsWith("blocks/tasks-block.ts"),
+    )?.contents;
+
+    const tickets = files.find((file) =>
+      file.path.endsWith("blocks/tickets-block.ts"),
+    )?.contents;
+
+    const barrel = files.find((file) =>
+      file.path.endsWith("blocks.generated.ts"),
+    )?.contents;
+
+    expect(todos).toContain("export const todosBlock = renameBlock(");
+    expect(tickets).toContain("export const ticketsBlock = renameBlock(");
+    expect(tickets).not.toContain("todosBlock");
+    expect(barrel).toContain('export * from "./blocks/tickets-block.ts";');
+  });
+});
+
 describe("render with gen.constants", () => {
   const config = resolveConfig(
     {
