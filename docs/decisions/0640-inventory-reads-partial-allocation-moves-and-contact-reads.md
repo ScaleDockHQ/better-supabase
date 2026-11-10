@@ -60,3 +60,8 @@ and a canceled quantity on purchase orders, sales order `draft` and `on_hold`, h
 import on a status-guarded table, banking primary and holder columns, and batch reads for assistant
 run steps, project versions, hiring applications, templates and FHIR care plans. Each needs its own
 SQL, fixture regeneration and pgTAP file.
+
+The inventory read helpers (`blocks/inventory/reads.ts`) add server code to every route that imports
+the blocks. The raw server baseline of 139 routes in `tests/next-build/server-baseline.json` rose
+by about 820 bytes each (0.03 percent of a route); the numbers are re-measured from a fresh build of
+this branch after merging main. The guard in `next-build.test.ts` is unchanged.
