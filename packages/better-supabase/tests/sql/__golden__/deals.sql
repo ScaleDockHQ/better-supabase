@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:b36436fbdcfc59afa32d95924ca644966554ffac945fe47618a2a368dd485ea4
+-- @bsb-hash sha256:6873395ad4b607c7868b069d5a3e7fcdca91ffc94a1f74c66338b2855ba80716
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,7 +105,7 @@ create policy bsb_deals_read on "better_supabase"."deals"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 create policy bsb_deal_contacts_read on "better_supabase"."deal_contacts"
   for select to authenticated
-  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false));
 create policy bsb_deal_members_read on "better_supabase"."deal_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
@@ -968,7 +968,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deal_contacts" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'))
+    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deal_contacts" as restrictive
   for insert to public
@@ -1030,7 +1030,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:f6ee6a4f08a12d4645b8255b6fe6229bf95137da8047d927da941d91d01b97b6
+-- @bsb-hash sha256:1c53535be769f63158d8ab0a930bfb340f1949600e6930c46ae383a31f2bd014
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1134,7 +1134,7 @@ create policy bsb_deals_read on "better_supabase"."deals"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 create policy bsb_deal_contacts_read on "better_supabase"."deal_contacts"
   for select to authenticated
-  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false));
 create policy bsb_deal_members_read on "better_supabase"."deal_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
@@ -2027,7 +2027,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deal_contacts" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'))
+    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deal_contacts" as restrictive
   for insert to public
@@ -2092,7 +2092,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:f0051bfb2a472dea92cfb201dc0ba14c913c81d83eeb8e03f134a5de787ef267
+-- @bsb-hash sha256:5abf3d0557d9ab415ec45c4b205754c3683330a5c383f978a69dd2f596e0fde0
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2201,7 +2201,7 @@ create policy bsb_deals_read on "app_private"."deals"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 create policy bsb_deal_contacts_read on "app_private"."deal_contacts"
   for select to authenticated
-  using (exists (select 1 from "app_private"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+  using (exists (select 1 from "app_private"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("app_private"."deal_contacts"."contact_type", "app_private"."deal_contacts"."contact_id", 'read'), false));
 create policy bsb_deal_members_read on "app_private"."deal_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
@@ -3064,7 +3064,7 @@ create policy bsb_tenant_scope_select on "app_private"."deal_contacts" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (exists (select 1 from "app_private"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'))
+    or (exists (select 1 from "app_private"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("app_private"."deal_contacts"."contact_type", "app_private"."deal_contacts"."contact_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "app_private"."deal_contacts" as restrictive
   for insert to public
@@ -3126,7 +3126,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:6cd6fa94156cc8b0b514151f50b42c43e0fff0dcb7443f5b98ba2e1c86177a50
+-- @bsb-hash sha256:4a2fce51e9deaece2b513b259fbb979af48ffc4bc79bc931f5b5283891399c68
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3230,7 +3230,7 @@ create policy bsb_deals_read on "better_supabase"."deals"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 create policy bsb_deal_contacts_read on "better_supabase"."deal_contacts"
   for select to authenticated
-  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false));
 create policy bsb_deal_members_read on "better_supabase"."deal_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
@@ -4093,7 +4093,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deal_contacts" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'))
+    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deal_contacts" as restrictive
   for insert to public
@@ -4270,7 +4270,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:ea6b1052bf0541f4645dbadbc940345bb5e20f6254631c029cc6f1d3efbc8738
+-- @bsb-hash sha256:78b41fcb8198518f823a0e38440bf91bdea0a09a87a27b8bce41ae12c07919a2
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4366,7 +4366,7 @@ create policy bsb_deals_select on "better_supabase"."deals"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 create policy bsb_deal_contacts_select on "better_supabase"."deal_contacts"
   for select to authenticated
-  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false));
 create policy bsb_deal_members_select on "better_supabase"."deal_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
@@ -5228,7 +5228,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deal_contacts" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'))
+    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deal_contacts" as restrictive
   for insert to public
@@ -5290,7 +5290,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:f6af980d498b681e2c58859ddaf88514d9dfeb9cad8b134914c633edc1299149
+-- @bsb-hash sha256:64f1a0eb92d647abe04658183e8380700a60d5ad63f29feb8bf718c1ab14340b
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5394,7 +5394,7 @@ create policy bsb_deals_read on "better_supabase"."deals"
   using ("org_id" in (select better_supabase.tenant_ids_with('deals.read')));
 create policy bsb_deal_contacts_read on "better_supabase"."deal_contacts"
   for select to authenticated
-  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
+  using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false));
 create policy bsb_deal_members_read on "better_supabase"."deal_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('deals.read')));
@@ -6257,7 +6257,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deal_contacts" as re
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'))
+    or (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and coalesce("better_supabase"."can_subject"("better_supabase"."deal_contacts"."contact_type", "better_supabase"."deal_contacts"."contact_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deal_contacts" as restrictive
   for insert to public

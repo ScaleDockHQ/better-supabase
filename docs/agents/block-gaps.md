@@ -8,7 +8,7 @@ commit that adds it. "Open" has a reason.
 
 | Item                                        | State                                                                               |
 | ------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `release_allocation`, `transfer_allocation` | Exists, with client methods and `allocation.transferred`                            |
+| `release_allocation`, `transfer_allocation` | Done (ADR 0640): client methods, `allocation.transferred`, an optional quantity     |
 | `api` reads                                 | Exists: `inventory_overview`, `stock_detail`, `stock_valuation`, `list_allocations` |
 | unique `(id, tenant_id)`                    | Done (ADR 0267): locations, reservations, transfers, purchase orders                |
 | `incoming`                                  | Exists: placing a purchase order adds it, receiving removes it                      |

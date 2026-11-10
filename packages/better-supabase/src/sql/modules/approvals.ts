@@ -780,7 +780,7 @@ declare
   v_me uuid := auth.uid();
   v_key text := 'approvals.f' || md5(format('%s|%s|%s|%s|%s', v_me, approval_fact.tenant, approval_fact.kind, approval_fact.value, approval_fact.requester));
   v_stamp text := statement_timestamp()::text || '/' || coalesce(better_supabase.memo_get('approvals.gen'), '0');
-  v_hit text := better_supabase.memo_get(v_key);
+  v_hit text := better_supabase.memo_slot_get(v_key);
   v_result boolean;
 begin
   if v_hit is not null and split_part(v_hit, '|', 1) = v_stamp then
@@ -792,7 +792,7 @@ begin
     when 'manager' then ${managerFact}
     else false
   end, false);
-  perform better_supabase.memo_set(v_key, v_stamp || '|' || case when v_result then 't' else 'f' end);
+  perform better_supabase.memo_slot_set(v_key, v_stamp || '|' || case when v_result then 't' else 'f' end);
   return v_result;
 end;
 $$;

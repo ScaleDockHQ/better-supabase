@@ -369,7 +369,7 @@ create table if not exists ${batches} (
   ${b.createdAt} timestamptz not null default now()${batch("updatedAt") ? `,\n  ${b.updatedAt} timestamptz not null default now()` : ""}
 );
 create index if not exists ai_batches_due_idx on ${batches} (${b.nextPollAt}) where ${b.status} = 'pending' or not ${b.resultsSaved};
-create index if not exists ai_batches_tenant_idx on ${batches} (${b.tenant}, ${b.createdAt} desc);
+create index if not exists ai_batches_tenant_idx on ${batches} (${b.tenant}, ${b.createdAt} desc, ${b.id} desc);
 create index if not exists ai_batches_user_idx on ${batches} (${b.user});
 alter table ${batches} enable row level security;
 ${revokeTable(batches)}
