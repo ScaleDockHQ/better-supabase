@@ -295,6 +295,17 @@ describe("the Next.js example's first-load JavaScript", () => {
     async () => {
       const current = await firstLoad();
       const baseline = await readBaseline();
+      console.log(`DIAG-JSON ${JSON.stringify(current)}`);
+
+      for (const [route, chunks] of await routeChunks()) {
+        if (route === "/[locale]/(app)/beta/page") {
+          for (const c of chunks) {
+            console.log(
+              `DIAG-CHUNK ${c} ${(await readFile(join(NEXT, c))).length}`,
+            );
+          }
+        }
+      }
 
       expect(
         Object.keys(current).filter((route) => !(route in baseline)),
