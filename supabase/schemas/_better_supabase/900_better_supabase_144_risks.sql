@@ -1,6 +1,6 @@
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:d30a92de0a8213ca0d439007fd9f3a6c5b1f7950dc8fa651f6a8f3dc09669c60
+-- @bsb-hash sha256:b7e55c3bb3ba327e4711cf2ae0ad00bcf0ac6d922c0257817aecc1e03dab6bf8
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -867,7 +867,7 @@ grant execute on function "better_supabase"."get_risk"(uuid) to authenticated, s
 -- { category, band (residual), ownerId, status, reviewDue, search, limit,
 -- after, offset, paged, total, totalCap }; closed risks are left out unless
 -- status asks for them. Pages by keyset (after is the previous nextCursor);
--- offset stays for callers that show page numbers (ADR 0634).
+-- offset stays for callers that show page numbers (ADR 0637).
 create or replace function "better_supabase"."list_risks"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql

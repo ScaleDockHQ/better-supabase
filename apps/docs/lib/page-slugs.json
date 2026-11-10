@@ -572,6 +572,7 @@
   "repository/record-bindings",
   "repository/record-lists",
   "repository/record-types",
+  "repository/rendered-tags",
   "repository/tables",
   "repository/unique-and-errors",
   "repository/validation",

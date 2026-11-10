@@ -170,7 +170,8 @@ export interface AuthorizationFunctions {
    * access` table tag puts it into the policies it renders, so write it for a
    * policy: no per-row lookups when the provider can answer from a set. Without
    * it the tag renders `{tenant} in (select better_supabase.tenant_ids_with(
-   * {permission}))`, which the provider's `idsWith` already answers (ADR 0637).
+   * {permission}))`, which the provider's `idsWith` already answers (ADR
+   * 0637).
    */
   readonly canIn?: string;
 }
