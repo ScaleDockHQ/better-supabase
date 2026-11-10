@@ -103,7 +103,8 @@ export default mergeConfig(
           ? ["text-summary"]
           : ["text-summary", "json-summary", "json", "html"],
         // Unit tests alone must hold these; the floor is 90/90/90/80.
-        // autoUpdate raises them when coverage grows, in whole percents.
+        // The numbers are ceilings. Coverage that grows does not rewrite
+        // this file, so a pull request does not conflict on them.
         // The top-level numbers count every file, CLI included; the src/cli set
         // also holds the CLI to its own numbers.
         // Lines sit below statements because curly puts every if body on its
@@ -119,8 +120,7 @@ export default mergeConfig(
             functions: 98,
             branches: 91,
           },
-          // CI never rewrites this file: it is an input of the cached test task.
-          autoUpdate: env.CI ? false : (next: number) => Math.floor(next),
+          autoUpdate: false,
         },
       },
     },
