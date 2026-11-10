@@ -12,7 +12,7 @@ const TYPES = [
  * The notifications page's URL state. `before` is the keyset cursor of an older
  * page, `createdAt|id`.
  */
-export const notificationSearchParams = {
+const notificationSearchParams = {
   status: parseAsStringLiteral(["all", "unread"] as const).withDefault("all"),
   type: parseAsStringLiteral(TYPES),
   before: parseAsString,
