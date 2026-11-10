@@ -43,6 +43,9 @@
     "typecheck": {
       "dependsOn": ["$TURBO_EXTENDS$", "^build"]
     },
+    "test": {
+      "dependsOn": ["$TURBO_EXTENDS$", "^build"]
+    },
     "dev:portless": {
       "passThroughEnv": [
         "AI_GATEWAY_API_KEY",

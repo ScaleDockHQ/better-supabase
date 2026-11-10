@@ -89,7 +89,9 @@ export function claimsFingerprint(
  * ```
  */
 export function syncWithAuth<C>(
-  db: SyncedDatabaseLike<C>,
+  // C comes from `options.connector`: PowerSync 2.5 overloads `connect`, and
+  // inferring from the database would pick the options overload.
+  db: SyncedDatabaseLike<NoInfer<C>>,
   auth: AuthSourceLike,
   options: SyncWithAuthOptions<C>,
 ): AuthSync {
