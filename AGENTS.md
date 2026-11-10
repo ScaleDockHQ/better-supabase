@@ -527,7 +527,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0637: Page block lists by keyset, and render access, list and idempotency from tags.
 - 0641: Bound the version cache and share the block builder per db.
 - 0648: Map the data of a bsb.action to another type with a third argument.
-||||||| cd0b2d1006
+  ||||||| cd0b2d1006
 
 ## Pre-release pins
 
