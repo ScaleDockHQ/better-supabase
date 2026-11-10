@@ -581,6 +581,48 @@ describe("state machine", () => {
     expect(sql).toContain("-> 'transitions' -> v_status");
   });
 
+  it("lists no next status for a machine without transitions", () => {
+    const sql = sqlOf({
+      "state-machine": {
+        options: { machines: { quote: { ...quote, transitions: {} } } },
+      },
+    });
+
+    expect(sql).toContain("v_next := '{}'::text[];");
+  });
+
+  it("renders nothing in custom mode", () => {
+    expect(
+      sqlOf({
+        "state-machine": { mode: "custom", options: { machines: { quote } } },
+      }),
+    ).not.toContain("bsb_transition_quote");
+  });
+
+  it.each([
+    [
+      "requiresApproval without the approvals module",
+      { quote: { ...quote, requiresApproval: { draft: ["sent"] } } },
+      "needs the approvals module",
+    ],
+    [
+      "requiresApproval that is not an object",
+      { quote: { ...quote, requiresApproval: ["sent"] } },
+      "requiresApproval must be an object of status to statuses",
+    ],
+    [
+      "a workflow machine without the workflow-editor module",
+      {
+        quote: { table: "public.quotes", column: "status", workflow: "quotes" },
+      },
+      "needs the workflow-editor module",
+    ],
+  ])("refuses %s", (_name, machines, message) => {
+    expect(() => sqlOf({ "state-machine": { options: { machines } } })).toThrow(
+      message,
+    );
+  });
+
   it("returns the statuses a record may move to from status_state", () => {
     const sql = sqlOf({
       "state-machine": { options: { machines: { quote } } },
