@@ -43,6 +43,6 @@ re-measured from a fresh build on this branch; a trimmed variant of the code mea
 smaller, because brotli moves with the chunk hashes. The saving is one port graph per `db` on the
 server and in tests, so the bytes are accepted.
 
-The bounded version cache adds server code too. The raw server baseline of 163 routes in
+The bounded version cache adds server code too. The raw server baseline of 164 routes in
 `tests/next-build/server-baseline.json` rose by about 500 bytes each (0.02 percent of a route) and
 is re-measured from a fresh build on this branch. The test file and its guard are unchanged.
