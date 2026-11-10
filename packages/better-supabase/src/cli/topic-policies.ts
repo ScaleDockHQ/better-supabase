@@ -128,6 +128,35 @@ export async function topicPolicyFile(
     },
   );
 
+  const declared = topics.flatMap((topic) =>
+    (topic.broadcasts ?? []).map(({ table, ...options }, at) => {
+      const where = `defineTopic("${topic.template}").broadcast[${String(at)}]`;
+      let statement: string;
+
+      try {
+        statement = topic.trigger(table, options);
+      } catch (error) {
+        if (error instanceof TypeError) {
+          throw new CliError("config_invalid", `${where}: ${error.message}`);
+        }
+
+        throw error;
+      }
+
+      if (
+        statement.includes("better_supabase.broadcast_topic(") &&
+        !config.blockNames.includes("realtime-tables")
+      ) {
+        throw new CliError(
+          "config_invalid",
+          `${where}: the trigger on ${table} calls better_supabase.broadcast_topic(): add realtime-tables to blocks`,
+        );
+      }
+
+      return statement;
+    }),
+  );
+
   const header = [
     "-- better-supabase: realtime topic policies",
     `-- Written by \`better-supabase upgrade\` from ${policies.from.join(", ")}; edit the topics, not this file.`,
@@ -136,6 +165,6 @@ export async function topicPolicyFile(
 
   return {
     path: policies.file,
-    contents: `${header}\n\n${[...written.map(sqlOf), ...triggerSql].join("\n")}`,
+    contents: `${header}\n\n${[...written.map(sqlOf), ...triggerSql, ...declared].join("\n")}`,
   };
 }

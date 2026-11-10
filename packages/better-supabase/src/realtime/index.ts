@@ -49,6 +49,7 @@ export type {
   TopicSubscribeOptions,
   TopicSubscription,
   TopicTriggerLookup,
+  TopicBroadcast,
   TopicTriggerOptions,
   TopicTriggerValue,
   TriggerLookup,
