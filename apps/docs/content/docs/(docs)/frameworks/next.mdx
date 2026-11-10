@@ -768,7 +768,23 @@ export const archive = bsb.action(
 // <form action={archive.bind(null, organizationId)}>
 ```
 
-### The app's own context
+#### Mapping the data to another type
+
+`result` keeps the data type. To return a different type, pass a mapper as the
+third argument of `bsb.action`. It receives the data of a successful body, may
+be async, and its return type becomes `data` of the `ActionResult`. It runs
+after the `invalidates` tags drop, so a mapper that throws a `DbException`
+turns into the action's error without leaving a stale cache:
+
+```ts
+export const createNote = bsb.action(
+  { input: v.object({ title: v.string() }), invalidates: ["notes"] },
+  ({ title }, { db }) => db.notes.insert({ title }),
+  (row) => ({ id: row.id, href: `/notes/${row.id}` }),
+);
+```
+
+## The app's own context
 
 `bsb.withContext((session, base) => ({ ... }))` returns `cached`, `getAccess` and `action` that hand back the app's context merged into the library's. The factory runs once per request and tenant, from the session the library already read. It may be async: each call awaits it, and concurrent calls on one context share a single run.
 

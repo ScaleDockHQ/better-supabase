@@ -66,6 +66,7 @@ export type { ResourceMap } from "../server/resources.ts";
 
 export type {
   Access,
+  ActionMapper,
   ActionOptions,
   BlockActionParams,
   BetterNext,
