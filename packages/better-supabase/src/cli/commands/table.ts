@@ -37,7 +37,7 @@ const TABLE_ARGS = {
     type: "positional",
     required: true,
     description:
-      "The feature: realtime, audit, audit-reads, subject, json, expose, encrypted, lookup, server, events, search, vector-search, history or lifecycle",
+      "The feature: realtime, audit, audit-reads, subject, json, expose, encrypted, lookup, server, events, search, vector-search, history, lifecycle, access, list or idempotency",
   },
 } as const;
 
@@ -136,6 +136,11 @@ async function runTable(
     name,
     feature,
     enabled,
+    {
+      canIn: config.authorization?.functions.canIn,
+      actorMayWrite: config.authorization?.functions.actorMayWrite,
+      scope: config.authorization?.tenantScope,
+    },
   );
 
   const plan: FilePlan = {

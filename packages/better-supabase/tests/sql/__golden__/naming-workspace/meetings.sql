@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:fd30111e353c801798ca58bfe1042fd5c0237da83e63b9c85c7f66e295298cef
+-- @bsb-hash sha256:7eb4dfec3aea8a3df6347d13a682995063bfdf08c455504f0a5df9d5d9a08b23
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,6 +29,7 @@ create table "better_supabase"."meetings" (
   constraint bsb_meetings_check check ("ends_at" is null or "ends_at" >= "starts_at")
 );
 create index "meetings_tenant_idx" on "better_supabase"."meetings" ("tenant_id", "status", "starts_at" desc);
+create index "meetings_list_idx" on "better_supabase"."meetings" ("tenant_id", "starts_at" desc, "id");
 alter table "better_supabase"."meetings" enable row level security;
 revoke all on "better_supabase"."meetings" from public, anon, authenticated;
 grant select on "better_supabase"."meetings" to authenticated;
@@ -953,7 +954,8 @@ revoke execute on function "better_supabase"."get_meeting"(uuid) from public, an
 grant execute on function "better_supabase"."get_meeting"(uuid) to authenticated, service_role;
 
 -- The organization's meetings, the latest first. filters is { kind, status,
--- from, to (on the start time), attendeeId, search, limit, offset }. Without
+-- from, to (on the start time), attendeeId, search, limit, after, offset, paged,
+-- total, totalCap }. Without
 -- meetings.read the caller sees only the meetings they attend.
 create or replace function "better_supabase"."list_meetings"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -968,6 +970,13 @@ declare
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_meetings.tenant is not null and coalesce(better_supabase.can('tenant', list_meetings.tenant, 'meetings.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -976,8 +985,18 @@ begin
   if not v_all and auth.uid() is null then
     raise exception 'not allowed to read meetings' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."starts_at" desc, x."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."meetings" x
       where x."tenant_id" = list_meetings.tenant
@@ -992,10 +1011,35 @@ begin
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
-      order by x."starts_at" desc, x."id"
-      limit v_limit offset v_offset
+        and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."starts_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
     ) x
-  ), '[]'::jsonb);
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
+        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
+        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
+        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
+        and (not v_filters ? 'attendeeId' or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_meetings"(uuid, jsonb) from public, anon;

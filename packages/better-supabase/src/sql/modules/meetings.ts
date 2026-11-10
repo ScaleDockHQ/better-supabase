@@ -237,6 +237,7 @@ create table if not exists ${meetings} (
   check (${m("endsAt")} is null or ${m("endsAt")} >= ${m("startsAt")})
 );${appKey("meetings", "tenant_id", `${m("tenant")}, ${m("id")}`)}
 create index if not exists ${name("meetings", "tenant_idx")} on ${meetings} (${m("tenant")}, ${m("status")}, ${m("startsAt")} desc);
+create index if not exists ${name("meetings", "list_idx")} on ${meetings} (${m("tenant")}, ${m("startsAt")} desc, ${m("id")});
 ${lockTable(meetings, { read: true })}
 
 create table if not exists ${attendees} (

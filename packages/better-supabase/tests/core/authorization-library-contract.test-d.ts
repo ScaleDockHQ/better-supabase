@@ -295,6 +295,7 @@ describe("authorization library contract", () => {
         managedUsers: "a.managed()",
         // oxlint-disable-next-line typescript/no-deprecated -- an API 1 provider may still set it
         canApprove: "a.can({tool}, {tenant})",
+        canIn: "a.can_in({permission}, {tenant})",
       },
       // oxlint-disable-next-line typescript/no-deprecated -- an API 1 provider may still set it
       approvals: { distinctApprover: true },

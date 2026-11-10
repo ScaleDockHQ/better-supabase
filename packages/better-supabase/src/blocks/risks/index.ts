@@ -10,6 +10,7 @@ export {
   type RiskInput,
   type RiskLink,
   type RiskListOptions,
+  type RiskPageOptions,
   type RiskMatrix,
   type RiskMatrixBand,
   type RiskMatrixInput,
@@ -63,3 +64,5 @@ export type {
   RiskTreatmentChangedEventData,
   RisksEvents,
 } from "./events.ts";
+
+export type { ListPage } from "../../core/block-helpers.ts";

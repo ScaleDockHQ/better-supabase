@@ -85,6 +85,15 @@ Lists and REST resources page by cursor with `pagination: 'cursor'` (see
 [list queries](/docs/platform/list#cursor-pagination)); their `size` stays capped
 by `maxPageSize`.
 
+## Block lists and generated list functions
+
+The list functions of the blocks that page by number (`list_risks`, `list_meetings`,
+`list_inspections`, `list_warranty_claims`) and the function the `list` tag renders take `after` for
+keyset paging and `offset` as an explicit option. Pass `{ paged: true }` for `{ items, hasMore,
+nextCursor }` and `{ total: true }` for a total capped at `totalCap` (default 10,000), as
+`notification_page` does. `after` and `offset` do not combine. See
+[Tags that render SQL](/docs/repository/rendered-tags).
+
 ## Row caps
 
 PostgREST returns at most `db-max-rows` rows for one read (1000 on hosted

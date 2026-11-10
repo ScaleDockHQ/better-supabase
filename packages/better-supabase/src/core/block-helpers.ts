@@ -175,6 +175,38 @@ export function recordsOf(
   return value;
 }
 
+/**
+ * One page of a list read with `{ paged: true }` (ADR 0637). `nextCursor` goes
+ * back as `after` for the next page; `total` is present when the read asked for
+ * it and stops at `totalCap`, with `totalCapped` set when it did.
+ */
+export interface ListPage<Item> {
+  readonly items: readonly Item[];
+  readonly hasMore: boolean;
+  readonly nextCursor: readonly string[] | null;
+  readonly total?: number;
+  readonly totalCapped?: boolean;
+}
+
+/** A paged list result with its rows left as they are. */
+export function pageRowsOf(
+  value: unknown,
+  fn: string,
+): ListPage<Record<string, unknown>> {
+  const page = recordOf(value, fn);
+  const cursor = page["nextCursor"];
+  const total = page["total"];
+
+  return {
+    items: recordsOf(page["items"], fn),
+    hasMore: page["hasMore"] === true,
+    nextCursor: Array.isArray(cursor) ? cursor.map(textOf) : null,
+    ...(typeof total === "number"
+      ? { total, totalCapped: page["totalCapped"] === true }
+      : {}),
+  };
+}
+
 export const stringsOf = (value: unknown): readonly string[] =>
   Array.isArray(value) ? value.map(textOf) : [];
 

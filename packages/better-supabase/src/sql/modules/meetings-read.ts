@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { pageSize, userGrant } from "../shared.ts";
+import { listBody, listDeclare } from "../list-template.ts";
+import { userGrant } from "../shared.ts";
 import { managed, meetingsSql } from "./meetings-sql.ts";
 
 export function meetingReads(ctx: BlockSqlContext): string {
@@ -39,6 +40,32 @@ export function meetingReads(ctx: BlockSqlContext): string {
       .filter((column) => ctx.has("meetings", column))
       .map((column) => `x.${m(column)} ilike v_search`),
   ].join(" or ");
+
+  const list = {
+    name: "list_meetings",
+    from: meetings,
+    alias: "x",
+    where: [
+      `x.${m("tenant")} = list_meetings.tenant`,
+      `(v_all or exists (
+          select 1 from ${attendees} y where y.${a("meeting")} = x.${m("id")} and y.${a("user")} = auth.uid()
+        ))`,
+      `(not v_filters ? 'kind' or x.${m("kind")} = v_filters ->> 'kind')`,
+      `(not v_filters ? 'status' or x.${m("status")} = v_filters ->> 'status')`,
+      `(not v_filters ? 'from' or x.${m("startsAt")} >= (v_filters ->> 'from')::timestamptz)`,
+      `(not v_filters ? 'to' or x.${m("startsAt")} <= (v_filters ->> 'to')::timestamptz)`,
+      `(not v_filters ? 'attendeeId' or exists (
+          select 1 from ${attendees} y where y.${a("meeting")} = x.${m("id")} and y.${a("user")} = (v_filters ->> 'attendeeId')::uuid
+        ))`,
+      `(v_search is null or ${search})`,
+    ],
+    keys: [
+      { expr: `x.${m("startsAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: q.meetingJson("x"),
+    invalid: q.invalid,
+  } as const;
 
   return `
 -- A meeting with its attendees, agenda, decisions (with their vote tally when
@@ -84,7 +111,8 @@ $$;
 ${userGrant(`${fn("get_meeting")}(uuid)`)}
 
 -- The organization's meetings, the latest first. filters is { kind, status,
--- from, to (on the start time), attendeeId, search, limit, offset }. Without
+-- from, to (on the start time), attendeeId, search, limit, after, offset, paged,
+-- total, totalCap }. Without
 -- meetings.read the caller sees only the meetings they attend.
 create or replace function ${fn("list_meetings")}(tenant ${idType}, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -97,8 +125,7 @@ declare
   v_filters jsonb := coalesce(list_meetings.filters, '{}'::jsonb);
   v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' end;
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
-  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  ${listDeclare(list)}
   v_all boolean := ${q.allowed("list_meetings.tenant", q.read)};
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -107,26 +134,7 @@ begin
   if not v_all and auth.uid() is null then
     ${q.forbidden("not allowed to read meetings")}
   end if;
-  return coalesce((
-    select jsonb_agg(${q.meetingJson("x")} order by x.${m("startsAt")} desc, x.${m("id")})
-    from (
-      select * from ${meetings} x
-      where x.${m("tenant")} = list_meetings.tenant
-        and (v_all or exists (
-          select 1 from ${attendees} y where y.${a("meeting")} = x.${m("id")} and y.${a("user")} = auth.uid()
-        ))
-        and (not v_filters ? 'kind' or x.${m("kind")} = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x.${m("status")} = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x.${m("startsAt")} >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x.${m("startsAt")} <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from ${attendees} y where y.${a("meeting")} = x.${m("id")} and y.${a("user")} = (v_filters ->> 'attendeeId')::uuid
-        ))
-        and (v_search is null or ${search})
-      order by x.${m("startsAt")} desc, x.${m("id")}
-      limit v_limit offset v_offset
-    ) x
-  ), '[]'::jsonb);
+  ${listBody(list)}
 end;
 $$;
 ${userGrant(`${fn("list_meetings")}(${idType}, jsonb)`)}

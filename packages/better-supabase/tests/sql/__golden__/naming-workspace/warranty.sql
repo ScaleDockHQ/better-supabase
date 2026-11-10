@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_161_warranty.sql
 -- better-supabase module: warranty
 -- @bsb-block warranty@1 managed
--- @bsb-hash sha256:ce594a3b5d7c78761a9e24f6ae64c5d80c84de6288bb2e22e1d93a711975d078
+-- @bsb-hash sha256:922b3a7a8bb9309018944ab2f89b9c3da2d35343580f6d0e64f88fce088d0e40
 -- Warranty claims for an asset: the supplier or manufacturer, the covered amount, a status, a decision and attachments on the claim.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -226,7 +226,8 @@ $$;
 revoke execute on function "better_supabase"."decide_warranty_claim"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."decide_warranty_claim"(uuid, text, text) to authenticated, service_role;
 
--- Claims of an organization, newest first. filters is { status, assetId, limit, offset }.
+-- Claims of an organization, newest first. filters is { status, assetId, limit, after, offset,
+-- paged, total, totalCap }.
 -- Needs warranty.read.
 create or replace function "better_supabase"."list_warranty_claims"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -240,6 +241,13 @@ declare
   v_filters jsonb := coalesce(list_warranty_claims.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
   v_status text := nullif(v_filters ->> 'status', '');
   v_asset text := nullif(v_filters ->> 'assetId', '');
 begin
@@ -252,8 +260,18 @@ begin
   if v_asset is not null and v_asset !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
     raise exception 'assetId must be a uuid' using errcode = '22023', hint = 'WARRANTY_INVALID';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object(
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WARRANTY_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WARRANTY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
     'id', x."id",
     'organizationId', x."tenant_id",
     'title', x."title",
@@ -265,16 +283,32 @@ begin
     'status', x."status",
     'decision', x."decision",
     'decidedAt', x."decided_at",
-    'decidedBy', x."decided_by") order by x."created_at" desc, x."id")
+    'decidedBy', x."decided_by") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
-      select * from "better_supabase"."warranty_claims" y
-      where y."tenant_id" = list_warranty_claims.tenant
-        and (v_status is null or y."status" = v_status)
-        and (v_asset is null or y."asset_id" = v_asset::uuid)
-      order by y."created_at" desc, y."id"
-      limit v_limit offset v_offset
+      select * from "better_supabase"."warranty_claims" x
+      where x."tenant_id" = list_warranty_claims.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_asset is null or x."asset_id" = v_asset::uuid)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
     ) x
-  ), '[]'::jsonb);
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."warranty_claims" x
+      where x."tenant_id" = list_warranty_claims.tenant
+        and (v_status is null or x."status" = v_status)
+        and (v_asset is null or x."asset_id" = v_asset::uuid)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_warranty_claims"(uuid, jsonb) from public, anon;

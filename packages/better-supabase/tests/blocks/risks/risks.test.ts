@@ -321,6 +321,46 @@ describe("createRisks", () => {
     ]);
   });
 
+  it("pages by keyset and returns the cursor", async () => {
+    const t = fieldsTransport({
+      list_risks: () => ({
+        items: [RISK],
+        hasMore: true,
+        nextCursor: ["5", "1", "r1"],
+        total: 120,
+        totalCapped: false,
+      }),
+    });
+
+    const risks = createRisks({ transport: t, tenant: "org-1" });
+
+    const page = await risks
+      .page({ limit: 1, after: ["9", "2", "r0"], total: true })
+      .orThrow();
+
+    expect(page.items.map((risk) => risk.number)).toEqual(["RSK-0001"]);
+    expect(page).toMatchObject({
+      hasMore: true,
+      nextCursor: ["5", "1", "r1"],
+      total: 120,
+      totalCapped: false,
+    });
+    expect(t.calls).toEqual([
+      [
+        "list_risks",
+        {
+          tenant: "org-1",
+          filters: {
+            limit: 1,
+            after: ["9", "2", "r0"],
+            total: true,
+            paged: true,
+          },
+        },
+      ],
+    ]);
+  });
+
   it("rejects a malformed row", async () => {
     const t = fieldsTransport({
       create_risk: () => ({ ...RISK, status: "open" }),

@@ -1,6 +1,12 @@
 import type { BsbTag } from "./bsb-tags.ts";
+import type { TagRenderOptions } from "./tag-statements.ts";
 
 import { commentOnTableSql, parseBsbComment, setBsbTag } from "./bsb-tags.ts";
+import {
+  isRenderedFeature,
+  renderTagBlock,
+  setTagBlock,
+} from "./tag-statements.ts";
 
 /** The per-table features a `@bsb` tag turns on (ADR 0102). */
 export const TABLE_FEATURES = [
@@ -23,6 +29,9 @@ export const TABLE_FEATURES = [
   "function-writes",
   "chain",
   "template",
+  "access",
+  "list",
+  "idempotency",
 ] as const;
 
 export type TableFeature = (typeof TABLE_FEATURES)[number];
@@ -90,10 +99,15 @@ export function setTableFeature(
   const match = pattern.exec(sql);
   const current = match?.[1]?.replaceAll("''", "'") ?? null;
 
+  // A tag the file already carries keeps its arguments when it is enabled again.
+  const existing = parseBsbComment(current).tags.find(
+    (each) => each.name === feature,
+  );
+
   const next = setBsbTag(
     current,
     feature,
-    enabled ? (tag ?? { name: feature, args: {} }) : undefined,
+    enabled ? (tag ?? existing ?? { name: feature, args: {} }) : undefined,
   );
 
   if (match === null) {
@@ -205,7 +219,26 @@ export function setFeatureStatement(
   table: string,
   feature: TableFeature,
   enabled: boolean,
+  options: TagRenderOptions = {},
 ): string {
+  if (isRenderedFeature(feature)) {
+    // The tag's own arguments decide the statements, so they are read from the
+    // comment the file carries.
+    const comment = commentPattern(schema, table).exec(sql)?.[1];
+
+    const tag = parseBsbComment(
+      comment?.replaceAll("''", "'") ?? null,
+    ).tags.find((each) => each.name === feature);
+
+    return setTagBlock(
+      sql,
+      feature,
+      enabled && tag !== undefined
+        ? renderTagBlock(feature, schema, table, tag, options)
+        : undefined,
+    );
+  }
+
   const statement = featureStatement(feature, schema, table);
 
   if (statement === undefined) {
