@@ -37,8 +37,8 @@ Memory of the version cache is bounded by `maxEntries`. Repeated `client(db, key
 builder setup. No public export changes; `maxEntries` is an optional field.
 
 The shared builder adds client code to every route that imports the blocks client. The brotli First
-Load JS of 25 routes in `tests/next-build/baseline.json` rose by 4 to 77 bytes over the previous
-baseline (about 0.02 percent of a route, no raw baseline moved). Those 25 brotli numbers are
+Load JS of 26 routes in `tests/next-build/baseline.json` rose by 4 to 77 bytes (CI measured one route 10 bytes above the local build) over the previous
+baseline (about 0.02 percent of a route, no raw baseline moved). Those 26 brotli numbers are
 re-measured from a fresh build on this branch; a trimmed variant of the code measured larger, not
 smaller, because brotli moves with the chunk hashes. The saving is one port graph per `db` on the
 server and in tests, so the bytes are accepted.
