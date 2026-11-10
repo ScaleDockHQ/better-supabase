@@ -682,6 +682,7 @@ Commands
   diff       Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start
   seed       Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --yes
   backfill   Fills the null values of a column in batches, from the table a foreign key references or from a literal
+  verify     Checks row level security, grants, policies and definer search_path in the database, and writes the access matrix as pgTAP files with --write-tests
   partition  Moves an audit log created before options.partitioned onto monthly partitions without stopping writes
 
 Global options
@@ -894,6 +895,41 @@ Global options
 
 Side effects: Writes files, writes to the database with --yes, writes to the database with --tenant, writes to the database with --defaults, calls the Better Supabase cloud with --sample.
 Docs: https://bettersupabase.com/docs/cli/db#seed
+"
+`;
+
+exports[`help > documents db verify 1`] = `
+"Usage: better-supabase db verify [options]
+
+Checks row level security, grants, policies and definer search_path in the database, and writes the access matrix as pgTAP files with --write-tests
+
+Options
+  --write-tests   Write the access matrix as one pgTAP file per persona (ADR 0105) to --dir
+  --dir <path>    Folder of the pgTAP files (default supabase/tests/database), relative to the project
+  --db-url-stdin  Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --stack <name>  Use the stack in supabase/stacks/<name>/config.toml (default $BETTER_SUPABASE_STACK) instead of the default local stack
+
+Global options
+  --cwd <dir>                Project directory
+  --config <file>            Config file, relative to --cwd
+  --env <name>               Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                     Print one JSON document on stdout; a failure prints an error document on stderr. On by default in agent mode
+  --agent <auto|yes|no>      Agent mode (JSON output, no prompts, confirmation for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --effects-digest <digest>  The digest from a confirmation_required result; with --yes, confirms exactly those effects
+  -y, --yes                  Answer yes to every confirmation; ask nothing
+  --non-interactive          Never prompt; fail with input_required when a value is missing. On in CI and agent mode
+  --no-color                 Print no colors, like $NO_COLOR
+  --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help                 Show help
+
+Examples
+  # Reports the security findings; exits 1 on an error
+  $ better-supabase db verify
+  # Also writes one pgTAP access test per persona to supabase/tests/database
+  $ better-supabase db verify --write-tests
+
+Side effects: Reads the database, writes files with --write-tests.
+Docs: https://bettersupabase.com/docs/cli/db#verify
 "
 `;
 
