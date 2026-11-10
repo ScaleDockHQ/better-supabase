@@ -96,7 +96,7 @@ export function searchKeyPairs(subjects: SubjectsConfig): SearchKeyPair[] {
 }
 
 /** `text` and `varchar` are one comparison type. */
-export function searchKeyTypeKey(type: string): string {
+function searchKeyTypeKey(type: string): string {
   const flat = type.toLowerCase().replaceAll(/\s+/g, " ").trim();
 
   if (
