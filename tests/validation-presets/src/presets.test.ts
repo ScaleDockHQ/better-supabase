@@ -1,4 +1,8 @@
-import { emitBlockConfig, emitBlockConfigModule } from "better-supabase/cli";
+import {
+  emitBlockConfig,
+  emitBlockConfigModule,
+  emitBlockReads,
+} from "better-supabase/cli";
 import { defineConfig, resolveConfig } from "better-supabase/config";
 import {
   namedPreset,
@@ -20,6 +24,9 @@ const wiringFile = (name: string): URL =>
 
 const configModuleFile = (name: string): URL =>
   new URL(`wiring/${name}.blocks.config.ts`, import.meta.url);
+
+const readsFile = (name: string): URL =>
+  new URL(`wiring/${name}.blocks.reads.ts`, import.meta.url);
 
 const blockConfigFile = (name: string): URL =>
   new URL(`wiring/${name}.blocks.generated.ts`, import.meta.url);
@@ -83,10 +90,11 @@ describe("named presets", () => {
       "/",
     );
 
-    const blockConfig = (emitBlockConfig(resolved)?.contents ?? "").replaceAll(
-      "./blocks.config.ts",
-      `./${name}.blocks.config.ts`,
-    );
+    const blockConfig = (emitBlockConfig(resolved)?.contents ?? "")
+      .replaceAll("./blocks.config.ts", `./${name}.blocks.config.ts`)
+      .replaceAll("./blocks.reads.ts", `./${name}.blocks.reads.ts`);
+
+    const reads = emitBlockReads(resolved)?.contents;
 
     const configModule = emitBlockConfigModule(resolved)?.contents ?? "";
 
@@ -94,11 +102,21 @@ describe("named presets", () => {
       await writeFile(wiringFile(name), source);
       await writeFile(blockConfigFile(name), blockConfig);
       await writeFile(configModuleFile(name), configModule);
+
+      if (reads !== undefined) {
+        await writeFile(readsFile(name), reads);
+      }
     }
 
     expect(await readFile(wiringFile(name), "utf-8")).toBe(source);
     expect(await readFile(blockConfigFile(name), "utf-8")).toBe(blockConfig);
     expect(await readFile(configModuleFile(name), "utf-8")).toBe(configModule);
+
+    expect(
+      reads === undefined
+        ? undefined
+        : await readFile(readsFile(name), "utf-8"),
+    ).toBe(reads);
   });
 });
 

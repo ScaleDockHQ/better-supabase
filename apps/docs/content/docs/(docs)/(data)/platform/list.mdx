@@ -167,6 +167,11 @@ type and, optionally, the subset of its operators to allow. The tree is the
 `FilterQuery` that [ReUI Filters](https://reui.io) edits, typed structurally,
 so better-supabase doesn't depend on ReUI.
 
+A tree can also go straight into a repository `where`. The server installs
+the converter. A bundle that builds no server calls `enableFilterTrees()` from
+`better-supabase/list` once first, which ships the field checks with it; a read
+with a tree before that fails with a message that names the call.
+
 ```ts title="lib/lists.ts"
 export const customerList = defineListQuery(betterSupabase, "customers", {
   search: ["name"],

@@ -6,7 +6,7 @@ import { rpcTransport } from "better-supabase/blocks/organizations";
 import { createUsage } from "better-supabase/blocks/usage";
 
 import { blockConfig } from "@/lib/supabase/blocks.config";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 let registered = false;
 

@@ -2,8 +2,12 @@ import { defineReadSet } from "better-supabase";
 
 // `better-supabase gen` imports this file with Node, so relative imports keep
 // their `.ts` extension.
-import { reads } from "./supabase/blocks.generated.ts";
-import { betterSupabase } from "./supabase/index.ts";
+import { app } from "./supabase/app.ts";
+import { reads } from "./supabase/blocks.reads.ts";
+
+// The read sets are built over `app` and the blocks' `reads` (no block code),
+// so a route that runs one bundles the block set of its own server and nothing
+// else (ADR 0645).
 
 /**
  * The dashboard's numbers as one round trip: `gen` compiles this into
@@ -12,7 +16,7 @@ import { betterSupabase } from "./supabase/index.ts";
  * `auth.uid()` in the function, so nobody counts another member's customers.
  */
 export const workspaceSummary = defineReadSet(
-  betterSupabase,
+  app,
   "workspace_summary",
   {},
   (s, _p, auth) => ({
@@ -33,7 +37,7 @@ export const workspaceSummary = defineReadSet(
  * board and the count one after the other.
  */
 export const pipelineOverview = defineReadSet(
-  betterSupabase,
+  app,
   "pipeline_overview",
   { params: { pipelineId: "uuid" }, blocks: reads },
   (s, p) => ({
@@ -49,7 +53,7 @@ export const pipelineOverview = defineReadSet(
  * doesn't await them one after the other.
  */
 export const financeOverview = defineReadSet(
-  betterSupabase,
+  app,
   "finance_overview",
   { params: { accountId: "uuid", organizationId: "uuid" }, blocks: reads },
   (s, p) => ({

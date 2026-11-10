@@ -744,6 +744,7 @@
       "defineCliCommand",
       "emitBlockConfig",
       "emitBlockConfigModule",
+      "emitBlockReads",
       "emitClientBlocks",
       "emitModule",
       "fromCatalog",
@@ -3206,6 +3207,7 @@
     "values": [
       "decodeFilterQuery",
       "defineListQuery",
+      "enableFilterTrees",
       "encodeFilterQuery",
       "evaluateFilterQuery",
       "FILTER_OPERATOR_LABELS",

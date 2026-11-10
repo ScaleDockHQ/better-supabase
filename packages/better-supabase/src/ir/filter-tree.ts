@@ -1,12 +1,14 @@
 import type { ValidationIssue } from "../core/errors.ts";
 import type { FilterQuery } from "../list/filter-query.ts";
 import type { TableMeta } from "../schema/types.ts";
+import type { FilterTreeWhere } from "./filter-slot.ts";
 
 import {
   checkFilterQuery,
   filterWhere,
   tableFilterFields,
 } from "../list/filter-query.ts";
+import { provideFilterTrees } from "./filter-slot.ts";
 
 /** How deep and wide a filter tree in `where` may be. */
 const FILTER_TREE_LIMITS = {
@@ -16,16 +18,11 @@ const FILTER_TREE_LIMITS = {
   maxValues: 1000,
 } as const;
 
-/** What a filter tree in `where` turns into. */
-export type FilterTreeWhere =
-  | { readonly where: Record<string, unknown> | undefined }
-  | { readonly issue: string };
-
 /**
  * A filter tree from ReUI's Filters as a `where` object, checked against the
  * table's filterable columns.
  */
-export function filterTreeWhere(
+function filterTreeWhere(
   table: TableMeta,
   input: FilterQuery,
 ): FilterTreeWhere {
@@ -41,4 +38,13 @@ export function filterTreeWhere(
   return {
     where: query === undefined ? undefined : filterWhere(query, fields),
   };
+}
+
+/**
+ * Lets `where` take a filter tree (`FilterQuery` from ReUI's Filters). The
+ * server installs it; a browser bundle that passes a tree to a read calls it
+ * once, which ships the filter checks.
+ */
+export function enableFilterTrees(): void {
+  provideFilterTrees(filterTreeWhere);
 }

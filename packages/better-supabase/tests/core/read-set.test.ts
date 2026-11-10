@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { ExecuteResult, Executor } from "../../src/core/executor.ts";
 import type { Result } from "../../src/core/result.ts";
 import type { Operation } from "../../src/ir/types.ts";
 
+import { defineBlock, defineBlocks } from "../../src/blocks/index.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { batchingExecutor } from "../../src/core/batch.ts";
 import { blockRead } from "../../src/core/block-reads.ts";
@@ -874,5 +875,35 @@ describe("readSet.parse", () => {
       'read set "parsed": names must be an array, total must be a number',
     );
     expect(set.parse(null).ok).toBe(false);
+  });
+});
+
+describe("defineReadSet over an app built from a block set", () => {
+  const probe = defineBlock({
+    name: "probe",
+    create: () => ({ ping: (): string => "pong" }),
+    category: "work",
+  });
+
+  const blockSet = defineBlocks(
+    { probe: { schema: "better_supabase", api: "api", options: {} } } as const,
+    { probe },
+  );
+
+  const withBlocks = createSupabase(schema).blocks(blockSet);
+
+  it("builds the same read set as the app without blocks", () => {
+    const build = (s: {
+      customers: {
+        count: () => ReturnType<typeof betterSupabase.spec.customers.count>;
+      };
+    }) => ({ customers: s.customers.count() });
+
+    const lean = defineReadSet(betterSupabase, "block_set_probe", {}, build);
+    const full = defineReadSet(withBlocks, "block_set_probe", {}, build);
+
+    expect(full.functionName).toBe(lean.functionName);
+    expect(Object.keys(full.specs)).toEqual(Object.keys(lean.specs));
+    expectTypeOf(full.name).toEqualTypeOf<"block_set_probe">();
   });
 });

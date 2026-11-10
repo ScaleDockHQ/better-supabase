@@ -99,6 +99,14 @@ queries, and `retry` does nothing.
   `db` (and its `$with` copies) ran. `betterSupabase.connect(client, context, { stats })`
   also reports into a shared `StatsRecorder`. See
   [Budget](/docs/frameworks/next-cache-components#budget).
+
+The `db` of the browser client (`createClient` from `better-supabase/client`)
+has the repositories, `$rpc`, `$run`, `$table`, `$with`, `$withoutPlugins`,
+`$storage` and `$buckets`, and leaves out `$many`, `$search`, `$stats`,
+`$decode` and `$decodeReadSet`, which keeps read-set batching and vector search
+out of the bundle. The server, the adapters, `createNativeClient` and the testing
+helpers have all of them.
+
 - `explainPostgrest(op)` shows the compiled request for debugging.
 
 ## How queries compile

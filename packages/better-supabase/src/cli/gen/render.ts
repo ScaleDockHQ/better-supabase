@@ -20,6 +20,7 @@ import { apiTypeSchemas } from "./api-schemas.ts";
 import {
   emitBlockConfig,
   emitBlockConfigModule,
+  emitBlockReads,
   emitBlockModules,
   emitClientBlocks,
   generatorBlocks,
@@ -260,6 +261,12 @@ export async function render(
     }
 
     files.push(...emitServerBlocks(config, blockOptions));
+
+    const blockReads = emitBlockReads(config, blockOptions);
+
+    if (blockReads) {
+      files.push(blockReads);
+    }
   }
 
   files.push(...emitRecords(config));

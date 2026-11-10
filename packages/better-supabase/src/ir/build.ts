@@ -12,11 +12,10 @@ import type {
 
 import { isPlainObject } from "../core/clone.ts";
 import { DbException, dbError } from "../core/errors.ts";
-import { isFilterQuery } from "../list/filter-query.ts";
 import { relationMeta } from "../schema/define.ts";
 import { lookupOf } from "../schema/lookup.ts";
 import { escapeLike } from "./escape-like.ts";
-import { filterTreeWhere } from "./filter-tree.ts";
+import { isFilterTree, resolveFilterTree } from "./filter-slot.ts";
 import { and, not, or } from "./types.ts";
 import { encodeValue } from "./wire.ts";
 
@@ -203,7 +202,7 @@ export class IrBuilder {
       return undefined;
     }
 
-    if (isFilterQuery(input)) {
+    if (isFilterTree(input)) {
       return this.filterTree(table, input);
     }
 
@@ -259,7 +258,10 @@ export class IrBuilder {
     table: TableMeta,
     input: FilterQuery,
   ): Condition | undefined {
-    const tree = filterTreeWhere(table, input);
+    const tree = resolveFilterTree(table, input) ?? {
+      issue:
+        "a filter tree needs enableFilterTrees() from better-supabase/list",
+    };
 
     if ("issue" in tree) {
       invalidRequest(

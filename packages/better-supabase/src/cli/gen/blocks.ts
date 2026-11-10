@@ -51,6 +51,15 @@ export function blockConfigPath(
 }
 
 /**
+ * `blocks.reads.ts`: the installed blocks' composed reads and their types, next
+ * to `blocks.generated.ts`. It imports only `blockRead`, so a route that
+ * defines a read set bundles no block.
+ */
+function blockReadsPath(config: Pick<ResolvedConfig, "output">): string {
+  return posix.join(posix.dirname(config.output), "blocks.reads.ts");
+}
+
+/**
  * `blocks.config.ts`: `blockConfig` alone, with no import of any block, so
  * client code reads a block's API name or schema without bundling the blocks
  * `blocks.generated.ts` imports.
@@ -845,6 +854,7 @@ export function emitBlockConfig(
   const runtime = options.runtimeImport ?? "better-supabase";
   const renamed = renamedBlockLines(entries);
   const constants = nameConstantLines(config, entries, options.viewFanOut);
+  const hasReads = constants.reads.lines.length > 0;
   const synced = config.gen.powersync?.instances;
 
   const instances = instanceMapLines(
@@ -917,6 +927,51 @@ export function emitBlockConfig(
       ...instances.lines,
       ...appTableEventLines(events),
       ...constants.lines,
+      ...(hasReads
+        ? [
+            "",
+            "/** The composed reads, written to `blocks.reads.ts`, which imports no block. */",
+            'export * from "./blocks.reads.ts";',
+          ]
+        : []),
+      "",
+    ].join("\n"),
+  };
+}
+
+/**
+ * `blocks.reads.ts`: `reads` and the types of its arguments and results, for
+ * `defineReadSet(..., { blocks: reads })`. `undefined` when no installed block
+ * has a composed read.
+ */
+export function emitBlockReads(
+  config: Parameters<typeof emitBlockConfig>[0],
+  options: {
+    readonly runtimeImport?: string;
+    readonly appColumns?: AppColumns;
+    readonly viewFanOut?: ViewFanOut;
+  } = {},
+): GeneratedFile | undefined {
+  if (config.blockNames.length === 0) {
+    return undefined;
+  }
+
+  const entries = blockConfigEntries(config, undefined, options.appColumns);
+  const { reads } = nameConstantLines(config, entries, options.viewFanOut);
+
+  if (reads.lines.length === 0) {
+    return undefined;
+  }
+
+  const runtime = options.runtimeImport ?? "better-supabase";
+
+  return {
+    path: blockReadsPath(config),
+    contents: [
+      GENERATED_HEADER,
+      "",
+      `import { ${reads.specifiers.join(", ")} } from ${q(runtimeSubpath(runtime, "blocks"))};`,
+      ...reads.lines,
       "",
     ].join("\n"),
   };

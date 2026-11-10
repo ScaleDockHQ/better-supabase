@@ -538,6 +538,7 @@ export interface DbHelpers<
   E,
   C,
   B = unknown,
+  X extends object = DbExtraHelpers<M>,
 > {
   /** The underlying client (supabase-js), for anything the repository lacks. */
   readonly $client: C;
@@ -585,7 +586,7 @@ export interface DbHelpers<
     name: N,
   ): AsyncResult<OverloadReturns<F[N], Record<never, never>>>;
   /** Same connection with more context (for example a tenant). */
-  $with(context: RequestContext): Db<M, F, E, C, B>;
+  $with(context: RequestContext): CoreDb<M, F, E, C, B, X>;
   /**
    * Same connection without plugins: no tenant scoping, soft-delete filters,
    * timestamps, rules or executor wrappers. For migrations and admin tools.
@@ -594,7 +595,25 @@ export interface DbHelpers<
    */
   $withoutPlugins(options?: {
     readonly keep?: readonly string[];
-  }): Db<M, F, unknown, C, B>;
+  }): CoreDb<M, F, unknown, C, B, X>;
+  /**
+   * The repository for a table named at runtime (MCP tools, admin screens).
+   * Throws a `TypeError` for unknown names.
+   */
+  $table<T extends TableKey<M>>(name: T): RepositoryOf<M, T, E>;
+  /** Runs a `QuerySpec` built with `betterSupabase.spec`. */
+  $run<S extends QuerySpec<TableKey<M>>>(
+    spec: S,
+    options?: { readonly signal?: AbortSignal },
+  ): AsyncResult<InferResult<S>>;
+}
+
+/**
+ * The `db` methods the browser client leaves out (ADR 0645): reading rows from
+ * elsewhere, stats, read sets, batches and vector search. The server, the
+ * adapters, the testing helpers and the native client install them.
+ */
+export interface DbExtraHelpers<M extends AnyModels> {
   /**
    * Reads rows that did not come from the repository (`$client` or `queryRaw`
    * results, which use database names) into the table's shape: the configured
@@ -602,18 +621,8 @@ export interface DbHelpers<
    * `Result` error, not an exception.
    */
   $decode<T extends TableKey<M>>(table: T): DbDecoder<Row<M, T>>;
-  /**
-   * The repository for a table named at runtime (MCP tools, admin screens).
-   * Throws a `TypeError` for unknown names.
-   */
-  $table<T extends TableKey<M>>(name: T): RepositoryOf<M, T, E>;
   /** Calls, waves, tables and time for everything run through this `db`. */
   $stats(): DbStats;
-  /** Runs a `QuerySpec` built with `betterSupabase.spec`. */
-  $run<S extends QuerySpec<TableKey<M>>>(
-    spec: S,
-    options?: { readonly signal?: AbortSignal },
-  ): AsyncResult<InferResult<S>>;
   /**
    * Runs a read set as one round trip: a single GET to its function over
    * PostgREST, one transaction over SQL. Query plugins don't apply; RLS does.
@@ -651,14 +660,25 @@ export interface DbHelpers<
   ): AsyncResult<(Payload<M, T, A> & SearchScore<A>)[]>;
 }
 
+/** A `db` with the helpers `X` adds; the browser client's has none. */
+export type CoreDb<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  B = unknown,
+  X extends object = DbExtraHelpers<M>,
+> = {
+  readonly [T in TableKey<M>]: RepositoryOf<M, T, E>;
+} & DbHelpers<M, F, E, C, B, X> &
+  X &
+  BucketsHelper<BucketsOf<B>> &
+  BlocksHelper<BlockClientsOf<B>, TableKey<M>>;
+
 export type Db<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
   C,
   B = unknown,
-> = {
-  readonly [T in TableKey<M>]: RepositoryOf<M, T, E>;
-} & DbHelpers<M, F, E, C, B> &
-  BucketsHelper<BucketsOf<B>> &
-  BlocksHelper<BlockClientsOf<B>, TableKey<M>>;
+> = CoreDb<M, F, E, C, B>;
