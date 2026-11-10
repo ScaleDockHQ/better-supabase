@@ -482,7 +482,7 @@
   "/[locale]/(app)/shop/inventory/page": {
     "raw": 1409144,
     "gzip": 446756,
-    "brotli": 388754
+    "brotli": 389728
   },
   "/[locale]/(app)/shop/kitchen/board/page": {
     "raw": 1403027,
