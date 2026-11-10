@@ -18162,3 +18162,8 @@ msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
 msgctxt "errors.L-85Jk"
 msgid "Your plan's limit is reached. Upgrade to continue."
 msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.TM7s8X"
+msgid "The list was cut off. Ask for a page instead."
+msgstr ""

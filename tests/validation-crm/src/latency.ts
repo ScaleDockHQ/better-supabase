@@ -11,17 +11,21 @@ export const betterSupabase = createSupabase(schema);
  * contact count and latest update of a location, in two requests that run in
  * parallel. The original service ran up to six sequential queries.
  */
-export const customerOverview = defineListQuery(betterSupabase, customersTable, {
-  search: ["companyName", "sortName", "billingEmail"],
-  facets: { status: "status", business: "isBusiness" },
-  sorts: {
-    name: [{ sortName: "asc" }, { id: "asc" }],
-    updated: [{ updatedAt: "desc" }, { id: "asc" }],
+export const customerOverview = defineListQuery(
+  betterSupabase,
+  customersTable,
+  {
+    search: ["companyName", "sortName", "billingEmail"],
+    facets: { status: "status", business: "isBusiness" },
+    sorts: {
+      name: [{ sortName: "asc" }, { id: "asc" }],
+      updated: [{ updatedAt: "desc" }, { id: "asc" }],
+    },
+    defaultSort: "name",
+    pageSize: 25,
+    facetCounts: true,
   },
-  defaultSort: "name",
-  pageSize: 25,
-  facetCounts: true,
-});
+);
 
 /**
  * The three badges in the app chrome (unread notifications, my open tasks,
