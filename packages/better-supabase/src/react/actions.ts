@@ -2,7 +2,13 @@
 
 import type { SubmitEvent } from "react";
 
-import { useCallback, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 
 import type {
   ActionInputOf,
@@ -141,6 +147,74 @@ export function useAction<I, T>(
     error: settled.error,
     reset,
   };
+}
+
+export interface UseOptimisticActionOptions<S, I, T> extends UseActionOptions<
+  I,
+  T
+> {
+  /** The confirmed state, usually read from the server render or a query. */
+  readonly state: S;
+  /** The state the UI shows while the action runs, from the input. */
+  readonly update: (state: S, input: I) => S;
+}
+
+export interface OptimisticActionHandle<S, I, T> extends ActionHandle<I, T> {
+  /**
+   * The state to render: `update` applied to the confirmed state for every run
+   * in flight. It returns to the confirmed state when the action settles, with
+   * the server's answer if the action refreshed it, or the old state if the
+   * action failed.
+   */
+  readonly optimistic: S;
+  /** The state as passed, for a "saving" cue next to `optimistic`. */
+  readonly confirmed: S;
+}
+
+/**
+ * `useAction` with an optimistic state (React `useOptimistic`): the UI shows
+ * `update(state, input)` at once and falls back to `state` when the run
+ * settles, so a failed action undoes itself and a successful one shows what the
+ * server returned after the router refresh. Needs React 19.
+ *
+ * ```tsx
+ * const toggle = useOptimisticAction(setDone, {
+ *   state: task.done,
+ *   update: (_done, input) => input.done,
+ * });
+ * <Checkbox
+ *   checked={toggle.optimistic}
+ *   onCheckedChange={(done) => toggle.run({ id, done })}
+ * />;
+ * ```
+ */
+export function useOptimisticAction<S, I, T>(
+  action: (input: I) => Promise<ActionResultOf<T>>,
+  options: UseOptimisticActionOptions<S, ActionInputOf<I>, T>,
+): OptimisticActionHandle<S, ActionInputOf<I>, T> {
+  const { state, update, ...rest } = options;
+
+  const [optimistic, addOptimistic] = useOptimistic(
+    state,
+    (current: S, input: ActionInputOf<I>) => update(current, input),
+  );
+
+  const latest = useRef({ action, addOptimistic });
+  // oxlint-disable-next-line react/refs -- latest-ref pattern so the wrapped action stays stable.
+  latest.current = { action, addOptimistic };
+
+  const handle = useAction<I, T>(
+    useCallback((input: I) => {
+      // `useAction` calls this inside a transition, where React accepts it.
+      // SAFETY: `useAction` passes the run's input, whose type is `ActionInputOf<I>`.
+      latest.current.addOptimistic(input as ActionInputOf<I>);
+
+      return latest.current.action(input);
+    }, []),
+    rest,
+  );
+
+  return { ...handle, optimistic, confirmed: state };
 }
 
 export interface UseActionFormOptions<T> {

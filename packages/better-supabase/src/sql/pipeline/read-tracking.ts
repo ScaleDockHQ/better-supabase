@@ -9,12 +9,14 @@ export type ReadRoot = "layout" | "installed";
  * `type` the kind of object there, `keys` the own keys of the object, `has`
  * whether the key exists (`in` and absent reads), and `whole` an object the
  * render took by reference and may have read without the proxy (a map or a
- * set).
+ * set). `member` is whether an array holds the string that ends the path (the
+ * array's own path is everything before it), so a render that asks `includes`
+ * depends on that one answer and not on every element.
  */
 export interface Read {
   readonly root: ReadRoot;
   readonly path: readonly string[];
-  readonly kind: "value" | "type" | "keys" | "has" | "whole";
+  readonly kind: "value" | "type" | "keys" | "has" | "whole" | "member";
   readonly seen: string;
 }
 
@@ -81,6 +83,12 @@ function seenNow(
       Object.hasOwn(parent, key)
       ? "1"
       : "0";
+  }
+
+  if (read.kind === "member") {
+    const list = resolvePath(root, read.path.slice(0, -1));
+
+    return Array.isArray(list) && list.includes(read.path.at(-1)) ? "1" : "0";
   }
 
   const value = resolvePath(root, read.path);
@@ -175,6 +183,28 @@ export function createReadTracker(): ReadTracker {
         }
 
         const own = Object.hasOwn(real, key);
+
+        // `includes` of a string records the one answer, not every element.
+        if (key === "includes" && Array.isArray(real)) {
+          return (search: unknown, from?: number): boolean => {
+            const found = real.includes(search, from);
+
+            if (typeof search === "string" && from === undefined) {
+              record(root, [...path, search], "member", found ? "1" : "0");
+            } else {
+              for (const [index, item] of real.entries()) {
+                record(
+                  root,
+                  [...path, String(index)],
+                  "value",
+                  digest(stableText(item) ?? ""),
+                );
+              }
+            }
+
+            return found;
+          };
+        }
 
         // Inherited members (`indexOf`, `hasOwnProperty`) read no data.
         if (!own && key in real) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyEnvMap,
   jwksUrlOf,
   prefixFromFlag,
   redactValue,
@@ -117,5 +118,28 @@ describe("staleVariables", () => {
   it("reports nothing when the shell matches or exports nothing", () => {
     expect(staleVariables({}, values)).toEqual([]);
     expect(staleVariables({ ...values }, values)).toEqual([]);
+  });
+});
+
+describe("applyEnvMap", () => {
+  const values = { SUPABASE_URL: "http://x", SUPABASE_PUBLISHABLE_KEY: "pk" };
+
+  it("adds a name for a written variable or a status key", () => {
+    expect(
+      applyEnvMap(
+        values,
+        { STUDIO_URL: "http://studio" },
+        { SUPABASE_ANON_KEY: "SUPABASE_PUBLISHABLE_KEY", STUDIO: "STUDIO_URL" },
+      ),
+    ).toEqual({
+      values: { ...values, SUPABASE_ANON_KEY: "pk", STUDIO: "http://studio" },
+      missing: [],
+    });
+  });
+
+  it("reports a source the stack does not have", () => {
+    expect(applyEnvMap(values, {}, { A: "NOPE" }).missing).toEqual([
+      "A (from NOPE)",
+    ]);
   });
 });

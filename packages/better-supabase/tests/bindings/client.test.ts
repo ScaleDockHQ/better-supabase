@@ -170,6 +170,61 @@ describe("createActionRunner", () => {
   });
 });
 
+describe("startBroadcast rejoin", () => {
+  function join(options: { onRejoin: () => void; rejoinOnLoad?: boolean }) {
+    let report: ((status: string) => void) | undefined;
+
+    const topic = {
+      match: () => ({}),
+      subscribe: (
+        _supabase: unknown,
+        _matched: unknown,
+        _handlers: unknown,
+        subscribe: { onStatus: (status: string) => void },
+      ) => {
+        report = subscribe.onStatus;
+
+        return { unsubscribe: () => Promise.resolve() };
+      },
+    };
+
+    startBroadcast({
+      supabase: {} as never,
+      topic: topic as never,
+      name: "room:1",
+      latest: () => ({ handlers: undefined, options }),
+      queryClient: undefined,
+      onStatus: () => undefined,
+    });
+
+    return (status: string) => report?.(status);
+  }
+
+  it("calls onRejoin when the channel joins again after a drop, not on the first join", () => {
+    const onRejoin = vi.fn();
+    const send = join({ onRejoin });
+
+    send("joining");
+    send("subscribed");
+    expect(onRejoin).not.toHaveBeenCalled();
+
+    send("error");
+    send("subscribed");
+    expect(onRejoin).toHaveBeenCalledOnce();
+
+    send("subscribed");
+    expect(onRejoin).toHaveBeenCalledOnce();
+  });
+
+  it("also calls onRejoin on the first join with rejoinOnLoad", () => {
+    const onRejoin = vi.fn();
+    const send = join({ onRejoin, rejoinOnLoad: true });
+
+    send("subscribed");
+    expect(onRejoin).toHaveBeenCalledOnce();
+  });
+});
+
 describe("startBroadcast", () => {
   it("joins nothing for a name the topic does not match", () => {
     const supabase = relayRealtimeClient("/rt");

@@ -204,6 +204,19 @@ export async function asUser<
   }
 
   const token = await signFor(stack, url, claims);
+
+  return buildUser(betterSupabase, stack, url, publishableKey, token, claims);
+}
+
+/** The repositories and clients for a token the stack accepts. */
+function buildUser<M extends AnyModels, D, F extends AnyFunctions, E, C, P, B>(
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
+  stack: LocalStack,
+  url: string,
+  publishableKey: string,
+  token: string,
+  claims: TestJwtClaims,
+): TestUser<M, F, E, B> {
   const full: TestJwtClaims = { role: "authenticated", ...claims };
 
   const context: RequestContext = {
@@ -245,4 +258,110 @@ export async function asUser<
   });
 
   return user;
+}
+
+/** The email and password of a user the stack's Auth already knows. */
+export interface TestCredentials {
+  readonly email: string;
+  readonly password: string;
+}
+
+/** The claims of a JWT's payload, read without checking the signature. */
+function payloadOf(token: string): TestJwtClaims {
+  const part = token.split(".")[1];
+
+  if (part === undefined) {
+    throw new TypeError(
+      "asSignedInUser: Auth returned a token with no payload.",
+    );
+  }
+
+  const text = atob(part.replaceAll("-", "+").replaceAll("_", "/"));
+  const parsed: unknown = JSON.parse(text);
+
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !("sub" in parsed) ||
+    typeof parsed.sub !== "string"
+  ) {
+    throw new TypeError("asSignedInUser: the token has no sub claim.");
+  }
+
+  // SAFETY: the object was checked for a string `sub`, the one required claim.
+  return parsed as TestJwtClaims;
+}
+
+/**
+ * A test user that signs in through the stack's Auth (`/auth/v1/token`, the
+ * password grant) instead of signing its own token. The access token carries
+ * what the stack puts there, including claims from a custom access token hook,
+ * so a test sees the session the app gets. The user must exist, for example
+ * from the seed.
+ *
+ * ```ts
+ * const alice = await asSignedInUser(betterSupabase, {
+ *   email: "alice@acme.test",
+ *   password: "password",
+ * });
+ * ```
+ */
+export async function asSignedInUser<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+>(
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
+  credentials: TestCredentials,
+  stack: LocalStack = {},
+): Promise<TestUser<M, F, E, B>> {
+  const url =
+    stack.url ?? env(...ENV_VARIABLES.url) ?? "http://127.0.0.1:54321";
+
+  const publishableKey =
+    stack.publishableKey ??
+    env(...ENV_VARIABLES.publishableKey, "SUPABASE_ANON_KEY");
+
+  if (!publishableKey) {
+    throw new TypeError(
+      "asSignedInUser needs publishableKey or $SUPABASE_PUBLISHABLE_KEY. Run `better-supabase dev env` to write it to .env.local.",
+    );
+  }
+
+  const request = stack.fetch ?? fetch;
+
+  const response = await request(
+    `${url.replace(/\/+$/, "")}/auth/v1/token?grant_type=password`,
+    {
+      method: "POST",
+      headers: { apikey: publishableKey, "content-type": "application/json" },
+      body: JSON.stringify(credentials),
+    },
+  );
+
+  const body: unknown = await response.json().catch(() => undefined);
+
+  const token =
+    typeof body === "object" && body !== null && "access_token" in body
+      ? body.access_token
+      : undefined;
+
+  if (!response.ok || typeof token !== "string") {
+    throw new TypeError(
+      `asSignedInUser: Auth refused ${credentials.email} (${String(response.status)}). Does the user exist in the stack?`,
+    );
+  }
+
+  return buildUser(
+    betterSupabase,
+    stack,
+    url,
+    publishableKey,
+    token,
+    payloadOf(token),
+  );
 }

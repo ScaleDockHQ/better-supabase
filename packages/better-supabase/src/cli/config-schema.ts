@@ -950,6 +950,7 @@ const FLAT = {
     v.strictObject({
       file: v.optional(v.string()),
       prefix: v.optional(v.string()),
+      map: v.optional(v.record(v.string(), v.string())),
     }),
   ),
   adapters: v.optional(v.array(v.picklist(INTEGRATIONS))),

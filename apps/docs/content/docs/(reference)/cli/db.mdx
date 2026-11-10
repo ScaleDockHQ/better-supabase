@@ -348,6 +348,33 @@ that stops can start again; it resumes from the rows already copied.
 
 Side effects: Writes to the database.
 
+## squash
+
+```bash
+pnpm better-supabase db squash --dry-run
+pnpm better-supabase db squash --keep reference_data,billing_plans --yes
+```
+
+`db squash` replaces every migration in `supabase/migrations` with one
+baseline of the declarative schema files, which it writes with
+`supabase db schema declarative sync --no-apply --strict-coverage`. A schema
+diff never writes the module extensions or your seed data, so the command
+carries them over: the `better_supabase_extensions` migration goes in before
+the baseline, and each name in `--keep` goes in after it, with the files of one
+name merged in order. A name with no migration is an error. When the baseline
+fails, the command puts the old migrations back. Never squash migrations a
+hosted project has applied; run it for a deliberate reset and reset the
+database afterwards.
+
+| Flag               | Effect                                                              |
+| ------------------ | ------------------------------------------------------------------- |
+| `--name <name>`    | Name of the baseline migration (default `init`).                    |
+| `--keep <names>`   | Comma-separated data migration names to carry over.                 |
+| `--schemas <list>` | Schemas the baseline covers (default: the `schemas` of the config). |
+| `--dry-run`        | Prints what it would remove and keep, and changes nothing.          |
+
+Side effects: Writes files.
+
 ## verify
 
 ```bash

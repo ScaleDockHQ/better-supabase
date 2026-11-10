@@ -1,5 +1,8 @@
 import { driveSubject } from "better-supabase/blocks/drive";
 import { defineConfig } from "better-supabase/config";
+import { factories } from "better-supabase/generators/factories";
+import { nuqs } from "better-supabase/generators/nuqs";
+import { zod } from "better-supabase/generators/zod";
 
 import { gettingStarted } from "./src/features/onboarding/checklist.ts";
 import { metrics } from "./src/metrics.ts";
@@ -75,6 +78,13 @@ export default defineConfig({
     storagePaths: { "customers.logo_path": "customerLogos" },
     readSets: ["src/lib/read-sets.ts"],
     hooks: "react",
+    // Tested consumers of the first-party generators: zod schemas (not wired
+    // into the repositories, so no route bundles them), nuqs search params and test factories for the app's own tables.
+    generators: [
+      zod({ validators: false }),
+      nuqs({ tables: ["tasks", "customers"] }),
+      factories(),
+    ],
     // Routes that need no other block (sign-in, the customers API) build their
     // server from this set and bundle no other block (ADR 0542).
     serverBlocks: {

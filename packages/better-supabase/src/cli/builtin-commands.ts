@@ -49,6 +49,10 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/partition.ts").then((m) => m.dbPartitionCommand),
   ],
   [
+    "db squash",
+    () => import("./commands/squash.ts").then((m) => m.dbSquashCommand),
+  ],
+  [
     "workflows prune",
     () =>
       import("./commands/prune-workflows.ts").then(

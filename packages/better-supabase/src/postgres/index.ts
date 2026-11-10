@@ -6,6 +6,8 @@ export type { PostgresExecutorOptions, SqlClient } from "./executor.ts";
 
 export { createPostgres } from "./pool.ts";
 
+export { sharedPostgres } from "./shared.ts";
+
 export type {
   PgPool,
   PgPoolClient,

@@ -324,7 +324,11 @@ export interface ResolvedConfig {
    * uses.
    */
   readonly gen: GenConfig;
-  readonly env: { readonly file: string; readonly prefix?: string };
+  readonly env: {
+    readonly file: string;
+    readonly prefix?: string;
+    readonly map?: Readonly<Record<string, string>>;
+  };
   readonly adapters: readonly IntegrationName[];
   readonly skills: SkillsConfig;
   readonly keys: KeysConfig;

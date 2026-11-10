@@ -92,6 +92,17 @@ export interface BroadcastOptions extends Omit<SubscribeOptions, "onStatus"> {
   readonly invalidate?:
     | readonly string[]
     | ((message: TopicMessage) => readonly (readonly unknown[])[]);
+  /**
+   * Called when the channel joins again after it dropped (a network loss, a
+   * token refresh), so the app can refetch what it missed while away. Broadcast
+   * does not replay messages.
+   */
+  readonly onRejoin?: () => void;
+  /**
+   * Also calls `onRejoin` on the first join, so one handler loads the state the
+   * page needs on mount and after every reconnect. Defaults to `false`.
+   */
+  readonly rejoinOnLoad?: boolean;
 }
 
 export interface LiveQueryHookOptions {
@@ -270,6 +281,25 @@ export function startBroadcast<P extends string, E extends EventSchemas>(
   };
 
   const self = run.latest().options?.self;
+  let joined = false;
+  let dropped = false;
+
+  const onStatus = (status: SubscriptionStatus): void => {
+    run.onStatus(status);
+
+    if (status === "subscribed") {
+      const options = run.latest().options;
+
+      if (dropped || (!joined && options?.rejoinOnLoad === true)) {
+        options?.onRejoin?.();
+      }
+
+      joined = true;
+      dropped = false;
+    } else if (joined) {
+      dropped = true;
+    }
+  };
 
   const subscription = run.topic.subscribe(
     run.supabase,
@@ -277,7 +307,7 @@ export function startBroadcast<P extends string, E extends EventSchemas>(
     { "*": forward },
     {
       ...(self === undefined ? {} : { self }),
-      onStatus: run.onStatus,
+      onStatus,
       onInvalid: (message, issues) =>
         run.latest().options?.onInvalid?.(message, issues),
     },

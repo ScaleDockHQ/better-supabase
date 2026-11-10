@@ -30,8 +30,10 @@ import type {
   ClientLike,
   LiveCount,
   LiveCountHookOptions,
+  OptimisticActionHandle,
   UseActionFormOptions,
   UseActionOptions,
+  UseOptimisticActionOptions,
 } from "./index.ts";
 import type { useCan as clientUseCan } from "./permissions.ts";
 import type { usePresence as clientUsePresence } from "./presence.ts";
@@ -188,6 +190,17 @@ export const useAction: <I, T>(
   action: (input: I) => Promise<ActionResultOf<T>>,
   options?: UseActionOptions<ActionInputOf<I>, T>,
 ) => ActionHandle<ActionInputOf<I>, T> = clientOnly("useAction");
+
+/**
+ * The `react-server` build of `useOptimisticAction`: render it in a Client
+ * Component.
+ */
+export const useOptimisticAction: <S, I, T>(
+  action: (input: I) => Promise<ActionResultOf<T>>,
+  options: UseOptimisticActionOptions<S, ActionInputOf<I>, T>,
+) => OptimisticActionHandle<S, ActionInputOf<I>, T> = clientOnly(
+  "useOptimisticAction",
+);
 
 /**
  * The `react-server` build of `useActionForm`: render the form in a Client

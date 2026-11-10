@@ -98,6 +98,13 @@ export interface UseSessionWatchOptions extends SessionWatchOptions {
    * router so Server Components render with the new claims.
    */
   readonly onChange?: (event: SessionWatchEvent) => void;
+  /**
+   * Replaces the default reaction to a session that ended, a banned user or a
+   * sign-out (not a claims change, which still refreshes the router), for
+   * example to show a dialog before sending the user to `redirect`. Ignored
+   * when `onChange` is set.
+   */
+  readonly onEnded?: (event: SessionWatchEvent) => void;
   /** Where an ended session goes. Defaults to reloading the current page. */
   readonly redirect?: string;
   /** The router a claims change refreshes. Defaults to Next.js's. */
@@ -146,6 +153,12 @@ export function useSessionWatch(
 
         if (event.reason === "claims_changed") {
           current.router.refresh();
+
+          return;
+        }
+
+        if (current.options.onEnded) {
+          current.options.onEnded(event);
 
           return;
         }

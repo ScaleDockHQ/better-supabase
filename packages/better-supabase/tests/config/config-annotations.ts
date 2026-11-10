@@ -473,6 +473,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Prefix for browser variables, such as NEXT_PUBLIC_; none for no prefix. Detected from the framework by default.",
   },
+  "tooling.env.map": {
+    description:
+      "Extra variables dev env and dev run set, as { NAME: source }. The source is a variable the command writes, such as SUPABASE_PUBLISHABLE_KEY, or a key of supabase status -o json.",
+  },
   adapters: { description: "The integrations init and add wrote." },
   "tooling.skills.agents": {
     description:
