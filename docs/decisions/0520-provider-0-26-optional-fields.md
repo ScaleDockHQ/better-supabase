@@ -3,6 +3,7 @@
 - Status: accepted
 - Date: 2026-11-08
 - Amends: 0011, 0114
+- Amended by: 0633
 
 ## Context
 

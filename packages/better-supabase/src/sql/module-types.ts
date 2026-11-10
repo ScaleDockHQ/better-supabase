@@ -509,7 +509,7 @@ export interface BlockSqlAccessProvider {
   readonly functions: AuthorizationFunctions;
   /** The access module's `disabled` setting defaults to these. */
   readonly suspension?: {
-    readonly user?: DisabledRow;
+    readonly user?: string | DisabledRow;
     readonly tenant?: DisabledRow;
     readonly userKey?: string;
   };

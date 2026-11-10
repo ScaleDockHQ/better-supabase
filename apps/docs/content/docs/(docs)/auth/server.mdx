@@ -66,13 +66,18 @@ it. Pass `prefetchJwks: false` to turn that off; it is off under
 
 ### Key cache
 
-The key set is fetched once per process and used for 300 seconds. A token with
-a `kid` the cached set lacks fetches it again, at most once every 30 seconds,
-so a stream of forged `kid` values can't hammer the issuer. A Supabase Auth key
-set (`/auth/v1/.well-known/jwks.json`) is never kept longer than 600 seconds,
-whatever `cacheSeconds` says, because signing keys rotate. After you revoke a
-signing key, call `purgeKeys(url)` from `better-supabase/server` to forget that
-set (or `purgeKeys()` for every set and imported secret), and the next request
+The key set is fetched once per process and used for 300 seconds
+(`cacheSeconds`). For `maxStaleSeconds` after that (another 300 by default) a
+request still uses the cached set while a refresh runs in the background.
+Once that window ends, the request waits for the fetch and fails when the
+fetch fails, so a revoked key is not served forever while the issuer is
+unreachable. A token with a `kid` the cached set lacks fetches it again, at
+most once every 30 seconds, so a stream of forged `kid` values can't hammer
+the issuer. A Supabase Auth key set (`/auth/v1/.well-known/jwks.json`) is
+never kept longer than 600 seconds, `cacheSeconds` and `maxStaleSeconds`
+together, because signing keys rotate. After you revoke a signing key, call
+`purgeKeys(url)` from `better-supabase/server` to forget that set (or
+`purgeKeys()` for every set and imported secret), and the next request
 fetches it again.
 
 ## Env and keys

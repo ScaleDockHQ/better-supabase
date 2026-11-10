@@ -23,6 +23,41 @@ const fileOf = (files: ReturnType<typeof render>, module: string): string =>
     .map((file) => file.contents)
     .join("\n");
 
+describe("membership claims summary", () => {
+  const summary = (many: boolean) =>
+    fileOf(
+      render({
+        memberships: {
+          options: {
+            claimFormat: "summary",
+            ...(many ? { roles: { many: true } } : {}),
+          },
+        },
+      }),
+      "memberships",
+    );
+
+  it("indexes the named row's role, not the outer alias", async () => {
+    const sql = summary(false);
+
+    expect(sql).toContain('named."role" as role_name');
+    expect(sql).toContain('names.role_name < m."role"');
+    await expect(sql).toMatchFileSnapshot(
+      "../__golden__/memberships-summary.sql",
+    );
+  });
+
+  it("maps each tenant to a sorted array of indexes when roles.many is on", async () => {
+    const sql = summary(true);
+
+    expect(sql).toContain("jsonb_agg(idx order by idx)");
+    expect(sql).toContain('from "better_supabase"."membership_roles" r');
+    await expect(sql).toMatchFileSnapshot(
+      "../__golden__/memberships-summary-many.sql",
+    );
+  });
+});
+
 describe("memberships roles.many", () => {
   const files = render(MANY);
   const memberships = fileOf(files, "memberships");

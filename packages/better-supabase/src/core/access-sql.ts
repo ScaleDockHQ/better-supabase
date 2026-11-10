@@ -37,6 +37,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   bootstrapPermissions: ["tenant", "scope"],
   approverFor: [],
   managedUsers: ["tenant"],
+  canApprove: ["tool", "tenant", "scope"],
 };
 
 /** The Postgres types a scope's ids can have. */
@@ -232,6 +233,48 @@ export function templateProblems(template: string): string[] {
         token satisfies never;
       }
     }
+  }
+
+  return problems;
+}
+
+/**
+ * Problems with one provider template: an unknown name, a placeholder it does
+ * not take, or SQL that is not safe to inline. Empty when the template is
+ * fine.
+ */
+function isTemplateName(
+  name: string,
+): name is keyof typeof TEMPLATE_PLACEHOLDERS {
+  return Object.hasOwn(TEMPLATE_PLACEHOLDERS, name);
+}
+
+export function templatePlaceholderProblems(
+  name: string,
+  template: string,
+): readonly string[] {
+  if (!isTemplateName(name)) {
+    return [`functions.${name} is not a known template`];
+  }
+
+  const allowed = TEMPLATE_PLACEHOLDERS[name];
+  const problems: string[] = [];
+
+  const takes =
+    allowed.length === 0
+      ? "no placeholders"
+      : allowed.map((key) => `{${key}}`).join(", ");
+
+  for (const placeholder of templatePlaceholders(template)) {
+    if (!allowed.includes(placeholder)) {
+      problems.push(
+        `functions.${name} uses {${placeholder}}; it takes ${takes}`,
+      );
+    }
+  }
+
+  for (const problem of templateProblems(template)) {
+    problems.push(`functions.${name}: the template ${problem}`);
   }
 
   return problems;

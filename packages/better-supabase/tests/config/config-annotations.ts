@@ -189,7 +189,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "auth.authorization.functions": {
     description:
-      "SQL templates with {permission}, {scope}, {user}, {tenant}, {role} and {tool}.",
+      "SQL templates. A placeholder is allowed only where that template lists it. {tool} remains only on the ignored canApprove template.",
   },
   "auth.authorization.functions.permissionsFor": {
     description: "The permission keys {user} holds in {tenant}, as a text[].",

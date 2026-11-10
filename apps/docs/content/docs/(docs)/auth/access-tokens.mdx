@@ -62,10 +62,13 @@ whose `alg` names another algorithm is never used.
 ## The JWK Set
 
 `jwks` takes a JWK Set, a `URL`, or a function that returns one. A URL is
-fetched once and cached for `cacheSeconds` (300). A token signed with a `kid`
-the cached set lacks refetches it, at most once per `refetchSeconds` (30), so
-the issuer can rotate keys without a restart. When a refetch fails, the
-resolver keeps verifying with the keys it has.
+fetched once and cached for `cacheSeconds` (300). For `maxStaleSeconds` after
+that (another 300 by default) a request still uses the cached set while a
+refresh runs in the background; after that a failed fetch is an error. A
+token signed with a `kid` the cached set lacks refetches it, at most once per
+`refetchSeconds` (30), so the issuer can rotate keys without a restart. When
+a refetch fails inside that window, the resolver keeps verifying with the
+keys it has.
 
 ## Revocation
 

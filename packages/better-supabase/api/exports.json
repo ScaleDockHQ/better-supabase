@@ -261,6 +261,7 @@
       "defineConfig",
       "FIELD_FORMATS",
       "flattenConfig",
+      "FormerPermissionKeyError",
       "GEN_TASKS",
       "generatorProblem",
       "groupConfig",

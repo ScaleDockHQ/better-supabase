@@ -259,6 +259,12 @@ export interface ClaimsMeta {
    * `<permissions>_truncated`.
    */
   readonly permissionsTruncated?: string;
+  /**
+   * Claim the hook sets to `true` when `team_ids` is not the user's whole list:
+   * the sessions hook option, then `tokenHook.teamIdsTruncatedClaim`. Defaults
+   * to `team_ids_truncated`.
+   */
+  readonly teamIdsTruncated?: string;
 }
 
 export interface RealtimeTableMeta {

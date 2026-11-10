@@ -956,11 +956,23 @@
                 },
                 "managedUsers": {
                   "type": "string"
+                },
+                "canApprove": {
+                  "type": "string"
                 }
               },
               "required": ["idsWith", "isPlatform"],
               "additionalProperties": false,
-              "description": "SQL templates with {permission}, {scope}, {user}, {tenant}, {role} and {tool}."
+              "description": "SQL templates. A placeholder is allowed only where that template lists it. {tool} remains only on the ignored canApprove template."
+            },
+            "approvals": {
+              "type": "object",
+              "properties": {
+                "distinctApprover": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
             },
             "requires": {
               "type": "array",
@@ -1099,29 +1111,36 @@
               "type": "object",
               "properties": {
                 "user": {
-                  "type": "object",
-                  "properties": {
-                    "table": {
+                  "anyOf": [
+                    {
                       "type": "string"
                     },
-                    "id": {
-                      "type": "string"
-                    },
-                    "disabledAt": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "active": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
+                    {
+                      "type": "object",
+                      "properties": {
+                        "table": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "disabledAt": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "active": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["table", "id"],
+                      "additionalProperties": false
                     }
-                  },
-                  "required": ["table", "id"],
-                  "additionalProperties": false
+                  ]
                 },
                 "tenant": {
                   "type": "object",

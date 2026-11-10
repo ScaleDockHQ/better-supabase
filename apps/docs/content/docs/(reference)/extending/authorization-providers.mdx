@@ -137,20 +137,38 @@ interface AuthorizationProvider {
   tenantScope: string;
   functions: AuthorizationFunctions;
   requires?: { function: string; args?: string; role: string }[];
-  permissions?: { key: string; sqlComplete?: boolean; scopes?: string[] }[];
+  permissions?: {
+    key: string;
+    sqlComplete?: boolean;
+    scopes?: string[];
+    levels?: string[];
+  }[];
   memberships?: {
     table: string;
     userColumn: string;
+    userKey?: string;
     scope: { column: string } | { value: string };
     idColumn: string;
     rolesTable?: string;
+    disabledAt?: string;
   }[];
-  suspension?: { user?: DisabledRow; tenant?: DisabledRow };
+  suspension?: {
+    user?: string | DisabledRow;
+    tenant?: DisabledRow;
+    userKey?: string;
+  };
   roleSources?: AuthorizationRoleSource[];
+  platformRoles?: AuthorizationPlatformRoles;
+  personas?: AuthorizationPersona[] | "roles";
+  fixtureRoles?: AuthorizationFixtureRole[];
   decidingColumns?: string[];
   tokenHook?: AuthorizationTokenHook;
   versions?: { function: string };
+  delegation?: { scopes?: Record<string, string[]> };
+  wildcards?: "all" | "prefix" | "none";
   operations?: Record<string, AuthorizationOperation>;
+  /** @deprecated Ignored. `isApprover` decides. */
+  approvals?: { distinctApprover?: boolean };
   problems?: string[];
 }
 ```
@@ -225,9 +243,11 @@ puts the result into a policy or a module function:
 | `portalSubjects`   | `{action}`                                                                 | a set of `(tenant, subject_type, subject_id)` the caller reaches as a guest for `{action}`   |
 | `portalParties`    | none                                                                       | a set of `(tenant, party_type, party_id)` the caller acts for as a guest                     |
 | `subject`          | none                                                                       | `jsonb`: the signed-in user's authorizer subject (a function name, called with no arguments) |
-| `subjectForTenant` | `{tenant}`, `{scope}`                                                      | `jsonb`: that subject restricted to `{tenant}`; `null` for an unknown tenant                 |
-| `approverFor`      | none                                                                       | a set of user ids the caller approves for, covers and delegations included                   |
-| `managedUsers`     | `{tenant}` (optional)                                                      | the user ids the caller manages in `{tenant}`, the manager chain and delegations included    |
+| `subjectForTenant` | `{tenant}`, `{scope}`                                                      | `jsonb`: that subject restricted to `{tenant}`; `null` for an unknown tenant. The caller is the user, so there is no `{user}`: `authz.subject_for(auth.uid(), {tenant})` |
+| `bootstrapPermissions` | `{tenant}`, `{scope}`                                                  | `jsonb` in the `BootstrapPermissionsWire` shape; a null `{tenant}` means every tenant the caller belongs to |
+| `approverFor`      | none                                                                       | a set of user ids the caller approves for. No module reads this yet                          |
+| `managedUsers`     | `{tenant}` (optional)                                                      | the user ids the caller manages in `{tenant}`. No module reads this yet                      |
+| `canApprove`       | `{tool}`, `{tenant}`, `{scope}`                                            | ignored. Kept so an API 1 provider still loads; `isApprover` decides                         |
 
 `rowsWith` answers a `config.subjects.<type>.permissions.<action>` entry with
 `rows` ([Actions granted per row](/docs/blocks/sql#actions-granted-per-row)).
@@ -780,9 +800,11 @@ before. The field is optional, so authorizers written for API v1 keep working.
 
 With `subjectForTenant` set, a bootstrap call that names a tenant
 (`args.tenant`) returns the subject restricted to it, so the payload never
-carries the user's other tenants. The template must fail closed: `null` for an
-unknown tenant, a tenant the user has no membership in and a null tenant. A
-call without a tenant still gets `subject`.
+carries the user's other tenants. Write it as
+`authz.subject_for(auth.uid(), {tenant})`. The caller is the user, so there
+is no `{user}`. The template must fail closed: `null` for an unknown tenant,
+a tenant the user has no membership in and a null tenant. A call without a
+tenant still gets `subject`.
 
 ### Permissions in the bootstrap
 
@@ -929,21 +951,27 @@ over the provider's.
 
 | Field                                             | What it fills                                                                                | Release    |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------- |
-| `functions.subject`                               | the subject the sessions bootstrap returns and seeds, when an entry sets no `subject`        | next minor |
-| `roleSources[].role.through` `tenant` and `where` | `blocks.memberships.options.roleThrough`                                                     | next minor |
-| `memberships[].disabledAt`                        | the memberships `disabledAt` column                                                          | next minor |
-| `platformRoles`                                   | `blocks.invitations.options.platformRoles`                                                   | next minor |
-| `personas`                                        | one access matrix file per persona (`providerPersonaTests`)                                  | next minor |
-| `wildcards`                                       | the wildcard grants `permission_matches` honours (`all`, `prefix`, `none`)                   | next minor |
-| `memberships[].userKey`, `suspension.userKey`     | the user key of the membership table and of `blocks.permissions.disabled`                    | next minor |
-| `functions.subjectForTenant`                      | the bootstrap subject restricted to the page's tenant                                        | next minor |
-| `functions.bootstrapPermissions`                  | the caller's permissions in the bootstrap, full or compact (`apiVersion: 1`)                 | next minor |
-| `functions.approverFor`, `functions.managedUsers` | the user sets for approver covers and manager chains                                         | next minor |
-| `{tenant}` in `functions.managedUsers`            | the manager chain of one tenant, so a manager never reaches reports in another tenant        | next minor |
-| `personas: 'roles'`, `fixtureRoles`               | one access matrix file per fixture role                                                      | next minor |
-| `permissions[].levels`                            | the levels of a permission (`<permission>@<level>` keys)                                     | next minor |
-| `tokenHook.teamIdsTruncatedClaim`                 | the claim that marks a partial `team_ids`                                                    | next minor |
-| `AuthorizationProvider<Key>`                      | typed permission keys in `blocks.*.permissions`, `subjects.*.permissions` and the role lists | next minor |
+| `functions.subject`                               | the subject the sessions bootstrap returns and seeds, when an entry sets no `subject`        | 0.58       |
+| `roleSources[].role.through` `tenant` and `where` | `blocks.memberships.options.roleThrough`                                                     | 0.58       |
+| `memberships[].disabledAt`                        | the memberships `disabledAt` column                                                          | 0.58       |
+| `platformRoles`                                   | `blocks.invitations.options.platformRoles`                                                   | 0.58       |
+| `personas`                                        | one access matrix file per persona (`providerPersonaTests`)                                  | 0.58       |
+| `wildcards`                                       | the wildcard grants `permission_matches` honours (`all`, `prefix`, `none`)                   | 0.58       |
+| `memberships[].userKey`, `suspension.userKey`     | the user key of the membership table and of `blocks.permissions.disabled`                    | 0.58       |
+| `functions.subjectForTenant`                      | the bootstrap subject restricted to the page's tenant                                        | 0.58       |
+| `functions.bootstrapPermissions`                  | the caller's permissions in the bootstrap, full or compact (`apiVersion: 1`)                 | 0.58       |
+| `functions.approverFor`, `functions.managedUsers` | the user sets for approver covers and manager chains. No module reads them yet               | 0.58       |
+| `{tenant}` in `functions.managedUsers`            | the manager chain of one tenant, so a manager never reaches reports in another tenant        | 0.58       |
+| `personas: 'roles'`, `fixtureRoles`               | one access matrix file per fixture role                                                      | 0.58       |
+| `permissions[].levels`                            | the levels of a permission (`<permission>@<level>` keys)                                     | 0.58       |
+| `tokenHook.teamIdsTruncatedClaim`                 | the claim that marks a partial `team_ids`                                                    | 0.58       |
+| `tokenHook.truncatedClaim`                        | the claim that marks a partial `permissions` list                                            | 0.58       |
+| `versions`                                        | the function that returns the caller's authorization version                                 | 0.58       |
+| `delegation`                                      | OAuth scopes mapped to permission keys                                                       | 0.58       |
+| `operations`                                      | named operations and the permission key each one needs                                       | 0.58       |
+| `AuthorizationProvider<Key>`                      | typed permission keys in `blocks.*.permissions`, `subjects.*.permissions` and the role lists | 0.58       |
+| `functions.canApprove`, `approvals.distinctApprover` | ignored. An API 1 provider that still sets them loads                                     | next minor |
+| `suspension.user` as a column name                | `userKey` matches that column when the provider's user is the one in use                     | next minor |
 
 Doctor reports a config value equal to the provider's (BS426).
 
@@ -951,9 +979,10 @@ Doctor reports a config value equal to the provider's (BS426).
 
 `testAuthorizationProvider` from `better-supabase/testing` checks API v1,
 plain JSON, valid scopes (known names, no parent cycle, a tenant scope with an
-`idType`), the placeholders of each template (each uses its `{permission}`,
-`{user}`, `{tenant}` and `{role}`, and `idsWith` and `idsWithFor` use
-`{scope}` when there is more than one scope), that templates are safe to
+`idType`), the placeholders of each template (an unknown function name fails,
+each template uses its `{permission}`, `{user}`, `{tenant}` and `{role}`, and
+`idsWith` and `idsWithFor` use `{scope}` when there is more than one scope),
+that templates are safe to
 inline (a tokenizer reads strings, quoted identifiers and comments whole, then
 refuses a function call without a schema, a dollar-quote tag such as `$$` or
 `$tag$`, a `;`, a comment, an unterminated string and a stray `{`), that

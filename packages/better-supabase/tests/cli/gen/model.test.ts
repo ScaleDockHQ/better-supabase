@@ -500,6 +500,35 @@ describe("buildModel claims", () => {
 
     expect(none.meta.claims?.permissionsTruncated).toBeUndefined();
   });
+
+  it("writes the team truncation claim from the sessions hook, then the provider", async () => {
+    const fromHook = await model(() => ({}), {
+      auth: { authorization: provider({ teamIdsTruncatedClaim: "teams_cut" }) },
+      blocks: {
+        sessions: {
+          options: { hook: { teamIdsTruncatedClaim: "teams_hook" } },
+        },
+      },
+    });
+
+    expect(fromHook.meta.claims?.teamIdsTruncated).toBe("teams_hook");
+
+    const fromProvider = await model(() => ({}), {
+      auth: { authorization: provider({ teamIdsTruncatedClaim: "teams_cut" }) },
+    });
+
+    expect(fromProvider.meta.claims?.teamIdsTruncated).toBe("teams_cut");
+
+    const defaults = await model(() => ({}), {
+      auth: {
+        authorization: provider({
+          teamIdsTruncatedClaim: "team_ids_truncated",
+        }),
+      },
+    });
+
+    expect(defaults.meta.claims?.teamIdsTruncated).toBeUndefined();
+  });
 });
 
 describe("buildModel bootstrap", () => {

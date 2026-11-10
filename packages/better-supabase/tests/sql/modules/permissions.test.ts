@@ -224,6 +224,40 @@ describe("access module", () => {
     })!;
 
     expect(roles).not.toContain("banned_at");
+
+    const column = moduleBody("permissions", {
+      modules: { permissions: { model: "provider" } },
+      accessProvider: {
+        ...PROVIDER,
+        suspension: {
+          user: "public.profiles.banned_at",
+          userKey: "auth_user_id",
+        },
+      },
+    })!;
+
+    expect(column).toContain(
+      `exists (select 1 from "public"."profiles" u where u."auth_user_id" = user_disabled.user_id and u."banned_at" is not null)`,
+    );
+
+    const ownColumn = moduleBody("permissions", {
+      modules: {
+        permissions: {
+          model: "provider",
+          disabled: { user: "public.accounts.disabled_at" },
+        },
+      },
+      accessProvider: {
+        ...PROVIDER,
+        suspension: {
+          user: "public.profiles.banned_at",
+          userKey: "auth_user_id",
+        },
+      },
+    })!;
+
+    expect(ownColumn).toContain(`u."id" = user_disabled.user_id`);
+    expect(ownColumn).not.toContain("auth_user_id");
   });
 
   it("refuses a disabled row without a column that says so", () => {

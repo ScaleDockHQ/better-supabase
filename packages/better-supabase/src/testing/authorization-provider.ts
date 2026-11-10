@@ -8,7 +8,7 @@ import {
   scopeProblems,
   TEMPLATE_PLACEHOLDERS,
   templateFunctions,
-  templatePlaceholders,
+  templatePlaceholderProblems,
   templateProblems,
 } from "../core/access-sql.ts";
 import { authzUserTopic } from "../core/authz-topic.ts";
@@ -177,19 +177,13 @@ export function testAuthorizationProvider(
       "templates use only their placeholders",
       () => {
         for (const [name, template] of templates) {
-          const allowed: readonly string[] | undefined =
-            TEMPLATE_PLACEHOLDERS[name];
+          const problems = templatePlaceholderProblems(name, template).filter(
+            (problem) => !problem.includes(": the template "),
+          );
 
-          expect(allowed, `functions.${name} is not a known template`);
+          expect(problems.length === 0, problems.join("; "));
 
-          for (const placeholder of templatePlaceholders(template)) {
-            expect(
-              allowed.includes(placeholder),
-              `functions.${name} uses {${placeholder}}; it takes ${allowed.map((key) => `{${key}}`).join(", ")}`,
-            );
-          }
-
-          const needed = allowed.filter(
+          const needed = TEMPLATE_PLACEHOLDERS[name].filter(
             (key) =>
               key === "permission" ||
               key === "user" ||
@@ -326,7 +320,12 @@ export function testAuthorizationProvider(
       () => {
         const { user, tenant } = provider.suspension!;
 
-        if (user) {
+        if (typeof user === "string") {
+          expect(
+            COLUMN.test(user),
+            `suspension.user "${user}" is not schema.table.column`,
+          );
+        } else if (user) {
           expectRow("suspension.user", user);
         }
 

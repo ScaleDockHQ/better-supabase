@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createSupabase } from "../../src/core/define.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { bootstrapWith, mapBootstrapMemo } from "../../src/server/bootstrap.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -157,6 +158,35 @@ describe("server.bootstrapFor()", () => {
         )
       ).teamIdsTruncated,
     ).toBe(true);
+
+    const named = createServer(
+      createSupabase(
+        defineSchema({
+          ...schema.meta,
+          claims: { teamIdsTruncated: "teams_partial" },
+        }),
+      ),
+      { env, auth: { jwks: signer.jwks } },
+    );
+
+    expect(
+      (
+        await named.bootstrapFor(
+          await signedIn({ team_ids_truncated: true, teams_partial: true }),
+          { rpc: "home" },
+        )
+      ).teamIdsTruncated,
+    ).toBe(true);
+
+    named.sessions.clear();
+
+    expect(
+      (
+        await named.bootstrapFor(await signedIn({ team_ids_truncated: true }), {
+          rpc: "home",
+        })
+      ).teamIdsTruncated,
+    ).toBe(false);
   });
 
   it("returns no permissions for another apiVersion or a wrapper without them", async () => {

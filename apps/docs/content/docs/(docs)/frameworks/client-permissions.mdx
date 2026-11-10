@@ -25,8 +25,10 @@ export function RefundButton({ tenantId }) {
 ```
 
 `claimFormat: "summary"` on the memberships block writes a role index per
-tenant instead of one object per membership. Leave the default `array` until
-every reader of the claim understands `summary`.
+tenant instead of one object per membership. With `roles.many`, each tenant
+is a sorted array of indexes into `roles`, so the extra roles stay in the
+claim. Leave the default `array` until every reader of the claim understands
+`summary`.
 
 ## Infinite lists
 

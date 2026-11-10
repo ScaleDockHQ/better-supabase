@@ -36,7 +36,7 @@ begin
   end if;
   bytes := decode(repeat('00', width), 'hex');
   if held is null then
-    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+    return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\\n', '-_');
   end if;
   for i in 1 .. coalesce(cardinality(all_keys), 0) loop
     if all_keys[i] = any (held) then
@@ -45,7 +45,7 @@ begin
       bytes := set_byte(bytes, slot, value);
     end if;
   end loop;
-  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\\n', '-_');
 end;
 $$;
 

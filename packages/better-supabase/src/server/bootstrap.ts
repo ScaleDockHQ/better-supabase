@@ -275,6 +275,11 @@ export interface BootstrapDeps {
   readonly schema: (call: BootstrapCallOptions) => string;
   readonly evictSession: (userId: string) => Promise<void>;
   readonly versions: AuthzVersionCache | undefined;
+  /**
+   * The claim set to `true` when `team_ids` is not the user's whole list.
+   * Defaults to `team_ids_truncated`.
+   */
+  readonly teamIdsTruncatedClaim?: string;
   /** Called with the caller's access token when the session ended. */
   readonly onEnded?: (token: string, reason: SessionRejection) => void;
 }
@@ -436,7 +441,9 @@ export async function bootstrapWith<C, P, T, S extends ReadSet = ReadSet>(
       : null,
     teamIdsTruncated:
       ctx.auth.kind === "user" &&
-      ctx.auth.claims[TEAM_IDS_TRUNCATED_CLAIM] === true,
+      ctx.auth.claims[
+        deps.teamIdsTruncatedClaim ?? TEAM_IDS_TRUNCATED_CLAIM
+      ] === true,
   };
 }
 
@@ -572,7 +579,11 @@ export function serverBootstrap<
   ) => Promise<Access<Ctx, C, P>>;
 } {
   const memo = requestBootstrapMemo();
-  const tenantClaim = claimsOf(owner.meta).tenant;
+  const claims = claimsOf(owner.meta);
+  const tenantClaim = claims.tenant;
+
+  const teamIdsTruncatedClaim =
+    claims.teamIdsTruncated ?? TEAM_IDS_TRUNCATED_CLAIM;
 
   const scoped = (tenant: string | undefined) =>
     tenant === undefined ? {} : { tenant };
@@ -588,6 +599,7 @@ export function serverBootstrap<
           schema: (options_) => bootstrapSchema(options_, options, owner),
           evictSession: (userId) => target.evictSession(userId),
           versions: target.versions,
+          teamIdsTruncatedClaim,
         },
         ctx,
         call,

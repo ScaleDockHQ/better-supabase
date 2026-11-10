@@ -191,6 +191,70 @@ describe("sharedJwks", () => {
     release?.();
   });
 
+  it("waits once the stale window has ended, and fails when the fetch fails", async () => {
+    clearJwksCache();
+
+    let clock = 0;
+
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ keys: [KEY] }))
+      .mockResolvedValueOnce(new Response("", { status: 503 }));
+
+    const options = {
+      fetch,
+      now: () => clock,
+      cacheSeconds: 10,
+      maxStaleSeconds: 10,
+    };
+
+    await sharedJwks(JWKS_URL, false, options);
+    clock = 21_000;
+
+    expect(await sharedJwks(JWKS_URL, false, options)).toMatchObject({
+      ok: false,
+      error: { code: "JWKS_FETCH_FAILED" },
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops serving a Supabase key set once cache and stale age reach 600 seconds", async () => {
+    clearJwksCache();
+
+    let clock = 0;
+
+    const url = new URL(
+      "https://abcdefghijklmnopqrst.supabase.co/auth/v1/.well-known/jwks.json",
+    );
+
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ keys: [KEY] }))
+      .mockResolvedValue(new Response("", { status: 503 }));
+
+    const options = {
+      fetch,
+      now: () => clock,
+      cacheSeconds: 300,
+      maxStaleSeconds: 1000,
+    };
+
+    await sharedJwks(url, false, options);
+    clock = 599_000;
+
+    expect(await sharedJwks(url, false, options)).toMatchObject({
+      ok: true,
+      data: { keys: [KEY] },
+    });
+
+    clock = 601_000;
+
+    expect(await sharedJwks(url, false, options)).toMatchObject({
+      ok: false,
+      error: { code: "JWKS_FETCH_FAILED" },
+    });
+  });
+
   it("purges every key set without an argument", async () => {
     clearJwksCache();
 

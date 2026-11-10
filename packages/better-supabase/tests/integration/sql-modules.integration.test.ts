@@ -1568,6 +1568,110 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("keeps every role in a summary membership claim", async () => {
+    const claimOf = (many: boolean): string => {
+      const sql = renderBlocks(["memberships", "permissions"], {
+        modules: {
+          memberships: {
+            options: {
+              claimFormat: "summary",
+              ...(many ? { roles: { many: true } } : {}),
+            },
+          },
+        },
+      }).find((file) => file.module === "memberships")?.contents;
+
+      const start = sql?.indexOf(
+        "create or replace function better_supabase.membership_claims",
+      );
+
+      const end = sql?.indexOf(
+        "revoke execute on function better_supabase.membership_claims",
+      );
+
+      if (
+        sql === undefined ||
+        start === undefined ||
+        start < 0 ||
+        !end ||
+        end < start
+      ) {
+        throw new Error("membership_claims was not rendered");
+      }
+
+      return sql.slice(start, end);
+    };
+
+    const client = await pool.connect();
+    const organization = crypto.randomUUID();
+    const other = crypto.randomUUID();
+    const member = crypto.randomUUID();
+
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into auth.users (id, instance_id, aud, role, email)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)`,
+        [member, `summary-${member}@example.com`],
+      );
+      await client.query(
+        `insert into better_supabase.organizations (id, name, slug) values
+         ($1, 'One', $2), ($3, 'Two', $4)`,
+        [
+          organization,
+          `one-${organization.slice(0, 8)}`,
+          other,
+          `two-${other.slice(0, 8)}`,
+        ],
+      );
+      await client.query(
+        `insert into better_supabase.memberships (organization_id, user_id, role) values
+         ($1, $3, 'admin'), ($2, $3, 'member')`,
+        [organization, other, member],
+      );
+      await client.query(claimOf(false));
+
+      const { rows: oneRole } = await client.query<{ claim: unknown }>(
+        "select better_supabase.membership_claims($1) as claim",
+        [member],
+      );
+
+      expect(oneRole[0]?.claim).toEqual({
+        form: "summary",
+        roles: ["admin", "member"],
+        tenants: { [organization]: 0, [other]: 1 },
+      });
+
+      await client.query(`
+        create table better_supabase.membership_roles (
+          organization_id uuid not null,
+          user_id uuid not null,
+          role text not null,
+          primary key (organization_id, user_id, role)
+        )`);
+      await client.query(
+        `insert into better_supabase.membership_roles (organization_id, user_id, role) values
+         ($1, $3, 'admin'), ($1, $3, 'member'), ($2, $3, 'member')`,
+        [organization, other, member],
+      );
+      await client.query(claimOf(true));
+
+      const { rows: many } = await client.query<{ claim: unknown }>(
+        "select better_supabase.membership_claims($1) as claim",
+        [member],
+      );
+
+      expect(many[0]?.claim).toEqual({
+        form: "summary",
+        roles: ["admin", "member"],
+        tenants: { [organization]: [0, 1], [other]: [1] },
+      });
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
   it("reads entitlements from a plan catalog", async () => {
     const client = await pool.connect();
     const organization = crypto.randomUUID();

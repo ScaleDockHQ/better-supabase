@@ -1,6 +1,7 @@
 # 0590: Keep same_tenant on owned tables and record the 0.58 upgrade checks
 
 - Status: accepted
+- Amended by: 0593
 - Date: 2026-11-09
 
 ## Context
@@ -35,11 +36,11 @@ The block's check constraints (`bsb_<table>_unit`, `bsb_<table>_discount_kind`)
 land on the app's column; they are named, so an app that stores longer units or
 other discount kinds drops them there.
 
-`same_tenant` itself changes in two ways. The default refuses a reference to a
-row whose tenant is null. A referenced table opts in with `shared: true` on the
-entry or on `references` (ADR 0593), which is how a global role still passes.
-A deferrable foreign key gets a constraint trigger that runs at commit, so a
-child row may come before its parent in one transaction.
+`same_tenant` itself changes in two ways. A referenced row without a tenant, such
+as a global role, passes. A deferrable foreign key gets a constraint trigger that
+runs at commit, so a child row may come before its parent in one transaction.
+ADR 0593 amends the null-tenant case: the default refuses it unless the entry
+sets `shared: true`.
 
 ## Alternatives considered
 
@@ -53,8 +54,9 @@ import batch.
 ## Consequences
 
 Apps keep the check and its cost. The PGlite test in
-`tests/sql/modules/tenant-same-behavior.test.ts` pins the refusal, the
-`shared: true` opt-in and the deferrable case. Revisit the default when a batch profile on CentraKit puts the
+`tests/sql/modules/tenant-same-behavior.test.ts` pins the shared-row and
+deferrable cases. ADR 0593 pins the refusal and the `shared: true` opt-in.
+Revisit the default when a batch profile on CentraKit puts the
 same_tenant triggers above the item loop.
 
 `codemod naming` pins the old default name of a column that an app's own table

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:79af3b55e9c732bb5273c13d10a7bb6ef7a192b549df35a71a8b304e6f96fd80
+-- @bsb-hash sha256:2f44994ec7f4eb25cac7b9e3d5e7c52ade374a87db32519819dcf82affe23109
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -390,7 +390,7 @@ begin
   end if;
   bytes := decode(repeat('00', width), 'hex');
   if held is null then
-    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+    return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
   end if;
   for i in 1 .. coalesce(cardinality(all_keys), 0) loop
     if all_keys[i] = any (held) then
@@ -399,7 +399,7 @@ begin
       bytes := set_byte(bytes, slot, value);
     end if;
   end loop;
-  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
 end;
 $$;
 
@@ -510,7 +510,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:ec60b9399aa587b5ca8a27e20160a263160838dfcfb624286206b1872ca43a31
+-- @bsb-hash sha256:ef875ae3a5230a20233a140e1103a83fa0925e238751430d6b70ee4625e85fc9
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1318,7 +1318,7 @@ begin
   end if;
   bytes := decode(repeat('00', width), 'hex');
   if held is null then
-    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+    return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
   end if;
   for i in 1 .. coalesce(cardinality(all_keys), 0) loop
     if all_keys[i] = any (held) then
@@ -1327,7 +1327,7 @@ begin
       bytes := set_byte(bytes, slot, value);
     end if;
   end loop;
-  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
 end;
 $$;
 
@@ -1438,7 +1438,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:ed16ee8239ba62b257ca351af2498b9c68b6cd343a4723a04667ca1c5b072651
+-- @bsb-hash sha256:da5562e8f9d7ecd6e5c86af00b0bdc56afb8b711c08f5b1ce2394e2ac4961e59
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1832,7 +1832,7 @@ begin
   end if;
   bytes := decode(repeat('00', width), 'hex');
   if held is null then
-    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+    return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
   end if;
   for i in 1 .. coalesce(cardinality(all_keys), 0) loop
     if all_keys[i] = any (held) then
@@ -1841,7 +1841,7 @@ begin
       bytes := set_byte(bytes, slot, value);
     end if;
   end loop;
-  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
 end;
 $$;
 
@@ -1952,7 +1952,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:f77b0dd574c2e9c4d3fa78673625a34d2b9c4a872b6e308b5961e5dfaa7d1dfa
+-- @bsb-hash sha256:504e46651b6e0c809e6f4169bb532720e0e63d9b4fda841c230b58cccd78383a
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2341,7 +2341,7 @@ begin
   end if;
   bytes := decode(repeat('00', width), 'hex');
   if held is null then
-    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+    return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
   end if;
   for i in 1 .. coalesce(cardinality(all_keys), 0) loop
     if all_keys[i] = any (held) then
@@ -2350,7 +2350,7 @@ begin
       bytes := set_byte(bytes, slot, value);
     end if;
   end loop;
-  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
 end;
 $$;
 
@@ -2685,7 +2685,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:79af3b55e9c732bb5273c13d10a7bb6ef7a192b549df35a71a8b304e6f96fd80
+-- @bsb-hash sha256:2f44994ec7f4eb25cac7b9e3d5e7c52ade374a87db32519819dcf82affe23109
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3074,7 +3074,7 @@ begin
   end if;
   bytes := decode(repeat('00', width), 'hex');
   if held is null then
-    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+    return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
   end if;
   for i in 1 .. coalesce(cardinality(all_keys), 0) loop
     if all_keys[i] = any (held) then
@@ -3083,7 +3083,7 @@ begin
       bytes := set_byte(bytes, slot, value);
     end if;
   end loop;
-  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
 end;
 $$;
 
@@ -3194,7 +3194,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:ac117260166110958b029ad8f6b2c1ef48ff5d46bf2b0cab62e356a56a5b70ca
+-- @bsb-hash sha256:3bdfab4832c682c92003e876b7b7b4294f0d7cf09865f4aecfcadbe225cd256b
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3583,7 +3583,7 @@ begin
   end if;
   bytes := decode(repeat('00', width), 'hex');
   if held is null then
-    return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+    return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
   end if;
   for i in 1 .. coalesce(cardinality(all_keys), 0) loop
     if all_keys[i] = any (held) then
@@ -3592,7 +3592,7 @@ begin
       bytes := set_byte(bytes, slot, value);
     end if;
   end loop;
-  return translate(rtrim(encode(bytes, 'base64'), '='), '+/', '-_');
+  return translate(rtrim(encode(bytes, 'base64'), '='), E'+/\n', '-_');
 end;
 $$;
 
