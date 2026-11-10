@@ -128,7 +128,9 @@ export function proxyHandler<C, P>(
         request,
         logger,
       )) ??
-      (runsProtect
+      // A redirect from `before` (a locale prefix, say) passes through the proxy
+      // again, so `protect` runs on its target, not on this request.
+      (runsProtect && !(early !== undefined && isRedirect(early))
         ? await proxyOptions.protect?.(resolution.auth, request)
         : undefined);
 

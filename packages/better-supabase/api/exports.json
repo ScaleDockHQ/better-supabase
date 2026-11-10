@@ -1950,8 +1950,11 @@
       "isRedirect",
       "mutableResponse",
       "overrideRequestHeaders",
+      "permissionsOf",
+      "postAuthPath",
       "serverTimingValue",
-      "syncMiddlewareSetCookie"
+      "syncMiddlewareSetCookie",
+      "toSession"
     ],
     "types": [
       "NextOptions",

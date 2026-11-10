@@ -236,7 +236,9 @@ The order is:
 1. `before(request)` and the session check run in parallel. The session is
    always resolved on the original request, and refreshes exactly as without
    `before`.
-2. `protect(auth, request)` runs. A response it returns wins over `before`'s.
+2. `protect(auth, request)` runs, unless `before` returned a redirect: that
+   redirect's target passes through the proxy again, so `protect` runs there.
+   A response `protect` returns wins over `before`'s other responses.
 3. Refreshed or cleared cookies are added to the chosen response (`before`'s
    rewrite, `protect`'s redirect or a plain `NextResponse.next()`).
 4. For rewrites and pass-throughs, the new `cookie` header is forwarded to
@@ -257,6 +259,18 @@ for every locale and next-intl rewrites internally to `/[locale]/...`. Use
 the `[locale]` segment reads the locale from next-intl's request header. Don't
 put the locale in `searchParams`: pages that read them lose instant
 navigation.
+
+### next-intl with `localePrefix: 'as-needed'`
+
+The default locale has no prefix (`/projects`) and the others keep theirs
+(`/nl/projects`). Two things follow for `protect`. A path without a prefix is a
+page of the default locale, so treat it as one: split the locale with a
+fallback to `defaultLocale`, or every default-locale page skips the sign-in
+redirect. And a redirect to the sign-in page must use the same prefix rules
+(`/login` for the default locale, `/nl/login` for the others); build it with
+one helper that matches next-intl's `getPathname`. When a visitor's
+`NEXT_LOCALE` cookie names another locale, `before: intl` redirects
+`/projects` to `/nl/projects` first, and `protect` runs on that target.
 
 ### What a prefetch costs
 

@@ -12,7 +12,7 @@ import { expect, test } from "@playwright/test";
  */
 
 async function signIn(page: Page): Promise<void> {
-  await page.goto("/en/login");
+  await page.goto("/login");
   await page.getByLabel("Email").fill("admin@acme.test");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -81,13 +81,13 @@ async function record(page: Page, route: string): Promise<void> {
 }
 
 test("records the payload of the dashboard", async ({ page }) => {
-  await record(page, "/en");
+  await record(page, "/");
 });
 
 test("records the payload of the customers list", async ({ page }) => {
-  await record(page, "/en/customers");
+  await record(page, "/customers");
 });
 
 test("records the payload of a customer", async ({ page }) => {
-  await record(page, "/en/customers/00000000-0000-4000-8000-00000000a001");
+  await record(page, "/customers/00000000-0000-4000-8000-00000000a001");
 });

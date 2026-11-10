@@ -2,7 +2,11 @@ import type { ProxyOptions } from "better-supabase/next";
 import type { NextRequest } from "next/server";
 
 import { permissionMatches } from "better-supabase/blocks/permissions";
-import { permissionsOf, postAuthPath, toSession } from "better-supabase/next";
+import {
+  permissionsOf,
+  postAuthPath,
+  toSession,
+} from "better-supabase/next/proxy";
 import { precompute } from "flags/next";
 import { hasLocale } from "next-intl";
 import createMiddleware from "next-intl/middleware";
@@ -12,10 +16,13 @@ import { env } from "@/env";
 
 import { requiredPermission } from "./features/navigation/nav-items";
 import { pricingFlags, signupWaitlist, VISITOR_COOKIE } from "./flags";
-import { routing } from "./i18n/routing";
+import { localizedPath, routing } from "./i18n/routing";
 import { bsb } from "./lib/supabase/server";
 
 const intl = createMiddleware(routing);
+
+// A rewrite names the internal `/[locale]/...` route, which always has the
+// segment; a redirect is a URL the visitor sees, so it goes through `localizedPath`.
 
 /** Pages a signed-out visitor may open; the rest redirect to sign-in. */
 const PUBLIC = new Set([
@@ -29,22 +36,32 @@ const PUBLIC = new Set([
 /** Pages a signed-in user skips, to the `?next=` path or the dashboard. */
 const GUEST_ONLY = new Set(["/login", "/signup", "/forgot-password"]);
 
+/**
+ * The locale and the path inside it. With `localePrefix: "as-needed"` a path
+ * without a prefix is a page of the default locale, so it is protected like any
+ * other.
+ */
 function splitLocale(pathname: string) {
-  const [, locale, ...rest] = pathname.split("/");
+  const [, first, ...rest] = pathname.split("/");
 
-  if (!hasLocale(routing.locales, locale)) {
-    return null;
+  if (!hasLocale(routing.locales, first)) {
+    return {
+      locale: routing.defaultLocale,
+      path: pathname.replace(/\/$/, "") || "/",
+    };
   }
 
-  return { locale, path: `/${rest.join("/")}`.replace(/\/$/, "") || "/" };
+  return {
+    locale: first,
+    path: `/${rest.join("/")}`.replace(/\/$/, "") || "/",
+  };
 }
 
 /**
  * Optimistic redirects from the (locally verified) token. Pages, actions and
- * RLS still check; this only saves rendering a page the user can't use. A path
- * without a locale is left to next-intl's redirect. A page whose menu entry
- * needs a key the token's `permissions` claim lacks rewrites to the 403 page;
- * without the claim (or with it truncated) the page decides.
+ * RLS still check; this only saves rendering a page the user can't use. A page
+ * whose menu entry needs a key the token's `permissions` claim lacks rewrites
+ * to the 403 page; without the claim (or with it truncated) the page decides.
  */
 const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // A Server Action posts to the page it runs on; redirecting it drops the action.
@@ -93,7 +110,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
       return;
     }
 
-    const login = new URL(`/${locale}/login`, request.url);
+    const login = new URL(localizedPath(locale, "/login"), request.url);
     login.searchParams.set("next", `${pathname}${search}`);
 
     return NextResponse.redirect(login);
@@ -102,7 +119,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // A signed-in user who opens the sign-in page goes where `?next=` points.
   if (GUEST_ONLY.has(path)) {
     return NextResponse.redirect(
-      new URL(postAuthPath(request, `/${locale}`), request.url),
+      new URL(postAuthPath(request, localizedPath(locale, "/")), request.url),
     );
   }
 

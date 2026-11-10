@@ -396,18 +396,24 @@ function embeddingSql(table: AppTable): string {
 }
 
 function indexesSql(table: AppTable): string {
-  const indexed = [
-    ...(table.scope ? [table.scope.name] : []),
-    ...Object.entries(table.config.columns ?? {})
-      .filter(
-        ([, column]) =>
-          column.references !== undefined && column.unique !== true,
-      )
-      .map(([name]) => name),
-  ];
+  const referenced = Object.entries(table.config.columns ?? {})
+    .filter(
+      ([, column]) => column.references !== undefined && column.unique !== true,
+    )
+    .map(([name]) => name);
+
+  // A reference to a tenant-scoped table is a foreign key on (tenant, column),
+  // so its index covers both columns and still serves a lookup by the column.
+  const covering = referenced.map((name) =>
+    table.scope && table.tenantReferences.has(name)
+      ? [name, table.scope.name]
+      : [name],
+  );
+
+  const indexed = [...(table.scope ? [[table.scope.name]] : []), ...covering];
 
   return [
-    ...indexed.map((column) => [column]),
+    ...indexed,
     ...rankIndex(table),
     ...(table.config.indexes ?? []),
     ...lookupColumns(table.config).map((name) => [lookupColumn(name)]),

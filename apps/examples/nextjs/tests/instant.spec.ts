@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
 
 async function signIn(page: Page): Promise<void> {
-  await page.goto("/en/login");
+  await page.goto("/login");
   await page.getByLabel("Email").fill("admin@acme.test");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
 test("home to customers renders the static shell under the lock", async ({
   page,
 }) => {
-  await page.goto("/en");
+  await page.goto("/");
   const link = page.getByRole("link", { name: "Customers", exact: true });
 
   await expect(link.first()).toBeVisible();
@@ -28,7 +28,7 @@ test("home to customers renders the static shell under the lock", async ({
   await expectInstant(page, {
     during: async () => {
       await link.first().click();
-      await page.waitForURL((url) => url.pathname === "/en/customers");
+      await page.waitForURL((url) => url.pathname === "/customers");
     },
     visible: [page.getByRole("heading", { name: "Customers" })],
   });
@@ -37,7 +37,7 @@ test("home to customers renders the static shell under the lock", async ({
 });
 
 test("customers to a customer uses the per-link prefetch", async ({ page }) => {
-  await page.goto("/en/customers");
+  await page.goto("/customers");
   const link = page.getByRole("link", { name: "Road Runner Inc" });
 
   await expect(link).toBeVisible();
@@ -45,14 +45,14 @@ test("customers to a customer uses the per-link prefetch", async ({ page }) => {
   await expectInstant(page, {
     during: async () => {
       await link.click();
-      await page.waitForURL((url) => url.pathname.startsWith("/en/customers/"));
+      await page.waitForURL((url) => url.pathname.startsWith("/customers/"));
     },
     visible: [page.getByRole("link", { name: "All customers" })],
   });
 });
 
 test("settings tab to tab keeps the settings frame", async ({ page }) => {
-  await page.goto("/en/settings/profile");
+  await page.goto("/settings/profile");
   const tab = page.getByRole("link", { name: "Preferences", exact: true });
 
   await expect(tab).toBeVisible();
@@ -60,9 +60,7 @@ test("settings tab to tab keeps the settings frame", async ({ page }) => {
   await expectInstant(page, {
     during: async () => {
       await tab.click();
-      await page.waitForURL(
-        (url) => url.pathname === "/en/settings/preferences",
-      );
+      await page.waitForURL((url) => url.pathname === "/settings/preferences");
     },
     visible: [page.getByRole("heading", { name: "Settings" })],
   });

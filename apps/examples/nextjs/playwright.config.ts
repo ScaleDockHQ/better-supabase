@@ -33,7 +33,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: "next build && { next start -p 3101 & next start -p 3100; }",
-    url: `${baseURL}/en/login`,
+    url: `${baseURL}/login`,
     env: { EXPOSE_TESTING_API: "1", BSB_REMOTE_CACHE_DIR: remoteCacheDir },
     reuseExistingServer: process.env["CI"] === undefined,
     timeout: 600_000,

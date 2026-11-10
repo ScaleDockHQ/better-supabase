@@ -137,7 +137,10 @@ export const proxy = createProxy(betterSupabase, {
 `auth`, `leeway`) and the proxy options (`before`, `protect`, `after`,
 `verifySession`, `serverTiming`) in one object. It also exports
 `mutableResponse`, `overrideRequestHeaders`, `syncMiddlewareSetCookie` and
-`serverTimingValue` for a proxy that composes other middleware. It imports no
+`serverTimingValue` for a proxy that composes other middleware, and the
+helpers a `protect` function reads: `toSession(auth)`, `permissionsOf(session)`
+and `postAuthPath(request, fallback)`, so `protect` doesn't import the larger
+`better-supabase/next` entry. It imports no
 Node built-in, so it runs wherever the Next.js proxy runs.
 
 ### Ended sessions
