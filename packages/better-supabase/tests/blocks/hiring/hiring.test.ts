@@ -40,6 +40,26 @@ const APPLICATION = {
 };
 
 describe("hiring block", () => {
+  it("lists the applications of many jobs in one call", async () => {
+    const t = transport({
+      list_applications_for_jobs: () => [
+        APPLICATION,
+        { ...APPLICATION, id: "a2", job_id: "j2" },
+      ],
+    });
+
+    const hiring = createHiring({ transport: t });
+
+    const read = await hiring
+      .applicationsForJobs({ jobIds: ["j1", "j2"], state: "rejected" })
+      .orThrow();
+
+    expect(read.map((application) => application.id)).toEqual(["a1", "a2"]);
+    expect(t.calls).toEqual([
+      ["list_applications_for_jobs", { jobs: ["j1", "j2"], state: "rejected" }],
+    ]);
+  });
+
   it("saves jobs and applies candidates", async () => {
     const t = transport({
       save_job: () => ({

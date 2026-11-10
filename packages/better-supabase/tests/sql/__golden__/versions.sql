@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:5b40b35e0a33325dc25fc8f03daddf98dd68403dd72094c2c584357f4d8ed24c
+-- @bsb-hash sha256:8a75fcf433cd275e9a2ed4b3cdc0b941ed885a56a687e88b73bbf804f79dd14b
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -199,6 +199,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
+
+-- Many versions with their content in one read, in the order requested. The
+-- read check runs once per distinct record; a version that is missing or that
+-- the caller cannot read is left out instead of failing the batch.
+create or replace function "better_supabase"."get_versions"(version_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  with wanted as (
+    select x.* from "better_supabase"."versions" x where x."id" = any (get_versions.version_ids)
+  ),
+  allowed as materialized (
+    select q."tenant_id", q."subject_type", q."subject_id"
+    from (select distinct w."tenant_id", w."subject_type", w."subject_id" from wanted w) q
+    where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', q."tenant_id", 'versions.read'), false) and true)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") || jsonb_build_object('content', v."content") order by array_position(get_versions.version_ids, v."id")), '[]'::jsonb)
+  from wanted v
+  join allowed a on a."tenant_id" = v."tenant_id" and a."subject_type" = v."subject_type" and a."subject_id" = v."subject_id"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_versions"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_versions"(uuid[]) to authenticated, service_role;
 
 
 -- Writes a version's content back to its subject, through the subject's apply
@@ -421,7 +449,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:e551fe093e5a3471c32fa65c55464ca42a84abeb1c56f0cdfafb44b223ef036c
+-- @bsb-hash sha256:e78947ac97d4d94b79261f769951f8d9e21b3993fb1d2992342511853223d1d9
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -622,6 +650,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
+
+-- Many versions with their content in one read, in the order requested. The
+-- read check runs once per distinct record; a version that is missing or that
+-- the caller cannot read is left out instead of failing the batch.
+create or replace function "better_supabase"."get_versions"(version_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  with wanted as (
+    select x.* from "better_supabase"."versions" x where x."id" = any (get_versions.version_ids)
+  ),
+  allowed as materialized (
+    select q."tenant_id", q."subject_type", q."subject_id"
+    from (select distinct w."tenant_id", w."subject_type", w."subject_id" from wanted w) q
+    where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', q."tenant_id", 'versions.read'), false) and true and q."subject_type" <> 'ai_document')
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") || jsonb_build_object('content', v."content") order by array_position(get_versions.version_ids, v."id")), '[]'::jsonb)
+  from wanted v
+  join allowed a on a."tenant_id" = v."tenant_id" and a."subject_type" = v."subject_type" and a."subject_id" = v."subject_id"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_versions"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_versions"(uuid[]) to authenticated, service_role;
 
 -- A share link pinned to a version (create_share_link's version_id) reads
 -- that version with the token alone, for anon. Volatile: resolving the link
@@ -899,7 +955,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:0b44ce0d92e8fbf567f9adcb66e25102b86e4529705e4113e88cd55a6a272746
+-- @bsb-hash sha256:f1cd80bfe26f0a80289ffd526285d3a5107d198a39120a203c8fc1a07a775771
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1102,6 +1158,34 @@ end;
 $$;
 revoke execute on function "app_private"."get_version"(uuid) from public, anon;
 grant execute on function "app_private"."get_version"(uuid) to authenticated, service_role;
+
+-- Many versions with their content in one read, in the order requested. The
+-- read check runs once per distinct record; a version that is missing or that
+-- the caller cannot read is left out instead of failing the batch.
+create or replace function "app_private"."get_versions"(version_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  with wanted as (
+    select x.* from "app_private"."versions" x where x."id" = any (get_versions.version_ids)
+  ),
+  allowed as materialized (
+    select q."tenant_id", q."subject_type", q."subject_id"
+    from (select distinct w."tenant_id", w."subject_type", w."subject_id" from wanted w) q
+    where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', q."tenant_id", 'versions.read'), false) and true)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") || jsonb_build_object('content', v."content") order by array_position(get_versions.version_ids, v."id")), '[]'::jsonb)
+  from wanted v
+  join allowed a on a."tenant_id" = v."tenant_id" and a."subject_type" = v."subject_type" and a."subject_id" = v."subject_id"
+  );
+end;
+$$;
+revoke execute on function "app_private"."get_versions"(uuid[]) from public, anon;
+grant execute on function "app_private"."get_versions"(uuid[]) to authenticated, service_role;
 
 
 -- Writes a version's content back to its subject, through the subject's apply
@@ -1324,7 +1408,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:adc08cde638ecbfb4d7115d7bc6f11a002b87ca7de9e6ea591d4edc80756acbe
+-- @bsb-hash sha256:941fa6918afc4626afcc1895a94e6a50aef6bd6aabd649b812a1bb76e6d59be3
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1522,6 +1606,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
+
+-- Many versions with their content in one read, in the order requested. The
+-- read check runs once per distinct record; a version that is missing or that
+-- the caller cannot read is left out instead of failing the batch.
+create or replace function "better_supabase"."get_versions"(version_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  with wanted as (
+    select x.* from "better_supabase"."versions" x where x."id" = any (get_versions.version_ids)
+  ),
+  allowed as materialized (
+    select q."tenant_id", q."subject_type", q."subject_id"
+    from (select distinct w."tenant_id", w."subject_type", w."subject_id" from wanted w) q
+    where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', q."tenant_id", 'versions.read'), false) and true)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") || jsonb_build_object('content', v."content") order by array_position(get_versions.version_ids, v."id")), '[]'::jsonb)
+  from wanted v
+  join allowed a on a."tenant_id" = v."tenant_id" and a."subject_type" = v."subject_type" and a."subject_id" = v."subject_id"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_versions"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_versions"(uuid[]) to authenticated, service_role;
 
 
 -- Writes a version's content back to its subject, through the subject's apply
@@ -1769,6 +1881,15 @@ as $$ select "better_supabase"."get_version"($1) $$;
 revoke execute on function "api"."get_version"(uuid) from public, anon;
 grant execute on function "api"."get_version"(uuid) to authenticated, service_role;
 
+create or replace function "api"."get_versions"(version_ids uuid[])
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_versions"($1) $$;
+revoke execute on function "api"."get_versions"(uuid[]) from public, anon;
+grant execute on function "api"."get_versions"(uuid[]) to authenticated, service_role;
+
 create or replace function "api"."restore_version"(version_id uuid, fields text[] default null)
 returns jsonb
 language sql
@@ -1813,7 +1934,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:30512f9374c067bb52d1a33e3a8e852f571c0dd1bc50b6dc480092f4fdcabc27
+-- @bsb-hash sha256:8845f48c825c5879ca2b281ad0670db69d4d49519f5f45fa102baf500a049663
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2008,6 +2129,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
+
+-- Many versions with their content in one read, in the order requested. The
+-- read check runs once per distinct record; a version that is missing or that
+-- the caller cannot read is left out instead of failing the batch.
+create or replace function "better_supabase"."get_versions"(version_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  with wanted as (
+    select x.* from "better_supabase"."versions" x where x."id" = any (get_versions.version_ids)
+  ),
+  allowed as materialized (
+    select q."tenant_id", q."subject_type", q."subject_id"
+    from (select distinct w."tenant_id", w."subject_type", w."subject_id" from wanted w) q
+    where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', q."tenant_id", 'versions.read'), false) and true)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") || jsonb_build_object('content', v."content") order by array_position(get_versions.version_ids, v."id")), '[]'::jsonb)
+  from wanted v
+  join allowed a on a."tenant_id" = v."tenant_id" and a."subject_type" = v."subject_type" and a."subject_id" = v."subject_id"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_versions"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_versions"(uuid[]) to authenticated, service_role;
 
 
 -- Writes a version's content back to its subject, through the subject's apply
@@ -2230,7 +2379,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:e88d8de3750e01b27c5ba8f36a57d754514c09b3ef9f87cca645ee084b1715b2
+-- @bsb-hash sha256:349eb891ab728368ed6e1602039f01af2137fb27be5475e4bdabbbb24ee8e9e1
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2428,6 +2577,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_version"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_version"(uuid) to authenticated, service_role;
+
+-- Many versions with their content in one read, in the order requested. The
+-- read check runs once per distinct record; a version that is missing or that
+-- the caller cannot read is left out instead of failing the batch.
+create or replace function "better_supabase"."get_versions"(version_ids uuid[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+  with wanted as (
+    select x.* from "better_supabase"."versions" x where x."id" = any (get_versions.version_ids)
+  ),
+  allowed as materialized (
+    select q."org_id", q."subject_type", q."subject_id"
+    from (select distinct w."org_id", w."subject_type", w."subject_id" from wanted w) q
+    where coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', q."org_id", 'versions.read'), false) and true)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'fileSha256', v."file_hash", 'hashVersion', v."hash_version", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") || jsonb_build_object('content', v."content") order by array_position(get_versions.version_ids, v."id")), '[]'::jsonb)
+  from wanted v
+  join allowed a on a."org_id" = v."org_id" and a."subject_type" = v."subject_type" and a."subject_id" = v."subject_id"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_versions"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_versions"(uuid[]) to authenticated, service_role;
 
 
 -- Writes a version's content back to its subject, through the subject's apply

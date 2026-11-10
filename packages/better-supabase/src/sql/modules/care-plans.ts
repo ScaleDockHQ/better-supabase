@@ -475,6 +475,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "publish_care_plan", args: ["uuid"], returns: "jsonb" },
     { name: "archive_care_plan", args: ["uuid"], returns: "jsonb" },
     { name: "get_care_plan", args: ["uuid"], returns: "jsonb" },
+    { name: "get_care_plans", args: ["uuid[]"], returns: "jsonb" },
     {
       name: "list_care_plans",
       args: ["text", "text", "boolean"],

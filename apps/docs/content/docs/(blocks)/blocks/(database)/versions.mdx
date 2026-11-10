@@ -150,6 +150,17 @@ const patch = await versions.diff(previousId, v.id).orThrow();
 await versions.restore(previousId).orThrow();
 ```
 
+## Read many versions at once
+
+`getMany(ids)` returns the versions with their content in one call, in the order you ask. A page that shows the last twenty versions of a record calls it with the ids `list` returned, instead of calling `get` once per row. A version that is missing or that the caller cannot read has no entry, so the result can be shorter than the list. The read check runs once per record, not once per version.
+
+```ts
+const rows = await versions
+  .list({ type: "quote", id: quoteId, pageSize: 20 })
+  .orThrow();
+const full = await versions.getMany(rows.map((row) => row.id)).orThrow();
+```
+
 ## Restore with a safety snapshot
 
 `restoreSafely(id)` snapshots the subject as it is, labeled `before restore`, then restores the version. Nothing is restored when the snapshot fails.
