@@ -548,6 +548,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0648: Map the data of a bsb.action to another type with a third argument.
 - 0649: Observe the server's Supabase requests with a fetch wrapper.
 - 0652: Record the hot read baselines and join the inbox page's contacts in one pass.
+- 0664: Read run steps, versions, applications, templates and care plans in batches.
 
 ## Pre-release pins
 

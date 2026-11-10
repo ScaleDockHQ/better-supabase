@@ -50,14 +50,12 @@ export const GET = bsb.route<{ id: string }, true>(
       return consents;
     }
 
-    const plans = await Promise.all(
-      summaries.data.map((summary) => db.carePlans.get(summary.id)),
+    const plans = await db.carePlans.getMany(
+      summaries.data.map((summary) => summary.id),
     );
 
-    const failed = plans.find((plan) => !plan.ok);
-
-    if (failed) {
-      return failed;
+    if (!plans.ok) {
+      return plans;
     }
 
     const byKey = new Map(
@@ -65,7 +63,7 @@ export const GET = bsb.route<{ id: string }, true>(
     );
 
     const resources: FhirResource[] = [
-      ...plans.flatMap((plan) => (plan.ok ? [toFhirCarePlan(plan.data)] : [])),
+      ...plans.data.map((plan) => toFhirCarePlan(plan)),
       ...observations.data.map((observation) => {
         const definition = byKey.get(observation.definitionKey);
 

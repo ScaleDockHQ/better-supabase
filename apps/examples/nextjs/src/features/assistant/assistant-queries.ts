@@ -120,26 +120,28 @@ export async function getActivity(): Promise<{
     runs.pendingApprovals(50).orThrow(),
   ]);
 
-  const withSteps = await Promise.all(
-    recent.map(async (run) => ({
-      id: run.id,
-      chatId: run.chatId,
-      status: run.status,
-      engine: run.engine,
-      model: run.model,
-      startedAt: run.startedAt.toString(),
-      steps:
-        run.engine === "workflow"
-          ? (await runs.steps.list(run.id, { limit: 50 }).orThrow()).map(
-              (step) => ({
-                key: step.key,
-                label: step.label,
-                status: step.status,
-              }),
-            )
-          : [],
+  const stepsByRun = await runs.steps
+    .listFor({
+      runIds: recent
+        .filter((run) => run.engine === "workflow")
+        .map((run) => run.id),
+      limit: 50,
+    })
+    .orThrow();
+
+  const withSteps = recent.map((run) => ({
+    id: run.id,
+    chatId: run.chatId,
+    status: run.status,
+    engine: run.engine,
+    model: run.model,
+    startedAt: run.startedAt.toString(),
+    steps: (stepsByRun.get(run.id) ?? []).map((step) => ({
+      key: step.key,
+      label: step.label,
+      status: step.status,
     })),
-  );
+  }));
 
   return {
     runs: withSteps,

@@ -46,14 +46,16 @@ async function loadTemplates(): Promise<readonly TemplateCard[] | null> {
     .list({ organizationId: tenant, filter: { type: "customer", limit: 100 } })
     .orThrow();
 
-  const details = await Promise.all(
-    list.map((template) => templates.get(template.id).orThrow()),
+  const details = new Map(
+    (
+      await templates.getMany(list.map((template) => template.id)).orThrow()
+    ).map((detail) => [detail.id, detail]),
   );
 
-  return list.map((template, index) => {
+  return list.map((template) => {
     const body = v.safeParse(
       CustomerTemplateBody,
-      details[index]?.published?.body,
+      details.get(template.id)?.published?.body,
     );
 
     return {
