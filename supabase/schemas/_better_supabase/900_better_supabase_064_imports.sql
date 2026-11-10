@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:fb627b92e4777287fe96d3b2956031595878ebbf3c339d6a0c6beabde35befb7
+-- @bsb-hash sha256:73de1a89d1416f7117ddfbf7709391538f4076847ed84a51a5ca5c2ffde1c64c
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -697,7 +697,7 @@ declare
   v_i integer;
 begin
   select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
-  if v_entity <> all (array['organization_profile', 'attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'discount_group', 'discount_rule', 'party_discount_group', 'product', 'product_category', 'stock_count', 'order', 'payment_term', 'document_delivery_preference', 'party', 'party_contact', 'contact_method', 'party_location', 'party_bank_account', 'quote', 'invoice', 'credit_note', 'open_item', 'invoice_allocation', 'meter_reading', 'due_check', 'asset', 'asset_identifier', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'document_template', 'document_text_block', 'customer', 'customer_row']::text[]) then
+  if v_entity <> all (array['organization_profile', 'attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'discount_group', 'discount_rule', 'party_discount_group', 'product', 'product_category', 'stock_count', 'stock_allocation', 'order', 'payment_term', 'document_delivery_preference', 'party', 'party_contact', 'contact_method', 'party_location', 'party_bank_account', 'quote', 'invoice', 'credit_note', 'open_item', 'invoice_allocation', 'meter_reading', 'due_check', 'asset', 'asset_identifier', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'document_template', 'document_text_block', 'customer', 'customer_row']::text[]) then
     raise exception 'no import target for this entity' using errcode = '22023', hint = 'IMPORT_TARGET_UNKNOWN';
   end if;
   if jsonb_typeof(v_items) <> 'array' then
@@ -799,6 +799,9 @@ begin
       when 'stock_count' then
         v_subject_type := 'stock_count';
         v_out := "better_supabase"."import_stock_count"(v_run_id, v_call, v_subject_id);
+      when 'stock_allocation' then
+        v_subject_type := 'stock_allocation';
+        v_out := "better_supabase"."import_stock_allocation"(v_run_id, v_call, v_subject_id);
       when 'order' then
         v_subject_type := 'order';
         v_out := "better_supabase"."import_order"(v_run_id, v_call, v_subject_id);
@@ -1024,6 +1027,8 @@ begin
           v_current := "better_supabase"."product_category_updated_at"(v_rec."subject_id");
         when 'stock_count' then
           v_current := "better_supabase"."stock_count_updated_at"(v_rec."subject_id");
+        when 'stock_allocation' then
+          v_current := "better_supabase"."stock_allocation_updated_at"(v_rec."subject_id");
         when 'order' then
           v_current := "better_supabase"."order_updated_at"(v_rec."subject_id");
         when 'payment_term' then
@@ -1166,6 +1171,9 @@ begin
       when 'stock_count' then
         v_subject_type := 'stock_count';
         v_out := "better_supabase"."import_stock_count"(v_run_id, v_call, v_subject_id);
+      when 'stock_allocation' then
+        v_subject_type := 'stock_allocation';
+        v_out := "better_supabase"."import_stock_allocation"(v_run_id, v_call, v_subject_id);
       when 'order' then
         v_subject_type := 'order';
         v_out := "better_supabase"."import_order"(v_run_id, v_call, v_subject_id);
@@ -1362,6 +1370,9 @@ begin
       when 'stock_count' then
         v_subject_type := 'stock_count';
         v_out := "better_supabase"."import_stock_count"(v_run_id, v_call, v_subject_id);
+      when 'stock_allocation' then
+        v_subject_type := 'stock_allocation';
+        v_out := "better_supabase"."import_stock_allocation"(v_run_id, v_call, v_subject_id);
       when 'order' then
         v_subject_type := 'order';
         v_out := "better_supabase"."import_order"(v_run_id, v_call, v_subject_id);
@@ -1843,7 +1854,7 @@ language sql
 stable
 security invoker
 set search_path = ''
-as $$ select array['organization_profile', 'attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'discount_group', 'discount_rule', 'party_discount_group', 'product', 'product_category', 'stock_count', 'order', 'payment_term', 'document_delivery_preference', 'party', 'party_contact', 'contact_method', 'party_location', 'party_bank_account', 'quote', 'invoice', 'credit_note', 'open_item', 'invoice_allocation', 'meter_reading', 'due_check', 'asset', 'asset_identifier', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'document_template', 'document_text_block', 'customer', 'customer_row']::text[] $$;
+as $$ select array['organization_profile', 'attachment', 'data_lifecycle_row', 'field_value', 'supplier_item', 'product_identifier', 'discount_group', 'discount_rule', 'party_discount_group', 'product', 'product_category', 'stock_count', 'stock_allocation', 'order', 'payment_term', 'document_delivery_preference', 'party', 'party_contact', 'contact_method', 'party_location', 'party_bank_account', 'quote', 'invoice', 'credit_note', 'open_item', 'invoice_allocation', 'meter_reading', 'due_check', 'asset', 'asset_identifier', 'accounting_account', 'accounting_journal', 'accounting_entry', 'accounting_opening_balance', 'tax_code', 'tax_rate', 'document_template', 'document_text_block', 'customer', 'customer_row']::text[] $$;
 revoke execute on function "better_supabase"."import_entities"() from public, anon, authenticated;
 grant execute on function "better_supabase"."import_entities"() to service_role;
 
@@ -1861,7 +1872,7 @@ begin
     raise exception 'only the service role can rebase import records' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   update "better_supabase"."import_records" x
-  set "subject_imported_updated_at" = coalesce((case x."entity" when 'organization_profile' then "better_supabase"."organization_profile_updated_at"(x."subject_id") when 'supplier_item' then "better_supabase"."supplier_item_updated_at"(x."subject_id") when 'product_identifier' then "better_supabase"."product_identifier_updated_at"(x."subject_id") when 'discount_group' then "better_supabase"."discount_group_updated_at"(x."subject_id") when 'discount_rule' then "better_supabase"."discount_rule_updated_at"(x."subject_id") when 'product' then "better_supabase"."product_updated_at"(x."subject_id") when 'product_category' then "better_supabase"."product_category_updated_at"(x."subject_id") when 'stock_count' then "better_supabase"."stock_count_updated_at"(x."subject_id") when 'order' then "better_supabase"."order_updated_at"(x."subject_id") when 'payment_term' then "better_supabase"."payment_term_updated_at"(x."subject_id") when 'document_delivery_preference' then "better_supabase"."document_delivery_preference_updated_at"(x."subject_id") when 'party' then "better_supabase"."party_updated_at"(x."subject_id") when 'party_contact' then "better_supabase"."party_contact_updated_at"(x."subject_id") when 'contact_method' then "better_supabase"."contact_method_updated_at"(x."subject_id") when 'party_location' then "better_supabase"."party_location_updated_at"(x."subject_id") when 'party_bank_account' then "better_supabase"."party_bank_account_updated_at"(x."subject_id") when 'quote' then "better_supabase"."quote_updated_at"(x."subject_id") when 'invoice' then "better_supabase"."invoice_updated_at"(x."subject_id") when 'credit_note' then "better_supabase"."invoice_updated_at"(x."subject_id") when 'open_item' then "better_supabase"."invoice_updated_at"(x."subject_id") when 'invoice_allocation' then "better_supabase"."invoice_updated_at"(x."subject_id") when 'due_check' then "better_supabase"."due_check_updated_at"(x."subject_id") when 'asset' then "better_supabase"."asset_updated_at"(x."subject_id") when 'asset_identifier' then "better_supabase"."asset_identifier_updated_at"(x."subject_id") when 'tax_code' then "better_supabase"."tax_code_updated_at"(x."subject_id") when 'document_template' then "better_supabase"."document_template_updated_at"(x."subject_id") when 'document_text_block' then "better_supabase"."document_text_block_updated_at"(x."subject_id") when 'customer' then "public"."import_customer_updated_at"(x."subject_id") when 'customer_row' then "public"."import_customer_updated_at"(x."subject_id") else null end), x."subject_imported_updated_at"),
+  set "subject_imported_updated_at" = coalesce((case x."entity" when 'organization_profile' then "better_supabase"."organization_profile_updated_at"(x."subject_id") when 'supplier_item' then "better_supabase"."supplier_item_updated_at"(x."subject_id") when 'product_identifier' then "better_supabase"."product_identifier_updated_at"(x."subject_id") when 'discount_group' then "better_supabase"."discount_group_updated_at"(x."subject_id") when 'discount_rule' then "better_supabase"."discount_rule_updated_at"(x."subject_id") when 'product' then "better_supabase"."product_updated_at"(x."subject_id") when 'product_category' then "better_supabase"."product_category_updated_at"(x."subject_id") when 'stock_count' then "better_supabase"."stock_count_updated_at"(x."subject_id") when 'stock_allocation' then "better_supabase"."stock_allocation_updated_at"(x."subject_id") when 'order' then "better_supabase"."order_updated_at"(x."subject_id") when 'payment_term' then "better_supabase"."payment_term_updated_at"(x."subject_id") when 'document_delivery_preference' then "better_supabase"."document_delivery_preference_updated_at"(x."subject_id") when 'party' then "better_supabase"."party_updated_at"(x."subject_id") when 'party_contact' then "better_supabase"."party_contact_updated_at"(x."subject_id") when 'contact_method' then "better_supabase"."contact_method_updated_at"(x."subject_id") when 'party_location' then "better_supabase"."party_location_updated_at"(x."subject_id") when 'party_bank_account' then "better_supabase"."party_bank_account_updated_at"(x."subject_id") when 'quote' then "better_supabase"."quote_updated_at"(x."subject_id") when 'invoice' then "better_supabase"."invoice_updated_at"(x."subject_id") when 'credit_note' then "better_supabase"."invoice_updated_at"(x."subject_id") when 'open_item' then "better_supabase"."invoice_updated_at"(x."subject_id") when 'invoice_allocation' then "better_supabase"."invoice_updated_at"(x."subject_id") when 'due_check' then "better_supabase"."due_check_updated_at"(x."subject_id") when 'asset' then "better_supabase"."asset_updated_at"(x."subject_id") when 'asset_identifier' then "better_supabase"."asset_identifier_updated_at"(x."subject_id") when 'tax_code' then "better_supabase"."tax_code_updated_at"(x."subject_id") when 'document_template' then "better_supabase"."document_template_updated_at"(x."subject_id") when 'document_text_block' then "better_supabase"."document_text_block_updated_at"(x."subject_id") when 'customer' then "public"."import_customer_updated_at"(x."subject_id") when 'customer_row' then "public"."import_customer_updated_at"(x."subject_id") else null end), x."subject_imported_updated_at"),
       "owned_hash" = coalesce((null), x."owned_hash")
   where x."tenant_id" = rebase_import_records.tenant
     and x."source" = rebase_import_records.source

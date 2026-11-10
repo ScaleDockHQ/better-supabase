@@ -29830,6 +29830,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "purchase_order.placed",
           "purchase_order.received",
           "purchase_order.cancelled",
+          "purchase_order.line_cancelled",
           "purchase_requisition.created",
           "purchase_requisition.approved",
           "inventory_receipt.created"

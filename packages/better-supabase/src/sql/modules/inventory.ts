@@ -26,6 +26,10 @@ import {
   addressFunctions,
 } from "./inventory-address.ts";
 import {
+  allocationImportFunctions,
+  allocationImportTargets,
+} from "./inventory-allocation-import.ts";
+import {
   ALLOCATION_TABLES,
   allocationFunctions,
   allocationTable,
@@ -161,6 +165,12 @@ const EVENTS: BlockSqlEvents<InventoryEvents> = {
     "supplierId",
   ]),
   "purchase_order.cancelled": stockEvent("purchase-orders", [
+    "locationId",
+    "status",
+    "supplierType",
+    "supplierId",
+  ]),
+  "purchase_order.line_cancelled": stockEvent("purchase-orders", [
     "locationId",
     "status",
     "supplierType",
@@ -654,7 +664,7 @@ function build(ctx: BlockSqlContext): string {
 -- weighted average cost, reservations with expiry, allocations with
 -- backorders, transfers, purchase requisitions and purchase orders with
 -- receiving into goods receipts.
-${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${countFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${inventoryReads(ctx)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
+${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${allocationImportFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${countFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${inventoryReads(ctx)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -816,9 +826,19 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
               "timestamptz",
               "jsonb",
               "text",
+              ...(ctx.has("purchaseOrders", "number") ? ["text"] : []),
             ],
             returns: "jsonb",
           },
+          ...(ctx.has("purchaseOrderLines", "quantityCanceled")
+            ? [
+                {
+                  name: "cancel_purchase_order_quantity",
+                  args: ["uuid", "jsonb"],
+                  returns: "jsonb",
+                },
+              ]
+            : []),
           ...(ctx.hasTable("purchaseOrderTaxLines") &&
           ctx.has("purchaseOrderLines", "taxRateBps")
             ? [
@@ -912,7 +932,10 @@ export const INVENTORY: BlockSqlDefinition = {
     accounting: (own) =>
       accountingContributions(own, inventoryAccountingSources(own)),
     approvals: procurementApprovals,
-    imports: countImportTargets,
+    imports: (own) => [
+      ...countImportTargets(own),
+      ...allocationImportTargets(own),
+    ],
   },
   contract,
   build,
