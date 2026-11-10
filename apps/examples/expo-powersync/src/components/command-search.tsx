@@ -83,7 +83,7 @@ export function CommandSearch() {
               </Pressable>
             )}
             ListEmptyComponent={
-              search.loading ? null : (
+              search.loading ? undefined : (
                 <Text>
                   {search.query.trim() === ""
                     ? "Type to search."

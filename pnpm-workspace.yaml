@@ -30,8 +30,8 @@ catalog:
   "@dnd-kit/sortable": 10.0.0
   "@dnd-kit/utilities": 3.2.2
   "@effect/platform-node": 4.0.5
-  "@expo/log-box": 57.0.4
-  "@expo/metro-runtime": 57.0.16
+  "@expo/log-box": 58.0.15
+  "@expo/metro-runtime": 58.0.17
   "@manypkg/get-packages": 3.1.0
   "@json-render/core": 0.22.0
   "@json-render/react": 0.22.0
@@ -52,7 +52,7 @@ catalog:
   "@powersync/react-native": 2.4.0
   "@react-native-async-storage/async-storage": 3.1.1
   "@react-native-community/netinfo": 12.0.1
-  "@react-native/metro-config": 0.86.3
+  "@react-native/metro-config": 0.88.1
   "@shopify/flash-list": 2.3.3
   "@solidjs/start": 2.2.2
   "@streamdown/code": 2.0.0
@@ -134,15 +134,15 @@ catalog:
   elysia: 1.4.31
   # eve peers on a recent ai floor (0.80.0 on ^7.0.137), so it moves with the ai pin above.
   eve: 0.83.2
-  expo: 57.0.26
-  expo-constants: 57.0.20
-  expo-linking: 57.0.11
+  expo: 58.0.23
+  expo-constants: 58.0.15
+  expo-linking: 58.0.16
   expo-notifications: 58.1.8
-  expo-router: 57.0.24
+  expo-router: 58.0.30
   expo-secure-store: 58.0.2
-  # Moves with expo-router: 57.x depends on expo-server 57, and a second copy
+  # Moves with expo-router: 58.x depends on expo-server 58, and a second copy
   # breaks the example's loader types.
-  expo-server: 57.0.3
+  expo-server: 58.0.6
   expo-web-browser: 58.0.7
   express: 5.3.0
   fastest-levenshtein: 1.0.16
@@ -173,10 +173,7 @@ catalog:
   oxlint: 1.92.0
   oxlint-tsgolint: 7.0.2006
   react-router: 8.5.1
-  # 8.1.1 turns on typescript/no-unsafe-enum-assignment, which reports 13
-  # false positives here (generic keys such as `facets[key as F]`, string
-  # literal keys and commitlint's severities). Move up when it is fixed.
-  ultracite: 8.1.0
+  ultracite: 8.1.1
   pg: 8.23.1
   portless: 0.16.0
   postcss: 8.5.32
@@ -190,9 +187,9 @@ catalog:
   yjs: 13.6.33
   fast-xml-parser: 5.12.0
   react-dom: 19.3.1
-  # The versions in expo@57 bundledNativeModules.json; Expo SDK 57 supports
-  # React Native 0.86 only.
-  react-native: 0.86.3
+  # The versions in expo@58 bundledNativeModules.json; Expo SDK 58 supports
+  # React Native 0.88 only.
+  react-native: 0.88.1
   react-native-safe-area-context: 5.11.1
   react-native-screens: 4.30.1
   react-native-web: 0.21.4
@@ -207,9 +204,8 @@ catalog:
   streamdown: 2.7.1
   stripe: 23.1.0
   # debug's optional peer. Pinned to the copy the examples resolve, so
-  # better-supabase and the Next.js examples share one next instance. Stays on
-  # 8: 9 and later are ESM-only, and supports-hyperlinks (attw) requires it.
-  supports-color: 8.1.1
+  # better-supabase and the Next.js examples share one next instance.
+  supports-color: 11.0.0
   # CI runs this copy (`pnpm exec supabase`); 2.121.0 moves a stopped stack's
   # ports when config.toml changes them.
   supabase: 3.0.0
@@ -429,6 +425,11 @@ overrides:
   "@better-supabase/example-expo-powersync>react-dom": 19.2.3
   # One shiki, so fumadocs-ui and the docs transformers share ShikiTransformer.
   shiki: "catalog:"
+  # attw 0.18 > marked-terminal 7 > supports-hyperlinks 3 is CommonJS and calls
+  # supports-color 7's `supportsColor()`; 11 exports named functions only, so
+  # it crashes. marked-terminal 8 (supports-hyperlinks 4) breaks attw's default
+  # import, so only this one consumer keeps supports-color 7 (ADR 0633).
+  "supports-hyperlinks@3>supports-color": 7.2.0
   # debug's optional peer. Without one copy, workspaces that don't declare it
   # get @babel/core with chalk's supports-color 7, and next resolves twice.
   supports-color: "catalog:"
@@ -497,9 +498,6 @@ peerDependencyRules:
     # @chat-adapter/tests peers on vitest 4; its mock adapters and state helpers
     # use only the vi.fn() API that vitest 5 keeps.
     "@chat-adapter/tests>vitest": "5.0.5"
-    # Expo SDK 57's @expo/ui depends on worklets 0.13 while expo-modules-core
-    # still lists an optional peer range that ends at 0.10.
-    "expo-modules-core>react-native-worklets": "0.13.0"
     # workflow 5.1 depends on @workflow/nest, which brings NestJS 12;
     # @supabase/server lists NestJS 10 or 11 as an optional peer it never
     # loads on our paths.
