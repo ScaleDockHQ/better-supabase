@@ -145,10 +145,12 @@ jobs:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
           mark_all() {
-            echo "stack=true" >> "$GITHUB_OUTPUT"
-            echo "docs=true" >> "$GITHUB_OUTPUT"
-            echo "nextjs=true" >> "$GITHUB_OUTPUT"
-            echo "vite=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "stack=true"
+              echo "docs=true"
+              echo "nextjs=true"
+              echo "vite=true"
+            } >> "$GITHUB_OUTPUT"
           }
           # A new branch, a force-push, or a missing base has no ancestor to diff against.
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \

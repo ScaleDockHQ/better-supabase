@@ -43,11 +43,15 @@ jobs:
           if [ -n "$sha" ] && [ "$sha" != "$head" ] \
             && git cat-file -e "$sha^{commit}" \
             && git merge-base --is-ancestor "$sha" HEAD; then
-            echo "affected=true" >> "$GITHUB_OUTPUT"
-            echo "base=$sha" >> "$GITHUB_OUTPUT"
+            {
+              echo "affected=true"
+              echo "base=$sha"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "affected=false" >> "$GITHUB_OUTPUT"
-            echo "base=" >> "$GITHUB_OUTPUT"
+            {
+              echo "affected=false"
+              echo "base="
+            } >> "$GITHUB_OUTPUT"
           fi
 
   # The same gate as CI, on the release commit, for what changed since the last green run.
