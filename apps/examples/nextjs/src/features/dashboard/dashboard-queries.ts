@@ -1,6 +1,8 @@
 import "server-only";
+import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { workspaceSummary } from "@/lib/read-sets";
 import { bsb } from "@/lib/supabase/server";
 
@@ -12,6 +14,7 @@ import { bsb } from "@/lib/supabase/server";
 export async function getWorkspaceSummary() {
   "use cache: private";
   const { db, session } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG);
   bsb.tags(workspaceSummary);
 
   if (session.kind !== "user") {
@@ -40,6 +43,7 @@ export async function getCustomerCounts(
 ): Promise<CustomerCounts> {
   "use cache: private";
   const { db } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG);
   const until = Temporal.Now.instant();
 
   const range = { from: until.subtract({ milliseconds: 30 * DAY_MS }), until };

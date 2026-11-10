@@ -4,9 +4,11 @@ import { dbError, err, ok } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { CALENDAR_TAG } from "./calendar-cache";
 import { EVENT_SUBJECT, REMINDER_OFFSETS } from "./calendar-subjects";
 
 const Id = v.pipe(v.string(), v.uuid());
@@ -31,7 +33,7 @@ export const addEventReminder = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
 
     return ok(null);
   },
@@ -55,7 +57,7 @@ export const removeEventReminder = bsb.action(
       return err(dbError("not_found", "Reminder not found"));
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
 
     return ok(null);
   },
@@ -86,7 +88,7 @@ export const createCalendar = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
 
     return ok({ id: created.data.id });
   },
@@ -146,7 +148,7 @@ export const createEvent = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
 
     return ok({ id: saved.data.id });
   },
@@ -182,7 +184,7 @@ export const setWorkingHours = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
 
     return ok({ rows: saved.data });
   },

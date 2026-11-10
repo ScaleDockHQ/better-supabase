@@ -3,8 +3,11 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
+import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
+
+import { MANUFACTURING_TAG } from "./manufacturing-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -22,7 +25,7 @@ export const releaseProductionOrder = bsb.action(
       return released;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [MANUFACTURING_TAG, SHOP_TAG]);
 
     return ok({ id: released.data.id, status: released.data.status });
   },
@@ -60,7 +63,7 @@ export const createFromRequirements = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [MANUFACTURING_TAG, SHOP_TAG]);
 
     return ok({
       productionOrders: created.data.productionOrders.length,
@@ -88,7 +91,7 @@ export const completeProductionOrder = bsb.action(
       return done;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [MANUFACTURING_TAG, SHOP_TAG]);
 
     return ok({ id: done.data.id, status: done.data.status });
   },

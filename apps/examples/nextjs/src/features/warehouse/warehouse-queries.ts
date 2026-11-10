@@ -1,7 +1,10 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
+import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -39,6 +42,7 @@ export interface PickListRow {
 async function loadPickLists(): Promise<readonly PickListRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(SHOP_TAG, MANUFACTURING_TAG);
 
   if (!tenantOf(session)) {
     return null;

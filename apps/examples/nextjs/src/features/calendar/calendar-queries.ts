@@ -1,10 +1,13 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
+import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
 import { bsb } from "@/lib/supabase/server";
 
+import { CALENDAR_TAG } from "./calendar-cache";
 import { EVENT_SUBJECT } from "./calendar-subjects";
 
 /** What a loader gives a component: the data, a failed read, or no organization. */
@@ -81,6 +84,7 @@ export interface UpcomingReminders {
 export async function loadUpcomingReminders(): Promise<UpcomingReminders | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CALENDAR_TAG, BOOKINGS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -147,6 +151,7 @@ export async function loadCalendarMonth(
 ): Promise<CalendarMonth | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CALENDAR_TAG, BOOKINGS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

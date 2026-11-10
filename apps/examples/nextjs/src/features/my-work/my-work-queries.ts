@@ -3,8 +3,15 @@ import type { MyWorkKind } from "better-supabase/blocks/subjects";
 
 import { tenantOf } from "better-supabase/next";
 import { loadMyWork } from "better-supabase/records";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { APPROVALS_TAG } from "@/features/approvals/approvals-cache";
+import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
+import { CRM_TAG } from "@/features/crm/crm-cache";
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { PROJECTS_TAG } from "@/features/projects/projects-cache";
+import { WORK_TAG } from "@/features/work/work-cache";
 import { bsb } from "@/lib/supabase/server";
 
 export interface MyWorkRow {
@@ -34,6 +41,14 @@ export type Loaded<T> =
 async function loadView(): Promise<MyWorkView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(
+    WORK_TAG,
+    PROJECTS_TAG,
+    APPROVALS_TAG,
+    CALENDAR_TAG,
+    CUSTOMERS_TAG,
+    CRM_TAG,
+  );
   const tenant = tenantOf(session);
 
   if (!tenant) {

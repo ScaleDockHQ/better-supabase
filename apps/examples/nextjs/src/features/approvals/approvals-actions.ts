@@ -4,9 +4,11 @@ import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { ACCESS_REQUESTS_TAG } from "@/features/access-requests/access-requests-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { APPROVALS_TAG } from "./approvals-cache";
 import { APPROVAL_ACTIONS, APPROVAL_SUBJECT } from "./approvals-types";
 
 const Id = v.pipe(v.string(), v.uuid());
@@ -33,7 +35,7 @@ export const requestApproval = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [APPROVALS_TAG, ACCESS_REQUESTS_TAG]);
 
     return ok(requested.data.id);
   },
@@ -66,7 +68,7 @@ export const decideApproval = bsb.action(
       return decided;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [APPROVALS_TAG, ACCESS_REQUESTS_TAG]);
 
     return ok(decided.data.status);
   },

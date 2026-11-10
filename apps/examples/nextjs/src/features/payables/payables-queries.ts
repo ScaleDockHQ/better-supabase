@@ -3,9 +3,13 @@ import type { MoneyJson } from "better-supabase/commerce";
 
 import { moneyToJson } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 
 import type { Loaded } from "@/features/shop/shop-queries";
 
+import { BANKING_TAG } from "@/features/banking/banking-cache";
+import { BILLING_TAG } from "@/features/billing/billing-cache";
+import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { settle } from "@/features/shop/shop-queries";
 import { bsb } from "@/lib/supabase/server";
@@ -25,6 +29,7 @@ export interface PayablesAging {
 async function loadPayables(): Promise<PayablesAging | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(BILLING_TAG, SHOP_TAG, BANKING_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

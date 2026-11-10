@@ -2,13 +2,17 @@ import "server-only";
 import type { RecordBindingResult } from "better-supabase/records";
 
 import { toDbError } from "better-supabase";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { CRM_TAG } from "@/features/crm/crm-cache";
+import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { bsb } from "@/lib/supabase/server";
 
 import { customerPage } from "./customer-record";
+import { CUSTOMERS_TAG } from "./customers-cache";
 
 /**
  * What a card on the customer page renders: the rows, or a failed read. The
@@ -279,6 +283,7 @@ export async function getSharedCustomer(
 ): Promise<SharedCustomer | null> {
   "use cache: private";
   const { db } = await bsb.cached();
+  cacheTag(CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG);
 
   const link = await db.shareLinks.resolve({ token }).orThrow();
 

@@ -4,10 +4,14 @@ import type { Money } from "better-supabase/commerce";
 
 import { money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { bsb } from "@/lib/supabase/server";
+
+import { CRM_TAG } from "./crm-cache";
 
 /** A loaded region: its data, no active organization, or a failed read. */
 export type Loaded<T> =
@@ -81,6 +85,7 @@ export async function loadContacts(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CRM_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -123,6 +128,7 @@ export async function loadContact(
 ): Promise<ContactDetailData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CRM_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -252,6 +258,7 @@ export async function loadTimeline(
 ): Promise<readonly TimelineEntry[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CRM_TAG, CUSTOMERS_TAG);
 
   if (!tenantOf(session)) {
     return null;
@@ -302,6 +309,7 @@ export interface DealBoardData {
 export async function loadDealBoard(): Promise<DealBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CRM_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -377,6 +385,7 @@ export interface TargetRow {
 export async function loadTargets(): Promise<readonly TargetRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CRM_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -496,6 +505,7 @@ function quoteOf(row: v.InferOutput<typeof QuoteRow>): QuoteDetailData {
 export async function loadQuotes(): Promise<readonly QuoteDetailData[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CRM_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -522,6 +532,7 @@ export async function loadQuote(
 ): Promise<QuoteDetailData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CRM_TAG, CUSTOMERS_TAG);
 
   if (!tenantOf(session)) {
     return null;

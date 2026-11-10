@@ -15,6 +15,7 @@ import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { PEOPLE_TAG } from "./people-cache";
 import { TIME_ZONE } from "./people-queries";
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
@@ -116,7 +117,7 @@ export const createEmployee = bsb.action(
       }
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ id: created.data.id, name: created.data.name });
   },
@@ -193,7 +194,7 @@ export const logTime = bsb.action(
       return logged;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ id: logged.data.id });
   },
@@ -215,7 +216,7 @@ export const startTimer = bsb.action(
       return started;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ id: started.data.id });
   },
@@ -234,7 +235,7 @@ export const stopTimer = bsb.action(
       return stopped;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ id: stopped.data.id });
   },
@@ -256,7 +257,7 @@ export const submitTimesheet = bsb.action(
       return submitted;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ status: submitted.data.status });
   },
@@ -285,7 +286,7 @@ export const createOpening = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ id: saved.data.id, title: saved.data.title });
   },
@@ -309,7 +310,7 @@ export const addCandidate = bsb.action(
       return applied;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ id: applied.data.id });
   },
@@ -336,7 +337,7 @@ export const moveApplication = bsb.action(
       return moved;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ applicationId });
   },
@@ -363,7 +364,7 @@ export const closeApplication = bsb.action(
       return closed;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ applicationId, outcome });
   },

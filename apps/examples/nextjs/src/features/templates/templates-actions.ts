@@ -3,11 +3,13 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { TEMPLATES_TAG } from "./templates-cache";
 import {
   CustomerTemplateBody,
   customerTemplates,
@@ -51,7 +53,7 @@ export const createTemplate = bsb.action(
       return published;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [TEMPLATES_TAG, CUSTOMERS_TAG]);
 
     return ok({ id: saved.data.id, name: saved.data.name });
   },
@@ -77,7 +79,7 @@ export const applyTemplate = bsb.action(
       return applied;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [TEMPLATES_TAG, CUSTOMERS_TAG]);
 
     return ok({ customerId: applied.data.subject.id });
   },

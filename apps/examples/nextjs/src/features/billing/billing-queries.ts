@@ -4,13 +4,15 @@ import type { Money } from "better-supabase/commerce";
 
 import { money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
+import { BANKING_TAG } from "@/features/banking/banking-cache";
+import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { bsb } from "@/lib/supabase/server";
 
-import { PLANS_TABLE } from "./billing-cache";
+import { PLANS_TABLE, BILLING_TAG } from "./billing-cache";
 
 export interface PlanOption {
   readonly key: string;
@@ -62,6 +64,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
 export async function getSubscription(organizationId: string) {
   "use cache: private";
   const { db } = await bsb.cached();
+  cacheTag(BILLING_TAG, BANKING_TAG, SHOP_TAG);
 
   return db.subscriptions
     .get(
@@ -115,6 +118,7 @@ export interface InvoiceSummary {
 async function loadInvoices(): Promise<readonly InvoiceSummary[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(BILLING_TAG, BANKING_TAG, SHOP_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

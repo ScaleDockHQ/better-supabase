@@ -4,9 +4,13 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { PROJECTS_TAG } from "@/features/projects/projects-cache";
+import { WORK_TAG } from "@/features/work/work-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { CUSTOM_FIELDS_TAG } from "./custom-fields-cache";
 import { FieldEntitySchema, FieldTypeSchema } from "./custom-fields-types";
 
 const Id = v.pipe(v.string(), v.uuid());
@@ -40,7 +44,12 @@ export const saveField = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [
+      CUSTOM_FIELDS_TAG,
+      WORK_TAG,
+      PROJECTS_TAG,
+      CUSTOMERS_TAG,
+    ]);
 
     return ok(saved.data.id);
   },
@@ -59,7 +68,12 @@ export const deleteField = bsb.action(
       return deleted;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [
+      CUSTOM_FIELDS_TAG,
+      WORK_TAG,
+      PROJECTS_TAG,
+      CUSTOMERS_TAG,
+    ]);
 
     return ok(deleted.data);
   },
@@ -129,7 +143,12 @@ export const moveField = bsb.action(
       }
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [
+      CUSTOM_FIELDS_TAG,
+      WORK_TAG,
+      PROJECTS_TAG,
+      CUSTOMERS_TAG,
+    ]);
 
     return ok(true);
   },

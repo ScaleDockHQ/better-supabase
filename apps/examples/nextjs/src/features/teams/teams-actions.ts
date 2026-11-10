@@ -1,9 +1,9 @@
 "use server";
 
 import { ok } from "better-supabase";
-import { updateTag } from "next/cache";
 import * as v from "valibot";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -28,8 +28,7 @@ async function teamsChanged(
   tenant: string,
   auth: Parameters<typeof refreshCaller>[0],
 ): Promise<void> {
-  updateTag(teamsTag(tenant));
-  await refreshCaller(auth);
+  await refreshCaller(auth, [teamsTag(tenant), CUSTOMERS_TAG]);
 }
 
 /** Creates a team; the block derives the slug from the name. */

@@ -3,10 +3,13 @@ import type { ApprovalStatus } from "better-supabase/blocks/approvals";
 import type { DriveDocumentStatus } from "better-supabase/blocks/drive";
 
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { notFound, unstable_rethrow } from "next/navigation";
 
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { bsb } from "@/lib/supabase/server";
 
+import { DRIVE_TAG } from "./drive-cache";
 import { driveOf } from "./drive-client";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
@@ -51,6 +54,7 @@ export type DriveFolderView =
 async function loadFolder(folderId: string | null) {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -147,6 +151,7 @@ export type DocumentRegisterView =
 async function loadRegister(): Promise<readonly DocumentRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

@@ -1,8 +1,11 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { bsb } from "@/lib/supabase/server";
+
+import { ACKNOWLEDGEMENTS_TAG } from "./acknowledgements-cache";
 
 /** A record the member is asked to read, serializable. */
 export interface PendingRow {
@@ -22,6 +25,7 @@ export type Pending =
 async function loadPending(): Promise<readonly PendingRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(ACKNOWLEDGEMENTS_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

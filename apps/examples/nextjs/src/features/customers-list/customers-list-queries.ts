@@ -1,4 +1,7 @@
 import "server-only";
+import { cacheTag } from "next/cache";
+
+import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { customerList } from "@/lib/lists";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
@@ -12,6 +15,7 @@ import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 export async function getCustomers() {
   "use cache: private";
   const { db } = await bsb.cached({ tables: ["customers", "notes"] });
+  cacheTag(CUSTOMERS_TAG);
 
   const page = await customerList
     .run(db, customerList.defaults, {
@@ -43,6 +47,7 @@ export async function getCustomers() {
 export async function getCustomer(id: string) {
   "use cache: private";
   const { db } = await bsb.cached({ tables: ["customers", "notes"], id });
+  cacheTag(CUSTOMERS_TAG);
 
   const customer = await db.customers
     .get(

@@ -7,6 +7,8 @@ import * as v from "valibot";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { FORMS_TAG } from "./forms-cache";
+
 const Id = v.pipe(v.string(), v.uuid());
 
 /** A form key: lowercase letters, digits, `_` and `-`, unique per organization. */
@@ -43,7 +45,7 @@ export const createForm = bsb.action(
       return form;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [FORMS_TAG]);
 
     return ok({ id: form.data.id, title: form.data.title });
   },
@@ -93,7 +95,7 @@ export const publishForm = bsb.action(
       return version;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [FORMS_TAG]);
 
     return ok({ number: version.data.number });
   },
@@ -120,7 +122,7 @@ export const submitForm = bsb.action(
       return submission;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [FORMS_TAG]);
 
     return ok({ id: submission.data.id });
   },

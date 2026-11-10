@@ -16,6 +16,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { importRunHooks } from "@/features/imports/import-run";
+import { WORK_TAG } from "@/features/work/work-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -31,6 +32,7 @@ import {
   TaskStatusSchema,
   TASK_IMPORT_FIELDS,
 } from "./project-types";
+import { PROJECTS_TAG } from "./projects-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -67,7 +69,7 @@ export const createProject = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(created.data.id);
   },
@@ -109,7 +111,7 @@ export const createTask = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(created.data.id);
   },
@@ -136,7 +138,7 @@ export const moveTask = bsb.action(
       target: { previous: previousId, next: nextId, group: status },
     });
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return moved;
   },
@@ -170,7 +172,7 @@ export const runTaskBulkAction = bsb.action(
       return changed;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(changed.data);
   },
@@ -206,7 +208,7 @@ export const setTaskField = bsb.action(
       { maxAffected: ids.length },
     );
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(result.ok ? result.data.count : 0);
   },
@@ -263,7 +265,7 @@ export const saveTaskView = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(saved.data.id);
   },
@@ -282,7 +284,7 @@ export const deleteTaskView = bsb.action(
       return deleted;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(deleted.data);
   },
@@ -329,7 +331,7 @@ export const restoreProjectFields = bsb.action(
       return restored;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(null);
   },
@@ -449,7 +451,7 @@ export const runTaskImport = bsb.action(
     try {
       const result = await runImport(definition, csv, mapping, hooks);
 
-      await refreshCaller(auth);
+      await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
       return ok<TaskImportOutcome>({
         status: result.status,

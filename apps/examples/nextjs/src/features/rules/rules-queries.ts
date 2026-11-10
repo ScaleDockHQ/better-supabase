@@ -2,11 +2,13 @@ import type { FilterNode } from "better-supabase/list";
 
 import "server-only";
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { bsb } from "@/lib/supabase/server";
 
 import { RULE_SUBJECT } from "./rule-fields";
+import { RULES_TAG } from "./rules-cache";
 
 /** A rule as plain data, so it crosses the server boundary. */
 export interface RuleRow {
@@ -36,6 +38,7 @@ function countRules(node: FilterNode): number {
 async function loadRules(): Promise<readonly RuleRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(RULES_TAG);
   const tenant = tenantOf(session);
 
   if (!tenant) {

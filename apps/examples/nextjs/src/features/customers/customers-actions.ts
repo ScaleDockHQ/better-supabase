@@ -9,6 +9,8 @@ import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { CRM_TAG } from "@/features/crm/crm-cache";
+import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { appErrors } from "@/lib/app-error";
@@ -18,6 +20,7 @@ import { bsb } from "@/lib/supabase/server";
 
 import { customerAttachments } from "./customer-attachments";
 import { customerPage } from "./customer-record";
+import { CUSTOMERS_TAG } from "./customers-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -143,7 +146,7 @@ export const createShareLink = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
 
     return ok({ token: created.data.token });
   },
@@ -208,7 +211,7 @@ export const confirmAttachment = bsb.action(
   async ({ id }, { supabase, auth }) => {
     const confirmed = await customerAttachments(supabase).confirm(id);
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
 
     return confirmed.ok ? ok(null) : confirmed;
   },
@@ -275,7 +278,7 @@ export const restoreCustomerVersion = bsb.action(
       return restored;
     }
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
 
     return ok(null);
   },
@@ -323,7 +326,7 @@ export const startCustomerSla = bsb.action(
     const started = await sla.start({ subject });
 
     if (!started.ok || started.data.length > 0) {
-      await refreshCaller(auth);
+      await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
 
       return started.ok ? ok(started.data.length) : started;
     }
@@ -345,7 +348,7 @@ export const startCustomerSla = bsb.action(
 
     const restarted = await sla.start({ subject });
 
-    await refreshCaller(auth);
+    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
 
     return restarted.ok ? ok(restarted.data.length) : restarted;
   },

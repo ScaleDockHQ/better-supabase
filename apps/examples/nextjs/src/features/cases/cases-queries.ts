@@ -6,11 +6,14 @@ import type {
 } from "better-supabase/blocks/cases";
 
 import { tenantOf } from "better-supabase/next";
+import { cacheTag } from "next/cache";
 
+import { INSPECTIONS_TAG } from "@/features/inspections/inspections-cache";
 import { bsb } from "@/lib/supabase/server";
 
 import type { OpenStage } from "./cases-stages";
 
+import { CASES_TAG } from "./cases-cache";
 import { isOpenStage } from "./cases-stages";
 
 /** An open case as the board shows it, serializable. */
@@ -36,6 +39,7 @@ export interface CaseBoardData {
 async function loadBoard(): Promise<CaseBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CASES_TAG, INSPECTIONS_TAG);
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -128,6 +132,7 @@ export interface CaseDetailView {
 async function loadDetail(caseId: string): Promise<CaseDetailView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  cacheTag(CASES_TAG, INSPECTIONS_TAG);
 
   if (!tenantOf(session)) {
     return null;
