@@ -12,13 +12,55 @@ concurrency:
 permissions: {}
 
 jobs:
-  # The same gate as CI, on the release commit.
+  # The last main commit whose Release verify passed. A full verify runs when that
+  # commit is missing or is not an ancestor, for example after a force-push.
+  base:
+    name: Affected base
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      affected: ${{ steps.base.outputs.affected }}
+      base: ${{ steps.base.outputs.base }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Find the last green Release commit
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/runs?branch=main&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // empty')
+          head=$(git rev-parse HEAD)
+          if [ -n "$sha" ] && [ "$sha" != "$head" ] \
+            && git cat-file -e "$sha^{commit}" \
+            && git merge-base --is-ancestor "$sha" HEAD; then
+            echo "affected=true" >> "$GITHUB_OUTPUT"
+            echo "base=$sha" >> "$GITHUB_OUTPUT"
+          else
+            echo "affected=false" >> "$GITHUB_OUTPUT"
+            echo "base=" >> "$GITHUB_OUTPUT"
+          fi
+
+  # The same gate as CI, on the release commit, for what changed since the last green run.
   verify:
+    needs: base
     permissions:
       contents: read
       id-token: write
       security-events: write
     uses: $/.github/workflows/verify.yml
+    with:
+      affected: ${{ needs.base.outputs.affected == 'true' }}
+      base: ${{ needs.base.outputs.base }}
     secrets:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 

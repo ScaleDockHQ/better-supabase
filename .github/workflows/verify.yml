@@ -67,17 +67,17 @@ jobs:
           - name: Audit
             run: pnpm run audit:high
 
-      # After the group, so the build comes from the Turbo cache the workspace tasks filled.
+      # The SARIF task is cached with the same inputs as `doctor`, so a hit restores the file.
       - name: Doctor SARIF
-        run: |
-          pnpm exec turbo run build --filter=better-supabase...
-          pnpm better-supabase doctor --cwd apps/examples/nextjs --format sarif --out doctor.sarif
+        run: >-
+          pnpm exec turbo run doctor:sarif
+          --filter=@better-supabase/example-nextjs --log-file
 
       - name: Upload doctor findings
-        if: always() && hashFiles('doctor.sarif') != ''
+        if: always() && hashFiles('apps/examples/nextjs/doctor.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: doctor.sarif
+          sarif_file: apps/examples/nextjs/doctor.sarif
           category: better-supabase-doctor
         continue-on-error: true
 
