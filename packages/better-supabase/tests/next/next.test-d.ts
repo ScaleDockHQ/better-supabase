@@ -324,3 +324,15 @@ describe("bsb.withContext", () => {
     expectTypeOf(app.cached).returns.resolves.toHaveProperty("label");
   });
 });
+
+describe("bsb.action mapper", () => {
+  it("types the data as the mapper returns it", () => {
+    const action = bsb.action(
+      {},
+      () => ({ id: 1 }),
+      (row) => String(row.id),
+    );
+
+    expectTypeOf(action).returns.resolves.toEqualTypeOf<ActionResult<string>>();
+  });
+});
