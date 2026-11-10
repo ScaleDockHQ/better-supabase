@@ -848,7 +848,7 @@ as $$
 $$;
 revoke execute on function ${fn("review_summary")}(${idType}, text, text[]) from public;
 grant execute on function ${fn("review_summary")}(${idType}, text, text[]) to anon, authenticated, service_role;
-${subjectCascades(ctx, subjects, `delete from ${reviews} x where x.${r("subjectType")} = v_type and x.${r("subjectId")} = v_id;\n  delete from ${stats} x where x.${s("subjectType")} = v_type and x.${s("subjectId")} = v_id;`)}
+${subjectCascades(ctx, subjects, (tenantAnd) => `delete from ${reviews} x where x.${r("subjectType")} = v_type and x.${r("subjectId")} = v_id${ctx.has("reviews", "tenant") ? tenantAnd("x", r("tenant")) : ""};\n  delete from ${stats} x where x.${s("subjectType")} = v_type and x.${s("subjectId")} = v_id${ctx.has("stats", "tenant") ? tenantAnd("x", s("tenant")) : ""};`, { tenant: ctx.has("reviews", "tenant") })}
 `;
 }
 

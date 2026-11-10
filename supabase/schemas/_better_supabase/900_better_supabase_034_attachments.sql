@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:687ee30b30284bc55bb87cc0366beef7075e77cabecbbd33cc965f9059fc15a0
+-- @bsb-hash sha256:e4f87112b276b104db50ee9966879b7c585ed0c878f72e2e34c905fc75f70616
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1213,18 +1213,23 @@ as $$
 declare
   v_type text := tg_argv[0];
   v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
 begin
-  delete from "better_supabase"."attachments" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  if v_tenant is null then
+    delete from "better_supabase"."attachments" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."attachments" x where x."subject_type" = v_type and x."subject_id" = v_id and x."tenant_id" = v_tenant::uuid;
+  end if;
   return null;
 end;
 $$;
 revoke execute on function "better_supabase"."attachments_subject_deleted"() from public, anon, authenticated;
 create trigger "bsb_attachments_product_cascade"
   after delete on "better_supabase"."products"
-  for each row execute function "better_supabase"."attachments_subject_deleted"('product', 'id');
+  for each row execute function "better_supabase"."attachments_subject_deleted"('product', 'id', 'tenant_id');
 create trigger "bsb_attachments_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
-  for each row execute function "better_supabase"."attachments_subject_deleted"('product_variant', 'id');
+  for each row execute function "better_supabase"."attachments_subject_deleted"('product_variant', 'id', 'tenant_id');
 
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.

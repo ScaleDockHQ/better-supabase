@@ -739,16 +739,58 @@ export const andSubjectAction = (
 ): string => (extra === undefined ? check : `(${check}) and ${extra}`);
 
 /**
+ * What a cascade deletes. A function receives `tenantAnd(alias, column)`, the
+ * tenant predicate for a statement, so the delete reads a tenant-led subject
+ * index; it only gets the predicate for a subject that has a tenant.
+ */
+export type CascadeRemove =
+  | string
+  | ((tenantAnd: (alias: string, column: string) => string) => string);
+
+/**
+ * A `CascadeRemove` that deletes a table's rows for the deleted subject, and
+ * scopes them to its tenant column when it has one.
+ */
+export const deleteBySubject =
+  (
+    table: string,
+    columns: { type: string; id: string; tenant?: string | undefined },
+  ): CascadeRemove =>
+  (tenantAnd) =>
+    `delete from ${table} x where x.${columns.type} = v_type and x.${columns.id} = v_id${columns.tenant === undefined ? "" : tenantAnd("x", columns.tenant)};`;
+
+/**
+ * `subjectCascades` for a module table with the logical columns `subjectType`,
+ * `subjectId` and, when it has one, `tenant`.
+ */
+export function tableCascades(
+  ctx: BlockSqlContext,
+  subjects: readonly (readonly [string, Subject])[],
+  table: string,
+): string {
+  const tenanted = ctx.has(table, "tenant");
+
+  const remove = deleteBySubject(ctx.table(table), {
+    type: ctx.col(table, "subjectType"),
+    id: ctx.col(table, "subjectId"),
+    tenant: tenanted ? ctx.col(table, "tenant") : undefined,
+  });
+
+  return subjectCascades(ctx, subjects, remove, { tenant: tenanted });
+}
+
+/**
  * `after delete` triggers on the subject tables with `cascade: true` that
  * delete the module's rows for the deleted subject. `remove` is the SQL that
  * deletes them, with `v_type` and `v_id` (text) in scope. With `tenant: true`,
  * `v_tenant` (text) holds the subject row's tenant, or null for a subject with
- * `tenant: false`.
+ * `tenant: false`. A `remove` function then runs twice: with the tenant
+ * predicate when the subject has a tenant, and without it when it has none.
  */
 export function subjectCascades(
   ctx: BlockSqlContext,
   subjects: readonly (readonly [string, Subject])[],
-  remove: string,
+  remove: CascadeRemove,
   options: { readonly tenant?: boolean } = {},
 ): string {
   const cascading = subjects.filter(([, subject]) => subject.cascade);
@@ -778,6 +820,15 @@ create trigger ${trigger}
   for each row execute function ${fn}(${sqlString(type)}, ${sqlString(subject.id ?? "id")}${tenant});`;
   });
 
+  const removal =
+    typeof remove === "string"
+      ? remove
+      : `if v_tenant is null then
+    ${remove(() => "")}
+  else
+    ${remove((alias, column) => ` and ${alias}.${column} = v_tenant::${ctx.idType}`)}
+  end if;`;
+
   const tenantVariable =
     options.tenant === true
       ? "\n  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;"
@@ -795,7 +846,7 @@ declare
   v_type text := tg_argv[0];
   v_id text := to_jsonb(old) ->> tg_argv[1];${tenantVariable}
 begin
-  ${remove}
+  ${removal}
   return null;
 end;
 $$;
