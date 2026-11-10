@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:a3fbd3e0c2989816b1c660ea7f598143ca4c2dd209fd2a9359ff28736ced44b6
+-- @bsb-hash sha256:020e529172219afd847843150725bc38b5b0530d806ca9fe4df17c9a72c32bd4
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ grant select on "better_supabase"."observations" to authenticated;
 grant all on "better_supabase"."observations" to service_role;
 create policy bsb_observations_read on "better_supabase"."observations"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."observations"."subject_type", "better_supabase"."observations"."subject_id", 'read'), false));
 
 -- The flag of a value against a range: critical at or past a critical
 -- bound, low or high outside the reference range, else normal.
@@ -980,7 +980,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."observations" as res
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."observations"."subject_type", "better_supabase"."observations"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."observations" as restrictive
   for insert to public

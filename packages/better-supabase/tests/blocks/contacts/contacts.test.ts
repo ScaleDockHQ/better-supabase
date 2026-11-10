@@ -172,6 +172,21 @@ describe("parties block", () => {
     });
   });
 
+  it("reads one company or person by id, and null when it is gone", async () => {
+    const t = transport({
+      get_company: (args) => (args["id"] === "c1" ? COMPANY : null),
+      get_person: () => PERSON,
+    });
+
+    const parties = createContacts({ transport: t });
+
+    expect((await parties.getCompany("c1").orThrow())?.name).toBe("Acme");
+    expect(await parties.getCompany("gone").orThrow()).toBeNull();
+    expect((await parties.getPerson("p1").orThrow())?.name).toBe("Ada");
+    expect(t.calls[0]?.[0]).toBe("get_company");
+    expect(t.calls[0]?.[1]).toEqual({ id: "c1" });
+  });
+
   it("returns the last page without a cursor", async () => {
     const t = transport({ list_companies: () => [COMPANY] });
 

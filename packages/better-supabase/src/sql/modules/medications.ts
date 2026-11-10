@@ -5,7 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { guestOr } from "../guest-sql.ts";
@@ -13,6 +13,7 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { registryReadable } from "./attachments-app.ts";
 import { medicationAdministrationFunctions } from "./medications-administrations.ts";
 import { medicationFunctions } from "./medications-functions.ts";
 import {
@@ -167,7 +168,7 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-function tables(ctx: BlockSqlContext): string {
+function tables(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const medications = ctx.table("medications");
   const orders = ctx.table("orders");
   const administrations = ctx.table("administrations");
@@ -284,7 +285,7 @@ ${lockModuleTable(ctx, "orders", { read: true })}
 ${readPolicy(
   "orders",
   guestOr(
-    `${ctx.scope.check(o("tenant"), read)} and coalesce(${canSubject}(${o("subjectType")}, ${o("subjectId")}, 'read'), false)`,
+    `${ctx.scope.check(o("tenant"), read)} and ${registryReadable(ctx, layout, "medications", { type: `${orders}.${o("subjectType")}`, id: `${orders}.${o("subjectId")}`, tenant: `${orders}.${o("tenant")}` })}`,
     guestOf(o("tenant"), o("subjectType"), o("subjectId")),
   ),
 )}
@@ -361,7 +362,7 @@ function orderMerges(ctx: BlockSqlContext): string {
   );
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -373,7 +374,7 @@ function build(ctx: BlockSqlContext): string {
 -- Medications: the organization's catalog, orders for a record with a dose,
 -- route and schedule, planned doses, and each dose given, refused, skipped or
 -- missed, with a second check for high-risk medication.
-${tables(ctx)}${medicationFunctions(ctx)}${medicationAdministrationFunctions(ctx)}${orderMerges(ctx)}`;
+${tables(ctx, layout)}${medicationFunctions(ctx)}${medicationAdministrationFunctions(ctx)}${orderMerges(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {

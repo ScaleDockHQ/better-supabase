@@ -116,6 +116,8 @@ function fromRegistry(
       extraKeys.includes("versions") && { versions: entry.versions }),
     ...(entry.readAccess !== undefined &&
       extraKeys.includes("readAccess") && { readAccess: entry.readAccess }),
+    ...(entry.team !== undefined &&
+      extraKeys.includes("team") && { team: entry.team }),
   };
 }
 
@@ -668,6 +670,12 @@ export function subjectReadable(
      * creates. Without `subjects` it is the whole answer.
      */
     readonly fallback?: string;
+    /**
+     * The check that the caller is on the record team of `type`/`id` (text),
+     * for a type whose team holds the read action; or-ed with the permission,
+     * as `can_subject` does.
+     */
+    readonly team?: (type: string, id: string) => string | undefined;
   } = {},
 ): string {
   if (subjects.length === 0) {
@@ -694,15 +702,40 @@ export function subjectReadable(
         return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)}${live})`;
       }
 
-      const granted =
+      const member = options.team?.(type, args.id);
+
+      const recordRead =
         subject.read === undefined
+          ? undefined
+          : recordGrant(
+              ctx,
+              `records.${type}.permissions.read`,
+              subject,
+              args.tenant,
+              asSet,
+            );
+
+      const granted =
+        recordRead === undefined
           ? ""
-          : ` and ${recordGrant(ctx, `records.${type}.permissions.read`, subject, args.tenant, asSet)}`;
+          : ` and ${member === undefined ? recordRead : `(${recordRead} or ${member})`}`;
+
+      const key =
+        subject.read === undefined && subject.permission
+          ? asSet
+            ? ctx.scope.check(args.tenant, sqlString(subject.permission))
+            : ctx.scope.can(args.tenant, sqlString(subject.permission))
+          : undefined;
+
+      const held =
+        key === undefined
+          ? member
+          : member === undefined
+            ? key
+            : `(${key} or ${member})`;
 
       const extra =
-        subject.read === undefined && subject.permission
-          ? ` and ${asSet ? ctx.scope.check(args.tenant, sqlString(subject.permission)) : ctx.scope.can(args.tenant, sqlString(subject.permission))}`
-          : "";
+        subject.read === undefined && held !== undefined ? ` and ${held}` : "";
 
       return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)}${live}${granted})${extra}`;
     })

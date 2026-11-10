@@ -5,13 +5,14 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { registryReadable } from "./attachments-app.ts";
 import { fundingClaimFunctions, invoicesClaims } from "./funding-claims.ts";
 import { fundingFunctions } from "./funding-functions.ts";
 import {
@@ -217,7 +218,7 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-function tables(ctx: BlockSqlContext): string {
+function tables(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const products = ctx.table("products");
   const awards = ctx.table("awards");
   const deliveries = ctx.table("deliveries");
@@ -313,7 +314,7 @@ create index if not exists ${name("awards", "product_idx")} on ${awards} (${w("t
 create index if not exists ${name("awards", "subject_idx")} on ${awards} (${w("subjectType")}, ${w("subjectId")});
 create index if not exists ${name("awards", "funder_idx")} on ${awards} (${w("tenant")}, ${w("funder")}, ${w("status")});
 ${lockModuleTable(ctx, "awards", { read: true })}
-${readPolicy("awards", `${ctx.scope.check(w("tenant"), read)} and coalesce(${canSubject}(${w("subjectType")}, ${w("subjectId")}, 'read'), false)`)}
+${readPolicy("awards", `${ctx.scope.check(w("tenant"), read)} and ${registryReadable(ctx, layout, "funding", { type: `${awards}.${w("subjectType")}`, id: `${awards}.${w("subjectId")}`, tenant: `${awards}.${w("tenant")}` })}`)}
 
 create table if not exists ${claims} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -413,7 +414,7 @@ function awardMerges(ctx: BlockSqlContext): string {
   );
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -425,7 +426,7 @@ function build(ctx: BlockSqlContext): string {
 -- Funding: the products a funder pays for, awards of units per period to a
 -- record, the care delivered against them, and claims to the funder with its
 -- response per line.
-${tables(ctx)}${fundingFunctions(ctx)}${fundingTimeFunctions(ctx)}${fundingClaimFunctions(ctx)}${awardMerges(ctx)}`;
+${tables(ctx, layout)}${fundingFunctions(ctx)}${fundingTimeFunctions(ctx)}${fundingClaimFunctions(ctx)}${awardMerges(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {

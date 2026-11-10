@@ -1,6 +1,6 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:1b235232d537fa8f8ab0d40b1fd562e099565a513910bb198eea8cf55a4b2a16
+-- @bsb-hash sha256:c2848394db9e9bb7e521d26a07a5791678a4c3a381a878054614ae74838ad326
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -827,6 +827,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) from public, anon;
 grant execute on function "better_supabase"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) to authenticated, service_role;
+
+-- One active company by id, or null when it is archived, missing or hidden by
+-- row level security.
+create or replace function "better_supabase"."get_company"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") from "better_supabase"."companies" x
+  where x."id" = get_company.id and x."archived_at" is null
+$$;
+revoke execute on function "better_supabase"."get_company"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_company"(uuid) to authenticated, service_role;
+
+-- One active person by id, or null when it is archived, missing or hidden by
+-- row level security.
+create or replace function "better_supabase"."get_person"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") from "better_supabase"."people" x
+  where x."id" = get_person.id and x."archived_at" is null
+$$;
+revoke execute on function "better_supabase"."get_person"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_person"(uuid) to authenticated, service_role;
 
 -- The people of a company with their role, primary contact first.
 create or replace function "better_supabase"."company_people_of"(company uuid)
@@ -2141,6 +2171,26 @@ set search_path = ''
 as $$ select "better_supabase"."list_people"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
 revoke execute on function "api"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) from public, anon;
 grant execute on function "api"."list_people"(uuid, text, text, uuid, text, uuid, integer, text, text) to authenticated, service_role;
+
+create or replace function "api"."get_company"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_company"($1) $$;
+revoke execute on function "api"."get_company"(uuid) from public, anon;
+grant execute on function "api"."get_company"(uuid) to authenticated, service_role;
+
+create or replace function "api"."get_person"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_person"($1) $$;
+revoke execute on function "api"."get_person"(uuid) from public, anon;
+grant execute on function "api"."get_person"(uuid) to authenticated, service_role;
 
 create or replace function "api"."company_people_of"(company uuid)
 returns jsonb

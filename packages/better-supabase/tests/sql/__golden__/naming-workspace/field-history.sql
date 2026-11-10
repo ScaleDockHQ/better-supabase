@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:4d0404a3c70702136480f44e3a46d13445220b3084299283b80673455b526bbe
+-- @bsb-hash sha256:10be452eb7646a67ab4b6db5faaa0c11e4a6f260c0cb0f72736aa4e0a6dd0410
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
 create policy bsb_field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."field_changes"."subject_type", "better_supabase"."field_changes"."subject_id", 'read'), false));
 
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -73,7 +73,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."field_changes" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."field_changes"."subject_type", "better_supabase"."field_changes"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."field_changes" as restrictive
   for insert to public

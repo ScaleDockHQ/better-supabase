@@ -3,7 +3,7 @@ import type {
   BlockSqlContractFunction,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -23,6 +23,7 @@ import {
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { onSettings } from "../subjects.ts";
+import { registryReadable } from "./attachments-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
@@ -141,7 +142,7 @@ create trigger ${name} after update of ${watched} on ${binding.subject.qualified
 for each row execute function better_supabase.${name}();`;
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const bindings = historyBindings(ctx);
   const read = ctx.permission("read", moduleOperations("field-history").read);
   const fn = (name: string): string => ctx.fn(name);
@@ -181,7 +182,7 @@ create index if not exists ${ctx.naming.rename("field_changes_tenant_idx")} on $
       : ""
   }
 ${lockTable(t, { read: true })}
-${renderPolicy(makePolicy({ table: t, name: policy, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and coalesce(${canSubject}(${c("subjectType")}, ${c("subjectId")}, 'read'), false)` }), { target: t })}
+${renderPolicy(makePolicy({ table: t, name: policy, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${registryReadable(ctx, layout, "field-history", { type: `${t}.${c("subjectType")}`, id: `${t}.${c("subjectId")}`, tenant: `${t}.${c("tenant")}` })}` }), { target: t })}
 ${partitioned ? `\n${MONTHLY_PARTITIONS}\n${registerPartitions(t)}\n` : ""}${bindings.map((binding) => bindingTrigger(ctx, binding, c)).join("\n")}
 
 -- A record's changes, newest first, optionally of one field. before is the id

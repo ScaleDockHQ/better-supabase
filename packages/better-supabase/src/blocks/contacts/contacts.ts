@@ -327,6 +327,14 @@ export interface Contacts<F extends object = Record<never, never>> {
   supplierStatusFromQualifications(
     companyId: string,
   ): AsyncResult<SupplierStatus>;
+  /**
+   * One active company by id, or `null` when it is archived, missing or hidden
+   * by row level security. One read, where paging `listCompanies` takes one
+   * request per 200 companies.
+   */
+  getCompany(id: string): AsyncResult<Company<F> | null>;
+  /** One active person by id, or `null`; see `getCompany`. */
+  getPerson(id: string): AsyncResult<Person | null>;
   /** A company's people with their role, primary contact first. */
   peopleOf(companyId: string): AsyncResult<CompanyPerson[]>;
   /** A person's addresses on channels, by channel and address. */
@@ -855,6 +863,16 @@ export function createContacts<
         "supplier_status_from_qualifications",
         { party: companyId },
         (value) => enumOrThrow(value, SUPPLIER_STATUSES, "supplier status"),
+      ),
+    getCompany: (id) =>
+      call("get_company", { id }, (value) =>
+        value === null ? null : companyOf(value),
+      ).andThen((row) =>
+        row === null ? AsyncResult.ok(null) : readFields(fields, row),
+      ),
+    getPerson: (id) =>
+      call("get_person", { id }, (value) =>
+        value === null ? null : personOf(value),
       ),
     peopleOf: (companyId) =>
       call("company_people_of", { company: companyId }, (value) =>

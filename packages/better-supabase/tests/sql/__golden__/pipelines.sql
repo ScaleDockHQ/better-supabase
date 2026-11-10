@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:86e79773861d98b4a0c6efac4f7f73550cb24df4693ecb0f371b3f486f21fa75
+-- @bsb-hash sha256:3e93c947d09989f12b1405883b5d8605b23450583480d3221899ea299b91a286
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,7 +106,7 @@ grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
 create policy bsb_pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false));
 
 -- The default pipeline of a subject type in a tenant and scope. The first
 -- call creates it from the type's stage template in on.
@@ -638,7 +638,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_histo
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public
@@ -668,7 +668,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:b3535eff9a867866bc0ca27900d07317ed9f46c5a8dd7ad4c22f3486428a1ead
+-- @bsb-hash sha256:8f92f77fc4229a881369e0a21fcd6db60acc423cf04e4ef0f1aeb0997ff0a373
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -773,7 +773,7 @@ grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
 create policy bsb_pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false));
 
 -- The default pipeline of a subject type in a tenant and scope. The first
 -- call creates it from the type's stage template in on.
@@ -2151,7 +2151,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_histo
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public
@@ -2184,7 +2184,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:08aa0f5adf5ecac1d4a16597d684141f13d2ce8e8c08369b192a4095f9a3aa5b
+-- @bsb-hash sha256:4a54e6a5cd144a4b5d85a6e62bee68e8bd837a24d4d97e32b11d26f57b54b72f
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2294,7 +2294,7 @@ grant all on "app_private"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
 create policy bsb_pipeline_stage_history_read on "app_private"."pipeline_stage_history"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("app_private"."pipeline_stage_history"."subject_type", "app_private"."pipeline_stage_history"."subject_id", 'read'), false));
 
 -- The default pipeline of a subject type in a tenant and scope. The first
 -- call creates it from the type's stage template in on.
@@ -2826,7 +2826,7 @@ create policy bsb_tenant_scope_select on "app_private"."pipeline_stage_history" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("app_private"."pipeline_stage_history"."subject_type", "app_private"."pipeline_stage_history"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "app_private"."pipeline_stage_history" as restrictive
   for insert to public
@@ -2856,7 +2856,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:1c8b5b1c8f7ac49c6aa33dff2c5392dc44b44847f1d09fdb73400c2df4cf5c51
+-- @bsb-hash sha256:6e1a93c397889db14848f034aa2b71ef2a9c981aaa5ae5a8f3c2794b2231465f
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2961,7 +2961,7 @@ grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
 create policy bsb_pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false));
 
 -- The default pipeline of a subject type in a tenant and scope. The first
 -- call creates it from the type's stage template in on.
@@ -3493,7 +3493,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_histo
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public
@@ -3630,7 +3630,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:7a250956093370252bdc5a553cfb4440fc5a00b59e2d45ca432d28728b296a76
+-- @bsb-hash sha256:81406c37c79d298609c15870ccff3f7f564b31c26c3254fdec612f3154563be6
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3728,7 +3728,7 @@ grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
 create policy bsb_pipeline_stage_history_select on "better_supabase"."pipeline_stage_history"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false));
 
 -- The default pipeline of a subject type in a tenant and scope. The first
 -- call creates it from the type's stage template in on.
@@ -4260,7 +4260,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_histo
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public
@@ -4290,7 +4290,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:a92e5788d001a79086f6a813e1dc963117dde9a5185695761b70f65f255c93ce
+-- @bsb-hash sha256:16d0aa7d8a002fcd5321fe59413b7be648ac33dd4f1128c701911b66f2215805
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4395,7 +4395,7 @@ grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
 create policy bsb_pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false));
 
 -- The default pipeline of a subject type in a tenant and scope. The first
 -- call creates it from the type's stage template in on.
@@ -4927,7 +4927,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."pipeline_stage_histo
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."pipeline_stage_history"."subject_type", "better_supabase"."pipeline_stage_history"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."pipeline_stage_history" as restrictive
   for insert to public

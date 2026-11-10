@@ -6,7 +6,7 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -24,6 +24,7 @@ import {
 import { subjectInTenant, subjectTenant } from "../subject-check-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { onSettings } from "../subjects.ts";
+import { registryReadable } from "./attachments-app.ts";
 import { asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
@@ -335,7 +336,7 @@ create trigger ${name} after insert or update of ${watched} on ${binding.subject
 for each row execute function better_supabase.${name}();`;
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -622,7 +623,7 @@ ${renderPolicy(makePolicy({ table: t("escalations"), name: "sla_escalations_read
 `
     : ""
 }
-${renderPolicy(makePolicy({ table: t("clocks"), name: "sla_clocks_read", command: "select", roles: ["authenticated"], using: `${ctx.scope.check(k("tenant"), read)} and ${ctx.of("subjects").fn("can_subject")}(${k("subjectType")}, ${k("subjectId")}, 'read')` }), { target: t("clocks") })}
+${renderPolicy(makePolicy({ table: t("clocks"), name: "sla_clocks_read", command: "select", roles: ["authenticated"], using: `${ctx.scope.check(k("tenant"), read)} and ${registryReadable(ctx, layout, "sla", { type: `${t("clocks")}.${k("subjectType")}`, id: `${t("clocks")}.${k("subjectId")}`, tenant: `${t("clocks")}.${k("tenant")}` })}` }), { target: t("clocks") })}
 `
     : ""
 }

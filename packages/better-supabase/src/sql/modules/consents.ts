@@ -5,11 +5,12 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
+import { registryReadable } from "./attachments-app.ts";
 import { consentsFunctions } from "./consents-functions.ts";
 import {
   consentGateFunctions,
@@ -184,7 +185,7 @@ const NAMES: BlockSqlNames = {
 const quoted = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
-function tables(ctx: BlockSqlContext): string {
+function tables(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const q = consentsSql(ctx);
   const { p, c, has, purposes, consents } = q;
 
@@ -197,8 +198,6 @@ function tables(ctx: BlockSqlContext): string {
     definition: (name: string) => string,
   ): string =>
     has(table, column) ? `  ${definition(ctx.col(table, column))},\n` : "";
-
-  const canSubject = ctx.of("subjects").fn("can_subject");
 
   return `create table if not exists ${purposes} (
   ${p("id")} uuid primary key default gen_random_uuid(),
@@ -241,11 +240,11 @@ create index if not exists ${name("consents", "subject_idx")} on ${consents} (${
 create index if not exists ${name("consents", "purpose_idx")} on ${consents} (${c("purpose")});
 create index if not exists ${name("consents", "expiry_idx")} on ${consents} (${c("validUntil")}) where ${c("status")} = 'granted' and ${c("validUntil")} is not null;
 ${lockTable(consents, { read: true })}
-${renderPolicy(makePolicy({ table: consents, name: name("consents", "read"), command: "select", roles: ["authenticated"], using: `(${ctx.scope.check(c("tenant"), q.read)} and ${canSubject}(${c("subjectType")}, ${c("subjectId")}, 'read')) or ${c("givenByUser")} = (select auth.uid())` }), { target: consents })}
+${renderPolicy(makePolicy({ table: consents, name: name("consents", "read"), command: "select", roles: ["authenticated"], using: `(${ctx.scope.check(c("tenant"), q.read)} and ${registryReadable(ctx, layout, "consents", { type: `${consents}.${c("subjectType")}`, id: `${consents}.${c("subjectId")}`, tenant: `${consents}.${c("tenant")}` })}) or ${c("givenByUser")} = (select auth.uid())` }), { target: consents })}
 `;
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -253,7 +252,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Consent per record and purpose: what an organization asks consent for, each
 -- decision with who made it and its evidence, withdrawals and expiry.
-${tables(ctx)}
+${tables(ctx, layout)}
 ${consentsSignalTables(ctx, consentsSql(ctx))}
 ${consentsFunctions(ctx)}
 ${consentsSignalFunctions(ctx)}

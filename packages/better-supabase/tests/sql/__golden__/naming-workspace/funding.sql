@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:11286f1da416c9fdc61ebd2e22e3329d8d9e161f67390938d4e81b7f36c7a688
+-- @bsb-hash sha256:81360a311fc74edaf1cb71bd6a2c90e596667f67cb8361148ddd60d57f686e19
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,7 @@ grant select on "better_supabase"."funding_awards" to authenticated;
 grant all on "better_supabase"."funding_awards" to service_role;
 create policy bsb_funding_awards_read on "better_supabase"."funding_awards"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."funding_awards"."subject_type", "better_supabase"."funding_awards"."subject_id", 'read'), false));
 
 create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1019,7 +1019,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."funding_awards" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."funding_awards"."subject_type", "better_supabase"."funding_awards"."subject_id", 'read'), false))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."funding_awards" as restrictive
   for insert to public

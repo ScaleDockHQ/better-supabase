@@ -28,7 +28,6 @@ select is(
 
 -- Inside a batch: three inserts and two renames each, no refresh call yet.
 select set_config('better_supabase.search_deferred', 'on', true);
-select set_config('better_supabase.search_dirty', '', true);
 
 insert into public.customers (id, organization_id, name)
 select ('00000000-0000-4000-8000-00000000c1' || lpad(n::text, 2, '0'))::uuid, '00000000-0000-4000-8000-000000000001', 'Batch ' || n
