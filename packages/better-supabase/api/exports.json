@@ -3460,6 +3460,7 @@
       "TemplateParams",
       "TemplateValues",
       "Topic",
+      "TopicBroadcast",
       "TopicEvent",
       "TopicFanOutOptions",
       "TopicHandle",

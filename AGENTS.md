@@ -538,6 +538,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0644: Inline the remaining subject read policies, bound the memo keys and roll up replies in place.
 - 0642: Move offset lists onto the keyset template and warn about row triggers that ignore imports.
 - 0647: Hint at a large audit log in doctor, and keep the data hooks' refetches as they are.
+- 0663: Declare broadcast triggers on topics and copy database types to more files.
 - 0662: Export a list as CSV and page a list from ids.
 - 0661: Render rpc, stored rollup and copy functions from tags.
 - 0660: Move the remaining paged offset lists onto the keyset template.
