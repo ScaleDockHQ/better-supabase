@@ -43,6 +43,7 @@ describe("__complete", () => {
       "diff",
       "seed",
       "backfill",
+      "partition",
     ]);
     expect(await values("codemod", "n")).toEqual(["naming"]);
   });
