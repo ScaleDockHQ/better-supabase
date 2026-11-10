@@ -15,6 +15,8 @@ import { gzipSync } from "node:zlib";
 import { rolldown } from "rolldown";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { keptMeasurement } from "./keep-baseline.ts";
+
 const PACKAGE = resolve(import.meta.dirname, "../../packages/better-supabase");
 const CLI_BIN = resolve(PACKAGE, "dist/cli/bin.js");
 const SHIM = resolve(PACKAGE, "bin/better-supabase.js");
@@ -131,6 +133,29 @@ export { syncQueryWithApp, OfflineBoundary, nativePermissions };
  * larger.
  */
 const TOLERANCE = { ratio: 0.05, bytes: 256 };
+
+/** Slack around a committed gzip size: 5% or 256 bytes, whichever is larger. */
+function byteRoom(before: number): number {
+  return Math.max(TOLERANCE.bytes, before * TOLERANCE.ratio);
+}
+
+/**
+ * The file `update` writes. A size inside the slack keeps its committed number,
+ * so a pull request does not rewrite the baseline for noise.
+ */
+function recordedBaseline(
+  sizes: Readonly<Record<string, number>>,
+  previous: Readonly<Record<string, number>>,
+): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(sizes)
+      .toSorted(([left], [right]) => left.localeCompare(right))
+      .map(([name, size]) => [
+        name,
+        keptMeasurement(previous[name], size, byteRoom),
+      ]),
+  );
+}
 
 /**
  * Entries that may use Node built-ins. Everything else must run on any WinterTC
@@ -754,7 +779,17 @@ describe("bundle", () => {
     );
 
     if (process.env["BUNDLE_UPDATE"]) {
-      await writeFile(BASELINE, `${JSON.stringify(sizes, null, 2)}\n`);
+      const previous = existsSync(BASELINE)
+        ? (JSON.parse(await readFile(BASELINE, "utf-8")) as Record<
+            string,
+            number
+          >)
+        : {};
+
+      await writeFile(
+        BASELINE,
+        `${JSON.stringify(recordedBaseline(sizes, previous), null, 2)}\n`,
+      );
 
       return;
     }
@@ -787,7 +822,17 @@ describe("bundle", () => {
     }
 
     if (process.env["BUNDLE_UPDATE"]) {
-      await writeFile(SHIPPED_BASELINE, `${JSON.stringify(sizes, null, 2)}\n`);
+      const previous = existsSync(SHIPPED_BASELINE)
+        ? (JSON.parse(await readFile(SHIPPED_BASELINE, "utf-8")) as Record<
+            string,
+            number
+          >)
+        : {};
+
+      await writeFile(
+        SHIPPED_BASELINE,
+        `${JSON.stringify(recordedBaseline(sizes, previous), null, 2)}\n`,
+      );
 
       return;
     }

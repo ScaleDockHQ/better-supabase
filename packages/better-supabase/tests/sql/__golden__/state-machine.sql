@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:547513db426f38e52f838ca1f29cf674605b69295787d2c12a02528d1ab2707a
+-- @bsb-hash sha256:206605b1ce64f247c47c159427da2bf6e6b0c69d8a24f731339de843a92021f7
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -225,6 +225,7 @@ declare
   v_tenant text;
   v_step integer;
   v_paused boolean := false;
+  v_next text[];
 begin
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
 end;
@@ -332,7 +333,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:6eaafbec1b4950a9c643eeb31fc19117e5d2c138118bb6419d8e684c75d7cd48
+-- @bsb-hash sha256:78752d9a418623779c69e0d45cd9492e3fe2fbf93d5e4cb2cbb1c1bf1c21b4dd
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -643,6 +644,7 @@ declare
   v_tenant text;
   v_step integer;
   v_paused boolean := false;
+  v_next text[];
 begin
   case status_state.subject_type
     when 'warranty_claim' then
@@ -652,10 +654,11 @@ begin
         raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
       end if;
 
+      v_next := case v_status when 'draft' then '{submitted}'::text[] when 'submitted' then '{approved,denied}'::text[] when 'approved' then '{closed}'::text[] when 'denied' then '{closed}'::text[] else '{}'::text[] end;
       v_step := array_position(null::text[], v_status);
       return jsonb_build_object(
         'organizationId', v_tenant, 'subjectType', 'warranty_claim', 'subjectId', status_state.subject_id,
-        'status', v_status, 'order', to_jsonb(null::text[]), 'step', v_step, 'steps', null, 'progress', null,
+        'status', v_status, 'next', to_jsonb(v_next), 'order', to_jsonb(null::text[]), 'step', v_step, 'steps', null, 'progress', null,
         'version', null, 'flags', '[]'::jsonb, 'paused', false, 'pausedAt', null, 'pausedUntil', null, 'pauseReason', null);
     else
       raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
@@ -802,7 +805,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:0b30884048ac42ee41992c859766285e985f0eb2a5a26247ddfe5e7af437fc2c
+-- @bsb-hash sha256:b75a69c86e7276cc1b01c93a687fc88e56038bb64cb6833568d6312966b1333b
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1031,6 +1034,7 @@ declare
   v_tenant text;
   v_step integer;
   v_paused boolean := false;
+  v_next text[];
 begin
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
 end;
@@ -1138,7 +1142,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:50749a1c47eb6e195baa0660a34c0ed992656584be11f0d8e58ddd78b179bb96
+-- @bsb-hash sha256:e953d6e31e7c6566a42c411824de8d3f31d714a8b10453d0124be602648cb6c6
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1362,6 +1366,7 @@ declare
   v_tenant text;
   v_step integer;
   v_paused boolean := false;
+  v_next text[];
 begin
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
 end;
@@ -1539,7 +1544,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:e9d470111785959ce7c9e408cac2ca0db38273db7e3c7330d03ec5449c36a508
+-- @bsb-hash sha256:dca97413d5dc0fe735534bd4b2642db3a75d3ac69b975c13cf917312f21578b5
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1756,6 +1761,7 @@ declare
   v_tenant text;
   v_step integer;
   v_paused boolean := false;
+  v_next text[];
 begin
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
 end;
@@ -1863,7 +1869,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:1605769f9eaa1224492358e9bb12ed03a01bfaa3dc0fd85422865007df9d9b7c
+-- @bsb-hash sha256:1300a96593e7b0b5f878b550951d332325b2546d9ca485dd5a7649f8113310eb
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2087,6 +2093,7 @@ declare
   v_tenant text;
   v_step integer;
   v_paused boolean := false;
+  v_next text[];
 begin
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
 end;

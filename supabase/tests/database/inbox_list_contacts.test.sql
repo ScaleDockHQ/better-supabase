@@ -1,5 +1,5 @@
 -- list_inbox_conversations joins contacts, inbox and read times in one pass
--- (ADR 0638). Acme (…0001) has the Help inbox with one conversation from Road
+-- (ADR 0652). Acme (…0001) has the Help inbox with one conversation from Road
 -- Runner and the member …a2; Globex (…0002) has the owner …a3.
 begin;
 select plan(9);

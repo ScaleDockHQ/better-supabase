@@ -1,6 +1,11 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { countedLine, declared, lineColumn } from "../line-items-sql.ts";
+import {
+  countedLine,
+  declared,
+  lineColumn,
+  lineRateValue,
+} from "../line-items-sql.ts";
 import { hasLegalEntityColumn } from "../numbering-sql.ts";
 import { fail, userGrant } from "../shared.ts";
 import { linked } from "./banking-sql.ts";
@@ -247,7 +252,7 @@ function issueInvoiceTax(ctx: BlockSqlContext): string {
   -- issue date; a margin scheme line charges nothing on top of its price.
   update ${inv.table("lines")} x set
     ${lineCode ? `${il("taxCode")} = y.${c("code")},` : ""}
-    ${il("taxRateBps")} = case when y.${c("type")} = 'margin' then 0 else coalesce(${fn("tax_rate_on")}(y.${c("id")}, issue_invoice_tax.on_date), x.${il("taxRateBps")}) end
+    ${il("taxRateBps")} = ${lineRateValue(inv, "lines", "taxRateBps", `case when y.${c("type")} = 'margin' then 0 else coalesce(${fn("tax_rate_on")}(y.${c("id")}, issue_invoice_tax.on_date), ${lineColumn(inv, "lines", "x", "taxRateBps")}) end`)}
   from ${q.codes} y
   where x.${il("parent")} = v_inv.${i("id")} and x.${il("taxCodeId")} = y.${c("id")};`
     : "";

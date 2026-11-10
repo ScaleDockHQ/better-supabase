@@ -1,6 +1,6 @@
 -- The hot reads of the examples on the scale fixture: the inbox page, the
 -- notification counts, the task board, the customer list and the islands
--- bootstrap (ADR 0638). Each read prints SCALE_MS, and the EXPLAIN baselines in
+-- bootstrap (ADR 0652). Each read prints SCALE_MS, and the EXPLAIN baselines in
 -- the ADR come from the same data. Set bsb.scale_rows to resize (default 20,000).
 begin;
 select plan(14);

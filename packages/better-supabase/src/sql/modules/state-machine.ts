@@ -24,6 +24,12 @@ import {
   transitionActorSql,
 } from "../shared.ts";
 import {
+  guardCheck,
+  guardGate,
+  guardPermission,
+  stampWrite,
+} from "./state-machine-guards.ts";
+import {
   LIFECYCLE_INTERNAL,
   lifecycleWorkflowSql,
   WORKFLOW_DECLARE,
@@ -462,9 +468,13 @@ ${item.workflow === undefined ? "" : WORKFLOW_DECLARE}`
       ${importedWrite}
     end if;`
         }
-    ${stageWrite(ctx, item, "open")}
+    ${stageWrite(ctx, item, "open")}${stampWrite(ctx, item, true)}
     ${lifecycleInsert(ctx, item)}`
-      : workflowInsert(ctx, item, stageWrite(ctx, item, "open"));
+      : workflowInsert(
+          ctx,
+          item,
+          `${stampWrite(ctx, item, true)}${stageWrite(ctx, item, "open")}`,
+        );
 
   const check =
     item.workflow === undefined
@@ -500,7 +510,7 @@ ${declare}begin
   if ${ctx.importing()} then
     return new;
   end if;
-  ${check}${approvalGate(ctx, item)}${pauseGate(ctx, item)}
+  ${check}${guardGate(ctx, item)}${approvalGate(ctx, item)}${pauseGate(ctx, item)}${stampWrite(ctx, item, false)}
   ${write}
   ${stageWrite(ctx, item, "advance")}
   ${ctx.record({
@@ -773,6 +783,42 @@ function readers(ctx: BlockSqlContext, list: readonly Machine[]): string {
       v_paused := ${l("pausedAt")} is not null and (${l("pausedUntil")} is null or ${l("pausedUntil")} > now());`
       : "";
 
+    const edges = Object.entries(item.transitions)
+      .map(([from, to]) => `when ${sqlString(from)} then ${textArray(to)}`)
+      .join(" ");
+
+    const listed =
+      graph?.next ??
+      (edges === ""
+        ? "'{}'::text[]"
+        : `case v_status ${edges} else '{}'::text[] end`);
+
+    const guarded = item.guards
+      .map((guard) => {
+        const passes = [
+          guardPermission(ctx, item, guard, "s"),
+          guardCheck(guard, "s"),
+        ]
+          .filter((part) => part !== undefined)
+          .join(" and ");
+
+        return `
+      if v_status = ${sqlString(guard.from)} and not exists (select 1 from ${quotedTable(item.table)} s where ${idMatches(item, "s", "status_state.subject_id")} and ${passes}) then
+        v_next := array_remove(v_next, ${sqlString(guard.to)});
+      end if;`;
+      })
+      .join("");
+
+    const next = `
+      v_next := ${item.optional ? `case when v_status is null then ${textArray([item.initial])} else ${listed} end` : listed};${guarded}${
+        item.lifecycle
+          ? `
+      if v_paused then
+        v_next := '{}'::text[];
+      end if;`
+          : ""
+      }`;
+
     const lifeJson = item.lifecycle
       ? `'version', ${l("version")}, 'flags', to_jsonb(coalesce(${l("flags")}, '{}')),
         'paused', v_paused, 'pausedAt', case when v_paused then ${l("pausedAt")} end,
@@ -785,11 +831,11 @@ function readers(ctx: BlockSqlContext, list: readonly Machine[]): string {
       if not found then
         ${NOT_FOUND}
       end if;
-${life}${graph?.load ?? ""}
+${life}${graph?.load ?? ""}${next}
       v_step := array_position(${order}, v_status);
       return jsonb_build_object(
         'organizationId', v_tenant, 'subjectType', ${sqlString(item.name)}, 'subjectId', status_state.subject_id,
-        'status', v_status, 'order', to_jsonb(${order}), 'step', v_step, 'steps', ${graph?.steps ?? (steps === 0 ? "null" : String(steps))}, 'progress', ${progress},
+        'status', v_status, 'next', to_jsonb(v_next), 'order', to_jsonb(${order}), 'step', v_step, 'steps', ${graph?.steps ?? (steps === 0 ? "null" : String(steps))}, 'progress', ${progress},
         ${lifeJson});`;
   };
 
@@ -883,7 +929,8 @@ declare
   v_status text;
   v_tenant text;
   v_step integer;
-  v_paused boolean := false;${lifeVar}${orderVar}
+  v_paused boolean := false;
+  v_next text[];${lifeVar}${orderVar}
 begin
   ${byMachine(list, "status_state.subject_type", state)}
 end;

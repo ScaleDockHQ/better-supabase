@@ -1,4 +1,4 @@
-# 0638: Record the hot read baselines and join the inbox page's contacts in one pass
+# 0652: Record the hot read baselines and join the inbox page's contacts in one pass
 
 - Status: accepted
 - Date: 2026-11-10

@@ -8,7 +8,13 @@ import {
   createApprovals,
   sqlTransport,
 } from "../../src/blocks/approvals/index.ts";
-import { BlockSession, dbUrl, reachable } from "./block-session.ts";
+import { upgradePlan } from "../../src/sql/upgrade.ts";
+import {
+  BlockSession,
+  dbUrl,
+  flushDeferred,
+  reachable,
+} from "./block-session.ts";
 
 const live = await reachable();
 
@@ -326,6 +332,102 @@ describe.skipIf(!live)("approvals", () => {
         ].toSorted((a, b) => a.localeCompare(b)),
       );
       expect(await approvals.list().orThrow()).toEqual([]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("moves a consumed request to consumed and upgrades requests used before", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.client.query(TABLES);
+      const owner = await s.user("owner");
+      const requester = await s.user("requester");
+      const layout = layoutFor(owner.id);
+      await s.install(MODULES, layout);
+      const tenant = await s.organization(owner, { member: requester });
+
+      const approvals = createApprovals({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
+
+      await s.service();
+
+      const invoice = (
+        await s.rows<{ id: string }>(
+          "insert into approvals_it.invoices (organization_id) values ($1) returning id",
+          [tenant],
+        )
+      )[0]!.id;
+
+      await s.asRole(requester);
+
+      const request = await approvals
+        .request({
+          subject: { type: "invoice", id: invoice },
+          input: { action: "void" },
+        })
+        .orThrow();
+
+      await s.asRole(owner);
+      await approvals.approve({ id: request.id }).orThrow();
+      const consumed = await approvals.consume({ id: request.id }).orThrow();
+      expect(consumed.status).toBe("consumed");
+      expect(consumed.consumedAt).toBeDefined();
+      expect(
+        await s.value<boolean>(
+          "better_supabase.is_approved('invoice', $1, 'void')",
+          [invoice],
+        ),
+      ).toBe(true);
+      expect(
+        await approvals
+          .consume({ id: request.id })
+          .then((r) => !r.ok && r.error.hint),
+      ).toBe("APPROVAL_CONSUMED");
+
+      await s.service();
+      expect(
+        await s.hint(
+          "update better_supabase.approval_requests set status = 'approved' where id = $1",
+          [request.id],
+        ),
+      ).toContain("approval_requests_consumed_check");
+
+      await flushDeferred(s.client);
+      await s.client
+        .query(`alter table better_supabase.approval_requests drop constraint bsb_approval_requests_consumed_check;
+alter table better_supabase.approval_requests drop constraint bsb_approval_requests_status_check;
+alter table better_supabase.approval_requests add constraint approval_requests_status_check
+  check (status in ('pending', 'approved', 'rejected', 'cancelled', 'expired', 'consumed'));
+update better_supabase.approval_requests set status = 'approved' where status = 'consumed';`);
+      await flushDeferred(s.client);
+      await s.client
+        .query(`alter table better_supabase.approval_requests drop constraint approval_requests_status_check;
+alter table better_supabase.approval_requests add constraint approval_requests_status_check
+  check (status in ('pending', 'approved', 'rejected', 'cancelled', 'expired'));`);
+
+      const [plan] = upgradePlan([{ module: "approvals", version: 5 }], layout);
+      await flushDeferred(s.client);
+
+      for (const step of plan?.steps ?? []) {
+        await s.client.query(step.sql);
+      }
+
+      expect(
+        await s.rows(
+          "select status from better_supabase.approval_requests where id = $1",
+          [request.id],
+        ),
+      ).toEqual([{ status: "consumed" }]);
+      expect(
+        await s.hint(
+          "update better_supabase.approval_requests set consumed_at = null where id = $1",
+          [request.id],
+        ),
+      ).toContain("approval_requests_consumed_check");
     } finally {
       await s.close();
     }
