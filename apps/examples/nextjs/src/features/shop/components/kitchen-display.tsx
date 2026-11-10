@@ -53,7 +53,11 @@ export async function KitchenDisplay({
 }: {
   query: Record<string, string | string[] | undefined>;
 }) {
-  const permissions = await getPermissions();
+  const [permissions, kitchen, t] = await Promise.all([
+    getPermissions(),
+    getKitchen(v.is(StationParam, query["station"]) ? query["station"] : null),
+    getExtracted("shop"),
+  ]);
 
   if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
@@ -61,11 +65,6 @@ export async function KitchenDisplay({
 
   const canPrepare =
     can(permissions, "orders.prepare") || can(permissions, "orders.manage");
-
-  const [kitchen, t] = await Promise.all([
-    getKitchen(v.is(StationParam, query["station"]) ? query["station"] : null),
-    getExtracted("shop"),
-  ]);
 
   if (kitchen.kind === "no-organization") {
     return null;

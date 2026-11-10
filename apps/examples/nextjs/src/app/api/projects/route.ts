@@ -1,4 +1,4 @@
-import { bsb } from "../../../lib/supabase/server";
+import { bsbCore as bsb } from "../../../lib/supabase/server-core";
 
 // `projects_view` adds the task rollups, read with the caller's row level
 // security.
