@@ -38,26 +38,17 @@ import type {
 } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
+import type { ACCOUNT_PARTS, AccountParts } from "./account-parts.ts";
 import type {
   Access,
   AccessForOptions,
   Bootstrap,
   BootstrapCallOptions,
 } from "./bootstrap.ts";
-import type {
-  DeleteAccountOptions,
-  DeleteAccountResult,
-} from "./delete-account.ts";
 import type { LiteDriver } from "./lite.ts";
 import type { ReplicaState } from "./replicas.ts";
 import type { RequestIdOptions } from "./request-ids.ts";
 import type { ActiveSupport, SupportApi, SupportSessions } from "./support.ts";
-import type {
-  EndSessionsResult,
-  LastSignIn,
-  SuspendAccountOptions,
-  SuspendAccountResult,
-} from "./suspend-account.ts";
 
 /**
  * PostgREST request settings for the caller's repositories and the shared
@@ -486,37 +477,11 @@ export interface BetterServer<
     options?: { readonly as?: string; readonly stats?: StatsRecorder },
   ): AdminDb<M, F, E, B>;
   /**
-   * Deletes a user: the Auth user, then their objects in `buckets`, then a
-   * `mutation` notice for `auth.users`. Needs the secret key. With `postgres`,
-   * a delete the database refuses returns its own error and hint. Access tokens
-   * already issued stay valid until they expire.
+   * What `better-supabase/server/account` reads: `deleteAccount`,
+   * `suspendAccount`, `endSessions` and `lastSignIns` take the server as their
+   * first argument.
    */
-  deleteAccount(
-    userId: string,
-    options?: DeleteAccountOptions,
-  ): AsyncResult<DeleteAccountResult>;
-  /**
-   * Deletes the user's sessions. Without `postgres`, it calls `end_sessions` in
-   * the sessions block's API schema as the service role.
-   */
-  endSessions(userId: string): AsyncResult<EndSessionsResult>;
-  /**
-   * The last sign-in of each user in one call (`better_supabase.last_sign_ins`
-   * from the `sessions` module), over `postgres` or the service role's Data
-   * API. Users that don't exist are missing from the map.
-   */
-  lastSignIns(
-    userIds: readonly string[],
-  ): AsyncResult<ReadonlyMap<string, LastSignIn>>;
-  /**
-   * Bans the user in Auth and keeps their sessions, so Auth answers with
-   * `user_banned` (`endSessions: true` deletes them too). Lifting the ban ends
-   * the sessions first, so the user signs in again.
-   */
-  suspendAccount(
-    userId: string,
-    options: SuspendAccountOptions,
-  ): AsyncResult<SuspendAccountResult>;
+  readonly [ACCOUNT_PARTS]: AccountParts;
   /**
    * Repositories running as a user, with RLS, over direct Postgres. With
    * `impersonation`, the claims carry `act: { kind: "impersonation", sub,

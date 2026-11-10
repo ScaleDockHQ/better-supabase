@@ -7,6 +7,11 @@ import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { cachedLife } from "../../src/next/cache.ts";
 import { createNext, sessionTag } from "../../src/next/index.ts";
+import {
+  deleteAccount,
+  endSessions,
+  suspendAccount,
+} from "../../src/server/account/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -201,7 +206,7 @@ describe("private-cache scopes", () => {
     mocks.updateTag.mockReset();
 
     try {
-      const result = await admin.deleteAccount(USER);
+      const result = await deleteAccount(admin, USER);
       expect(result).toMatchObject({
         ok: true,
         data: { userId: USER, removed: {} },
@@ -212,7 +217,7 @@ describe("private-cache scopes", () => {
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
 
       mocks.updateTag.mockReset();
-      expect(await bsb.deleteAccount(USER)).toMatchObject({
+      expect(await deleteAccount(bsb, USER)).toMatchObject({
         ok: false,
         error: { kind: "unexpected" },
       });
@@ -248,15 +253,18 @@ describe("suspending accounts", () => {
     mocks.updateTag.mockReset();
 
     try {
-      expect(await bsb.endSessions(USER)).toMatchObject({
+      expect(await endSessions(bsb, USER)).toMatchObject({
         ok: true,
         data: { userId: USER, ended: 2 },
       });
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
       mocks.updateTag.mockReset();
-      expect(await bsb.suspendAccount(USER, { suspended: true })).toMatchObject(
-        { ok: true, data: { userId: USER, suspended: true, ended: 0 } },
-      );
+      expect(
+        await suspendAccount(bsb, USER, { suspended: true }),
+      ).toMatchObject({
+        ok: true,
+        data: { userId: USER, suspended: true, ended: 0 },
+      });
       expect(calls).toEqual([`PUT ${PROJECT_URL}/auth/v1/admin/users/${USER}`]);
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
       expect(queryRaw).toHaveBeenCalledOnce();

@@ -150,6 +150,10 @@ imports and lists any generator that still uses the `apiVersion: 1` shape.
 or the rate-limit header helpers. Import them from
 `better-supabase/server/accounts`, `better-supabase/server/csv` and
 `better-supabase/server/rate-limit`; `codemod server-imports` splits each import.
+The servers no longer have `deleteAccount`, `suspendAccount`, `endSessions` or
+`lastSignIns` methods. Call the functions from `better-supabase/server/account`
+with the server as the first argument (`deleteAccount(bsb, userId)`); `codemod
+account-calls` rewrites the calls and adds the import.
 Generators are plugins at `apiVersion: 2`, and `zod` 4.x and `valibot` 1.x are
 optional peers with a tested range.
 

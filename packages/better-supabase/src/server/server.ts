@@ -49,11 +49,11 @@ import { AsyncResult, err, ok } from "../core/result.ts";
 import { StatsRecorder } from "../core/stats.ts";
 import { credentialProviderOf } from "../credentials/provider.ts";
 import { loadEnv } from "../env/index.ts";
+import { ACCOUNT_PARTS, accountClient } from "./account-parts.ts";
 import { serverAudit } from "./audit.ts";
 import { bootstrapSchema, serverBootstrap } from "./bootstrap.ts";
 import { createClients } from "./clients.ts";
 import { delegationCap, ticketSubject } from "./delegation.ts";
-import { deleteAccount } from "./delete-account.ts";
 import { withServerContext } from "./entries/context.ts";
 import { CALL, callOf, registerCore, shareCore } from "./entries/core.ts";
 import { withSession } from "./entries/session.ts";
@@ -75,12 +75,6 @@ import { TENANT_HEADER } from "./server-types.ts";
 import { serverSessions } from "./sessions.ts";
 import { supportOff } from "./support-off.ts";
 import { supportStorage } from "./support-storage.ts";
-import {
-  accountClient,
-  endSessions,
-  lastSignIns,
-  suspendAccount,
-} from "./suspend-account.ts";
 import { serverTransaction } from "./transaction.ts";
 import { countVerifications } from "./verify-count.ts";
 
@@ -990,42 +984,13 @@ export function createServer<
       }) as AdminDb<M, F, E, B>;
     },
     support,
-    deleteAccount: (userId, deleteOptions) =>
-      deleteAccount(betterSupabase, serviceClient, userId, {
-        ...(options.postgres ? { sql: options.postgres.admin } : {}),
-        ...deleteOptions,
-      }).map((deleted) => {
-        audit.account("account.deleted", userId, { removed: deleted.removed });
-
-        return deleted;
-      }),
-    endSessions: (userId) =>
-      endSessions(accountTransport(), userId).map((ended) => {
-        audit.account("account.sessions_ended", userId, { ended: ended.ended });
-
-        return ended;
-      }),
-    lastSignIns: (userIds) => lastSignIns(accountTransport(), userIds),
-    suspendAccount: (userId, suspendOptions) =>
-      suspendAccount(
-        serviceClient,
-        accountTransport(),
-        userId,
-        suspendOptions,
-      ).map((suspended) => {
-        audit.account(
-          suspended.suspended ? "account.suspended" : "account.unsuspended",
-          userId,
-          {
-            ended: suspended.ended,
-            ...(suspendOptions.duration === undefined
-              ? {}
-              : { duration: suspendOptions.duration }),
-          },
-        );
-
-        return suspended;
-      }),
+    [ACCOUNT_PARTS]: {
+      betterSupabase,
+      service: serviceClient,
+      sql: options.postgres?.admin,
+      transport: accountTransport,
+      audit,
+    },
     actingAs: (userId, claims = {}, impersonation) => {
       const full: SqlClaims = {
         role: "authenticated",

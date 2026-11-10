@@ -4,7 +4,6 @@ import type { BlockTransport } from "../core/block-transport.ts";
 import type { DbError } from "../core/errors.ts";
 import type { SqlClient } from "../postgres/executor.ts";
 
-import { rpcTransport } from "../core/block-transport.ts";
 import { dbError, dbErrorOf, mapDbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
@@ -60,18 +59,6 @@ export type AccountTransport = SqlClient | BlockTransport;
 
 const isTransport = (client: AccountTransport): client is BlockTransport =>
   "call" in client && typeof client.call === "function";
-
-/**
- * Direct Postgres when configured, else the service role over the Data API
- * through the sessions block's API `schema`.
- */
-export function accountClient(
-  postgres: SqlClient | undefined,
-  service: () => SupabaseClient,
-  schema: string,
-): AccountTransport {
-  return postgres ?? rpcTransport(service(), { schema });
-}
 
 /** The schema `better_supabase.end_sessions` lives in, for a transport call. */
 const SESSIONS_SCHEMA = "better_supabase";

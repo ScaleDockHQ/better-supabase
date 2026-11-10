@@ -131,13 +131,13 @@ so it asks Auth and can report `ended` or `banned`.
 Done when the irreversible action returns `SESSION_REVOKED` for a signed-out
 session in a test.
 
-To lock a user out, call `bsb.suspendAccount(userId, { suspended: true })`.
+To lock a user out, call `suspendAccount(bsb, userId, { suspended: true })` (from `better-supabase/server/account`).
 It bans the user in Auth and keeps the sessions, so Auth answers with
 `user_banned`, `sessionStatus` returns `"banned"` and the `session_active()`
 policy refuses the user's tokens. `{ suspended: false }` ends every session
 and refresh token, then lifts the ban. Without the `sessions` SQL module, pass
 `endSessions: true` to delete the sessions on suspension too (the app then
-sees `"ended"`). `bsb.endSessions(userId)` signs a user out everywhere without
+sees `"ended"`). `endSessions(bsb, userId)` signs a user out everywhere without
 a ban. To
 switch a member off in one organization only, use the organizations block's
 `suspendMember`.

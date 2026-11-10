@@ -50,6 +50,7 @@ import {
   impersonatorOf,
   PRIMARY_COOKIE,
 } from "better-supabase/server";
+import { deleteAccount } from "better-supabase/server/account";
 import { createOpenApi } from "better-supabase/spec";
 import { defineBucket, defineBuckets } from "better-supabase/storage";
 import {
@@ -238,9 +239,10 @@ export function integrations(): unknown[] {
     createNext(betterSupabase)
       .claims()
       .then((session) => hasEntitlement(session, "organization", "exports")),
-    server
-      .deleteAccount("u1", { buckets: [logos], cascades: ["customers"] })
-      .map(({ removed }) => removed["customer-logos"]),
+    deleteAccount(server, "u1", {
+      buckets: [logos],
+      cascades: ["customers"],
+    }).map(({ removed }) => removed["customer-logos"]),
     createServer(betterSupabase, { readUrl: false, replicas: { pinMs: 1000 } })
       .context(new Request("https://app.test/"))
       .then((ctx) => {
