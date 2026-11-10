@@ -19,7 +19,9 @@ helpers).
 The entries that build a `db` (the client binding, `createServer`, the upstream entries, the
 transaction helper, the read-set probe, the PowerSync compiler and the testing helpers) call
 `provideConnectionRuntime()` once at module level; the unit tests install it in a setup file.
-`createProxy()` and the sessions runtime never import it.
+`createProxy()` and the sessions runtime never import it. The slot lives on `globalThis`
+(`Symbol.for("better-supabase.connection-runtime")`) because the CLI and the app it loads can hold
+separate copies of `core/define`; a definition built by one is connected by the other.
 
 The definition is not a separate data-only object with free functions (the plan's wording): the class
 and its generics stay, so generated code and every adapter keep working unchanged. Only the code moved.
