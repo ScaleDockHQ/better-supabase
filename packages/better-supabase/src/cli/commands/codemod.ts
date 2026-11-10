@@ -1,5 +1,5 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import { extname, join, relative, resolve } from "node:path";
+import { readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join, relative, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { TenantColumnSkip } from "../codemod-naming-pins.ts";
@@ -10,6 +10,7 @@ import type { Paint } from "../style.ts";
 
 import { SQL_MODULES } from "../../sql/index.ts";
 import { applyCodemod, CODEMODS } from "../codemod.ts";
+import { loadConfig } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import {
@@ -219,12 +220,44 @@ function tenantColumnsOf(config: ResolvedConfig): TenantColumnSkip {
   return { global, byTable };
 }
 
+/**
+ * The config as `codemod` rewrites it, loaded from a sibling file so relative
+ * imports resolve, or `undefined` when it still does not load. A 0.57 config
+ * fails on the keys `naming` renames, so the column renames read this one.
+ */
+async function loadRewritten(
+  codemod: (typeof CODEMODS)[string],
+  configFile: string,
+): Promise<ResolvedConfig | undefined> {
+  const text = await readFile(configFile, "utf-8");
+  const rewritten = applyCodemod(codemod, text, undefined, configFile).text;
+
+  if (rewritten === text) {
+    return;
+  }
+
+  const copy = join(
+    dirname(configFile),
+    `.${basename(configFile, extname(configFile))}.codemod-${String(process.pid)}${extname(configFile)}`,
+  );
+
+  try {
+    await writeFile(copy, rewritten);
+
+    return await loadConfig(dirname(configFile), copy);
+  } catch {
+    return;
+  } finally {
+    await rm(copy, { force: true });
+  }
+}
+
 export async function runCodemod(
-  config: ResolvedConfig,
+  loadedConfig: ResolvedConfig,
   args: CodemodOptions,
   paint: Paint = plain,
   configFile?: string,
-  configError?: CliError,
+  loadError?: CliError,
 ): Promise<CommandResult> {
   const [name, ...paths] = args._ ?? [];
 
@@ -244,6 +277,16 @@ export async function runCodemod(
       `Unknown codemod "${name}". Codemods:\n${names}`,
     );
   }
+
+  const rewritten =
+    codemod.name === "naming" &&
+    loadError !== undefined &&
+    configFile !== undefined
+      ? await loadRewritten(codemod, configFile)
+      : undefined;
+
+  const config = rewritten ?? loadedConfig;
+  const configError = rewritten === undefined ? loadError : undefined;
 
   // A codemod that reads the config can't tell what to change from the
   // default config; one that only rewrites text is how a user fixes the config.

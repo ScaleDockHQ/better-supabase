@@ -84,14 +84,16 @@ describe("the owned-columns codemod", () => {
     expect(again.files).toEqual([]);
   });
 
-  it("explains a project whose blocks don't render", async () => {
-    const result = await ownedColumnsCodemod().project!({
-      config: { ...config, blockNames: ["no-such-block"] },
-      sql: [],
+  it("fails config_invalid for a project whose blocks don't render", async () => {
+    await expect(
+      ownedColumnsCodemod().project!({
+        config: { ...config, blockNames: ["no-such-block"] },
+        sql: [],
+      }),
+    ).rejects.toMatchObject({
+      code: "config_invalid",
+      message: expect.stringContaining("don't render"),
     });
-
-    expect(result.files).toEqual([]);
-    expect(result.review[0]?.message).toContain("don't render");
   });
 
   it("skips an unknown module and a column the config turns off", async () => {

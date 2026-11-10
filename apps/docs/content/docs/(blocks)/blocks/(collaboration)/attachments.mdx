@@ -189,7 +189,11 @@ without the dot (empty when the name has none). It defaults to
 `{organization_id}/attachments/{id}`. `{organization_id}/attachments/{id}.{ext}`
 keeps the extension in the object name, for tools that read it.
 Changing it later rewrites the column on Postgres 17; on older versions,
-recreate the column in a migration.
+recreate the column in a migration. The data file gives a record the new path
+only while no object is stored at its old one. A stored object keeps its path,
+because Postgres can't move it: to move existing files, copy each object to the
+new path with `supabase.storage.from(bucket).move(from, to)` and update
+`object_path` in the same step.
 
 ## Upload and download
 

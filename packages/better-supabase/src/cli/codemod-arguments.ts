@@ -49,8 +49,9 @@ function openBracket(
  * workItemId: id }`, `result.workItemId` and the shorthand `{ workItemId }`,
  * which keeps its local name (`{ taskId: workItemId }`). A shorthand whose new
  * name is the same token stays shorthand (`{ taskId }`, not `{ taskId: taskId
- * }`). Only names inside `{` are renamed, plus a member access. The names in an
- * import or export list stay.
+ * }`), and so does a key whose value is the new name (`{ workItemId: taskId }`
+ * is `{ taskId }`). Only names inside `{` are renamed, plus a member access.
+ * The names in an import or export list stay.
  */
 export function renameArguments(
   text: string,
@@ -89,24 +90,36 @@ export function renameArguments(
       const listed = /\b(?:import|export)(?:\s+type)?\s*\{[^}]*$/.test(before);
 
       let replacement: string | undefined;
+      let length = match[0].length;
 
       if (memberOf) {
         replacement = to;
       } else if (inObject && key && !listed) {
+        const same = /^\s*:\s*([A-Za-z_$][\w$]*)(?=\s*[,}])/.exec(
+          text.slice(at + length),
+        );
+
         replacement = to;
+
+        if (same?.[1] === to) {
+          length += same[0].length;
+        }
       } else if (inObject && shorthand && !listed) {
         replacement = to === match[0] ? to : `${to}: ${match[0]}`;
       }
 
       if (replacement !== undefined) {
         out += text.slice(from, at) + replacement;
-        from = at + match[0].length;
+        from = at + length;
       }
     }
   }
 
   return out + text.slice(from);
 }
+
+const inCode = (text: string, index: number): boolean =>
+  codeRanges(text).some(([first, last]) => index >= first && index < last);
 
 const camel = (name: string): string =>
   name.replaceAll(/-([a-z])/g, (_all, letter: string) => letter.toUpperCase());
@@ -116,9 +129,10 @@ const escapeRegExp = (value: string): string =>
 
 /**
  * `text` with the block keys of the `blocks.<name>` rows renamed where code
- * reads them: `blocks["time-tracking"]`, `blockConfig["time-tracking"]` and
- * `db.$blocks.timeTracking`. The config key itself is renamed by the config
- * scanner.
+ * reads them: `blocks["time-tracking"]`, `blockConfig["time-tracking"]`,
+ * `db.$blocks.timeTracking` and the key of a `defineBlocks` entry that reads
+ * the block (`"time-tracking": blocks["time-tracking"]`). The config key itself
+ * is renamed by the config scanner.
  */
 export function renameBlockReferences(
   text: string,
@@ -134,27 +148,40 @@ export function renameBlockReferences(
       continue;
     }
 
-    const ranges = codeRanges(result);
+    result = result.replaceAll(
+      new RegExp(
+        String.raw`\b(?:blocks|blockConfig)\s*\[\s*(["'])${escapeRegExp(from)}\1\s*\]`,
+        "g",
+      ),
+      (whole, quote: string, offset: number, source: string) =>
+        inCode(source, offset)
+          ? `${whole.startsWith("blockConfig") ? "blockConfig" : "blocks"}[${quote}${to}${quote}]`
+          : whole,
+    );
 
-    const inCode = (index: number): boolean =>
-      ranges.some(([start, end]) => index >= start && index < end);
+    result = result.replaceAll(
+      new RegExp(
+        String.raw`(["'])${escapeRegExp(from)}\1(\s*:\s*blocks\s*\[\s*(["'])${escapeRegExp(to)}\3\s*\])`,
+        "g",
+      ),
+      (
+        whole,
+        quote: string,
+        value: string,
+        _inner: string,
+        offset: number,
+        source: string,
+      ) =>
+        inCode(source, offset + whole.length - 1)
+          ? `${quote}${to}${quote}${value}`
+          : whole,
+    );
 
-    result = result
-      .replaceAll(
-        new RegExp(
-          String.raw`\b(?:blocks|blockConfig)\s*\[\s*(["'])${escapeRegExp(from)}\1\s*\]`,
-          "g",
-        ),
-        (whole, quote: string, offset: number) =>
-          inCode(offset)
-            ? `${whole.startsWith("blockConfig") ? "blockConfig" : "blocks"}[${quote}${to}${quote}]`
-            : whole,
-      )
-      .replaceAll(
-        new RegExp(String.raw`(\$blocks\.)${camel(from)}\b`, "g"),
-        (whole, head: string, offset: number) =>
-          inCode(offset) ? `${head}${camel(to)}` : whole,
-      );
+    result = result.replaceAll(
+      new RegExp(String.raw`(\$blocks\.)${camel(from)}\b`, "g"),
+      (whole, head: string, offset: number, source: string) =>
+        inCode(source, offset) ? `${head}${camel(to)}` : whole,
+    );
   }
 
   return result;

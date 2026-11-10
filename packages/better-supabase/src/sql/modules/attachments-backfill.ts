@@ -20,12 +20,14 @@ export function attachmentBackfills(ctx: BlockSqlContext): string {
     { tenantless: true },
   ).filter(([, subject]) => subject.tenant === false);
 
-  // The trigger fills a null path again, so clearing it rewrites the row.
+  // The trigger fills a null path again, so clearing it rewrites the row. A
+  // stored object stays where it is, so its row keeps the path that finds it.
   const repath = ctx.owns("attachments")
     ? `
--- options.path: a row whose path no longer matches the template gets a new one.
+-- options.path: a row whose path no longer matches the template, and that has no stored object, gets a new one.
 update ${t} as x set ${c("path")} = null
-where x.${c("path")} is distinct from (select ${pathExpression(ctx, tenantless.length > 0)} from (select x.*) as r);`
+where x.${c("path")} is distinct from (select ${pathExpression(ctx, tenantless.length > 0)} from (select x.*) as r)
+  and not exists (select 1 from storage.objects o where o.bucket_id = x.${c("bucket")} and o.name = x.${c("path")});`
     : "";
 
   const status = documentsOn(ctx)

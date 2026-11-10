@@ -267,16 +267,24 @@ async function missingAdoptedColumns(
       ];
     }
 
-    const added =
-      SQL_MODULES[table.module]?.names?.tables[table.logical] !== undefined;
+    const spec = SQL_MODULES[table.module]?.names?.tables[table.logical];
+
+    const configured =
+      context.config.blocks[table.module]?.columns?.[table.logical];
 
     const fix = (logical: string): string =>
-      added
-        ? `Apply the block's migration (\`better-supabase upgrade\`), which adds it, or map blocks.${table.module}.columns.${table.logical}.${logical} to the column that holds it.`
-        : `Map the column in blocks.${table.module}.on to the one that holds it, or add it.`;
+      spec === undefined
+        ? `Map the column in blocks.${table.module}.on to the one that holds it, or add it.`
+        : `Add it in your schema (\`better-supabase codemod owned-columns\` declares the block's columns), or map blocks.${table.module}.columns.${table.logical}.${logical} to the column that holds it.`;
 
+    // An optional column the table lacks turns its feature off (ADR 0580), unless the config names it.
     return Object.entries(table.columns)
-      .filter(([, column]) => !present.has(column))
+      .filter(
+        ([logical, column]) =>
+          !present.has(column) &&
+          (spec?.optional?.includes(logical) !== true ||
+            typeof configured?.[logical] === "string"),
+      )
       .map(([logical, column]) => ({
         message: `blocks.${table.module} runs over ${target} and uses ${target}.${column} (${table.logical}.${logical}), but the table has no such column. ${fix(logical)}`,
         target: `${target}.${column}`,
@@ -948,7 +956,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "App table without a column a block uses",
     description:
-      "A block runs over a table of the app's, and the live database lacks a column its SQL names, so its functions fail until the block's migration adds it. The check reads every column the module's SQL names (`blocks.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped. A column on a table that `blocks.<name>.on` names isn't added by the block: map it or add it.",
+      "A block runs over a table of the app's, and the live database lacks a column its SQL names, so its functions fail until the app's schema adds it. The check reads every column the module's SQL names (`blocks.<name>.tables` and `columns`, with the defaults for unmapped ones); columns mapped to `null` are skipped, and so are optional columns the config doesn't name, because a table without one keeps that feature off (ADR 0580). Blocks don't add columns to the app's tables: declare them (`codemod owned-columns`) or map them.",
     check: missingAdoptedColumns,
   },
   {
