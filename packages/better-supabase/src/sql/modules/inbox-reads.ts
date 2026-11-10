@@ -315,7 +315,7 @@ grant execute on function ${fn("inbox_contact_read_at")}(uuid) to authenticated,
  * of once per conversation. It is plpgsql, so the contacts and messaging tables
  * bind when it runs, not when the inbox renders.
  */
-export function inboxContactsFunctions(q: InboxSql): string {
+function inboxContactsFunctions(q: InboxSql): string {
   const { fn, people } = q;
   const cv = q.cols("conversations");
   const ck = q.core.cols("members");

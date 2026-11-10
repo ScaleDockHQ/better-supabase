@@ -304056,8 +304056,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000164,
@@ -317362,8 +317361,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000246,
@@ -336354,8 +336352,7 @@
               "UPDATE"
             ]
           }
-        ],
-        "large": true
+        ]
       },
       {
         "id": 1000356,
@@ -374730,8 +374727,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000592,
@@ -376712,8 +376708,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000605,
