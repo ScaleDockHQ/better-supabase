@@ -20,6 +20,7 @@ import {
   appColumnsOf,
   declaredIndexes,
   declaredTableColumns,
+  declaredColumnTypes,
   declaredTables,
   declaredViews,
   declaredPolicies,
@@ -220,6 +221,7 @@ export async function moduleLayoutFor(
     ...(grants === undefined ? {} : { grants }),
     ...(apiUsed === undefined ? {} : { apiUsed }),
     schemasDir: await schemasDirOf(config),
+    uuidColumns: uuidColumnsOf(await appSchemaTexts(config), config.schemas),
     ...(resolved.has("pgtap") ? await accessTokenHookOf(config) : {}),
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }
@@ -251,6 +253,26 @@ export async function moduleLayoutFor(
       : {}),
     ...own,
   };
+}
+
+/** The columns the app's files declare as `uuid`, by `schema.table`. */
+function uuidColumnsOf(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): Readonly<Record<string, readonly string[]>> {
+  return Object.fromEntries(
+    [...declaredColumnTypes(files, schemas)]
+      .map(
+        ([table, columns]) =>
+          [
+            table,
+            [...columns].flatMap(([name, type]) =>
+              type === "uuid" ? [name] : [],
+            ),
+          ] as const,
+      )
+      .filter(([, columns]) => columns.length > 0),
+  );
 }
 
 /** The schema files the app wrote, not the ones blocks did. */

@@ -30,6 +30,32 @@ describe("reactions module", () => {
     expect(sql).not.toContain("'inbox_message'");
   });
 
+  it("compares an inferred uuid id inside its own branch, guarded by the id's shape", () => {
+    const sql = sqlOf(["reactions"], "reactions", {
+      subjects: { doc: { table: "public.docs" } },
+      uuidColumns: { "public.docs": ["id"] },
+    });
+
+    const policy = sql.slice(sql.indexOf("create policy"));
+
+    expect(policy).toContain(
+      `when 'doc' then exists (select 1 from "public"."docs" s where s."id" = (case when `,
+    );
+    expect(policy).toContain(
+      `then ("better_supabase"."reactions"."subject_id")::uuid end)`,
+    );
+  });
+
+  it("keeps the text comparison when the schema files do not declare a uuid id", () => {
+    const sql = sqlOf(["reactions"], "reactions", {
+      subjects: { doc: { table: "public.docs" } },
+      uuidColumns: { "public.other": ["id"] },
+    });
+
+    expect(sql).toContain(`s."id"::text = `);
+    expect(sql).not.toContain("::uuid end)");
+  });
+
   it("sees messages (and so comments and inbox messages) through their own policies", () => {
     const modules = ["reactions", "messaging", "comments", "inbox"];
 
