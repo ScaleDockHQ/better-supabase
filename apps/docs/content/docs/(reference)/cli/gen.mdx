@@ -438,6 +438,14 @@ stored`) or an identity column `always` is in `Row` and typed `?: never` in
   [BS338](/docs/cli/doctor#bs338) lists the config entries a tag could
   replace.
 
+  A function that returns `json` or `jsonb` takes its result type from the
+  config too, the way `gen.json` does for a column. `returns: { schema:
+"./invoice.ts#InvoiceTotal" }` names a Standard Schema export: the result is
+  typed from it and checked at runtime, as the `@bsb returns` comment tag does.
+  `returns: { import: "./types.ts#InvoiceTotal" }` imports a type, and
+  `returns: { type: "{ total: number }" }` writes one. The config wins over the
+  tag.
+
   Postgres has no syntax for `not null` on a `returns table` column, and the
   catalog records none, so `gen` can't infer it from the function body. Two
   things do carry it: a function that `returns setof` a table gets that

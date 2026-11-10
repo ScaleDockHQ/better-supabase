@@ -653,6 +653,13 @@ const FLAT = {
       v.string(),
       v.strictObject({
         notNull: v.optional(v.union([v.literal(true), strings])),
+        returns: v.optional(
+          v.union([
+            v.strictObject({ schema: v.string() }),
+            v.strictObject({ type: v.string() }),
+            v.strictObject({ import: v.string() }),
+          ]),
+        ),
       }),
     ),
   ),

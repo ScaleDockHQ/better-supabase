@@ -401,6 +401,29 @@ describe("function result nullability", () => {
     );
   });
 
+  it("types a function result from the config returns option", async () => {
+    const returns = await withScalars({
+      gen: {
+        functions: {
+          open_count: { returns: { type: "{ open: number }" } },
+          customer_row: { returns: { import: "./types.ts#CustomerSummary" } },
+          tag_names: { returns: { schema: "./schemas.ts#tagNames" } },
+        },
+      },
+    });
+
+    expect(returns("open_count")).toBe("{ open: number }");
+    expect(returns("customer_row")).toBe("CustomerSummary");
+    expect(returns("tag_names")).toBe(
+      "StandardSchemaV1.InferOutput<typeof tagNames>",
+    );
+    await expect(
+      withScalars({
+        gen: { functions: { open_count: { returns: { import: "nope" } } } },
+      }),
+    ).rejects.toThrow("functions.open_count.returns.import must look like");
+  });
+
   it("reads @notNull from the function comment, and the config wins", async () => {
     const tagged = {
       "public.open_count()": "Open tickets. @notNull",

@@ -3159,6 +3159,40 @@
                   }
                 ],
                 "description": "true for the whole result, or the returns table columns that are never null."
+              },
+              "returns": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "schema": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["schema"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["type"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "import": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["import"],
+                    "additionalProperties": false
+                  }
+                ]
               }
             },
             "additionalProperties": false
