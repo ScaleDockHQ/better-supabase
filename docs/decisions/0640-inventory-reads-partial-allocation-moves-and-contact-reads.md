@@ -44,6 +44,17 @@ document, and the call returns that allocation. A quantity of zero or more than 
 Dropping the old one-argument and four-argument overloads is part of the migration, so a caller that
 passes positional arguments through PostgREST keeps working (the new arguments have defaults).
 
+Server bundle growth, flagged for a decision: the two client methods and the optional quantity put
+about 875 bytes of raw JavaScript into every route that carries the block set. On
+`/[locale]/(app)/appraisals/page` the raw server baseline is 2,825,180 bytes and the build now
+measures 2,826,055 (+0.031 percent, 139 routes grow by the same amount); gzip and brotli stay inside
+their slack. The guard allows 512 bytes. The methods were trimmed to null defaults and a plain read
+descriptor, and the rest is the code itself (two calls with their argument maps and result
+descriptors), so trimming further would mean dropping the typed result checks. This change does not
+raise `tests/next-build/server-baseline.json`, because the update script never raises a baseline.
+The `verify / test` job fails on "never grows past the server baseline" until a maintainer either
+raises the baselines by about 875 bytes raw or asks for the two reads to go.
+
 Not done in this change, listed in the plan: `import_allocation`, a purchase order number, tax lines
 and a canceled quantity on purchase orders, sales order `draft` and `on_hold`, historical quote
 import on a status-guarded table, banking primary and holder columns, and batch reads for assistant
