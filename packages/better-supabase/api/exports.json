@@ -9638,6 +9638,7 @@
       "tableFeatures",
       "tableTagComments",
       "templateFunctions",
+      "templatePlaceholderProblems",
       "TENANT_SCOPE_NAMES",
       "TENANT_SCOPE_POLICY",
       "tenantsQuery",
