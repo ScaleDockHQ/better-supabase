@@ -525,7 +525,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0635: Split the connection runtime from the definition.
 - 0636: Tag every domain read, serve /api/v1 from an api block set and keep the catalog pages under 512 KB.
 - 0637: Page block lists by keyset, and render access, list and idempotency from tags.
-||||||| 504f283a61
+  ||||||| 504f283a61
 - 0648: Map the data of a bsb.action to another type with a third argument.
 - 0649: Observe the server's Supabase requests with a fetch wrapper.
 
