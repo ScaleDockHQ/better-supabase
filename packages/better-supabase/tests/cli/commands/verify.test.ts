@@ -10,6 +10,7 @@ import {
   runVerify,
 } from "../../../src/cli/commands/verify.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
+import { CliError } from "../../../src/cli/core/errors.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 
@@ -75,6 +76,89 @@ describe("db verify", () => {
           "utf-8",
         ),
       ).toContain("begin;");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a failing query as a failed command", async () => {
+    const failing: PgQueryable = {
+      // SAFETY: the query rejects.
+      query: () => Promise.reject(new Error("no connection")),
+    };
+
+    const { connect } = fakeConnect(failing);
+    const config = resolveConfig({}, "/tmp/verify");
+
+    const result = await runVerify(config, args([]), LOCAL, { open: connect });
+
+    expect(result).toMatchObject({ code: 1, errorCode: "failed" });
+    expect(result.error).toContain("no connection");
+  });
+
+  it("counts a single error and a single other finding", async () => {
+    const { connect } = fakeConnect(
+      dbWith({
+        ...exposed,
+        functions: [
+          {
+            schema: "public",
+            name: "danger",
+            definer: true,
+            searchPath: false,
+          },
+        ],
+      }),
+    );
+
+    const config = resolveConfig({}, "/tmp/verify");
+    const result = await runVerify(config, args([]), LOCAL, { open: connect });
+
+    expect(result.code).toBe(1);
+    expect(result.error).toContain("public.danger");
+  });
+
+  it("counts several errors and rethrows a CLI error", async () => {
+    const two = {
+      tables: [...exposed.tables, { ...exposed.tables[0], name: "tasks" }],
+      functions: [],
+    };
+
+    const config = resolveConfig({}, "/tmp/verify");
+
+    const result = await runVerify(config, args([]), LOCAL, {
+      open: fakeConnect(dbWith(two)).connect,
+    });
+
+    expect(result.error).toContain("2 errors");
+
+    const refusing: PgQueryable = {
+      // SAFETY: the query rejects with a CLI error.
+      query: () => Promise.reject(new CliError("not_found", "no schema")),
+    };
+
+    await expect(
+      runVerify(config, args([]), LOCAL, {
+        open: fakeConnect(refusing).connect,
+      }),
+    ).rejects.toThrow("no schema");
+  });
+
+  it("writes the files to --dir", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bsb-verify-dir-"));
+
+    try {
+      const config = resolveConfig({}, root);
+
+      const result = await runVerify(
+        config,
+        args(["--write-tests", "--dir", "tests/pg"]),
+        LOCAL,
+        { open: fakeConnect(dbWith({ tables: [], functions: [] })).connect },
+      );
+
+      expect(result.code).toBe(0);
+      expect(await readdir(join(root, "tests/pg"))).toHaveLength(6);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -46,6 +46,31 @@ describe("reactions module", () => {
     );
   });
 
+  it("finds a uuid id column the registry names, in a table without a schema", () => {
+    const sql = sqlOf(["reactions"], "reactions", {
+      subjects: { doc: { table: "docs", id: "doc_id" } },
+      uuidColumns: { "public.docs": ["doc_id"] },
+    });
+
+    expect(sql).toContain(`s."doc_id" = (case when `);
+  });
+
+  it("refuses a malformed subject entry", () => {
+    const render = (entry: Record<string, unknown>) =>
+      sqlOf(["reactions"], "reactions", {
+        // SAFETY: the test passes entries the types refuse.
+        subjects: { doc: entry } as never,
+      });
+
+    expect(() => render({ table: "docs", idType: "UUID!" })).toThrow(
+      /must be a type name/u,
+    );
+    expect(() => render({ table: "docs", idType: 5 })).toThrow(
+      /must be a string/u,
+    );
+    expect(() => render({})).toThrow(/needs a table/u);
+  });
+
   it("keeps the text comparison when the schema files do not declare a uuid id", () => {
     const sql = sqlOf(["reactions"], "reactions", {
       subjects: { doc: { table: "public.docs" } },
