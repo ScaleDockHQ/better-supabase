@@ -8,7 +8,7 @@ import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -47,7 +47,7 @@ import { signOffAppraisal } from "../appraisals-actions";
 
 type GridRow = AppraisalRow & { readonly canSign: boolean };
 
-type AppraisalCell = CellContext<DataGridFeatures, GridRow>;
+type AppraisalCell = CellContext<ReadOnlyGridFeatures, GridRow>;
 
 function SubjectCell({ row }: AppraisalCell) {
   return (
@@ -134,7 +134,7 @@ function AppraisalGrid({
 }) {
   const t = useExtracted("appraisals");
 
-  const columns: ColumnDef<DataGridFeatures, GridRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, GridRow>[] = [
     {
       accessorKey: "subjectUserId",
       header: t("Person"),
@@ -147,7 +147,7 @@ function AppraisalGrid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: rows.map((row) => ({
       ...row,

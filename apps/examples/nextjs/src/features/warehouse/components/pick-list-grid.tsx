@@ -8,7 +8,7 @@ import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -47,7 +47,7 @@ import { completePickList, optimizePickRoute } from "../warehouse-actions";
 
 type GridRow = PickListRow & { readonly canComplete: boolean };
 
-type PickCell = CellContext<DataGridFeatures, GridRow>;
+type PickCell = CellContext<ReadOnlyGridFeatures, GridRow>;
 
 function DocumentCell({ row }: PickCell) {
   return (
@@ -142,7 +142,7 @@ function Grid({
 }) {
   const t = useExtracted("warehouse");
 
-  const columns: ColumnDef<DataGridFeatures, GridRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, GridRow>[] = [
     {
       accessorKey: "documentId",
       header: t("Document"),
@@ -155,7 +155,7 @@ function Grid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: rows.map((row) => ({
       ...row,

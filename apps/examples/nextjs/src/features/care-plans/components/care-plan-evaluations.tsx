@@ -9,7 +9,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -20,8 +20,8 @@ import {
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -49,7 +49,7 @@ import type {
 
 import { GoalStatusBadge } from "./care-plan-editor";
 
-type EvaluationCell = CellContext<DataGridFeatures, CarePlanEvaluationRow>;
+type EvaluationCell = CellContext<ReadOnlyGridFeatures, CarePlanEvaluationRow>;
 
 function DateCell({ row }: EvaluationCell) {
   const format = useFormatter();
@@ -86,7 +86,7 @@ function EvaluationGrid({
 }) {
   const t = useExtracted("care-plans");
 
-  const columns: ColumnDef<DataGridFeatures, CarePlanEvaluationRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, CarePlanEvaluationRow>[] = [
     {
       accessorKey: "evaluatedAt",
       header: t("Date"),
@@ -104,7 +104,7 @@ function EvaluationGrid({
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...evaluations],
     getRowId: (row) => row.id,

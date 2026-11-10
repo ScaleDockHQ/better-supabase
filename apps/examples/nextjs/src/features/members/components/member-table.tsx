@@ -10,14 +10,14 @@ import { useExtracted, useFormatter } from "next-intl";
 import { createContext, use, useCallback, useMemo, useState } from "react";
 import * as v from "valibot";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 import type { Member } from "@/features/organization/organization-queries";
 
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -79,7 +79,7 @@ type MemberRow = Member & {
   readonly busy: boolean;
 };
 
-type MemberCell = CellContext<DataGridFeatures, MemberRow>;
+type MemberCell = CellContext<ReadOnlyGridFeatures, MemberRow>;
 
 const ALL_ROLES = "all";
 
@@ -314,7 +314,7 @@ export function MemberTable({
     [changeRole, removeMember],
   );
 
-  const columns: ColumnDef<DataGridFeatures, MemberRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, MemberRow>[] = [
     { id: "member", header: t("Member"), cell: MemberCellView, size: 280 },
     { accessorKey: "role", header: t("Role"), cell: RoleCell, size: 150 },
     { id: "teams", header: t("Teams"), cell: TeamsCell, size: 200 },
@@ -349,7 +349,7 @@ export function MemberTable({
     }));
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data,
     getRowId: (row) => row.userId,

@@ -5,14 +5,14 @@ import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { useTable } from "@tanstack/react-table";
 import { useExtracted } from "next-intl";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Link } from "@/i18n/navigation";
@@ -28,7 +28,7 @@ export interface RoleRow {
   readonly overrides: number;
 }
 
-type RoleCell = CellContext<DataGridFeatures, RoleRow>;
+type RoleCell = CellContext<ReadOnlyGridFeatures, RoleRow>;
 
 function NameCell({ row }: RoleCell) {
   const { id, key } = row.original;
@@ -67,7 +67,7 @@ function OverridesCell({ row }: RoleCell) {
 export function RolesGrid({ roles }: { roles: readonly RoleRow[] }) {
   const t = useExtracted("roles");
 
-  const columns: ColumnDef<DataGridFeatures, RoleRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, RoleRow>[] = [
     { accessorKey: "key", header: t("Role"), cell: NameCell, size: 180 },
     {
       accessorKey: "members",
@@ -90,7 +90,7 @@ export function RolesGrid({ roles }: { roles: readonly RoleRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...roles],
     getRowId: (row) => row.id,

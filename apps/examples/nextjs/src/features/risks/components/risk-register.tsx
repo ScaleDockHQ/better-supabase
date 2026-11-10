@@ -10,7 +10,7 @@ import { useExtracted, useFormatter } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import {
   Alert,
@@ -22,8 +22,8 @@ import { Badge } from "@/components/reui/badge";
 import {
   DataGrid,
   DataGridContainer,
-  dataGridFeatures,
 } from "@/components/reui/data-grid/data-grid";
+import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import {
@@ -52,7 +52,7 @@ const TONE_VARIANT = {
   critical: "destructive",
 } as const satisfies Record<BandTone, string>;
 
-type RiskCell = CellContext<DataGridFeatures, RiskRow>;
+type RiskCell = CellContext<ReadOnlyGridFeatures, RiskRow>;
 
 function NumberCell({ row }: RiskCell) {
   return (
@@ -131,7 +131,7 @@ function ReviewCell({ row }: RiskCell) {
 function RiskGrid({ risks }: { risks: readonly RiskRow[] }) {
   const t = useExtracted("risks");
 
-  const columns: ColumnDef<DataGridFeatures, RiskRow>[] = [
+  const columns: ColumnDef<ReadOnlyGridFeatures, RiskRow>[] = [
     { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 100 },
     { accessorKey: "title", header: t("Risk"), cell: TitleCell, size: 260 },
     { accessorKey: "category", header: t("Category"), size: 140 },
@@ -146,7 +146,7 @@ function RiskGrid({ risks }: { risks: readonly RiskRow[] }) {
   ];
 
   const table = useTable({
-    features: dataGridFeatures,
+    features: readOnlyGridFeatures,
     columns,
     data: [...risks],
     getRowId: (row) => row.id,
