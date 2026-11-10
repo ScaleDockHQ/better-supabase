@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:1a1844fe76b61e79a300caed18aba9e0556ddaa6626cbdc36054c39b084281c8
+-- @bsb-hash sha256:309a62e98500b74a4171b02a2e77c969f9352d66257442043ce2ee65bb9d2360
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -631,15 +631,15 @@ begin
   execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   if audit.statement then
     execute format(
-      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_statement_change(%L)',
       target, base_settings::text
     );
     execute format(
-      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_statement_change(%L)',
       target, base_settings::text
     );
     execute format(
-      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.audit_statement_change(%L)',
+      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement when (better_supabase.import_run() is null or current_setting(''better_supabase.import_audit'', true) is distinct from ''summary'') execute function better_supabase.audit_statement_change(%L)',
       target, base_settings::text
     );
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then

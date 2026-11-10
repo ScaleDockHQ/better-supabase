@@ -36,7 +36,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   subjectForTenant: ["tenant", "scope"],
   bootstrapPermissions: ["tenant", "scope"],
   approverFor: [],
-  managedUsers: [],
+  managedUsers: ["tenant"],
 };
 
 /** The Postgres types a scope's ids can have. */

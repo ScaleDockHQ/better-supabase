@@ -186,4 +186,12 @@ describe("usage partitioned history", () => {
     );
     expect(render(["usage"], true)).not.toContain("bill_usage_period");
   });
+
+  it("reads every meter in one statement and a meter without the catalog", () => {
+    const sql = usage();
+
+    expect(sql).toContain('function "better_supabase"."usage_remaining"');
+    expect(sql).toContain("distinct on");
+    expect(sql).not.toContain("usage_status(usage_overview.tenant");
+  });
 });

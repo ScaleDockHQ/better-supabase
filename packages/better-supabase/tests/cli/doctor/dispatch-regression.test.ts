@@ -17,7 +17,7 @@ const migration = (name: string, body: string) => ({
   text: body,
 });
 
-describe("BS625 dispatch arms", () => {
+describe("BS629 dispatch arms", () => {
   it("names the arms a later migration dropped", () => {
     const findings = dispatchRegressions(
       [

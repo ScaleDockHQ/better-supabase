@@ -241,6 +241,11 @@ export interface EmitOptions {
    * `clientSchema`.
    */
   readonly tables?: readonly TableModuleInfo[];
+  /**
+   * The server schema imports each table on first use (`gen.serverTables`
+   * `lazy`). Function metadata is `generated.functions.js`.
+   */
+  readonly lazyServerTables?: boolean;
 }
 
 /**
@@ -278,6 +283,20 @@ function compactJson(meta: Readonly<Record<string, unknown>>): string {
   return `{\n${entries.join(",\n")}\n}`;
 }
 
+/** Function metadata as its own module, loaded on the first `rpc` call. */
+export function emitFunctions(
+  functions: Readonly<Record<string, unknown>>,
+): string {
+  return [
+    GENERATED_HEADER,
+    "/* oxlint-disable */",
+    "/* eslint-disable */",
+    "",
+    `export default ${compactJson(functions)};`,
+    "",
+  ].join("\n");
+}
+
 /**
  * The schema metadata as plain JavaScript plus a one-line declaration, so
  * TypeScript reads `SchemaMeta` instead of checking thousands of lines of
@@ -289,10 +308,17 @@ export function emitMeta(
     readonly types?: string;
     /** The tables live in `tables/<table>.ts`, so `tables` stays empty. */
     readonly splitTables?: boolean;
+    /** Function metadata lives in `generated.functions.js`. */
+    readonly splitFunctions?: boolean;
   } = {},
 ): { js: string; dts: string } {
   const runtime = options.runtimeImport ?? "better-supabase";
-  const meta = options.splitTables ? { ...model.meta, tables: {} } : model.meta;
+
+  const meta = {
+    ...model.meta,
+    ...(options.splitTables === true ? { tables: {} } : {}),
+    ...(options.splitFunctions === true ? { functions: {} } : {}),
+  };
 
   return {
     js: [
@@ -821,14 +847,46 @@ export function emitSchemaModule(
     ? `Schema<Models, Database, Functions, ${subjectType}, ExtensionsOf<Extensions>>`
     : `Schema<Models, Database, Functions${subjects ? ", SubjectType" : ""}>`;
 
-  return [
+  const header = [
     GENERATED_HEADER,
     "/* oxlint-disable */",
     "/* eslint-disable */",
     "",
-    `import { defineSchema, ${extended ? "type ExtensionsOf, " : ""}type Schema } from ${q(runtime)};`,
+    `import { defineSchema, type SchemaMeta, ${extended ? "type ExtensionsOf, " : ""}type Schema } from ${q(runtime)};`,
     `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
     `import ${extended ? "{ extensions, " : "{ "}type ${types.join(", type ")} } from ${q(options.generated)};`,
+  ];
+
+  if (options.lazyServerTables === true) {
+    const loaders = tables
+      .map(
+        (table) =>
+          `  ${table.key}: () => import(${q(table.specifier)}).then((mod) => mod.${table.name}),`,
+      )
+      .join("\n");
+
+    return [
+      ...header,
+      "",
+      "const tableLoaders = {",
+      loaders,
+      "};",
+      "",
+      "/** The server's schema. Each table module loads on its first call, and function metadata loads on the first rpc call. */",
+      `export const schema: ${schemaType} = /*#__PURE__*/ defineSchema({`,
+      "  ...meta,",
+      "  lazyTables: true,",
+      "  tables: {},",
+      "  functions: {},",
+      "  tableLoaders,",
+      `  loadFunctions: () => import(${q((options.metaImport ?? "./generated.meta.js").replace(/\.meta\.js$/, ".functions.js"))}).then((mod) => mod.default as SchemaMeta["functions"]),`,
+      `}${extended ? ", extensions" : ""});`,
+      "",
+    ].join("\n");
+  }
+
+  return [
+    ...header,
     ...tableImports(tables),
     "",
     ...tablesObject(tables),

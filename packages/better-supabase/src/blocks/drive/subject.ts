@@ -58,7 +58,15 @@ export function driveSubject(
       from: { view: `${schema}.drive_node_search`, key: "id" },
       // The view reads the node's name; the text comes from drive_node_texts.
       columns: ["name"],
-      watch: [{ table: `${schema}.drive_node_texts`, key: "node_id" }],
+      // `content` is the text the view's body reads. A change to another
+      // column of the text row does not re-index the node.
+      watch: [
+        {
+          table: `${schema}.drive_node_texts`,
+          key: "node_id",
+          columns: ["content"],
+        },
+      ],
     },
   };
 }

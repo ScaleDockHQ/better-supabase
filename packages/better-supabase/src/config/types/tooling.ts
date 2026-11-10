@@ -103,6 +103,13 @@ export interface GenConfig {
    */
   readonly tableModules?: boolean;
   /**
+   * How the server schema loads table modules. `lazy` (the default when
+   * `tableModules` is on) imports each table on the first repository call and
+   * loads function metadata on the first `rpc` call. `eager` imports every
+   * table from the server schema module.
+   */
+  readonly serverTables?: "lazy" | "eager";
+  /**
    * Writes `enums.ts` and `columns.ts` next to `generated.ts`. `enums.ts` holds
    * every enum and CHECK value list as a constant array and its union type.
    * `columns.ts` holds one constant per table, mapping each column's row name

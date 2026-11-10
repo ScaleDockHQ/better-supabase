@@ -34,6 +34,11 @@ export interface Runtime {
   readonly now: () => Temporal.Instant;
   /** Rows PostgREST returns at most for one read (`db-max-rows`). */
   readonly maxRows: number;
+  /**
+   * `error` (the default) returns `truncated` when an unbounded read is cut.
+   * `warn` keeps the rows and logs once per table.
+   */
+  readonly truncation: "error" | "warn";
   /** Tables already warned about truncated reads, shared across connections. */
   readonly truncatedTables: Set<string>;
   /** The connection's `timeout` and `retry`; a call's own settings replace them. */
@@ -263,14 +268,66 @@ export class OperationRunner {
 
     const rows = result.ok ? result.data.rows.length : 0;
 
-    const truncated =
+    let truncated =
       current.kind === "select" &&
       current.limit === undefined &&
       current.single === undefined &&
       !current.head &&
       rows >= runtime.maxRows;
 
-    if (truncated && !runtime.truncatedTables.has(op.table.key)) {
+    if (
+      truncated &&
+      result.ok &&
+      current.kind === "select" &&
+      runtime.truncation === "error"
+    ) {
+      const probe = await this.#execute(
+        {
+          kind: "select",
+          table: current.table,
+          where: current.where,
+          orderBy: current.orderBy,
+          selection: {
+            columns: (current.table.primaryKey.length > 0
+              ? current.table.primaryKey
+              : current.selection.columns.map((column) => column.column)
+            ).map((column) => ({ alias: column, column })),
+            includes: [],
+          },
+          limit: 1,
+          offset: runtime.maxRows,
+          count: undefined,
+          head: false,
+          single: undefined,
+        },
+        signal,
+        timeout,
+        retry,
+      );
+
+      if (!probe.ok) {
+        return this.fail(op.table, probe.error);
+      }
+
+      truncated = probe.data.rows.length > 0;
+
+      if (truncated) {
+        return this.fail(
+          op.table,
+          dbError(
+            "truncated",
+            `a read on ${op.table.key} was cut at ${String(runtime.maxRows)} rows; add a limit or use page()`,
+            { table: op.table.key, maxRows: runtime.maxRows },
+          ),
+        );
+      }
+    }
+
+    if (
+      truncated &&
+      runtime.truncation === "warn" &&
+      !runtime.truncatedTables.has(op.table.key)
+    ) {
       runtime.truncatedTables.add(op.table.key);
       runtime.events.logger.warn(
         `a read on ${op.table.key} returned ${rows} rows, the maxRows cap; add a limit or use page()`,

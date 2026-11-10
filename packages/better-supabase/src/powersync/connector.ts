@@ -169,6 +169,7 @@ const OUTCOMES: { readonly [K in DbErrorKind]: UploadOutcome } = {
   aborted: "retry",
   rate_limited: "retry",
   quota_exceeded: "retry",
+  truncated: "discard",
   serialization: "retry",
   unauthorized: "retry",
   unexpected: "retry",

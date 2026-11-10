@@ -967,7 +967,13 @@ describe("row caps and default order", () => {
     const { client } = capturingClient(() => ({ body: rows }));
     const warn = vi.fn();
     const logger = { debug() {}, info() {}, warn, error() {} };
-    const betterSupabase = createSupabase(camel, { maxRows: 2, logger });
+
+    const betterSupabase = createSupabase(camel, {
+      maxRows: 2,
+      truncation: "warn",
+      logger,
+    });
+
     const truncated: boolean[] = [];
     betterSupabase.on("query", (event) => truncated.push(event.truncated));
     const db = betterSupabase.connect(client);
@@ -982,5 +988,18 @@ describe("row caps and default order", () => {
       expect.stringContaining("customers returned 2 rows"),
       { table: "customers", maxRows: 2 },
     );
+  });
+
+  it("returns truncated when a probe finds another row, and the rows when it does not", async () => {
+    const rows = [{ id: "a" }, { id: "b" }];
+    const bodies = [rows, [{ id: "c" }], rows, []];
+    const { client } = capturingClient(() => ({ body: bodies.shift() ?? [] }));
+    const db = createSupabase(camel, { maxRows: 2 }).connect(client);
+
+    const cut = await db.customers.list({ select: ["id"] });
+    const exact = await db.customers.list({ select: ["id"] });
+
+    expect(cut.error?.kind).toBe("truncated");
+    expect(exact.data).toEqual(rows);
   });
 });

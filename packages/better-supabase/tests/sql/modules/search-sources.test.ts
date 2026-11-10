@@ -31,8 +31,12 @@ describe("search sources beyond the record's row", () => {
     const sql = sqlOf();
 
     expect(sql).toContain(
-      `join "public"."customer_search" f on f."customer_id"::text = s."id"::text`,
+      `join "public"."customer_search" f on f."customer_id" = s."id"`,
     );
+    expect(sql).toContain(
+      `and f."customer_id" = (search_refresh.subject_id)::uuid`,
+    );
+    expect(sql).not.toContain(`f."customer_id"::text`);
     expect(sql).toContain(`f."vat"::text`);
     expect(sql).toContain(
       `and (f."archived_at" is null or f."archived_at"::text = 'false')`,
@@ -42,7 +46,13 @@ describe("search sources beyond the record's row", () => {
       `alter table "better_supabase"."search_documents" add column "description" text;`,
     );
     expect(sql).toContain(
-      `create trigger "bsb_search_customer_watch_0" after insert or delete or update on "public"."customer_contacts"`,
+      `create trigger "bsb_search_customer_watch_0" after insert or delete on "public"."customer_contacts"`,
+    );
+    expect(sql).toContain(
+      `create trigger "bsb_search_customer_watch_0_u" after update of "customer_id" on "public"."customer_contacts"`,
+    );
+    expect(sql).toContain(
+      `when (old."customer_id" is distinct from new."customer_id")`,
     );
   });
 
@@ -67,7 +77,10 @@ describe("search sources beyond the record's row", () => {
     });
 
     expect(columns).toContain(
-      'after insert or delete or update of "customer_id", "label" on "public"."tags"',
+      'after update of "customer_id", "label" on "public"."tags"',
+    );
+    expect(columns).toContain(
+      'when (old."customer_id" is distinct from new."customer_id" or old."label" is distinct from new."label")',
     );
   });
 
@@ -83,6 +96,7 @@ describe("search sources beyond the record's row", () => {
     const sql = sqlOf({
       customer: {
         table: "public.customers",
+        idType: "uuid",
         title: "name",
         search: {
           body: ["tag_names"],
@@ -113,11 +127,26 @@ describe("search sources beyond the record's row", () => {
     });
 
     expect(sql).toContain(
-      `for v_id in select h0."customer_id"::text from "public"."customer_tags" h0 where h0."tag_id"::text in (select new."id"::text) loop`,
+      `for v_id in select v.value::text from (select h0."customer_id" from "public"."customer_tags" h0 where h0."tag_id" in (select new."id")) v(value) loop`,
     );
     expect(sql).toContain(
-      `where s."account_id"::text in (select h0."id"::text from "public"."accounts" h0 where h0."region_id"::text in (select old."id"::text)) loop`,
+      `where s."account_id" in (select h0."id" from "public"."accounts" h0 where h0."region_id" in (select old."id"))`,
     );
+
+    const untyped = sqlOf({
+      customer: {
+        table: "public.customers",
+        title: "name",
+        search: {
+          from: { view: "public.customer_search", key: "customer_id" },
+        },
+      },
+    });
+
+    expect(untyped).toContain(
+      `join "public"."customer_search" f on f."customer_id"::text = s."id"::text`,
+    );
+
     expect(() =>
       sqlOf({
         customer: {
@@ -187,5 +216,31 @@ describe("search sources beyond the record's row", () => {
         },
       }),
     ).toThrow(/search\.watch\[0\]\.key/u);
+  });
+
+  it("keeps a text comparison when the two key types are known to differ", () => {
+    const sql = renderBlocks(["search"], {
+      subjects: {
+        customer: {
+          table: "public.customers",
+          idType: "uuid",
+          title: "name",
+          search: {
+            from: { view: "public.customer_search", key: "customer_id" },
+          },
+        },
+      },
+      appColumns: {
+        "public.customer_search": [{ name: "customer_id", type: "text" }],
+      },
+    })
+      .filter((file) => file.module === "search")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(`f."customer_id"::text = s."id"::text`);
+    expect(sql).toContain(
+      "customer search.from compares text with uuid, so the comparison stays text.",
+    );
   });
 });

@@ -609,9 +609,10 @@ as $$
   select ${catalog}
 $$;
 
--- { meter, used, limit, remaining, unlimited, period, resets_at }; limit and
--- remaining are null without a quota and for an unlimited one. Needs usage.read,
--- like usage_overview.
+-- { meter, used, limit, remaining, unlimited, period, resets_at, starts_at }.
+-- limit and remaining are null without a quota and for an unlimited one. The
+-- quota, the window and the used sum are one query. Needs usage.read, like
+-- usage_overview.
 create or replace function ${fn("usage_status")}(tenant ${id}, meter text)
 returns jsonb
 language plpgsql
@@ -619,30 +620,98 @@ stable
 security definer
 set search_path = ''
 as $$
-declare
-  quota record;
-  used numeric;
-  win record;
 begin
   if not ${canRead("tenant")} then
     ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
   end if;
-  select * into quota from ${fn("usage_quota")}(tenant, meter);
-  select * into win from ${fn("usage_window")}(tenant, coalesce(quota.period, 'month'));
-  used := ${fn("usage_used")}(tenant, meter, coalesce(quota.period, 'month'));
-  return jsonb_build_object(
-    'meter', meter,
-    'used', used,
-    'limit', quota.quota_limit,
-    'remaining', case when quota.quota_limit is null then null else greatest(quota.quota_limit - used, 0) end,
-    'unlimited', quota.period is not null and quota.quota_limit is null,
-    'period', coalesce(quota.period, 'month'),
-    'resets_at', win.ends_at,
-    'starts_at', win.starts_at
-  ) || coalesce(${fn("usage_meters")}() -> meter, '{}'::jsonb);
+  return (
+    with quota as (
+      select q.${qc("limit")} as quota_limit, ${quotaPeriod("q")} as period
+      from ${quotas} q
+      where q.${qc("meter")} = usage_status.meter
+        and (q.${qc("tenant")} = usage_status.tenant or (q.${qc("tenant")} is null and (${planMatches})))
+      order by (q.${qc("tenant")} is not null) desc, q.${qc("limit")} desc nulls first
+      limit 1
+    ),
+    win as (
+      select w.starts_at, w.ends_at
+      from ${fn("usage_window")}(usage_status.tenant, coalesce((select quota.period from quota), 'month')) w
+    ),
+    used as (
+      select coalesce(sum(c.${cc("value")}), 0)::numeric as used
+      from ${counters} c
+      cross join win w
+      where c.${cc("tenant")} = usage_status.tenant
+        and c.${cc("meter")} = usage_status.meter
+        and c.${cc("day")} >= (w.starts_at at time zone 'utc')::date
+        and c.${cc("day")} < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
+    )
+    select jsonb_build_object(
+      'meter', usage_status.meter,
+      'used', (select used.used from used),
+      'limit', (select quota.quota_limit from quota),
+      'remaining', case
+        when (select quota.quota_limit from quota) is null then null
+        else greatest((select quota.quota_limit from quota) - (select used.used from used), 0)
+      end,
+      'unlimited', (select quota.period from quota) is not null and (select quota.quota_limit from quota) is null,
+      'period', coalesce((select quota.period from quota), 'month'),
+      'resets_at', (select win.ends_at from win),
+      'starts_at', (select win.starts_at from win)
+    ) || coalesce(${fn("usage_meters")}() -> usage_status.meter, '{}'::jsonb)
+  );
 end;
 $$;
 
+-- { used, limit, remaining, resets_at } for one meter, without the catalog.
+create or replace function ${fn("usage_remaining")}(tenant ${id}, meter text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ${canRead("tenant")} then
+    ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
+  end if;
+  return (
+    with quota as (
+      select q.${qc("limit")} as quota_limit, ${quotaPeriod("q")} as period
+      from ${quotas} q
+      where q.${qc("meter")} = usage_remaining.meter
+        and (q.${qc("tenant")} = usage_remaining.tenant or (q.${qc("tenant")} is null and (${planMatches})))
+      order by (q.${qc("tenant")} is not null) desc, q.${qc("limit")} desc nulls first
+      limit 1
+    ),
+    win as (
+      select w.starts_at, w.ends_at
+      from ${fn("usage_window")}(usage_remaining.tenant, coalesce((select quota.period from quota), 'month')) w
+    ),
+    used as (
+      select coalesce(sum(c.${cc("value")}), 0)::numeric as used
+      from ${counters} c
+      cross join win w
+      where c.${cc("tenant")} = usage_remaining.tenant
+        and c.${cc("meter")} = usage_remaining.meter
+        and c.${cc("day")} >= (w.starts_at at time zone 'utc')::date
+        and c.${cc("day")} < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
+    )
+    select jsonb_build_object(
+      'used', (select used.used from used),
+      'limit', (select quota.quota_limit from quota),
+      'remaining', case
+        when (select quota.quota_limit from quota) is null then null
+        else greatest((select quota.quota_limit from quota) - (select used.used from used), 0)
+      end,
+      'resets_at', (select win.ends_at from win)
+    )
+  );
+end;
+$$;
+
+-- One row per meter: the quota resolved once, the window once per distinct
+-- period, and the counters summed in one grouped join. The catalog is read once.
 create or replace function ${fn("usage_overview")}(tenant ${id})
 returns jsonb
 language plpgsql
@@ -655,8 +724,7 @@ begin
     ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
   end if;
   return (
-    select coalesce(jsonb_agg(${fn("usage_status")}(usage_overview.tenant, m.meter) order by m.meter), '[]'::jsonb)
-    from (
+    with meters as (
       select jsonb_object_keys(${fn("usage_meters")}()) as meter
       union
       select q.${qc("meter")} from ${quotas} q
@@ -665,7 +733,65 @@ begin
       union
       select distinct c.${cc("meter")} from ${counters} c
       where c.${cc("tenant")} = usage_overview.tenant
-    ) m
+    ),
+    quota as (
+      select distinct on (q.${qc("meter")})
+        q.${qc("meter")} as meter,
+        q.${qc("limit")} as quota_limit,
+        ${quotaPeriod("q")} as period
+      from ${quotas} q
+      join meters m on m.meter = q.${qc("meter")}
+      where q.${qc("tenant")} = usage_overview.tenant
+        or (q.${qc("tenant")} is null and (${planMatches.replaceAll("(tenant)", "(usage_overview.tenant)")}))
+      order by q.${qc("meter")}, (q.${qc("tenant")} is not null) desc, q.${qc("limit")} desc nulls first
+    ),
+    chosen as (
+      select m.meter,
+        quota.quota_limit,
+        quota.period as quota_period,
+        coalesce(quota.period, 'month') as period
+      from meters m
+      left join quota on quota.meter = m.meter
+    ),
+    win as (
+      select p.period, w.starts_at, w.ends_at
+      from (select distinct chosen.period from chosen) p
+      cross join lateral ${fn("usage_window")}(usage_overview.tenant, p.period) w
+    ),
+    used as (
+      select ch.meter, coalesce(sum(c.${cc("value")}), 0)::numeric as used
+      from chosen ch
+      join win w on w.period = ch.period
+      left join ${counters} c
+        on c.${cc("tenant")} = usage_overview.tenant
+        and c.${cc("meter")} = ch.meter
+        and c.${cc("day")} >= (w.starts_at at time zone 'utc')::date
+        and c.${cc("day")} < greatest((w.ends_at at time zone 'utc')::date, (w.starts_at at time zone 'utc')::date + 1)
+      group by ch.meter
+    ),
+    catalog as (
+      select ${fn("usage_meters")}() as meters
+    )
+    select coalesce(jsonb_agg(
+      jsonb_build_object(
+        'meter', ch.meter,
+        'used', u.used,
+        'limit', ch.quota_limit,
+        'remaining', case
+          when ch.quota_limit is null then null
+          else greatest(ch.quota_limit - u.used, 0)
+        end,
+        'unlimited', ch.quota_period is not null and ch.quota_limit is null,
+        'period', ch.period,
+        'resets_at', w.ends_at,
+        'starts_at', w.starts_at
+      ) || coalesce(catalog.meters -> ch.meter, '{}'::jsonb)
+      order by ch.meter
+    ), '[]'::jsonb)
+    from chosen ch
+    join used u on u.meter = ch.meter
+    join win w on w.period = ch.period
+    cross join catalog
   );
 end;
 $$;
@@ -971,6 +1097,7 @@ grant execute on function ${fn("usage_meters")}() to anon, authenticated, servic
 revoke execute on function ${fn("usage_quota")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_used")}(${id}, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("usage_status")}(${id}, text) from public, anon;
+revoke execute on function ${fn("usage_remaining")}(${id}, text) from public, anon;
 revoke execute on function ${fn("usage_overview")}(${id}) from public, anon;
 grant execute on function ${fn("usage_overview")}(${id}) to authenticated, service_role;
 revoke execute on function ${fn("within_quota")}(${id}, text, bigint) from public, anon;
@@ -987,6 +1114,7 @@ grant execute on function ${fn("set_usage_quota")}(${id}, text, text, numeric, t
 grant execute on function ${fn("remove_usage_quota")}(${id}, text, text) to service_role;
 grant execute on function ${fn("usage_used")}(${id}, text, text) to service_role;
 grant execute on function ${fn("usage_status")}(${id}, text) to authenticated, service_role;
+grant execute on function ${fn("usage_remaining")}(${id}, text) to authenticated, service_role;
 grant execute on function ${fn("within_quota")}(${id}, text, bigint) to authenticated, service_role;
 grant execute on function ${fn("record_usage")}(${id}, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
 grant execute on function ${fn("consume_quota")}(${id}, text, numeric, text, text, jsonb, uuid) to authenticated, service_role;
@@ -1004,6 +1132,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...usageKindsContract(ctx),
     ...usageBillingContract(ctx),
     { name: "usage_status", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "usage_remaining", args: ["{id}", "text"], returns: "jsonb" },
     { name: "usage_overview", args: ["{id}"], returns: "jsonb" },
     { name: "usage_meters", args: [], returns: "jsonb" },
     { name: "usage_window", args: ["{id}", "text"], returns: "record" },

@@ -460,6 +460,11 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
       "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
     default: true,
   },
+  "gen.serverTables": {
+    description:
+      "lazy loads each server table module on first use and function metadata on the first rpc call. eager imports every table from the server schema.",
+    default: "lazy",
+  },
   "gen.blockModules": {
     description:
       "Write one module per block instance, blocks/<instance>.ts, with its config slice, and blocks/permissions.ts. false writes blockConfig as one object.",

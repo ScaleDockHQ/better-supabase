@@ -51,9 +51,17 @@ function validateMeta(meta: SchemaMeta): SchemaMeta {
     );
   }
 
-  return meta.lazyTables === true
-    ? { ...meta, tables: { ...meta.tables } }
-    : meta;
+  if (meta.lazyTables !== true && meta.loadFunctions === undefined) {
+    return meta;
+  }
+
+  return {
+    ...meta,
+    ...(meta.lazyTables === true ? { tables: { ...meta.tables } } : {}),
+    ...(meta.loadFunctions === undefined
+      ? {}
+      : { functions: { ...meta.functions } }),
+  };
 }
 
 export function tableMeta(meta: SchemaMeta, table: string): TableMeta {
@@ -102,4 +110,20 @@ export function addLazyTable(meta: SchemaMeta, table: TableMeta): boolean {
   tables[table.key] = table;
 
   return true;
+}
+
+/**
+ * Fills `functions` from `loadFunctions`. The object is the copy `defineSchema`
+ * made.
+ */
+export function installFunctions(
+  meta: SchemaMeta,
+  functions: SchemaMeta["functions"],
+): void {
+  const target: Record<string, SchemaMeta["functions"][string]> =
+    meta.functions;
+
+  for (const [name, fn] of Object.entries(functions)) {
+    target[name] = fn;
+  }
 }

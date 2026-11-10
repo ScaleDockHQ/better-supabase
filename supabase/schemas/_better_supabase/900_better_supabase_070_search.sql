@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:753e00a09f752ab16275837a2edb11de9bf8494c69835e8f73a1d8191c8d8831
+-- @bsb-hash sha256:e4fa45ac4bcd31719bfae901514d72fd280a6d127f2a8b9529cf4ce002c3c4f4
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -202,8 +202,9 @@ begin
       select s."tenant_id", f."name"::text, nullif(concat_ws(E'\n', f."content"::text), ''), null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."drive_nodes" s
-        join "better_supabase"."drive_node_search" f on f."id"::text = s."id"::text
+        join "better_supabase"."drive_node_search" f on f."id" = s."id"
         where s."id" = (search_refresh.subject_id)::uuid
+        and f."id" = (search_refresh.subject_id)::uuid
         and s."archived_at" is null;
       v_found := found;
     when 'project' then
@@ -551,8 +552,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."search_watch_drive_node_0"() from public, anon, authenticated;
-create trigger "bsb_search_drive_node_watch_0" after insert or delete or update on "better_supabase"."drive_node_texts"
+create trigger "bsb_search_drive_node_watch_0" after insert or delete on "better_supabase"."drive_node_texts"
   for each row execute function "better_supabase"."search_watch_drive_node_0"();
+create trigger "bsb_search_drive_node_watch_0_u" after update of "node_id", "content" on "better_supabase"."drive_node_texts"
+  for each row when (old."node_id" is distinct from new."node_id" or old."content" is distinct from new."content")
+  execute function "better_supabase"."search_watch_drive_node_0"();
 
 -- Full-text and trigram matches (plus nearest embeddings when the query
 -- carries one, fused by reciprocal rank), as the caller: the policy keeps

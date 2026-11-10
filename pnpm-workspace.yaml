@@ -62,6 +62,8 @@ catalog:
   "@supabase/mcp-server-supabase": 0.14.0
   "@supabase/middleware": 1.0.0
   # Pre-releases: `db diff` plans with the library (docs/decisions/0108).
+  "@supabase/auth-js": 2.119.0
+  "@supabase/realtime-js": 2.119.0
   "@supabase/pg-delta": 1.0.0-alpha.60
   "@supabase/pg-topo": 1.0.0-alpha.8
   "@supabase/postgrest-typegen": 0.6.0
@@ -301,6 +303,8 @@ catalogs:
     # 2.118.0 reads the ComputedFields key and the no-argument function
     # overloads that postgrest-typegen 0.6 writes into database.types.ts.
     "@supabase/supabase-js": "^2.118.0"
+    "@supabase/auth-js": "^2.118.0"
+    "@supabase/realtime-js": "^2.118.0"
     # 5.62.0 added the error parameter of DataTag (dataTagErrorSymbol) the query keys use.
     "@tanstack/query-core": "^5.62.0"
     # 7.0 is the UI message stream protocol and the approval parts the AI SDK adapters convert.

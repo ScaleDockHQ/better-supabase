@@ -1009,6 +1009,7 @@ const ENTRIES = {
       ),
       contentMapper: v.optional(v.boolean()),
       tableModules: v.optional(v.boolean()),
+      serverTables: v.optional(v.picklist(["lazy", "eager"])),
       constants: v.optional(v.boolean()),
       types: v.optional(
         v.strictObject({

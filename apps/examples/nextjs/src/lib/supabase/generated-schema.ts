@@ -2,50 +2,38 @@
 /* oxlint-disable */
 /* eslint-disable */
 
-import { defineSchema, type ExtensionsOf, type Schema } from "better-supabase";
+import { defineSchema, type SchemaMeta, type ExtensionsOf, type Schema } from "better-supabase";
 import meta from "./generated.meta.js";
 import { extensions, type Database, type Extensions, type Functions, type Models, type SubjectType } from "./generated.ts";
-import { changeRequestsTable } from "./tables/change-requests.ts";
-import { clientNotesTable } from "./tables/client-notes.ts";
-import { contactsTable } from "./tables/contacts.ts";
-import { customerTagsTable } from "./tables/customer-tags.ts";
-import { customersTable } from "./tables/customers.ts";
-import { customersWithOwnerTable } from "./tables/customers-with-owner.ts";
-import { locationsTable } from "./tables/locations.ts";
-import { membershipsTable } from "./tables/memberships.ts";
-import { notesTable } from "./tables/notes.ts";
-import { organizationsTable } from "./tables/organizations.ts";
-import { planFeaturesTable } from "./tables/plan-features.ts";
-import { plansTable } from "./tables/plans.ts";
-import { projectsTable } from "./tables/projects.ts";
-import { projectsViewTable } from "./tables/projects-view.ts";
-import { savedViewsTable } from "./tables/saved-views.ts";
-import { subscriptionsTable } from "./tables/subscriptions.ts";
-import { tagsTable } from "./tables/tags.ts";
-import { tasksTable } from "./tables/tasks.ts";
-import { tasksViewTable } from "./tables/tasks-view.ts";
 
-const tables = {
-  changeRequests: changeRequestsTable,
-  clientNotes: clientNotesTable,
-  contacts: contactsTable,
-  customerTags: customerTagsTable,
-  customers: customersTable,
-  customersWithOwner: customersWithOwnerTable,
-  locations: locationsTable,
-  memberships: membershipsTable,
-  notes: notesTable,
-  organizations: organizationsTable,
-  planFeatures: planFeaturesTable,
-  plans: plansTable,
-  projects: projectsTable,
-  projectsView: projectsViewTable,
-  savedViews: savedViewsTable,
-  subscriptions: subscriptionsTable,
-  tags: tagsTable,
-  tasks: tasksTable,
-  tasksView: tasksViewTable,
+const tableLoaders = {
+  changeRequests: () => import("./tables/change-requests.ts").then((mod) => mod.changeRequestsTable),
+  clientNotes: () => import("./tables/client-notes.ts").then((mod) => mod.clientNotesTable),
+  contacts: () => import("./tables/contacts.ts").then((mod) => mod.contactsTable),
+  customerTags: () => import("./tables/customer-tags.ts").then((mod) => mod.customerTagsTable),
+  customers: () => import("./tables/customers.ts").then((mod) => mod.customersTable),
+  customersWithOwner: () => import("./tables/customers-with-owner.ts").then((mod) => mod.customersWithOwnerTable),
+  locations: () => import("./tables/locations.ts").then((mod) => mod.locationsTable),
+  memberships: () => import("./tables/memberships.ts").then((mod) => mod.membershipsTable),
+  notes: () => import("./tables/notes.ts").then((mod) => mod.notesTable),
+  organizations: () => import("./tables/organizations.ts").then((mod) => mod.organizationsTable),
+  planFeatures: () => import("./tables/plan-features.ts").then((mod) => mod.planFeaturesTable),
+  plans: () => import("./tables/plans.ts").then((mod) => mod.plansTable),
+  projects: () => import("./tables/projects.ts").then((mod) => mod.projectsTable),
+  projectsView: () => import("./tables/projects-view.ts").then((mod) => mod.projectsViewTable),
+  savedViews: () => import("./tables/saved-views.ts").then((mod) => mod.savedViewsTable),
+  subscriptions: () => import("./tables/subscriptions.ts").then((mod) => mod.subscriptionsTable),
+  tags: () => import("./tables/tags.ts").then((mod) => mod.tagsTable),
+  tasks: () => import("./tables/tasks.ts").then((mod) => mod.tasksTable),
+  tasksView: () => import("./tables/tasks-view.ts").then((mod) => mod.tasksViewTable),
 };
 
-/** The server's schema, with every table. Browser code imports `clientSchema` from the generated module instead. */
-export const schema: Schema<Models, Database, Functions, SubjectType, ExtensionsOf<Extensions>> = /*#__PURE__*/ defineSchema({ ...meta, tables }, extensions);
+/** The server's schema. Each table module loads on its first call, and function metadata loads on the first rpc call. */
+export const schema: Schema<Models, Database, Functions, SubjectType, ExtensionsOf<Extensions>> = /*#__PURE__*/ defineSchema({
+  ...meta,
+  lazyTables: true,
+  tables: {},
+  functions: {},
+  tableLoaders,
+  loadFunctions: () => import("./generated.functions.js").then((mod) => mod.default as SchemaMeta["functions"]),
+}, extensions);

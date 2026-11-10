@@ -186,6 +186,20 @@ export interface SchemaMeta {
   readonly lazyTables?: true;
   readonly enums: Readonly<Record<string, readonly string[]>>;
   readonly functions: Readonly<Record<string, FunctionMeta>>;
+  /**
+   * Loads `functions` on the first `rpc` call. The generated server schema sets
+   * it so `generated.functions.js` stays out of startup.
+   */
+  readonly loadFunctions?: () => Promise<
+    Readonly<Record<string, FunctionMeta>>
+  >;
+  /**
+   * Loads one table the first time a repository method runs. The generated
+   * server schema sets it when `gen.serverTables` is `lazy`.
+   */
+  readonly tableLoaders?: Readonly<
+    Record<string, () => Promise<TableMeta & { readonly key: string }>>
+  >;
   readonly buckets?: Readonly<Record<string, BucketMeta>>;
   readonly topics?: Readonly<Record<string, string>>;
   /**

@@ -28,6 +28,7 @@ import {
 import { emitConstants } from "./constants.ts";
 import { deprecationWarnings } from "./deprecations.ts";
 import {
+  emitFunctions,
   emitMeta,
   emitModule,
   emitRuntime,
@@ -171,9 +172,12 @@ export async function render(
     ...runtime,
   };
 
+  const lazyServerTables = split && config.gen.serverTables !== "eager";
+
   const meta = emitMeta(model, {
     types: `./${basename(metaFiles.dts)}`,
     splitTables: split,
+    splitFunctions: lazyServerTables,
     ...runtime,
   });
 
@@ -183,6 +187,14 @@ export async function render(
     { path: config.output, contents: "" },
     { path: metaFiles.js, contents: meta.js },
     { path: metaFiles.dts, contents: meta.dts },
+    ...(lazyServerTables
+      ? [
+          {
+            path: metaFiles.js.replace(/\.meta\.js$/, ".functions.js"),
+            contents: emitFunctions(model.meta.functions),
+          },
+        ]
+      : []),
   ];
 
   files.splice(
@@ -319,6 +331,7 @@ export async function render(
       contents: emitSchemaModule(model, modules, {
         ...withValidators,
         generated: `./${basename(config.output)}`,
+        lazyServerTables,
       }),
     });
   }

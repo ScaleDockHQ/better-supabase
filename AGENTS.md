@@ -510,7 +510,12 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0608: Build the proxy from the session runtime.
 - 0609: Infer a uuid subject id in the inline read policies.
 - 0610: Index the remaining subject cascades, read keys without jsonb, and let an import chunk fail.
+- 0611: Load server table metadata on first use.
+- 0612: Statement audit skips import summaries.
+- 0613: Import batches report conflicts and finish on the counts.
+- 0614: A browser client with auth and realtime only.
 - 0615: Expire domain tags after a write, and give display-only grids a lean feature bundle.
+- 0616: Search compares keys in their own type.
 - 0630: Add db squash, env.map, a fetch-level PostgREST fake, asSignedInUser and two pgTAP helpers.
 - 0631: Add useOptimisticAction, onEnded, onRejoin, sharedPostgres, a verified ssl option and member reads.
 - 0632: Measure a 1,200 table profile in the type bench.
