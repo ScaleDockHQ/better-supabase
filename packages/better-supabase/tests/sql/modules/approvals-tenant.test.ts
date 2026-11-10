@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -134,5 +135,50 @@ describe("approval policies", () => {
         }),
       ),
     ).toThrow(/manager/);
+  });
+
+  it("moves a consumed request to consumed and ties consumed_at to it", () => {
+    const sql = sqlOf(
+      ["approvals"],
+      approvals({ policies: { invoice: { send: FLOORS.invoice.send } } }),
+    );
+
+    expect(sql).toContain(`set "status" = 'consumed', "consumed_at" = now()`);
+    expect(sql).toContain(
+      `check (("status" = 'consumed') = ("consumed_at" is not null))`,
+    );
+    expect(sql).toContain(`x."status" in ('approved', 'consumed')`);
+  });
+
+  it("backfills requests used before the consumed status on upgrade", () => {
+    const [plan] = upgradePlan(
+      [{ module: "approvals", version: 5 }],
+      approvals({ policies: FLOORS }),
+    );
+
+    const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
+
+    expect(plan?.to).toBe(6);
+    expect(sql).toContain(
+      `drop constraint if exists "approval_requests_status_check"`,
+    );
+    expect(sql).toContain(
+      `set "status" = 'consumed' where "consumed_at" is not null and "status" = 'approved'`,
+    );
+    expect(sql).toContain(`"bsb_approval_requests_consumed_check"`);
+  });
+
+  it("leaves an app's own requests table to the app on upgrade", () => {
+    const [plan] = upgradePlan([{ module: "approvals", version: 5 }], {
+      ownTables: { "public.approval_requests": "app.sql" },
+      modules: {
+        approvals: {
+          tables: { requests: "public.approval_requests" },
+          options: { policies: FLOORS },
+        },
+      },
+    });
+
+    expect(plan?.steps.map((step) => step.sql).join("")).toBe("");
   });
 });

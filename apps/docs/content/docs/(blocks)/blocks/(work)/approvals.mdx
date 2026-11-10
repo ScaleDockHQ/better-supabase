@@ -272,7 +272,9 @@ await db.approvals
 await refund(operation);
 ```
 
-`approvalFingerprint` hashes the value as JSON with sorted keys, with SHA-256. `consume` marks the request `consumedAt` and fails with `APPROVAL_NOT_APPROVED` before the final approval, `APPROVAL_CONSUMED` on a second call and `APPROVAL_FINGERPRINT_MISMATCH` when the operation changed. The requester, a member with `approvals.manage` and the service role may consume a request.
+`approvalFingerprint` hashes the value as JSON with sorted keys, with SHA-256. `consume` moves the request to the `consumed` status, sets `consumedAt`, and fails with `APPROVAL_NOT_APPROVED` before the final approval, `APPROVAL_CONSUMED` on a second call and `APPROVAL_FINGERPRINT_MISMATCH` when the operation changed. The requester, a member with `approvals.manage` and the service role may consume a request. A check on the requests table keeps `consumedAt` set exactly when the status is `consumed`, and `isApproved` still answers true for a consumed request.
+
+Requests consumed before version 6 of the module kept the `approved` status. `better-supabase upgrade` writes a reviewed migration that allows the new status, moves those requests to `consumed` and adds the check. Over a requests table of your own, do the same in a migration of yours: allow `consumed` in the status column's check or enum, run `update ... set status = 'consumed' where consumed_at is not null and status = 'approved'`, and add the check if you want it.
 
 ## Run the approved action
 

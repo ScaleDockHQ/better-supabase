@@ -49,9 +49,12 @@ import {
 import {
   approvalsTenantContract,
   approvalsTenantSql,
+  consumedCheck,
+  consumedUpgrade,
   managerMatch,
   managerOf,
   platformPoliciesOn,
+  REQUEST_STATUSES,
   tenantlessTypes,
   tenantPoliciesOn,
 } from "./approvals-tenant.ts";
@@ -701,9 +704,14 @@ ${indent}end if;`;
   ${c("subjectType")} text not null,
   ${c("subjectId")} text not null,
   ${c("action")} text not null,${column("requests", "policy", (name) => `${name} jsonb not null`)}${column("requests", "step", (name) => `${name} integer not null default 0 check (${name} >= 0)`)}
-  ${c("status")} text not null default 'pending' check (${c("status")} in ('pending', 'approved', 'rejected', 'cancelled', 'expired')),
+  ${c("status")} text not null default 'pending' check (${c("status")} in (${REQUEST_STATUSES})),
   ${c("requestedBy")} uuid,${column("requests", "reason", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}${column("requests", "payload", (name) => `${name} jsonb not null default '{}'::jsonb`)}${column("requests", "expiresAt", (name) => `${name} timestamptz`)}${column("requests", "remindedAt", (name) => `${name} timestamptz`)}${column("requests", "decidedAt", (name) => `${name} timestamptz`)}${column("requests", "fingerprint", (name) => `${name} text check (${name} is null or ${name} ~ '^[0-9a-f]{64}$')`)}${column("requests", "consumedAt", (name) => `${name} timestamptz`)}
-  ${c("createdAt")} timestamptz not null default now()
+  ${c("createdAt")} timestamptz not null default now()${
+    has("consumedAt")
+      ? `,
+  ${consumedCheck(ctx)}`
+      : ""
+  }
 );${has("fingerprint") ? `\nalter table ${requests} add column if not exists ${c("fingerprint")} text check (${c("fingerprint")} is null or ${c("fingerprint")} ~ '^[0-9a-f]{64}$');` : ""}${has("consumedAt") ? `\nalter table ${requests} add column if not exists ${c("consumedAt")} timestamptz;` : ""}
 ${tenantless ? `alter table ${requests} alter column ${c("tenant")} drop not null;\n` : ""}create unique index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_pending_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending';
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_subject_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")});
@@ -1149,7 +1157,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select x.${c("status")} = 'approved' from ${requests} x
+    select x.${c("status")} in ('approved', 'consumed') from ${requests} x
     where x.${c("subjectType")} = is_approved.subject_type and x.${c("subjectId")} = is_approved.subject_id and x.${c("action")} = is_approved.action
     order by x.${c("createdAt")} desc limit 1
   ), false)
@@ -1289,7 +1297,7 @@ export const APPROVALS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   names: APPROVALS_NAMES,
   upgrades: [
     {
@@ -1315,6 +1323,12 @@ export const APPROVALS: BlockSqlDefinition = {
       description:
         "approval_eligible_ids(tenant) joins the pending requests against the caller's approvals in one statement and no longer calls approval_eligible per request.",
       sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "consume_approval moves a request to the new consumed status. Requests used before keep consumed_at with status approved; the upgrade sets them to consumed and adds a check that consumed_at is set exactly when the status is consumed.",
+      sql: consumedUpgrade,
     },
   ],
   contract,
