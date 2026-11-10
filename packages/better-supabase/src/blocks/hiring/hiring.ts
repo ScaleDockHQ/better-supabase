@@ -467,11 +467,8 @@ export function createHiring<
         recordsOf(value, "applications").map(applicationOf),
       ),
     applicationsForJobs: ({ jobIds, state }) =>
-      call(
-        "list_applications_for_jobs",
-        { jobs: [...jobIds], state: state ?? null },
-        (value) =>
-          recordsOf(value, "list_applications_for_jobs").map(applicationOf),
+      call("list_applications_for_jobs", { jobs: jobIds, state }, (value) =>
+        recordsOf(value, "list_applications_for_jobs").map(applicationOf),
       ),
     pipeline: ({ jobId, state }) =>
       hooked.applications({ jobId, state }).map((applications) => {

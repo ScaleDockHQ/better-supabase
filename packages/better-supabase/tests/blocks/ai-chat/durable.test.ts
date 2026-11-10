@@ -196,19 +196,18 @@ describe("ai-chat runs", () => {
     expect(lastArgs(user)).toEqual({ run: "r1" });
   });
 
-  it("lists the steps of many runs in one call, grouped by run", async () => {
+  it("lists the steps of many runs in one call", async () => {
     const { runs, user } = fake();
 
-    const byRun = await runs.steps
+    const steps = await runs.steps
       .listFor({ runIds: ["r1", "r2"], limit: 20 })
       .orThrow();
 
-    expect([...byRun.keys()]).toEqual(["r1", "r2"]);
-    expect(byRun.get("r1")?.map((step) => step.key)).toEqual([
-      stepRow.step_key,
-      "plan",
+    expect(steps.map((step) => [step.runId, step.key])).toEqual([
+      ["r1", stepRow.step_key],
+      ["r2", stepRow.step_key],
+      ["r1", "plan"],
     ]);
-    expect(byRun.get("r2")).toHaveLength(1);
     expect(user).toHaveBeenCalledOnce();
 
     expect(lastArgs(user)).toEqual({ runs: ["r1", "r2"], per_run: 20 });

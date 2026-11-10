@@ -28,8 +28,8 @@ answers, with the same result shape.
 | `care-plans` | `get_care_plans(plan_ids uuid[])`                 | `getMany(planIds)`                       |
 
 **Result order.** Rows come back in the order of the ids (jobs in the order given, each in board
-order; runs in id order with their steps in start order). The client groups run steps into a `Map`
-by run id.
+order; runs in id order with their steps in start order). Run steps come back as one flat
+list, each step with its `runId`.
 
 **Unreadable ids are skipped.** A single read raises `*_NOT_FOUND` or `*_FORBIDDEN`. A batch cannot
 fail on one id without hiding the rest, so a missing id and an id the caller cannot read both have no
@@ -82,7 +82,16 @@ subject once.
 caller checks inside the function, so they cannot be invokers; the rule says definer counts go down,
 and this is a deliberate exception, recorded here. `hiring` and `templates` stay invokers.
 
-The server bundle grows by the five client methods (a descriptor and an argument map each) in routes
-that carry those blocks. See the pull request for the measured baseline numbers.
+The server bundle grows. The five client methods add about 617 bytes of raw JavaScript to each
+server route that carries the block set (measured against a build of main at the same commit: 97
+routes +617, 21 routes +623, 8 routes +121, 37 routes unchanged; gzip between -214 and +213 bytes,
+brotli between -19 and +236). Each method is a call with its argument map and a result mapper,
+about 110 to 150 minified bytes, and the string name of the function appears once per method.
+`tests/next-build/next-build.test.ts` fails on "never grows past the server baseline" for 132
+routes by 310 to 379 raw bytes beyond the 512-byte slack (gzip and brotli stay inside theirs),
+because main had less than 300 bytes of headroom left. This change does not edit the test or the
+baselines. A maintainer either raises the server baseline by about 620 bytes raw or asks for some of
+the reads to go; the methods are already reduced to a call and a mapper each (the run steps method
+returns a flat list instead of grouping, and `templates` shares one detail mapper with `get`).
 
 No new events, permissions or tables. The migration only adds five functions and their grants.

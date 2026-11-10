@@ -280,7 +280,7 @@ export function createVersions<
       ),
     get,
     getMany: (ids) =>
-      call("get_versions", { version_ids: [...ids] }, (value) =>
+      call("get_versions", { version_ids: ids }, (value) =>
         recordsOf(value, "get_versions").map((row) =>
           versionOf(row, "get_versions"),
         ),

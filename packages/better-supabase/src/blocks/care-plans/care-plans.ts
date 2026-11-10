@@ -682,7 +682,7 @@ export function createCarePlans<
         fields.row,
       ),
     getMany: (planIds) =>
-      call("get_care_plans", { plan_ids: [...planIds] }, (value) =>
+      call("get_care_plans", { plan_ids: planIds }, (value) =>
         recordsOf(value, "get_care_plans").map(plan("get_care_plans")),
       ).andThen(fields.rows),
     list: ({ subjectType, subjectId, limit, ...list }) =>

@@ -523,15 +523,15 @@ export function createTemplates<
   const typeOf = (name: string): TemplateType | undefined =>
     Object.hasOwn(types, name) ? types[name] : undefined;
 
+  const detailOf = (row: Record<string, unknown>): TemplateDetail => ({
+    ...templateOf(row),
+    published: optionalVersion(row["published"]),
+    draft: optionalVersion(row["draft"]),
+  });
+
   const get = (id: string): AsyncResult<TemplateDetail<F> | undefined> =>
     call("template_get", { template_id: id }, (value) =>
-      isRecord(value)
-        ? {
-            ...templateOf(value),
-            published: optionalVersion(value["published"]),
-            draft: optionalVersion(value["draft"]),
-          }
-        : undefined,
+      isRecord(value) ? detailOf(value) : undefined,
     ).andThen((detail) =>
       detail === undefined ? AsyncResult.ok(undefined) : fields.row(detail),
     );
@@ -539,12 +539,8 @@ export function createTemplates<
   const getMany = (
     ids: readonly string[],
   ): AsyncResult<readonly TemplateDetail<F>[]> =>
-    call("templates_get_many", { template_ids: [...ids] }, (value) =>
-      recordsOf(value, "templates_get_many").map((row) => ({
-        ...templateOf(row),
-        published: optionalVersion(row["published"]),
-        draft: optionalVersion(row["draft"]),
-      })),
+    call("templates_get_many", { template_ids: ids }, (value) =>
+      recordsOf(value, "templates_get_many").map(detailOf),
     ).andThen(fields.rows);
 
   const saveVersion = (template: string, body: unknown) =>
