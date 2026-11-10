@@ -684,6 +684,7 @@ Commands
   backfill   Fills the null values of a column in batches, from the table a foreign key references or from a literal
   verify     Checks row level security, grants, policies and definer search_path in the database, and writes the access matrix as pgTAP files with --write-tests
   partition  Moves an audit log created before options.partitioned onto monthly partitions without stopping writes
+  squash     Replaces the migrations with one baseline of the declarative schema, keeping the module extensions and the data migrations --keep names
 
 Global options
   --cwd <dir>                Project directory
@@ -895,6 +896,41 @@ Global options
 
 Side effects: Writes files, writes to the database with --yes, writes to the database with --tenant, writes to the database with --defaults, calls the Better Supabase cloud with --sample.
 Docs: https://bettersupabase.com/docs/cli/db#seed
+"
+`;
+
+exports[`help > documents db squash 1`] = `
+"Usage: better-supabase db squash [options]
+
+Replaces the migrations with one baseline of the declarative schema, keeping the module extensions and the data migrations --keep names
+
+Options
+  --name <name>     Name of the new baseline migration (default init)
+  --keep <names>    Comma-separated names of data migrations to carry over, such as reference_data,billing_plans; the files of each name merge in order
+  --schemas <list>  Comma-separated schemas the baseline covers (default: the config's schemas)
+  --dry-run         Print what would be removed and kept, and change nothing
+
+Global options
+  --cwd <dir>                Project directory
+  --config <file>            Config file, relative to --cwd
+  --env <name>               Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                     Print one JSON document on stdout; a failure prints an error document on stderr. On by default in agent mode
+  --agent <auto|yes|no>      Agent mode (JSON output, no prompts, confirmation for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --effects-digest <digest>  The digest from a confirmation_required result; with --yes, confirms exactly those effects
+  -y, --yes                  Answer yes to every confirmation; ask nothing
+  --non-interactive          Never prompt; fail with input_required when a value is missing. On in CI and agent mode
+  --no-color                 Print no colors, like $NO_COLOR
+  --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help                 Show help
+
+Examples
+  # Lists what it would remove and keep
+  $ better-supabase db squash --dry-run
+  # Writes one init migration and carries the two data migrations over
+  $ better-supabase db squash --keep reference_data,billing_plans --yes
+
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/db#squash
 "
 `;
 

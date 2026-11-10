@@ -200,6 +200,15 @@ export interface EnvFileConfig {
    * prefix. Detected from the framework by default.
    */
   readonly prefix?: string;
+  /**
+   * Extra variables `dev env` and `dev run` set, as `{ NAME: source }`. The
+   * source is a variable the command already writes (`SUPABASE_URL`,
+   * `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL`,
+   * `SUPABASE_DB_URL`, `SUPABASE_JWT_SECRET`) or a key of `supabase status -o
+   * json` such as `STUDIO_URL`. Use it when the app reads other names than the
+   * ones the command writes, for example `SUPABASE_ANON_KEY`.
+   */
+  readonly map?: Readonly<Record<string, string>>;
 }
 
 /** An agent folder `better-supabase skills install` writes to. */

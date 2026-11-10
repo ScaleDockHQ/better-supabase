@@ -45,6 +45,7 @@ describe("__complete", () => {
       "backfill",
       "verify",
       "partition",
+      "squash",
     ]);
     expect(await values("codemod", "n")).toEqual(["naming"]);
   });

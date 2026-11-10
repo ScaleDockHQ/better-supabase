@@ -21,7 +21,7 @@ import {
 import { display, readIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { detectProject, publicPrefix } from "../project/detect.ts";
-import { prefixFromFlag, stackEnvValues } from "../stack-env.ts";
+import { applyEnvMap, prefixFromFlag, stackEnvValues } from "../stack-env.ts";
 import { parseStackStatus, readStackStatus } from "../stack-status.ts";
 
 const ARGS = {
@@ -101,6 +101,24 @@ async function browserPrefix(
     : prefixFromFlag(prefix);
 }
 
+/** The stack variables plus the ones `env.map` adds. */
+function mappedValues(
+  config: ResolvedConfig,
+  status: StackStatus,
+  values: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const mapped = applyEnvMap(values, status, config.env.map);
+
+  if (mapped.missing.length > 0) {
+    throw new CliError(
+      "invalid_input",
+      `env.map names a source the stack does not have: ${mapped.missing.join(", ")}.`,
+    );
+  }
+
+  return mapped.values;
+}
+
 export interface StackEnv {
   readonly status: StackStatus;
   readonly values: Readonly<Record<string, string>>;
@@ -126,7 +144,7 @@ export async function readStackEnv(
     );
   }
 
-  return { status, values };
+  return { status, values: mappedValues(config, status, values) };
 }
 
 /** Replaces `KEY=` lines in place and appends the rest under a header. */
@@ -178,15 +196,17 @@ export async function runEnv(
   const status = await readStatus(config, args, env, signal);
   const prefix = await browserPrefix(config, args.prefix);
 
-  const values = stackEnvValues(status, prefix);
+  const stackValues = stackEnvValues(status, prefix);
 
-  if (!values) {
+  if (!stackValues) {
     return {
       code: 1,
       error:
         "supabase status has no API_URL or publishable key. Is the stack running?",
     };
   }
+
+  const values = mappedValues(config, status, stackValues);
 
   const write = args.out;
 
