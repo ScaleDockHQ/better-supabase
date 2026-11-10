@@ -27,16 +27,21 @@ export function productImportSql(ctx: BlockSqlContext): string {
   const v = (column: string): string => ctx.col("variants", column);
   const fn = (name: string): string => ctx.fn(name);
 
+  // The block's own tables have a price column only without a prices table.
+  const has = (table: "products" | "variants", logical: string): boolean =>
+    ctx.has(table, logical) &&
+    (logical !== "price" || !ctx.owns(table) || !ctx.hasTable("prices"));
+
   const set = (logical: string, expr: string): string =>
-    ctx.has("products", logical)
+    has("products", logical)
       ? `, ${p(logical)} = coalesce(${expr}, x.${p(logical)})`
       : "";
 
   const inserted = (logical: string, expr: string): string =>
-    ctx.has("products", logical) ? `, ${expr}` : "";
+    has("products", logical) ? `, ${expr}` : "";
 
   const insertedCol = (logical: string): string =>
-    ctx.has("products", logical) ? `, ${p(logical)}` : "";
+    has("products", logical) ? `, ${p(logical)}` : "";
 
   return `
 -- One product and its default variant. The price is data.price, then
@@ -78,7 +83,7 @@ begin
     select 1 from ${products} x
     where x.${p("id")} = v_id and x.${p("tenant")} = v_tenant and x.${p("title")} is not distinct from v_name
       and x.${p("slug")} is not distinct from v_slug
-      ${ctx.has("products", "price") ? `and x.${p("price")} is not distinct from coalesce(v_price, x.${p("price")})` : ""}
+      ${has("products", "price") ? `and x.${p("price")} is not distinct from coalesce(v_price, x.${p("price")})` : ""}
   ) and (v_sku is null or exists (
     select 1 from ${variants} y where y.${v("product")} = v_id and y.${v("sku")} is not distinct from v_sku
   )) then
@@ -102,10 +107,10 @@ begin
     returning x.${p("updatedAt")} into v_updated;
   end if;
   if not exists (select 1 from ${variants} y where y.${v("product")} = v_id) then
-    insert into ${variants} (${v("tenant")}, ${v("product")}, ${v("sku")}${ctx.has("variants", "barcode") ? `, ${v("barcode")}` : ""}${ctx.has("variants", "price") ? `, ${v("price")}` : ""})
-    values (v_tenant, v_id, coalesce(v_sku, v_slug)${ctx.has("variants", "barcode") ? `, nullif(btrim(v_data ->> 'ean'), '')` : ""}${ctx.has("variants", "price") ? ", v_price" : ""});
+    insert into ${variants} (${v("tenant")}, ${v("product")}, ${v("sku")}${ctx.has("variants", "barcode") ? `, ${v("barcode")}` : ""}${has("variants", "price") ? `, ${v("price")}` : ""})
+    values (v_tenant, v_id, coalesce(v_sku, v_slug)${ctx.has("variants", "barcode") ? `, nullif(btrim(v_data ->> 'ean'), '')` : ""}${has("variants", "price") ? ", v_price" : ""});
   elsif v_sku is not null then
-    update ${variants} y set ${v("sku")} = v_sku${ctx.has("variants", "barcode") ? `, ${v("barcode")} = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y.${v("barcode")})` : ""}${ctx.has("variants", "price") ? `, ${v("price")} = coalesce(v_price, y.${v("price")})` : ""}
+    update ${variants} y set ${v("sku")} = v_sku${ctx.has("variants", "barcode") ? `, ${v("barcode")} = coalesce(nullif(btrim(v_data ->> 'ean'), ''), y.${v("barcode")})` : ""}${has("variants", "price") ? `, ${v("price")} = coalesce(v_price, y.${v("price")})` : ""}
     where y.${v("id")} = (select y2.${v("id")} from ${variants} y2 where y2.${v("product")} = v_id order by y2.${v("createdAt")} limit 1);
   end if;
   return jsonb_build_object('subjectId', v_id, 'updatedAt', v_updated);

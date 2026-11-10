@@ -1,5 +1,7 @@
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { writtenByBlocks } from "../sql-layout.ts";
+
 const RAISE = /raise\s+exception\b/iu;
 
 /** A raise in schema SQL that does not name a stable hint code. */
@@ -37,7 +39,9 @@ export const ERROR_CODE_RULES: readonly Rule[] = [
       "A raise exception without a hint leaves the app matching English message text. The hint is the stable code from `better-supabase codes --json`.",
     check: (context: DoctorContext): FindingInput[] =>
       (context.sqlFiles ?? []).flatMap((file) =>
-        file.path.includes("/migrations/") ? [] : raisesWithoutCode(file),
+        file.path.includes("/migrations/") || writtenByBlocks(file)
+          ? []
+          : raisesWithoutCode(file),
       ),
   },
 ];

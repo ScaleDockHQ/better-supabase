@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:f2551a8025a3be9f65369deda82a257a911703b6e4cab11e7e5fec721e1acade
+-- @bsb-hash sha256:86c0290275f19f157696c9c275d7e4a284c2b5b65b2072a42cd45d9b0f82777f
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2564,7 +2564,7 @@ begin
     for v_index in 0..11 loop
       insert into "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
       values (ensure_import_periods.tenant, v_year, v_index + 1, (v_start + make_interval(months => v_index))::date,
-        ((v_start + make_interval(months => v_index + 1)) - 1)::date);
+        (v_start + make_interval(months => v_index + 1))::date - 1);
     end loop;
   end if;
   if ensure_import_periods.close_historical then

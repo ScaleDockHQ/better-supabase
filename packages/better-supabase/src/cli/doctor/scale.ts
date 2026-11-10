@@ -3,6 +3,7 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { ownerOf, splitStatements } from "../../sql/index.ts";
 import { errorText } from "../core/errors.ts";
+import { writtenByBlocks } from "../sql-layout.ts";
 import { EDGE_FUNCTION_RULES } from "./edge-functions.ts";
 import { statementsView } from "./live.ts";
 import { OVERRIDE_RULES } from "./overrides.ts";
@@ -28,6 +29,12 @@ const escape = (name: string): string =>
 /** The schema files of the project, not its migrations or data files. */
 const sqlTexts = (context: DoctorContext): readonly TextFile[] =>
   context.sqlFiles ?? [];
+
+/** The app's own schema files: no migration, and no file the blocks wrote. */
+const appSqlTexts = (context: DoctorContext): readonly TextFile[] =>
+  sqlTexts(context).filter(
+    (file) => !file.path.includes("/migrations/") && !writtenByBlocks(file),
+  );
 
 /**
  * Whether a policy expression calls `schema.name` outside a `(select ...)`, the
@@ -566,7 +573,7 @@ const SCALE_CHECKS: readonly Rule[] = [
     description:
       "A list function orders or continues by created_at and id, and the same file has no btree index that contains both columns. The cursor then sorts the tenant. Add an index on (tenant, created_at, id) in the same direction as the order.",
     check(context) {
-      return sqlTexts(context).flatMap((file) => {
+      return appSqlTexts(context).flatMap((file) => {
         const indexes = file.text.toLowerCase();
         const findings: FindingInput[] = [];
 
