@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createSupabase } from "../../src/core/define.ts";
-import { createPostgres } from "../../src/postgres/pool.ts";
+import { createPostgres, escapeLiteral } from "../../src/postgres/pool.ts";
 import { fakePgPool } from "../fixtures/fake-pg-pool.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -30,6 +30,51 @@ const USER_SQL = settingsSql(4);
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+describe("round trips", () => {
+  it("opens the transaction and sets the claims in one message", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({ pool: fake.pool });
+    await pg.asUser({ sub: "u1" }).queryRaw("select 1");
+
+    // begin and the settings, the statement, the commit.
+    expect(fake.messages).toBe(3);
+  });
+
+  it("keeps a bare admin statement to one message", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({ pool: fake.pool });
+    await pg.admin.queryRaw("select 1");
+
+    expect(fake.messages).toBe(1);
+  });
+
+  it("carries quotes and backslashes in a claim value through unchanged", async () => {
+    const fake = recordingPool();
+    const pg = createPostgres({ pool: fake.pool });
+    const nasty = String.raw`it's \ a "claim"; drop table x; --`;
+    await pg.asUser({ sub: nasty }).queryRaw("select 1");
+
+    const settings = fake.values.find((values) =>
+      values.includes("request.jwt.claims"),
+    );
+
+    const claims = settings?.[settings.indexOf("request.jwt.claims") + 1];
+    expect(JSON.parse(String(claims))).toMatchObject({ sub: nasty });
+  });
+});
+
+describe("escapeLiteral", () => {
+  it("doubles quotes and backslashes in an escape string", () => {
+    expect(escapeLiteral("it's")).toBe(String.raw`E'it''s'`);
+    expect(escapeLiteral(String.raw`a\b`)).toBe(String.raw`E'a\\b'`);
+    expect(escapeLiteral("")).toBe("E''");
+  });
+
+  it("refuses a null byte", () => {
+    expect(() => escapeLiteral("a\u0000b")).toThrow(TypeError);
+  });
 });
 
 describe("createPostgres", () => {

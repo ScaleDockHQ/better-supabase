@@ -9,6 +9,19 @@ import { encodeArgument } from "../ir/wire.ts";
 import { postgresExecutor } from "./executor.ts";
 import { watchPoolErrors } from "./pool-errors.ts";
 
+/**
+ * A string as a Postgres escape string literal. `E'...'` reads backslashes the
+ * same way whatever `standard_conforming_strings` says, so the quoting holds on
+ * every server. A value with a null byte can't be sent, as with a parameter.
+ */
+export function escapeLiteral(value: string): string {
+  if (value.includes("\u0000")) {
+    throw new TypeError("A setting value can't hold a null byte");
+  }
+
+  return `E'${value.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`;
+}
+
 /** The part of a `pg` pool client `createPostgres` uses. */
 export interface PgPoolClient {
   query(text: string, values?: unknown[]): Promise<{ rows: unknown[] }>;
@@ -259,15 +272,18 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   }
 
   /**
-   * Opens the transaction, then sets the timeouts, claims and role in one round
-   * trip.
+   * Opens the transaction and sets the timeouts, claims and role in one round
+   * trip: one simple-protocol message holds `begin` and the `set_config` call,
+   * so a statement costs three round trips (this, the statement, the commit)
+   * instead of four. A simple message takes no parameters, so each value is
+   * written as an escape string literal.
    */
   async function begin(
     client: PgPoolClient,
     session: Session,
     settings: readonly [string, string][],
   ): Promise<void> {
-    await client.query(session.readOnly ? "begin read only" : "begin");
+    const open = session.readOnly ? "begin read only" : "begin";
 
     const all: readonly (readonly [string, string])[] =
       idleInTransaction > 0
@@ -278,12 +294,13 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
         : settings;
 
     if (all.length === 0) {
+      await client.query(open);
+
       return;
     }
 
     await client.query(
-      `select ${all.map((_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`,
-      all.flat(),
+      `${open};select ${all.map(([key, value]) => `set_config(${escapeLiteral(key)}, ${escapeLiteral(value)}, true)`).join(", ")}`,
     );
   }
 
