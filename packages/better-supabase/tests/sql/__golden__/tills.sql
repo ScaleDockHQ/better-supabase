@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:a52ff8c9debd805dcf12e389caeae2a4751d0426ed0944f1e2bef817c300b0fa
+-- @bsb-hash sha256:ffd8dd2ac943abfae80a362cafe3afc59b8c13e7410b1fea4dd7970e96385cc0
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,6 +46,7 @@ create table "better_supabase"."till_sessions" (
   "closed_at" timestamptz,
   "notes" text constraint bsb_till_sessions_notes_check check ("notes" is null or length("notes") <= 2000)
 );
+create index "till_sessions_list_idx" on "better_supabase"."till_sessions" ("tenant_id", "opened_at" desc, "id");
 create index "till_sessions_opened_idx" on "better_supabase"."till_sessions" ("till_id", "opened_at" desc);
 create unique index "till_sessions_open_key" on "better_supabase"."till_sessions" ("till_id") where "status" = 'open';
 alter table "better_supabase"."till_sessions" enable row level security;
@@ -350,7 +351,8 @@ $$;
 revoke execute on function "better_supabase"."get_till_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_till_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { tillId, status, limit, offset }.
+-- Sessions, newest first. filters is { tillId, status, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function "better_supabase"."list_till_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -362,21 +364,57 @@ as $$
 declare
   v_filters jsonb := coalesce(list_till_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_till text := nullif(v_filters ->> 'tillId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_till_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_till_sessions.tenant, 'tills.read'), false))) then
     raise exception 'not allowed to read till sessions' using errcode = '42501', hint = 'TILL_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'tillId', y."till_id", 'organizationId', y."tenant_id", 'status', y."status", 'openingFloat', y."opening_float"::text, 'expected', (select (y."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = y."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = y."till_id"), 'openedBy', y."opened_by", 'openedAt', y."opened_at", 'closedBy', y."closed_by", 'closedAt', y."closed_at", 'notes', y."notes") order by y."opened_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((x."opened_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
-        and (not v_filters ? 'tillId' or x."till_id"::text = v_filters ->> 'tillId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."opened_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."opened_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_till_sessions"(uuid, jsonb) from public, anon;
@@ -754,7 +792,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:2ca8072cc0eb42db7359f8b23731a8818244896b31b1973745f2cdebb3b045c4
+-- @bsb-hash sha256:a3bf76066be7f2bf0768f47d9935cce2b3f0f6ed7c0cd9d32e18afa988dc01dd
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -799,6 +837,7 @@ create table "better_supabase"."till_sessions" (
   "closed_at" timestamptz,
   "notes" text constraint bsb_till_sessions_notes_check check ("notes" is null or length("notes") <= 2000)
 );
+create index "till_sessions_list_idx" on "better_supabase"."till_sessions" ("tenant_id", "opened_at" desc, "id");
 create index "till_sessions_opened_idx" on "better_supabase"."till_sessions" ("till_id", "opened_at" desc);
 create unique index "till_sessions_open_key" on "better_supabase"."till_sessions" ("till_id") where "status" = 'open';
 alter table "better_supabase"."till_sessions" enable row level security;
@@ -1141,7 +1180,8 @@ $$;
 revoke execute on function "better_supabase"."get_till_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_till_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { tillId, status, limit, offset }.
+-- Sessions, newest first. filters is { tillId, status, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function "better_supabase"."list_till_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1153,21 +1193,57 @@ as $$
 declare
   v_filters jsonb := coalesce(list_till_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_till text := nullif(v_filters ->> 'tillId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_till_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_till_sessions.tenant, 'tills.read'), false))) then
     raise exception 'not allowed to read till sessions' using errcode = '42501', hint = 'TILL_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'tillId', y."till_id", 'organizationId', y."tenant_id", 'status', y."status", 'openingFloat', y."opening_float"::text, 'expected', (select (y."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = y."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = y."till_id"), 'openedBy', y."opened_by", 'openedAt', y."opened_at", 'closedBy', y."closed_by", 'closedAt', y."closed_at", 'notes', y."notes") order by y."opened_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((x."opened_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
-        and (not v_filters ? 'tillId' or x."till_id"::text = v_filters ->> 'tillId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."opened_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."opened_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_till_sessions"(uuid, jsonb) from public, anon;
@@ -1657,7 +1733,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:5c3f4af7da669b1c834d39c02ff15c8d2609db88bec6d2a54d104ee75e49db27
+-- @bsb-hash sha256:7602a7fd468a8696b4377ae183ac15a1fa338ca4fed50ba29a754954a9630851
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1707,6 +1783,7 @@ create table "app_private"."till_sessions" (
   "closed_at" timestamptz,
   "notes" text constraint bsb_till_sessions_notes_check check ("notes" is null or length("notes") <= 2000)
 );
+create index "till_sessions_list_idx" on "app_private"."till_sessions" ("tenant_id", "opened_at" desc, "id");
 create index "till_sessions_opened_idx" on "app_private"."till_sessions" ("till_id", "opened_at" desc);
 create unique index "till_sessions_open_key" on "app_private"."till_sessions" ("till_id") where "status" = 'open';
 alter table "app_private"."till_sessions" enable row level security;
@@ -2011,7 +2088,8 @@ $$;
 revoke execute on function "app_private"."get_till_session"(uuid) from public, anon;
 grant execute on function "app_private"."get_till_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { tillId, status, limit, offset }.
+-- Sessions, newest first. filters is { tillId, status, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function "app_private"."list_till_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2023,21 +2101,57 @@ as $$
 declare
   v_filters jsonb := coalesce(list_till_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_till text := nullif(v_filters ->> 'tillId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_till_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_till_sessions.tenant, 'tills.read'), false))) then
     raise exception 'not allowed to read till sessions' using errcode = '42501', hint = 'TILL_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'tillId', y."till_id", 'organizationId', y."tenant_id", 'status', y."status", 'openingFloat', y."opening_float"::text, 'expected', (select (y."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "app_private"."till_movements" bm where bm."session_id" = y."id"), 'currency', (select bt."currency" from "app_private"."tills" bt where bt."id" = y."till_id"), 'openedBy', y."opened_by", 'openedAt', y."opened_at", 'closedBy', y."closed_by", 'closedAt', y."closed_at", 'notes', y."notes") order by y."opened_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "app_private"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "app_private"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((x."opened_at")::text, (x."id")::text) as k
     from (
       select * from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
-        and (not v_filters ? 'tillId' or x."till_id"::text = v_filters ->> 'tillId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."opened_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."opened_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_till_sessions"(uuid, jsonb) from public, anon;
@@ -2415,7 +2529,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:bf5b7287c055fe1e93f381e38a6f11b26d043905e9a0febfeb6610ee7e34bab0
+-- @bsb-hash sha256:91a23276ac17df77aa5cc344dd90aaf434153829f404e0bdf31ff7af3dcc0ff9
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2460,6 +2574,7 @@ create table "better_supabase"."till_sessions" (
   "closed_at" timestamptz,
   "notes" text constraint bsb_till_sessions_notes_check check ("notes" is null or length("notes") <= 2000)
 );
+create index "till_sessions_list_idx" on "better_supabase"."till_sessions" ("tenant_id", "opened_at" desc, "id");
 create index "till_sessions_opened_idx" on "better_supabase"."till_sessions" ("till_id", "opened_at" desc);
 create unique index "till_sessions_open_key" on "better_supabase"."till_sessions" ("till_id") where "status" = 'open';
 alter table "better_supabase"."till_sessions" enable row level security;
@@ -2764,7 +2879,8 @@ $$;
 revoke execute on function "better_supabase"."get_till_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_till_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { tillId, status, limit, offset }.
+-- Sessions, newest first. filters is { tillId, status, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function "better_supabase"."list_till_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2776,21 +2892,57 @@ as $$
 declare
   v_filters jsonb := coalesce(list_till_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_till text := nullif(v_filters ->> 'tillId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_till_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_till_sessions.tenant, 'tills.read'), false))) then
     raise exception 'not allowed to read till sessions' using errcode = '42501', hint = 'TILL_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'tillId', y."till_id", 'organizationId', y."tenant_id", 'status', y."status", 'openingFloat', y."opening_float"::text, 'expected', (select (y."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = y."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = y."till_id"), 'openedBy', y."opened_by", 'openedAt', y."opened_at", 'closedBy', y."closed_by", 'closedAt', y."closed_at", 'notes', y."notes") order by y."opened_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((x."opened_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
-        and (not v_filters ? 'tillId' or x."till_id"::text = v_filters ->> 'tillId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."opened_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."opened_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_till_sessions"(uuid, jsonb) from public, anon;
@@ -3265,7 +3417,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:88a72ab3a926ca1505f7688e85256b5ae67a5d10f3c41e1b86bd5c6038048532
+-- @bsb-hash sha256:ee01b0bfcd88c1743739e71bd0cae1a25d818ef88f05eccd13166822794b1e16
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3308,6 +3460,7 @@ alter table "better_supabase"."till_sessions" add column if not exists "closed_b
 alter table "better_supabase"."till_sessions" add column if not exists "closed_at" timestamptz;
 alter table "better_supabase"."till_sessions" add column if not exists "notes" text constraint bsb_till_sessions_notes_check check ("notes" is null or length("notes") <= 2000);
 create unique index if not exists "bsb_till_sessions_tenant_id_key" on "better_supabase"."till_sessions" ("tenant_id", "id");
+create index if not exists "till_sessions_list_idx" on "better_supabase"."till_sessions" ("tenant_id", "opened_at" desc, "id");
 create index if not exists "till_sessions_opened_idx" on "better_supabase"."till_sessions" ("till_id", "opened_at" desc);
 create unique index if not exists "till_sessions_open_key" on "better_supabase"."till_sessions" ("till_id") where "status" = 'open';
 alter table "better_supabase"."till_sessions" enable row level security;
@@ -3607,7 +3760,8 @@ $$;
 revoke execute on function "better_supabase"."get_till_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_till_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { tillId, status, limit, offset }.
+-- Sessions, newest first. filters is { tillId, status, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function "better_supabase"."list_till_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3619,21 +3773,57 @@ as $$
 declare
   v_filters jsonb := coalesce(list_till_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_till text := nullif(v_filters ->> 'tillId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_till_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_till_sessions.tenant, 'tills.read'), false))) then
     raise exception 'not allowed to read till sessions' using errcode = '42501', hint = 'TILL_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'tillId', y."till_id", 'organizationId', y."tenant_id", 'status', y."status", 'openingFloat', y."opening_float"::text, 'expected', (select (y."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = y."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = y."till_id"), 'openedBy', y."opened_by", 'openedAt', y."opened_at", 'closedBy', y."closed_by", 'closedAt', y."closed_at", 'notes', y."notes") order by y."opened_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((x."opened_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
-        and (not v_filters ? 'tillId' or x."till_id"::text = v_filters ->> 'tillId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."opened_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."opened_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_till_sessions"(uuid, jsonb) from public, anon;
@@ -4011,7 +4201,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:aee1eb1388265c3bc8f72d3ed6d3b906750fdfb7d540ff67a098eac12e14df50
+-- @bsb-hash sha256:d77c4310ee6edf0236938958d2ed8c235fc1da5ad39b725f5457fe2d1786813e
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4056,6 +4246,7 @@ create table "better_supabase"."till_sessions" (
   "closed_at" timestamptz,
   "notes" text constraint bsb_till_sessions_notes_check check ("notes" is null or length("notes") <= 2000)
 );
+create index "till_sessions_list_idx" on "better_supabase"."till_sessions" ("org_id", "opened_at" desc, "id");
 create index "till_sessions_opened_idx" on "better_supabase"."till_sessions" ("till_id", "opened_at" desc);
 create unique index "till_sessions_open_key" on "better_supabase"."till_sessions" ("till_id") where "status" = 'open';
 alter table "better_supabase"."till_sessions" enable row level security;
@@ -4360,7 +4551,8 @@ $$;
 revoke execute on function "better_supabase"."get_till_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_till_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { tillId, status, limit, offset }.
+-- Sessions, newest first. filters is { tillId, status, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function "better_supabase"."list_till_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -4372,21 +4564,57 @@ as $$
 declare
   v_filters jsonb := coalesce(list_till_sessions.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_till text := nullif(v_filters ->> 'tillId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_till_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_till_sessions.tenant, 'tills.read'), false))) then
     raise exception 'not allowed to read till sessions' using errcode = '42501', hint = 'TILL_FORBIDDEN';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'tillId', y."till_id", 'organizationId', y."org_id", 'status', y."status", 'openingFloat', y."opening_float"::text, 'expected', (select (y."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = y."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = y."till_id"), 'openedBy', y."opened_by", 'openedAt', y."opened_at", 'closedBy', y."closed_by", 'closedAt', y."closed_at", 'notes', y."notes") order by y."opened_at" desc, y."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."org_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((x."opened_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
-        and (not v_filters ? 'tillId' or x."till_id"::text = v_filters ->> 'tillId')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-      order by x."opened_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+        and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."opened_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."till_sessions" x
+      where x."org_id" = list_till_sessions.tenant
+        and (v_till is null or x."till_id"::text = v_till)
+        and (v_status is null or x."status" = v_status)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_till_sessions"(uuid, jsonb) from public, anon;

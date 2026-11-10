@@ -242,6 +242,7 @@ create table if not exists ${sql.sessions} (
   ${s("closedAt")} timestamptz,
   ${s("notes")} text check (${s("notes")} is null or length(${s("notes")}) <= 2000)
 );${appKey("sessions", "tenant_id", `${s("tenant")}, ${s("id")}`)}
+create index if not exists ${name("sessions", "list_idx")} on ${sql.sessions} (${s("tenant")}, ${s("openedAt")} desc, ${s("id")});
 create index if not exists ${name("sessions", "opened_idx")} on ${sql.sessions} (${s("till")}, ${s("openedAt")} desc);
 create unique index if not exists ${name("sessions", "open_key")} on ${sql.sessions} (${s("till")}) where ${s("status")} = 'open';
 ${lockTable(sql.sessions, { read: true })}
