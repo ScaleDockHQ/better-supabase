@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:5729d211d14de5cf04cad1647a3917dd05156af6574ab8374f4c354612f5dfeb
+-- @bsb-hash sha256:2ed21ac2b21842d747f2377f7c25d5ba9d2b177ee396cb3a1ae0f544ad561a00
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -54,6 +54,7 @@ create table "better_supabase"."pick_lists" (
   foreign key ("tenant_id", "wave_id") references "better_supabase"."pick_waves" ("tenant_id", "id") on delete cascade,
   constraint bsb_pick_lists_check check (("status" = 'picked') = ("picked_at" is not null))
 );
+create index "pick_lists_list_idx" on "better_supabase"."pick_lists" ("tenant_id", "created_at" desc, "id");
 create index "pick_lists_wave_idx" on "better_supabase"."pick_lists" ("tenant_id", "wave_id");
 create index "pick_lists_document_idx" on "better_supabase"."pick_lists" ("tenant_id", "document_type", "document_id");
 create index "pick_lists_assignee_idx" on "better_supabase"."pick_lists" ("tenant_id", "assignee_id", "status");
@@ -611,7 +612,7 @@ revoke execute on function "better_supabase"."get_pick_list"(uuid) from public, 
 grant execute on function "better_supabase"."get_pick_list"(uuid) to authenticated, service_role;
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId, mine: true, limit, offset }. Readers see all of
+-- documentType, documentId, mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of
 -- them; everyone else sees the lists assigned to them.
 create or replace function "better_supabase"."list_pick_lists"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -624,23 +625,63 @@ as $$
 declare
   v_filters jsonb := coalesce(list_pick_lists.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_wave text := nullif(v_filters ->> 'waveId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_doc_type text := nullif(v_filters ->> 'documentType', '');
+  v_doc_id text := nullif(v_filters ->> 'documentId', '');
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_pick_lists.tenant is not null and coalesce(better_supabase.can('tenant', list_pick_lists.tenant, 'warehouse.read'), false)));
 begin
-  return coalesce((
-    select jsonb_agg("better_supabase"."pick_list_json"(y.id) order by y.created_at desc, y.id)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
-      select x."id" as id, x."created_at" as created_at
-      from "better_supabase"."pick_lists" x
+      select * from "better_supabase"."pick_lists" x
       where x."tenant_id" = list_pick_lists.tenant
-        and (not v_filters ? 'waveId' or x."wave_id" = (v_filters ->> 'waveId')::uuid)
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'documentType' or x."document_type" = v_filters ->> 'documentType')
-        and (not v_filters ? 'documentId' or x."document_id" = v_filters ->> 'documentId')
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
         and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_pick_lists"(uuid, jsonb) from public, anon;
@@ -1699,7 +1740,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:866fa2be404b61bcfe8f625881d27cbda8dc6862f51f3fc6292e5819d9f48a36
+-- @bsb-hash sha256:001ba1a0285a22e097842d6a88b538c7045e434917e0d29e1aa3b3f7bede310a
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1752,6 +1793,7 @@ create table "better_supabase"."pick_lists" (
   foreign key ("tenant_id", "wave_id") references "better_supabase"."pick_waves" ("tenant_id", "id") on delete cascade,
   constraint bsb_pick_lists_check check (("status" = 'picked') = ("picked_at" is not null))
 );
+create index "pick_lists_list_idx" on "better_supabase"."pick_lists" ("tenant_id", "created_at" desc, "id");
 create index "pick_lists_wave_idx" on "better_supabase"."pick_lists" ("tenant_id", "wave_id");
 create index "pick_lists_document_idx" on "better_supabase"."pick_lists" ("tenant_id", "document_type", "document_id");
 create index "pick_lists_assignee_idx" on "better_supabase"."pick_lists" ("tenant_id", "assignee_id", "status");
@@ -2380,7 +2422,7 @@ revoke execute on function "better_supabase"."get_pick_list"(uuid) from public, 
 grant execute on function "better_supabase"."get_pick_list"(uuid) to authenticated, service_role;
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId, mine: true, limit, offset }. Readers see all of
+-- documentType, documentId, mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of
 -- them; everyone else sees the lists assigned to them.
 create or replace function "better_supabase"."list_pick_lists"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -2393,23 +2435,63 @@ as $$
 declare
   v_filters jsonb := coalesce(list_pick_lists.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_wave text := nullif(v_filters ->> 'waveId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_doc_type text := nullif(v_filters ->> 'documentType', '');
+  v_doc_id text := nullif(v_filters ->> 'documentId', '');
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_pick_lists.tenant is not null and coalesce(better_supabase.can('tenant', list_pick_lists.tenant, 'warehouse.read'), false)));
 begin
-  return coalesce((
-    select jsonb_agg("better_supabase"."pick_list_json"(y.id) order by y.created_at desc, y.id)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
-      select x."id" as id, x."created_at" as created_at
-      from "better_supabase"."pick_lists" x
+      select * from "better_supabase"."pick_lists" x
       where x."tenant_id" = list_pick_lists.tenant
-        and (not v_filters ? 'waveId' or x."wave_id" = (v_filters ->> 'waveId')::uuid)
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'documentType' or x."document_type" = v_filters ->> 'documentType')
-        and (not v_filters ? 'documentId' or x."document_id" = v_filters ->> 'documentId')
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
         and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_pick_lists"(uuid, jsonb) from public, anon;
@@ -3497,7 +3579,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:f597f80fcce11b26f32bd02ee7f8ea42481a9b87e5927b1f0da89a8ccddf4e4a
+-- @bsb-hash sha256:21f5773d38a1f6399859eacf87df726ae2e342af6a362a583361e297fc322b38
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3555,6 +3637,7 @@ create table "app_private"."pick_lists" (
   foreign key ("tenant_id", "wave_id") references "app_private"."pick_waves" ("tenant_id", "id") on delete cascade,
   constraint bsb_pick_lists_check check (("status" = 'picked') = ("picked_at" is not null))
 );
+create index "pick_lists_list_idx" on "app_private"."pick_lists" ("tenant_id", "created_at" desc, "id");
 create index "pick_lists_wave_idx" on "app_private"."pick_lists" ("tenant_id", "wave_id");
 create index "pick_lists_document_idx" on "app_private"."pick_lists" ("tenant_id", "document_type", "document_id");
 create index "pick_lists_assignee_idx" on "app_private"."pick_lists" ("tenant_id", "assignee_id", "status");
@@ -4112,7 +4195,7 @@ revoke execute on function "app_private"."get_pick_list"(uuid) from public, anon
 grant execute on function "app_private"."get_pick_list"(uuid) to authenticated, service_role;
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId, mine: true, limit, offset }. Readers see all of
+-- documentType, documentId, mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of
 -- them; everyone else sees the lists assigned to them.
 create or replace function "app_private"."list_pick_lists"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -4125,23 +4208,63 @@ as $$
 declare
   v_filters jsonb := coalesce(list_pick_lists.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_wave text := nullif(v_filters ->> 'waveId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_doc_type text := nullif(v_filters ->> 'documentType', '');
+  v_doc_id text := nullif(v_filters ->> 'documentId', '');
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_pick_lists.tenant is not null and coalesce(better_supabase.can('tenant', list_pick_lists.tenant, 'warehouse.read'), false)));
 begin
-  return coalesce((
-    select jsonb_agg("app_private"."pick_list_json"(y.id) order by y.created_at desc, y.id)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."pick_list_json"(x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
-      select x."id" as id, x."created_at" as created_at
-      from "app_private"."pick_lists" x
+      select * from "app_private"."pick_lists" x
       where x."tenant_id" = list_pick_lists.tenant
-        and (not v_filters ? 'waveId' or x."wave_id" = (v_filters ->> 'waveId')::uuid)
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'documentType' or x."document_type" = v_filters ->> 'documentType')
-        and (not v_filters ? 'documentId' or x."document_id" = v_filters ->> 'documentId')
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
         and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_pick_lists"(uuid, jsonb) from public, anon;
@@ -5200,7 +5323,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:b942ffae27f4bf5226a0ff72c3edc4399f4397f955cd7eb4bc73252983b54edd
+-- @bsb-hash sha256:57459b0a693654e2cb0d4cfa1d82468a61d7b8707b09a851ca0ab569e12e0957
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5253,6 +5376,7 @@ create table "better_supabase"."pick_lists" (
   foreign key ("tenant_id", "wave_id") references "better_supabase"."pick_waves" ("tenant_id", "id") on delete cascade,
   constraint bsb_pick_lists_check check (("status" = 'picked') = ("picked_at" is not null))
 );
+create index "pick_lists_list_idx" on "better_supabase"."pick_lists" ("tenant_id", "created_at" desc, "id");
 create index "pick_lists_wave_idx" on "better_supabase"."pick_lists" ("tenant_id", "wave_id");
 create index "pick_lists_document_idx" on "better_supabase"."pick_lists" ("tenant_id", "document_type", "document_id");
 create index "pick_lists_assignee_idx" on "better_supabase"."pick_lists" ("tenant_id", "assignee_id", "status");
@@ -5810,7 +5934,7 @@ revoke execute on function "better_supabase"."get_pick_list"(uuid) from public, 
 grant execute on function "better_supabase"."get_pick_list"(uuid) to authenticated, service_role;
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId, mine: true, limit, offset }. Readers see all of
+-- documentType, documentId, mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of
 -- them; everyone else sees the lists assigned to them.
 create or replace function "better_supabase"."list_pick_lists"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -5823,23 +5947,63 @@ as $$
 declare
   v_filters jsonb := coalesce(list_pick_lists.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_wave text := nullif(v_filters ->> 'waveId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_doc_type text := nullif(v_filters ->> 'documentType', '');
+  v_doc_id text := nullif(v_filters ->> 'documentId', '');
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_pick_lists.tenant is not null and coalesce(better_supabase.can('tenant', list_pick_lists.tenant, 'warehouse.read'), false)));
 begin
-  return coalesce((
-    select jsonb_agg("better_supabase"."pick_list_json"(y.id) order by y.created_at desc, y.id)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
-      select x."id" as id, x."created_at" as created_at
-      from "better_supabase"."pick_lists" x
+      select * from "better_supabase"."pick_lists" x
       where x."tenant_id" = list_pick_lists.tenant
-        and (not v_filters ? 'waveId' or x."wave_id" = (v_filters ->> 'waveId')::uuid)
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'documentType' or x."document_type" = v_filters ->> 'documentType')
-        and (not v_filters ? 'documentId' or x."document_id" = v_filters ->> 'documentId')
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
         and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_pick_lists"(uuid, jsonb) from public, anon;
@@ -7137,7 +7301,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:d29a0eff072aa1f880f340fc6e44d5e2c8bb7cf475ff3d90d3c0fc31c3ef2013
+-- @bsb-hash sha256:742dd38a250a934f481bef4dd6daaec17e4c80a2b1efb90d6be82faecaed4d5a
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7184,6 +7348,7 @@ alter table "better_supabase"."pick_lists" add column if not exists "picked_at" 
 alter table "better_supabase"."pick_lists" add column if not exists "created_by" uuid;
 alter table "better_supabase"."pick_lists" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_pick_lists_tenant_id_key" on "better_supabase"."pick_lists" ("tenant_id", "id");
+create index if not exists "pick_lists_list_idx" on "better_supabase"."pick_lists" ("tenant_id", "created_at" desc, "id");
 create index if not exists "pick_lists_wave_idx" on "better_supabase"."pick_lists" ("tenant_id", "wave_id");
 create index if not exists "pick_lists_document_idx" on "better_supabase"."pick_lists" ("tenant_id", "document_type", "document_id");
 create index if not exists "pick_lists_assignee_idx" on "better_supabase"."pick_lists" ("tenant_id", "assignee_id", "status");
@@ -7731,7 +7896,7 @@ revoke execute on function "better_supabase"."get_pick_list"(uuid) from public, 
 grant execute on function "better_supabase"."get_pick_list"(uuid) to authenticated, service_role;
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId, mine: true, limit, offset }. Readers see all of
+-- documentType, documentId, mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of
 -- them; everyone else sees the lists assigned to them.
 create or replace function "better_supabase"."list_pick_lists"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -7744,23 +7909,63 @@ as $$
 declare
   v_filters jsonb := coalesce(list_pick_lists.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_wave text := nullif(v_filters ->> 'waveId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_doc_type text := nullif(v_filters ->> 'documentType', '');
+  v_doc_id text := nullif(v_filters ->> 'documentId', '');
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_pick_lists.tenant is not null and coalesce(better_supabase.can('tenant', list_pick_lists.tenant, 'warehouse.read'), false)));
 begin
-  return coalesce((
-    select jsonb_agg("better_supabase"."pick_list_json"(y.id) order by y.created_at desc, y.id)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
-      select x."id" as id, x."created_at" as created_at
-      from "better_supabase"."pick_lists" x
+      select * from "better_supabase"."pick_lists" x
       where x."tenant_id" = list_pick_lists.tenant
-        and (not v_filters ? 'waveId' or x."wave_id" = (v_filters ->> 'waveId')::uuid)
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'documentType' or x."document_type" = v_filters ->> 'documentType')
-        and (not v_filters ? 'documentId' or x."document_id" = v_filters ->> 'documentId')
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
         and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_pick_lists"(uuid, jsonb) from public, anon;
@@ -8819,7 +9024,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:ce2d948e27b728c003ff257c8d9fb0af4ed35ec09b64709664b4919c4e592373
+-- @bsb-hash sha256:b09472f66991b17948f579081997d1833fd2fa8561a9b29d9ac872228d2e07c9
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8872,6 +9077,7 @@ create table "better_supabase"."pick_lists" (
   foreign key ("org_id", "wave_id") references "better_supabase"."pick_waves" ("org_id", "id") on delete cascade,
   constraint bsb_pick_lists_check check (("status" = 'picked') = ("picked_at" is not null))
 );
+create index "pick_lists_list_idx" on "better_supabase"."pick_lists" ("org_id", "created_at" desc, "id");
 create index "pick_lists_wave_idx" on "better_supabase"."pick_lists" ("org_id", "wave_id");
 create index "pick_lists_document_idx" on "better_supabase"."pick_lists" ("org_id", "document_type", "document_id");
 create index "pick_lists_assignee_idx" on "better_supabase"."pick_lists" ("org_id", "assignee_id", "status");
@@ -9429,7 +9635,7 @@ revoke execute on function "better_supabase"."get_pick_list"(uuid) from public, 
 grant execute on function "better_supabase"."get_pick_list"(uuid) to authenticated, service_role;
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId, mine: true, limit, offset }. Readers see all of
+-- documentType, documentId, mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of
 -- them; everyone else sees the lists assigned to them.
 create or replace function "better_supabase"."list_pick_lists"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -9442,23 +9648,63 @@ as $$
 declare
   v_filters jsonb := coalesce(list_pick_lists.filters, '{}'::jsonb);
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_wave text := nullif(v_filters ->> 'waveId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_doc_type text := nullif(v_filters ->> 'documentType', '');
+  v_doc_id text := nullif(v_filters ->> 'documentId', '');
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_pick_lists.tenant is not null and coalesce(better_supabase.can('tenant', list_pick_lists.tenant, 'warehouse.read'), false)));
 begin
-  return coalesce((
-    select jsonb_agg("better_supabase"."pick_list_json"(y.id) order by y.created_at desc, y.id)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
-      select x."id" as id, x."created_at" as created_at
-      from "better_supabase"."pick_lists" x
+      select * from "better_supabase"."pick_lists" x
       where x."org_id" = list_pick_lists.tenant
-        and (not v_filters ? 'waveId' or x."wave_id" = (v_filters ->> 'waveId')::uuid)
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'documentType' or x."document_type" = v_filters ->> 'documentType')
-        and (not v_filters ? 'documentId' or x."document_id" = v_filters ->> 'documentId')
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
         and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
-      order by x."created_at" desc, x."id"
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."pick_lists" x
+      where x."org_id" = list_pick_lists.tenant
+        and (v_wave is null or x."wave_id" = v_wave::uuid)
+        and (v_status is null or x."status" = v_status)
+        and (v_doc_type is null or x."document_type" = v_doc_type)
+        and (v_doc_id is null or x."document_id" = v_doc_id)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_pick_lists"(uuid, jsonb) from public, anon;

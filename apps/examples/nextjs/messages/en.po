@@ -2184,6 +2184,21 @@ msgctxt "audit.Z1UrbQ"
 msgid "What changed, and who changed it."
 msgstr "What changed, and who changed it."
 
+#: src/features/audit/components/audit-export-button.tsx
+msgctxt "audit.06TJ-E"
+msgid "The export is running. You get a notification with the download link when it is ready."
+msgstr "The export is running. You get a notification with the download link when it is ready."
+
+#: src/features/audit/components/audit-export-button.tsx
+msgctxt "audit.ZPOVlT"
+msgid "The export could not start. Try again."
+msgstr "The export could not start. Try again."
+
+#: src/features/audit/components/audit-export-button.tsx
+msgctxt "audit.TE51b7"
+msgid "Export CSV"
+msgstr "Export CSV"
+
 #: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
 msgctxt "audit.JJkC4D"
@@ -2272,11 +2287,6 @@ msgstr "Audit log"
 msgctxt "audit.vXaH2b"
 msgid "Database changes and app events, recorded by the audit module."
 msgstr "Database changes and app events, recorded by the audit module."
-
-#: src/features/audit/components/audit-log.tsx
-msgctxt "audit.TE51b7"
-msgid "Export CSV"
-msgstr "Export CSV"
 
 #: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.ZEwCqR"

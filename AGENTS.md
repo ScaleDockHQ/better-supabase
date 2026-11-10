@@ -534,10 +534,12 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0639: Keep a size baseline until the measurement leaves its slack.
 - 0640: Read inventory levels and movements from the client, move allocations in parts, and read one contact by id.
 - 0641: Bound the version cache and share the block builder per db.
+- 0643: Run large audit exports as a queue job, and read the unread count from the browser.
 - 0644: Inline the remaining subject read policies, bound the memo keys and roll up replies in place.
 - 0642: Move offset lists onto the keyset template and warn about row triggers that ignore imports.
 - 0647: Hint at a large audit log in doctor, and keep the data hooks' refetches as they are.
 - 0661: Render rpc, stored rollup and copy functions from tags.
+- 0660: Move the remaining paged offset lists onto the keyset template.
 - 0648: Map the data of a bsb.action to another type with a third argument.
 - 0649: Observe the server's Supabase requests with a fetch wrapper.
 - 0652: Record the hot read baselines and join the inbox page's contacts in one pass.

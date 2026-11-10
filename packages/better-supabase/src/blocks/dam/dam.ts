@@ -1,3 +1,4 @@
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
@@ -5,6 +6,7 @@ import type { AttachmentStorage } from "../attachments/attachments.ts";
 import type { PreviewRenderer } from "../drive/preview.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
@@ -107,6 +109,22 @@ export interface DamUsageRightListOptions {
   readonly offset?: number;
 }
 
+/**
+ * What `rightPage` reads: the filters of `listRights`, paged by keyset (ADR
+ * 0642).
+ */
+export interface DamUsageRightPageOptions extends Omit<
+  DamUsageRightListOptions,
+  "offset"
+> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
+}
+
 /** The answer of {@link Dam.checkUsage}. */
 export interface DamUsageCheck {
   readonly allowed: boolean;
@@ -154,6 +172,10 @@ export interface Dam {
   listRights(
     options?: DamUsageRightListOptions,
   ): AsyncResultType<readonly DamUsageRight[]>;
+  /** One keyset page of `listRights`, with `hasMore` and a `nextCursor`. */
+  rightPage(
+    options?: DamUsageRightPageOptions,
+  ): AsyncResultType<ListPage<DamUsageRight>>;
   /**
    * Whether the file may be used on a day (default today) in a territory and
    * channel. A file without any right is not allowed.
@@ -452,6 +474,8 @@ export function createDam(options: DamOptions): Dam {
             ),
         ),
       ),
+    rightPage: (page = {}) =>
+      blockPage(call, tenant, "list_usage_rights", rightOf, definedOf(page)),
     checkUsage: ({ nodeId, ...check }) =>
       tenant().andThen((organizationId) =>
         call(

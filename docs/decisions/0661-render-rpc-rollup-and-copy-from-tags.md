@@ -42,3 +42,7 @@ a unit test compares the file's text with the renderer's output.
 
 Apps drop three hand-written shapes. The rollup trigger adds one parent update per child write, so a
 hot parent row serialises its children's writes; a very hot counter wants a different design.
+
+Seven First Load JS and server brotli baselines in `tests/next-build` rose by 7 to 51 bytes (under
+0.01 percent of a route); brotli moves with chunk hashes, and the numbers are re-measured from a
+fresh build of this branch after merging main. The guard in `next-build.test.ts` is unchanged.
