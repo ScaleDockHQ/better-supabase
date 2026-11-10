@@ -30,7 +30,16 @@ const run = (sql: string): void => {
   writeFileSync(file, sql);
   execFileSync(
     "pnpm",
-    ["exec", "supabase", "db", "query", "--db-url", encodeURI(url), "-f", file],
+    [
+      "exec",
+      "supabase",
+      "db",
+      "query",
+      "--db-url",
+      encodeURI(url.includes("sslmode") ? url : `${url}?sslmode=disable`),
+      "-f",
+      file,
+    ],
     { stdio: ["ignore", "pipe", "inherit"] },
   );
 };

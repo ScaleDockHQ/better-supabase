@@ -25,6 +25,8 @@ const remoteCacheDir = path.join(tmpdir(), "bsb-example-remote-cache");
 export default defineConfig({
   testDir: "tests",
   testMatch: "**/*.spec.ts",
+  // The @scale specs need pnpm db:seed:scale; run them with --grep @scale.
+  grepInvert: process.argv.includes("@scale") ? /(?!)/ : /@scale/,
   fullyParallel: false,
   retries: process.env["CI"] === undefined ? 0 : 1,
   use: { baseURL, trace: "retain-on-failure" },

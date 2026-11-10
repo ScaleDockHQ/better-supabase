@@ -708,6 +708,16 @@ msgctxt "rules.S0Fieh"
 msgid "Conditions on customer fields, tested in the database when a customer is saved."
 msgstr "Voorwaarden op klantvelden, getest in de database wanneer een klant wordt opgeslagen."
 
+#: src/app/[locale]/(app)/settings/audit/error.tsx
+msgctxt "audit.HpZQZz"
+msgid "The audit log could not be read."
+msgstr "Het auditlog kon niet worden gelezen."
+
+#: src/app/[locale]/(app)/settings/audit/error.tsx
+msgctxt "audit.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
 #: src/app/[locale]/(app)/settings/layout.tsx
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.D3idYv"
@@ -2164,42 +2174,71 @@ msgctxt "assistant.9WRlF4"
 msgid "Send"
 msgstr "Versturen"
 
+#: src/features/audit/components/audit-entry-sheet.tsx
+msgctxt "audit.wR7xTu"
+msgid "Entry"
+msgstr "Regel"
+
+#: src/features/audit/components/audit-entry-sheet.tsx
+msgctxt "audit.Z1UrbQ"
+msgid "What changed, and who changed it."
+msgstr "Wat er veranderde en wie het veranderde."
+
+#: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
 msgctxt "audit.JJkC4D"
 msgid "Every actor"
 msgstr "Iedereen"
 
+#: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
 msgctxt "audit.jd6CuF"
 msgid "Every action"
 msgstr "Elke actie"
 
+#: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.CHXoWz"
 msgid "Actor"
 msgstr "Door"
 
+#: src/features/audit/components/audit-filters.tsx
 #: src/features/audit/components/audit-log-table.tsx
 msgctxt "audit.QlsDcr"
 msgid "Action"
 msgstr "Actie"
 
+#: src/features/audit/components/audit-filters.tsx
+msgctxt "audit.dM-p3_"
+msgid "From"
+msgstr "Vanaf"
+
+#: src/features/audit/components/audit-filters.tsx
+msgctxt "audit.xmcVZ0"
+msgid "Search"
+msgstr "Zoeken"
+
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.N0gXcw"
 msgid "Nothing recorded yet."
 msgstr "Nog niets vastgelegd."
 
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.McnLsx"
 msgid "When"
 msgstr "Wanneer"
 
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.m1czzY"
 msgid "Event"
 msgstr "Gebeurtenis"
 
 #: src/features/audit/components/audit-log-table.tsx
+#: src/features/audit/components/audit-rows.tsx
 msgctxt "audit.rzbYbE"
 msgid "Target"
 msgstr "Doel"
@@ -2238,6 +2277,56 @@ msgstr "Databasewijzigingen en app-gebeurtenissen, vastgelegd door de audit-modu
 msgctxt "audit.TE51b7"
 msgid "Export CSV"
 msgstr "CSV exporteren"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.ZEwCqR"
+msgid "Nothing matches these filters."
+msgstr "Niets komt overeen met deze filters."
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.F4gyn3"
+msgid "Clear filters"
+msgstr "Filters wissen"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.fwIt1X"
+msgid "Newest"
+msgstr "Nieuwste"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.iIeVwA"
+msgid "Older"
+msgstr "Ouder"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.WTLSja"
+msgid "Not found."
+msgstr "Niet gevonden."
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.RrCui3"
+msgid "Summary"
+msgstr "Samenvatting"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.VWGEKN"
+msgid "Before"
+msgstr "Ervoor"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.4X-U8o"
+msgid "After"
+msgstr "Erna"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit._TqDm0"
+msgid "10,000 or more entries"
+msgstr "10.000 of meer regels"
+
+#: src/features/audit/components/audit-rows.tsx
+msgctxt "audit.QXXK0l"
+msgid "{count, number} entries"
+msgstr "{count, number} regels"
 
 #: src/features/auth/components/forgot-password-form.tsx
 msgctxt "auth.p-kmJg"
@@ -11268,20 +11357,53 @@ msgctxt "notifications.ShdEie"
 msgid "Mark all read"
 msgstr "Alles als gelezen markeren"
 
+#: src/features/notifications/components/notification-history.tsx
+msgctxt "notifications.zQvVDJ"
+msgid "All"
+msgstr "Alles"
+
+#: src/features/notifications/components/notification-history.tsx
+msgctxt "notifications.jabB4C"
+msgid "Unread"
+msgstr "Ongelezen"
+
+#: src/features/notifications/components/notification-history.tsx
 #: src/features/notifications/components/notification-list.tsx
 msgctxt "notifications.KjR3ZD"
 msgid "Nothing here yet"
 msgstr "Hier staat nog niets"
 
+#: src/features/notifications/components/notification-history.tsx
 #: src/features/notifications/components/notification-list.tsx
 msgctxt "notifications.5L9NEw"
 msgid "Send yourself a notification to see it arrive."
 msgstr "Stuur jezelf een melding om hem binnen te zien komen."
 
+#: src/features/notifications/components/notification-history.tsx
+msgctxt "notifications.fwIt1X"
+msgid "Newest"
+msgstr "Nieuwste"
+
+#: src/features/notifications/components/notification-history.tsx
+msgctxt "notifications.iIeVwA"
+msgid "Older"
+msgstr "Ouder"
+
 #: src/features/notifications/components/notification-list.tsx
+#: src/features/notifications/components/notification-rows.tsx
 msgctxt "notifications.bW7B87"
 msgid "New"
 msgstr "Nieuw"
+
+#: src/features/notifications/components/notification-rows.tsx
+msgctxt "notifications.aGlMQV"
+msgid "Mark read"
+msgstr "Markeer als gelezen"
+
+#: src/features/notifications/components/notifications-live.tsx
+msgctxt "notifications.SWSSNW"
+msgid "{count, number} new"
+msgstr "{count, number} nieuw"
 
 #: src/features/notifications/components/unread-badge.tsx
 msgctxt "notifications.43pi5p"
@@ -11292,6 +11414,11 @@ msgstr "Meldingen, {count, number} ongelezen"
 msgctxt "notifications.jrdovp"
 msgid "Counting…"
 msgstr "Tellen…"
+
+#: src/features/notifications/components/unread-badge.tsx
+msgctxt "notifications.AgdpYI"
+msgid "99+ unread"
+msgstr "99+ ongelezen"
 
 #: src/features/notifications/components/unread-badge.tsx
 msgctxt "notifications.94cCzv"
