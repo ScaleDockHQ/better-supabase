@@ -305,11 +305,16 @@ export class OperationRunner {
         retry,
       );
 
-      if (!probe.ok) {
+      // The read matched maxRows or more rows after the executor split a long
+      // `in` list into chunks, each under the cap. The probe carries the whole
+      // list with a limit, so it can't be split: that read is not a cut one.
+      if (!probe.ok && probe.error.kind === "invalid_request") {
+        truncated = false;
+      } else if (probe.ok) {
+        truncated = probe.data.rows.length > 0;
+      } else {
         return this.fail(op.table, probe.error);
       }
-
-      truncated = probe.data.rows.length > 0;
 
       if (truncated) {
         return this.fail(

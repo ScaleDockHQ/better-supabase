@@ -453,7 +453,8 @@
     "security-definer-functions": 48
   },
   "search": {
-    "security-definer-functions": 42
+    "security-definer-functions": 50,
+    "row-triggers": 3
   },
   "security-events": {
     "security-definer-functions": 78,
@@ -547,7 +548,7 @@
     "security-definer-functions": 54
   },
   "usage": {
-    "security-definer-functions": 110
+    "security-definer-functions": 116
   },
   "vercel-marketplace": {
     "security-definer-functions": 102,

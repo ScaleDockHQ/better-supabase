@@ -89,9 +89,9 @@
       "default": "./dist/client/index.js"
     },
     "./client/lite": {
-      "@better-supabase/source": "./src/client/lite.ts",
-      "types": "./dist/client/lite.d.ts",
-      "default": "./dist/client/lite.js"
+      "@better-supabase/source": "./src/client/lite/index.ts",
+      "types": "./dist/client/lite/index.d.ts",
+      "default": "./dist/client/lite/index.js"
     },
     "./client/native": {
       "@better-supabase/source": "./src/client/native/index.ts",
@@ -1554,8 +1554,8 @@
         "default": "./dist/client/index.js"
       },
       "./client/lite": {
-        "types": "./dist/client/lite.d.ts",
-        "default": "./dist/client/lite.js"
+        "types": "./dist/client/lite/index.d.ts",
+        "default": "./dist/client/lite/index.js"
       },
       "./client/native": {
         "types": "./dist/client/native/index.d.ts",

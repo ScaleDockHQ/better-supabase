@@ -12,7 +12,7 @@ const entries = [
   "create/oauth/index",
   "create/supabase/index",
   "client/index",
-  "client/lite",
+  "client/lite/index",
   "client/native/index",
   "react/index",
   "react/server",

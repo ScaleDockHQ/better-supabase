@@ -211,7 +211,8 @@ describe("private-cache scopes", () => {
         ok: true,
         data: { userId: USER, removed: {} },
       });
-      expect(calls).toEqual([
+      // auth-js 2.119 reads the user before it deletes them.
+      expect(calls.filter((call) => !call.startsWith("GET "))).toEqual([
         `DELETE ${PROJECT_URL}/auth/v1/admin/users/${USER}`,
       ]);
       expect(mocks.updateTag).toHaveBeenCalledWith(sessionTag(USER));
