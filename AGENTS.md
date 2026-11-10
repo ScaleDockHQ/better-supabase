@@ -530,6 +530,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0639: Keep a size baseline until the measurement leaves its slack.
 - 0641: Bound the version cache and share the block builder per db.
 - 0642: Move offset lists onto the keyset template and warn about row triggers that ignore imports.
+- 0663: Bank accounts take a holder and a primary flag.
 - 0648: Map the data of a bsb.action to another type with a third argument.
 
 ## Pre-release pins

@@ -91,6 +91,8 @@ const NAMES: BlockSqlNames = {
         iban: "iban",
         bic: "bic",
         currency: "currency",
+        holder: "holder",
+        isPrimary: "is_primary",
         journal: "journal_id",
         archivedAt: "archived_at",
         createdAt: "created_at",

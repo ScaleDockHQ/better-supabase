@@ -66,6 +66,10 @@ export interface BankAccount<F extends object = Record<never, never>> {
   readonly iban?: string;
   readonly bic?: string;
   readonly currency: string;
+  /** Who the account belongs to, as the bank prints it. */
+  readonly holder?: string;
+  /** The organization's first-choice account in this currency. */
+  readonly primary: boolean;
   /** The accounting journal (`bank` or `cash`) the account books to. */
   readonly journalId?: string;
   readonly archivedAt?: Temporal.Instant;
@@ -81,6 +85,12 @@ export interface BankAccountInput<F extends object = Record<never, never>> {
   readonly bic?: string | null;
   /** Required when creating an account. */
   readonly currency?: string;
+  readonly holder?: string | null;
+  /**
+   * Making an account primary clears the flag on the other accounts in its
+   * currency.
+   */
+  readonly primary?: boolean;
   readonly journalId?: string | null;
   readonly archived?: boolean;
   /** Values for the extra columns, checked by the `fields` schema. */
@@ -485,6 +495,7 @@ function accountOf(value: unknown, fn: string): BankAccount {
   const row = recordOf(value, fn);
   const iban = optionalText(row["iban"]);
   const bic = optionalText(row["bic"]);
+  const holder = optionalText(row["holder"]);
   const journalId = optionalText(row["journalId"]);
   const archivedAt = optionalInstant(row["archivedAt"]);
 
@@ -495,6 +506,8 @@ function accountOf(value: unknown, fn: string): BankAccount {
     ...(iban ? { iban } : {}),
     ...(bic ? { bic } : {}),
     currency: textOf(row["currency"]),
+    ...(holder ? { holder } : {}),
+    primary: row["primary"] === true,
     ...(journalId ? { journalId } : {}),
     ...(archivedAt ? { archivedAt } : {}),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
