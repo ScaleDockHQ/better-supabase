@@ -837,7 +837,7 @@ begin
     from auth.sessions s
     join auth.users u on u.id = s.user_id
     where s.id = session::uuid
-      and s.user_id = auth.uid()
+      and s.user_id = (claims ->> 'sub')::uuid
       and (s.not_after is null or s.not_after > now())
       and (u.banned_until is null or u.banned_until <= now())
       and u.deleted_at is null
@@ -960,7 +960,7 @@ grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 ${SESSIONS_OVERVIEW_SQL}
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
--- a select, it runs one indexed lookup per statement:
+-- a select, it runs one indexed lookup per table in a statement:
 -- create policy session_required on public.invoices as restrictive
 --   for all to authenticated
 --   using ((select better_supabase.session_active()))

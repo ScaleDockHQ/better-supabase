@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:7aa40e40b10f5a9ed7478cef83aea7c28b1b156b2417fbe5ba400e8cd0ed788d
+-- @bsb-hash sha256:94c52c2941a5d619b8846f79d543a3d2f5756bf1a8fbe9ad835c970ccdff58d4
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,7 +32,7 @@ begin
     from auth.sessions s
     join auth.users u on u.id = s.user_id
     where s.id = session::uuid
-      and s.user_id = auth.uid()
+      and s.user_id = (claims ->> 'sub')::uuid
       and (s.not_after is null or s.not_after > now())
       and (u.banned_until is null or u.banned_until <= now())
       and u.deleted_at is null
@@ -177,7 +177,7 @@ revoke execute on function better_supabase.sessions_overview() from public, anon
 grant execute on function better_supabase.sessions_overview() to authenticated;
 
 -- Restrictive, so it applies on top of the table's other policies. Wrapped in
--- a select, it runs one indexed lookup per statement:
+-- a select, it runs one indexed lookup per table in a statement:
 -- create policy session_required on public.invoices as restrictive
 --   for all to authenticated
 --   using ((select better_supabase.session_active()))
