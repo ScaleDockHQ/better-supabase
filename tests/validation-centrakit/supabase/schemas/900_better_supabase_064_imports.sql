@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:1cc6c3cc81ff6d03124010fce871397ff986614165507cd301d11b94aa4e0e06
+-- @bsb-hash sha256:360f7c43fedc3f8ab434b908505617e7973cc645cd8e6f80bfe08f9dcbee9886
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -560,6 +560,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 begin
   if auth.role() is distinct from 'service_role' then
     raise exception 'not allowed to register an import source' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
@@ -1133,6 +1134,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid;
   v_created boolean := false;
