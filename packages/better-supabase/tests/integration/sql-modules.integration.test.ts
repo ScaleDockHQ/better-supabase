@@ -1123,6 +1123,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(await active({ session_id: session })).toBe(true);
       expect(await active({ session_id: crypto.randomUUID() })).toBe(false);
       expect(await active({ session_id: "not-a-uuid" })).toBe(false);
+      expect(
+        await active({ session_id: session, sub: crypto.randomUUID() }),
+      ).toBe(false);
       expect(await active({})).toBe(true);
       expect(
         await active({
@@ -1140,6 +1143,25 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "update auth.users set banned_until = null where id = $1",
         [sub],
       );
+      await pool.query(
+        "update auth.sessions set not_after = now() - interval '1 second' where id = $1",
+        [session],
+      );
+      expect(await active({ session_id: session })).toBe(false);
+      await pool.query(
+        "update auth.sessions set not_after = null where id = $1",
+        [session],
+      );
+      await pool.query(
+        "update auth.users set deleted_at = now() where id = $1",
+        [sub],
+      );
+      expect(await active({ session_id: session })).toBe(false);
+      await pool.query(
+        "update auth.users set deleted_at = null where id = $1",
+        [sub],
+      );
+      expect(await active({ session_id: session })).toBe(true);
       await pool.query("delete from auth.sessions where id = $1", [session]);
       expect(await active({ session_id: session })).toBe(false);
 
