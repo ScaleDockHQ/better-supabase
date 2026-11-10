@@ -24,6 +24,7 @@ export {
   readBodyCapped,
   recordOf,
   recordOrEmpty,
+  pageRowsOf,
   recordsOf,
   requiredInstant,
   run,

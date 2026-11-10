@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { pageSize, userGrant } from "../shared.ts";
+import { listBody, listDeclare } from "../list-template.ts";
+import { userGrant } from "../shared.ts";
 import { inspectionsSql } from "./inspections-sql.ts";
 
 export function inspectionReads(ctx: BlockSqlContext): string {
@@ -33,6 +34,38 @@ export function inspectionReads(ctx: BlockSqlContext): string {
       .filter((column) => q.has("inspections", column))
       .map((column) => `x.${i(column)} ilike v_search`),
   ].join(" or ");
+
+  const list = {
+    name: "list_inspections",
+    from: inspections,
+    alias: "x",
+    where: [
+      `x.${i("tenant")} = list_inspections.tenant`,
+      `(v_all or exists (
+          select 1 from ${members} y where y.${m("inspection")} = x.${i("id")} and y.${m("user")} = auth.uid()
+        ))`,
+      `(not v_filters ? 'programId' or x.${i("program")} = (v_filters ->> 'programId')::uuid)`,
+      `(not v_filters ? 'kind' or x.${i("kind")} = v_filters ->> 'kind')`,
+      `(not v_filters ? 'status' or x.${i("status")} = v_filters ->> 'status')`,
+      `(not v_filters ? 'leadId' or x.${i("lead")} = (v_filters ->> 'leadId')::uuid)`,
+      `(not v_filters ? 'from' or x.${i("plannedStart")} >= (v_filters ->> 'from')::date)`,
+      `(not v_filters ? 'to' or x.${i("plannedStart")} <= (v_filters ->> 'to')::date)`,
+      `(not v_filters ? 'auditeeType' or x.${i("auditeeType")} = v_filters ->> 'auditeeType')`,
+      `(not v_filters ? 'auditeeId' or x.${i("auditeeId")} = v_filters ->> 'auditeeId')`,
+      `(v_search is null or ${search})`,
+    ],
+    keys: [
+      {
+        expr: `coalesce(x.${i("plannedStart")}, '-infinity'::date)`,
+        dir: "desc",
+        type: "date",
+      },
+      { expr: `x.${i("sequence")}`, dir: "desc", type: "bigint" },
+      { expr: `x.${i("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: q.inspectionJson("x"),
+    invalid: q.invalid,
+  } as const;
 
   return `
 -- An inspection with its team, its findings, its checklist and the controls
@@ -80,7 +113,7 @@ ${userGrant(`${fn("get_inspection")}(uuid)`)}
 
 -- The organization's inspections, the latest planned first. filters is
 -- { programId, kind, status, leadId, from, to (on the planned start),
--- auditeeType, auditeeId, search, limit, offset }. Without inspections.read
+-- auditeeType, auditeeId, search, limit, after, offset, paged, total, totalCap }. Without inspections.read
 -- the caller sees only the inspections they are a member of.
 create or replace function ${fn("list_inspections")}(tenant ${idType}, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -93,8 +126,7 @@ declare
   v_filters jsonb := coalesce(list_inspections.filters, '{}'::jsonb);
   v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' end;
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
-  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  ${listDeclare(list)}
   v_all boolean := ${q.allowed("list_inspections.tenant", q.read)};
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -103,27 +135,7 @@ begin
   if not v_all and auth.uid() is null then
     ${q.forbidden("not allowed to read inspections")}
   end if;
-  return coalesce((
-    select jsonb_agg(${q.inspectionJson("x")} order by x.${i("plannedStart")} desc nulls last, x.${i("sequence")} desc)
-    from (
-      select * from ${inspections} x
-      where x.${i("tenant")} = list_inspections.tenant
-        and (v_all or exists (
-          select 1 from ${members} y where y.${m("inspection")} = x.${i("id")} and y.${m("user")} = auth.uid()
-        ))
-        and (not v_filters ? 'programId' or x.${i("program")} = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x.${i("kind")} = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x.${i("status")} = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x.${i("lead")} = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x.${i("plannedStart")} >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x.${i("plannedStart")} <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x.${i("auditeeType")} = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x.${i("auditeeId")} = v_filters ->> 'auditeeId')
-        and (v_search is null or ${search})
-      order by x.${i("plannedStart")} desc nulls last, x.${i("sequence")} desc
-      limit v_limit offset v_offset
-    ) x
-  ), '[]'::jsonb);
+  ${listBody(list)}
 end;
 $$;
 ${userGrant(`${fn("list_inspections")}(${idType}, jsonb)`)}

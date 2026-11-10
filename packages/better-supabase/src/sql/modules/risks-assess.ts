@@ -1,7 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { RisksSql } from "./risks-sql.ts";
 
-import { fail, pageSize, serviceGrant, userGrant } from "../shared.ts";
+import { listBody, listDeclare } from "../list-template.ts";
+import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { risksSql } from "./risks-sql.ts";
 
 const outOfRange = fail(
@@ -242,6 +243,33 @@ function reads(ctx: BlockSqlContext, q: RisksSql): string {
       .map((column) => `x.${r(column)} ilike v_search`),
   ].join(" or ");
 
+  const list = {
+    name: "list_risks",
+    from: risks,
+    alias: "x",
+    where: [
+      `x.${r("tenant")} = list_risks.tenant`,
+      `x.${r("archivedAt")} is null`,
+      `(case when v_filters ? 'status' then x.${r("status")} = v_filters ->> 'status' else x.${r("status")} <> 'closed' end)`,
+      `(not v_filters ? 'category' or x.${r("category")} = v_filters ->> 'category')`,
+      `(not v_filters ? 'band' or x.${r("residualBand")} = v_filters ->> 'band')`,
+      `(not v_filters ? 'ownerId' or x.${r("owner")} = (v_filters ->> 'ownerId')::uuid)`,
+      `(coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x.${r("nextReviewOn")} <= current_date)`,
+      `(v_search is null or ${search})`,
+    ],
+    keys: [
+      {
+        expr: `coalesce(x.${r("residualScore")}, -1)`,
+        dir: "desc",
+        type: "integer",
+      },
+      { expr: `x.${r("sequence")}`, dir: "asc", type: "bigint" },
+      { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: riskJson("x"),
+    invalid: q.invalid,
+  } as const;
+
   return `
 -- A risk with its matrix, its assessments (newest first), its barriers (the
 -- mitigated_by links) and the cases it materialized as.
@@ -276,7 +304,9 @@ ${userGrant(`${fn("get_risk")}(uuid)`)}
 
 -- The organization's risks, the highest residual score first. filters is
 -- { category, band (residual), ownerId, status, reviewDue, search, limit,
--- offset }; closed risks are left out unless status asks for them.
+-- after, offset, paged, total, totalCap }; closed risks are left out unless
+-- status asks for them. Pages by keyset (after is the previous nextCursor);
+-- offset stays for callers that show page numbers (ADR 0634).
 create or replace function ${fn("list_risks")}(tenant ${idType}, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -288,8 +318,7 @@ declare
   v_filters jsonb := coalesce(list_risks.filters, '{}'::jsonb);
   v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' end;
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
-  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  ${listDeclare(list)}
 begin
   if not ${q.allowed("list_risks.tenant", q.read)} then
     ${q.forbidden("not allowed to read risks")}
@@ -297,22 +326,7 @@ begin
   if jsonb_typeof(v_filters) <> 'object' then
     ${q.invalid("filters must be an object")}
   end if;
-  return coalesce((
-    select jsonb_agg(${riskJson("x")} order by x.${r("residualScore")} desc nulls last, x.${r("sequence")})
-    from (
-      select * from ${risks} x
-      where x.${r("tenant")} = list_risks.tenant
-        and x.${r("archivedAt")} is null
-        and (case when v_filters ? 'status' then x.${r("status")} = v_filters ->> 'status' else x.${r("status")} <> 'closed' end)
-        and (not v_filters ? 'category' or x.${r("category")} = v_filters ->> 'category')
-        and (not v_filters ? 'band' or x.${r("residualBand")} = v_filters ->> 'band')
-        and (not v_filters ? 'ownerId' or x.${r("owner")} = (v_filters ->> 'ownerId')::uuid)
-        and (coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x.${r("nextReviewOn")} <= current_date)
-        and (v_search is null or ${search})
-      order by x.${r("residualScore")} desc nulls last, x.${r("sequence")}
-      limit v_limit offset v_offset
-    ) x
-  ), '[]'::jsonb);
+  ${listBody(list)}
 end;
 $$;
 ${userGrant(`${fn("list_risks")}(${idType}, jsonb)`)}

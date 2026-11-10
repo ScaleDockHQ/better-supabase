@@ -9,11 +9,11 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { listBody, listDeclare } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
-  pageSize,
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
@@ -197,6 +197,23 @@ function functions(ctx: BlockSqlContext): string {
 
   const idType = ctx.idType;
 
+  const list = {
+    name: "list_warranty_claims",
+    from: claims,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = list_warranty_claims.tenant`,
+      `(v_status is null or x.${c("status")} = v_status)`,
+      `(v_asset is null or x.${c("asset")} = v_asset::uuid)`,
+    ],
+    keys: [
+      { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: q.claim("x"),
+    invalid: q.invalid,
+  } as const;
+
   return `
 -- A draft claim for an asset, covered for amount in currency's minor units.
 -- supplierId or manufacturer is required. Needs warranty.write.
@@ -361,7 +378,8 @@ end;
 $$;
 ${userGrant(`${fn("decide_warranty_claim")}(uuid, text, text)`)}
 
--- Claims of an organization, newest first. filters is { status, assetId, limit, offset }.
+-- Claims of an organization, newest first. filters is { status, assetId, limit, after, offset,
+-- paged, total, totalCap }.
 -- Needs warranty.read.
 create or replace function ${fn("list_warranty_claims")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
@@ -373,8 +391,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_warranty_claims.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
-  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  ${listDeclare(list)}
   v_status text := nullif(v_filters ->> 'status', '');
   v_asset text := nullif(v_filters ->> 'assetId', '');
 begin
@@ -387,17 +404,7 @@ begin
   if v_asset is not null and v_asset !~ '${UUID}' then
     ${q.invalid("assetId must be a uuid")}
   end if;
-  return coalesce((
-    select jsonb_agg(${q.claim("x")} order by x.${c("createdAt")} desc, x.${c("id")})
-    from (
-      select * from ${claims} y
-      where y.${c("tenant")} = list_warranty_claims.tenant
-        and (v_status is null or y.${c("status")} = v_status)
-        and (v_asset is null or y.${c("asset")} = v_asset::uuid)
-      order by y.${c("createdAt")} desc, y.${c("id")}
-      limit v_limit offset v_offset
-    ) x
-  ), '[]'::jsonb);
+  ${listBody(list)}
 end;
 $$;
 ${userGrant(`${fn("list_warranty_claims")}(${idType}, jsonb)`)}

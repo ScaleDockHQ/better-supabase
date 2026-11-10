@@ -315,6 +315,7 @@ create table if not exists ${inspections} (
   foreign key (${i("tenant")}, ${i("program")}) references ${programs} (${p("tenant")}, ${p("id")}) on delete restrict
 );${appKey("inspections", "tenant_number", `${i("tenant")}, ${i("number")}`)}${appKey("inspections", "tenant_id", `${i("tenant")}, ${i("id")}`)}
 create index if not exists ${name("inspections", "tenant_idx")} on ${inspections} (${i("tenant")}, ${i("status")}, ${i("plannedStart")} desc);
+create index if not exists ${name("inspections", "list_idx")} on ${inspections} (${i("tenant")}, (coalesce(${i("plannedStart")}, '-infinity'::date)) desc, ${i("sequence")} desc, ${i("id")});
 create index if not exists ${name("inspections", "program_idx")} on ${inspections} (${i("tenant")}, ${i("program")}) where ${i("program")} is not null;
 create index if not exists ${name("inspections", "lead_idx")} on ${inspections} (${i("tenant")}, ${i("lead")}) where ${i("lead")} is not null;
 create index if not exists ${name("inspections", "auditee_idx")} on ${inspections} (${i("tenant")}, ${i("auditeeType")}, ${i("auditeeId")}) where ${i("auditeeType")} is not null;

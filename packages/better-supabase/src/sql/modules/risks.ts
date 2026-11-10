@@ -284,6 +284,7 @@ create table if not exists ${risks} (
   foreign key (${r("tenant")}, ${r("matrix")}) references ${matrices} (${m("tenant")}, ${m("id")}) on delete restrict
 );${appKey("risks", "tenant_number", `${r("tenant")}, ${r("number")}`)}${appKey("risks", "tenant_id", `${r("tenant")}, ${r("id")}`)}
 create index if not exists ${name("risks", "tenant_idx")} on ${risks} (${r("tenant")}, ${r("status")}, ${r("residualScore")} desc);
+create index if not exists ${name("risks", "list_idx")} on ${risks} (${r("tenant")}, (coalesce(${r("residualScore")}, -1)) desc, ${r("sequence")}, ${r("id")});
 create index if not exists ${name("risks", "matrix_idx")} on ${risks} (${r("tenant")}, ${r("matrix")});
 create index if not exists ${name("risks", "owner_idx")} on ${risks} (${r("tenant")}, ${r("owner")}) where ${r("owner")} is not null;
 create index if not exists ${name("risks", "review_idx")} on ${risks} (${r("nextReviewOn")}) where ${r("status")} <> 'closed';

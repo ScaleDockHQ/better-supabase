@@ -3,6 +3,7 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -24,6 +25,7 @@ import {
   isRecord,
   optionalInstant,
   optionalText,
+  pageRowsOf,
   recordOf,
   recordsOf,
   requiredInstant,
@@ -205,7 +207,18 @@ export interface RiskListOptions {
   readonly search?: string;
   /** 1 to 200. Default 50. */
   readonly limit?: number;
+  /** Pages by number. Use `after` to page by keyset; the two do not combine. */
   readonly offset?: number;
+}
+
+/** What `risks.page` reads: the filters of `list`, paged by keyset (ADR 0634). */
+export interface RiskPageOptions extends Omit<RiskListOptions, "offset"> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching risks, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most risks the total counts. Default 10,000. */
+  readonly totalCap?: number;
 }
 
 /** One cell of a heatmap: the open risks rated at a likelihood and impact. */
@@ -257,6 +270,11 @@ export interface Risks<F extends object = Record<never, never>> {
   close(input: { riskId: string; reason: string }): AsyncResult<Risk<F>>;
   get(riskId: string): AsyncResult<RiskDetail<F>>;
   list(options?: RiskListOptions): AsyncResult<readonly Risk<F>[]>;
+  /**
+   * One keyset page of `list`: the rows, `hasMore` and a `nextCursor` to pass
+   * as `after`. The cost of a page does not grow with its depth.
+   */
+  page(options?: RiskPageOptions): AsyncResult<ListPage<Risk<F>>>;
   /**
    * The open risks per matrix cell; the default matrix and residual rating by
    * default.
@@ -579,6 +597,26 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
               riskOf(row, "list_risks"),
             ),
         ).andThen(fields.rows),
+      ),
+    page: (page = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_risks",
+          {
+            tenant: organizationId,
+            filters: { ...definedOf(page), paged: true },
+          },
+          (value) => {
+            const read = pageRowsOf(value, "list_risks");
+
+            return {
+              ...read,
+              items: read.items.map((row) => riskOf(row, "list_risks")),
+            };
+          },
+        ).andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
       ),
     heatmap: (heatmap = {}) =>
       tenant().andThen((organizationId) =>
