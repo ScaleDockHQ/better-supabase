@@ -856,6 +856,7 @@ export function defineListQuery<
     return and([
       searchWhere(query),
       treeWhere(query, clock),
+      // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0633: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
       ...facets.map((facet) => facetWhere(facet, query.facets[facet.key as F])),
     ]);
   }
@@ -874,6 +875,7 @@ export function defineListQuery<
     // built from its columns, and `paging` matches the pagination P.
     return {
       ...(filter ? { where: filter } : {}),
+      // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0633: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
       orderBy: config.sorts[query.sort],
       size: query.size,
       ...paging,
@@ -1101,6 +1103,7 @@ export function defineListQuery<
       tree,
       ...others.map((other) => {
         // SAFETY: facets are built from config.facets, which is keyed by F.
+        // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0633: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
         const selected = query.facets[other.key as F];
 
         return facetWhere(other, selected);
@@ -1214,6 +1217,7 @@ export function defineListQuery<
 
       for (const facet of facets) {
         // SAFETY: facets are built from config.facets, which is keyed by F.
+        // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0633: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
         const values = query.facets?.[facet.key as F];
 
         if (values && values.length > 0) {

@@ -253,6 +253,7 @@ export async function getWorkViews(): Promise<
 
   return views.map((view) => {
     const query = view.state.query ?? {};
+    // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0633: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
     const state = query.facets?.["state"]?.[0];
 
     return {

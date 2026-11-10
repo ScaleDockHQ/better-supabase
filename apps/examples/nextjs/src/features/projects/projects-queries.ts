@@ -284,7 +284,9 @@ export async function getTaskViews(): Promise<
       query: parseTaskQuery({
         view: view.kind,
         q: query.q,
+        // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0633: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
         status: query.facets?.["status"]?.[0],
+        // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0633: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
         project: query.facets?.["project"]?.[0],
       }),
     };
