@@ -844,14 +844,14 @@ export function createNext<
       };
     },
 
-    action(actionOptions, fn) {
+    action(actionOptions, fn, mapData) {
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
 
       // SAFETY: `result` keeps the data type.
       const mapped = async (o: Out): Promise<Out> =>
         ((await actionOptions.result?.(o)) ?? o) as Out;
 
-      return async (...args: unknown[]) => {
+      const run = async (...args: unknown[]) => {
         const input = args.at(-1);
         const boundArgs = actionOptions.bound ? args.slice(0, -1) : [];
 
@@ -958,6 +958,13 @@ export function createNext<
           );
         }
 
+        if (settled.ok && mapData) {
+          const data = settled.data;
+          // SAFETY: the data of a successful run is what `fn` returned, which
+          // `mapData` is typed to take.
+          settled = await settle(() => mapData(data as never));
+        }
+
         // SAFETY: Out is the Result of the action's return type, which both branches build.
         return mapped(
           (settled.ok
@@ -965,6 +972,9 @@ export function createNext<
             : { ok: false, data: null, error: settled.error }) as Out,
         );
       };
+
+      // SAFETY: `mapData` changes the data type the declared signature names.
+      return run as never;
     },
 
     require: async (requireOptions = {}) => {

@@ -206,6 +206,14 @@ export type BoundOptions<
   ? [...StandardSchemaV1.InferInput<Bd>, ActionInput<S>]
   : [input: ActionInput<S>];
 
+/**
+ * Turns the data of a successful action into the shape the caller gets, for
+ * example a row into a view model. It runs after the cache tags in
+ * `invalidates` are dropped; a thrown `DbException` becomes the action's
+ * error.
+ */
+export type ActionMapper<D, O> = (data: D) => O | Promise<O>;
+
 export interface ActionOptions<
   S extends StandardSchemaV1 | undefined,
   C = unknown,
@@ -336,6 +344,7 @@ export interface ContextualNext<
     T,
     R extends boolean = false,
     Bd extends BoundSchema | undefined = undefined,
+    O = Unwrapped<Awaited<T>>,
   >(
     options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>, Bd>,
     fn: (
@@ -343,9 +352,8 @@ export interface ContextualNext<
       ctx: ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R> & X,
       bound: BoundOutput<Bd>,
     ) => Promise<T> | T,
-  ) => (
-    ...args: BoundOptions<Bd, S>
-  ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
+    map?: ActionMapper<Unwrapped<Awaited<T>>, O>,
+  ) => (...args: BoundOptions<Bd, S>) => Promise<ActionResult<O>>;
 }
 
 export interface BetterNext<
@@ -609,6 +617,7 @@ export interface BetterNext<
     T,
     R extends boolean = false,
     Bd extends BoundSchema | undefined = undefined,
+    O = Unwrapped<Awaited<T>>,
   >(
     options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>, Bd>,
     fn: (
@@ -616,9 +625,8 @@ export interface BetterNext<
       ctx: ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>,
       bound: BoundOutput<Bd>,
     ) => Promise<T> | T,
-  ): (
-    ...args: BoundOptions<Bd, S>
-  ) => Promise<ActionResult<Unwrapped<Awaited<T>>>>;
+    map?: ActionMapper<Unwrapped<Awaited<T>>, O>,
+  ): (...args: BoundOptions<Bd, S>) => Promise<ActionResult<O>>;
   /**
    * A server action that calls one block method as the caller, with the same
    * guard, validation and authorize checks as `action`.
