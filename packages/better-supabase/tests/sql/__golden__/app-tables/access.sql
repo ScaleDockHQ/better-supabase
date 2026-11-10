@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:5d1aa3ad4ae25d55631d04a34659007fa10f0860d8b9089792ae52dcad3fbdae
+-- @bsb-hash sha256:1d041f7f4edfa0dc4d41e97b897fc4a3b27bfb77659bf1d6359afdf83bccaefe
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -101,7 +101,7 @@ create policy bsb_tenant_scope_delete on "public"."tasks" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "tasks_organization_id_idx" on "public"."tasks" ("organization_id");
-create index if not exists "tasks_project_id_idx" on "public"."tasks" ("project_id");
+create index if not exists "tasks_project_id_organization_id_idx" on "public"."tasks" ("project_id", "organization_id");
 create trigger "bsb_updated_at" before update on "public"."tasks"
   for each row execute function better_supabase.set_updated_at();
 
