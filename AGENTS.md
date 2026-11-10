@@ -537,6 +537,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0644: Inline the remaining subject read policies, bound the memo keys and roll up replies in place.
 - 0642: Move offset lists onto the keyset template and warn about row triggers that ignore imports.
 - 0647: Hint at a large audit log in doctor, and keep the data hooks' refetches as they are.
+- 0661: Render rpc, stored rollup and copy functions from tags.
 - 0648: Map the data of a bsb.action to another type with a third argument.
 - 0649: Observe the server's Supabase requests with a fetch wrapper.
 - 0652: Record the hot read baselines and join the inbox page's contacts in one pass.

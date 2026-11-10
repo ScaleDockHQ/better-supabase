@@ -35,6 +35,9 @@ write the migration.
 | `access`          | `access`          |
 | `list`            | `list`            |
 | `idempotency`     | `idempotency`     |
+| `rpc`             | `rpc`             |
+| `rollup`          | `rollup`          |
+| `copy`            | `copy`            |
 
 `audit` also appends `select better_supabase.audit('schema.table');` and `expose` appends a
 `grant select, insert, update, delete ... to authenticated;` statement, so the migration carries
@@ -44,7 +47,7 @@ table's record type. `history title body` keeps the old and new value of those c
 the `field-history` block, and `lifecycle stage=status pipeline=deals` binds the table to the
 `pipelines` block. The last three need a `subject` tag on the table and their block installed.
 
-`access`, `list` and `idempotency` render a block of SQL from the arguments the tag already carries in
+`access`, `list`, `idempotency`, `rpc`, `rollup` and `copy` render a block of SQL from the arguments the tag already carries in
 the comment, between `-- @bsb-tag <name> begin` and `end` markers; see
 [Tags that render SQL](/docs/repository/rendered-tags).
 
