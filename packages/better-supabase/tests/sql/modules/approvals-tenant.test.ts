@@ -182,6 +182,41 @@ describe("approval policies", () => {
     expect(plan?.steps.map((step) => step.sql).join("")).toBe("");
   });
 
+  it("renders tenant policies and consume over app tables without the optional columns", () => {
+    const sql = sqlOf(["approvals"], {
+      ownTables: {
+        "public.approval_requests": "app.sql",
+        "public.approval_policies": "app.sql",
+      },
+      modules: {
+        approvals: {
+          tables: {
+            requests: "public.approval_requests",
+            policies: "public.approval_policies",
+          },
+          columns: {
+            requests: { fingerprint: null },
+            policies: {
+              effect: null,
+              updatedAt: null,
+              createdBy: null,
+              expiresIn: null,
+            },
+          },
+          options: {
+            policies: { invoice: { send: FLOORS.invoice.send } },
+            tenantPolicies: true,
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      "null::text is distinct from consume_approval.fingerprint",
+    );
+    expect(sql).toContain("v_effect := null;");
+  });
+
   it("keeps the status of an app's own requests table when it consumes", () => {
     const sql = sqlOf(["approvals"], {
       ownTables: { "public.approval_requests": "app.sql" },
