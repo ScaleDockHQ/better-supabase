@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:e2323d9007d33f14cc0235c64762d9cfb13619ac1c8c72f61ecdcf86e902b193
+-- @bsb-hash sha256:c20c40197075c0b8b4250a178012cb59234f3934e0c8813f2d4a77302f6c110b
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,7 +42,7 @@ create table "better_supabase"."posts" (
   "updated_at" timestamptz not null default now()
 );
 create index "posts_board_idx" on "better_supabase"."posts" ("board_id", "pinned_at" desc nulls last, "last_activity_at" desc);
-create index "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc);
+create index "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc, "id" desc);
 create index "posts_author_idx" on "better_supabase"."posts" ("author_id");
 create index "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 
@@ -641,7 +641,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:b12b5052f45865ba3d6c9a5115ac4963adabe09e953b7ed639ddb5716e17b5cc
+-- @bsb-hash sha256:4408ada5039ae8da47e97618855517ed5d13915fb4ab74cffc67d88ff5697a63
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -682,7 +682,7 @@ create table "better_supabase"."posts" (
   "updated_at" timestamptz not null default now()
 );
 create index "posts_board_idx" on "better_supabase"."posts" ("board_id", "pinned_at" desc nulls last, "last_activity_at" desc);
-create index "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc);
+create index "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc, "id" desc);
 create index "posts_author_idx" on "better_supabase"."posts" ("author_id");
 create index "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 
@@ -1345,7 +1345,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:b711e5ec2d5dcf846626eb917cdedda88ecbe96040ef99a9a1e2492625591204
+-- @bsb-hash sha256:d1085858e8f99cdb2c98b5efacc8787eda1c9e0c6d0819db32587d31e0143fa8
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1391,7 +1391,7 @@ create table "app_private"."posts" (
   "updated_at" timestamptz not null default now()
 );
 create index "posts_board_idx" on "app_private"."posts" ("board_id", "pinned_at" desc nulls last, "last_activity_at" desc);
-create index "posts_tenant_idx" on "app_private"."posts" ("tenant_id", "created_at" desc);
+create index "posts_tenant_idx" on "app_private"."posts" ("tenant_id", "created_at" desc, "id" desc);
 create index "posts_author_idx" on "app_private"."posts" ("author_id");
 create index "posts_merged_idx" on "app_private"."posts" ("merged_into_id");
 
@@ -1990,7 +1990,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:accdfc81af7f77b21e6df17b38a7647f6226b5805e343c4a8b199bce8dd98fcd
+-- @bsb-hash sha256:f89c25e88fc7f350629ea31a4b2f76256e5291d838dd4d38d423b54359c6006c
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2031,7 +2031,7 @@ create table "better_supabase"."posts" (
   "updated_at" timestamptz not null default now()
 );
 create index "posts_board_idx" on "better_supabase"."posts" ("board_id", "pinned_at" desc nulls last, "last_activity_at" desc);
-create index "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc);
+create index "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc, "id" desc);
 create index "posts_author_idx" on "better_supabase"."posts" ("author_id");
 create index "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 
@@ -2727,7 +2727,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:b3afbeb0ee5b86e972c0772a48b6e84211c06048afb9cbf485bd16ef64dee61d
+-- @bsb-hash sha256:b1dbb22b3546ba8f2b36c6774c8661635d475eeb0e0f83b89f9c8f6f72750e18
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2763,7 +2763,7 @@ alter table "better_supabase"."posts" add column if not exists "last_activity_at
 alter table "better_supabase"."posts" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."posts" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists "posts_board_idx" on "better_supabase"."posts" ("board_id", "pinned_at" desc nulls last, "last_activity_at" desc);
-create index if not exists "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc);
+create index if not exists "posts_tenant_idx" on "better_supabase"."posts" ("tenant_id", "created_at" desc, "id" desc);
 create index if not exists "posts_author_idx" on "better_supabase"."posts" ("author_id");
 create index if not exists "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 
@@ -3360,7 +3360,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:191ec37bb955f7e17b3ae2b1900dfbfd09e7c2f3b8a336805e8c73c720dba4cf
+-- @bsb-hash sha256:59c7aadb4e26c8e359fed2f6065ea268bbcd767d33cdff27e583b041b42f7408
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3401,7 +3401,7 @@ create table "better_supabase"."posts" (
   "updated_at" timestamptz not null default now()
 );
 create index "posts_board_idx" on "better_supabase"."posts" ("board_id", "pinned_at" desc nulls last, "last_activity_at" desc);
-create index "posts_tenant_idx" on "better_supabase"."posts" ("org_id", "created_at" desc);
+create index "posts_tenant_idx" on "better_supabase"."posts" ("org_id", "created_at" desc, "id" desc);
 create index "posts_author_idx" on "better_supabase"."posts" ("author_id");
 create index "posts_merged_idx" on "better_supabase"."posts" ("merged_into_id");
 

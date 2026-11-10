@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:a93afb29f2d9de8430509916187c9c8ae05663b58bc3ab286339b8936df8f9ee
+-- @bsb-hash sha256:a5bb3c0fdff0bbd60a3a83d58832b17362ffc90820622587a20db26b9daf1f75
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,7 +20,7 @@ create table "better_supabase"."access_requests" (
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc, "id" desc);
 create index "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
@@ -341,7 +341,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:9bd63fc5415ad9813698a41a379853f680fd7415cc801492fa1ced8bba8635ad
+-- @bsb-hash sha256:580b65257c1f64b1674ef7835f5e6043a190f086f3370e178e03938707676872
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -370,7 +370,7 @@ create table "better_supabase"."access_requests" (
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc, "id" desc);
 create index "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" alter column "role" drop not null;
@@ -1044,7 +1044,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:8a022b382f4770ac415e02cc9d60970c0ecbb239d5726f23a2d1b44a10b6cbd2
+-- @bsb-hash sha256:26e2455e74537214d0704d38d212871e5305df7229d69ec148ee7f9105a7499e
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1068,7 +1068,7 @@ create table "app_private"."access_requests" (
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index "access_requests_tenant_idx" on "app_private"."access_requests" ("tenant_id", "created_at" desc);
+create index "access_requests_tenant_idx" on "app_private"."access_requests" ("tenant_id", "created_at" desc, "id" desc);
 create index "access_requests_approval_idx" on "app_private"."access_requests" ("approval_id") where "approval_id" is not null;
 create index "access_requests_expiry_idx" on "app_private"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "app_private"."access_requests" enable row level security;
@@ -1389,7 +1389,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:5233d84386648497aef62053c9ee761e3a4c446580a1024ad6efdfc3d5ac7620
+-- @bsb-hash sha256:a3e12cfb36760843b7890125ec31f2c6543015bf9cbd206a945fad691aca1b86
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1408,7 +1408,7 @@ create table "better_supabase"."access_requests" (
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc, "id" desc);
 create index "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
@@ -1780,7 +1780,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:4b8b0fad390e495fba3bcf13a7d9b96207452924adf290a36e49ea82ed5a5e41
+-- @bsb-hash sha256:3f900b70dbbc42d93ad2cd98dd220a829862d110526e3692a5d50f4a70c6cd12
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1798,7 +1798,7 @@ alter table "better_supabase"."access_requests" add column if not exists "grante
 alter table "better_supabase"."access_requests" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."access_requests" add column if not exists "ended_at" timestamptz;
 alter table "better_supabase"."access_requests" add column if not exists "created_at" timestamptz not null default now();
-create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
+create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc, "id" desc);
 create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;
@@ -2118,7 +2118,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:b996d23bfd3c8980db8abcb7a908463c2f9317ccc3bd803c57b7fa3c15dcd0d8
+-- @bsb-hash sha256:a2a6268807ca067194c3b4ac55f9cb26819ca0165375b7f8cbc339e68afba657
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2137,7 +2137,7 @@ create table "better_supabase"."access_requests" (
   "ended_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
-create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("org_id", "created_at" desc);
+create index "access_requests_tenant_idx" on "better_supabase"."access_requests" ("org_id", "created_at" desc, "id" desc);
 create index "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
 alter table "better_supabase"."access_requests" enable row level security;

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:be83cad7d67d64621aac29f71cb1002a7c7144bf8a71a3e24b8c7d4603324148
+-- @bsb-hash sha256:9bd95d86d66e2c74e4e81016020e3e54dc7dd453e71edee496660801e290c8df
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -55,7 +55,7 @@ create table "better_supabase"."ai_batches" (
   "updated_at" timestamptz not null default now()
 );
 create index ai_batches_due_idx on "better_supabase"."ai_batches" ("next_poll_at") where "status" = 'pending' or not "results_saved";
-create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc);
+create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc, "id" desc);
 create index ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
 revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;
@@ -462,7 +462,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:87dbae3e3c2b99a1f9763d688b7d2b00199b21940502d487fc34021f2974ec36
+-- @bsb-hash sha256:4fbe3df5190d1487e2ac7b9e18577e72191797b848ede4c413e1d1d5f26f9d25
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -516,7 +516,7 @@ create table "better_supabase"."ai_batches" (
   "updated_at" timestamptz not null default now()
 );
 create index ai_batches_due_idx on "better_supabase"."ai_batches" ("next_poll_at") where "status" = 'pending' or not "results_saved";
-create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc);
+create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc, "id" desc);
 create index ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
 revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;
@@ -950,7 +950,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:0d8527d235517779eed4cd3dc5b0d47789ef0dd08383799eae05398944e9cf75
+-- @bsb-hash sha256:21e8b2df617d228aeace21fb011abfed9a8e0a4f21f7a90942b9872434a68c6f
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1009,7 +1009,7 @@ create table "app_private"."ai_batches" (
   "updated_at" timestamptz not null default now()
 );
 create index ai_batches_due_idx on "app_private"."ai_batches" ("next_poll_at") where "status" = 'pending' or not "results_saved";
-create index ai_batches_tenant_idx on "app_private"."ai_batches" ("tenant_id", "created_at" desc);
+create index ai_batches_tenant_idx on "app_private"."ai_batches" ("tenant_id", "created_at" desc, "id" desc);
 create index ai_batches_user_idx on "app_private"."ai_batches" ("user_id");
 alter table "app_private"."ai_batches" enable row level security;
 revoke all on "app_private"."ai_batches" from public, anon, authenticated;
@@ -1416,7 +1416,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:821f5c9b6b90ce16cd2bf706196da9c2c74968cf8065e938d11fd5ab90249c05
+-- @bsb-hash sha256:01c0ddddb88d4bbfeff6bbc64743e0b20bcf1e48ea4fb69423e66697cd8e4632
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1470,7 +1470,7 @@ create table "better_supabase"."ai_batches" (
   "updated_at" timestamptz not null default now()
 );
 create index ai_batches_due_idx on "better_supabase"."ai_batches" ("next_poll_at") where "status" = 'pending' or not "results_saved";
-create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc);
+create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc, "id" desc);
 create index ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
 revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;
@@ -1994,7 +1994,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:37c047b182552fbf1ebe7402c5a76734e43c39d95d4babc73dd2166fc64d5c5a
+-- @bsb-hash sha256:86784aae440a913bd523c734e793fba5618a9f0ddc0fff11773176f128664656
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2045,7 +2045,7 @@ alter table "better_supabase"."ai_batches" add column if not exists "completed_a
 alter table "better_supabase"."ai_batches" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ai_batches" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists ai_batches_due_idx on "better_supabase"."ai_batches" ("next_poll_at") where "status" = 'pending' or not "results_saved";
-create index if not exists ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc);
+create index if not exists ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc, "id" desc);
 create index if not exists ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
 grant select on "better_supabase"."ai_batches" to authenticated;
@@ -2449,7 +2449,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:5e467195418af0ada6dde45dc29a57c5401217fbc7547bef75ae9cccdcf3fc5a
+-- @bsb-hash sha256:1ec64696fee938feaa1cc7df4857928c9c0ad9ec9e781ac94d2c9578926c4713
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2503,7 +2503,7 @@ create table "better_supabase"."ai_batches" (
   "updated_at" timestamptz not null default now()
 );
 create index ai_batches_due_idx on "better_supabase"."ai_batches" ("next_poll_at") where "status" = 'pending' or not "results_saved";
-create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("org_id", "created_at" desc);
+create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("org_id", "created_at" desc, "id" desc);
 create index ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
 revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;

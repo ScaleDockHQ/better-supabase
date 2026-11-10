@@ -400,8 +400,9 @@ begin
   end if;
   if new.${ms("thread")} is not null and (tg_op = 'INSERT' or old.${ms("sentAt")} is null or new.${ms("deletedAt")} is distinct from old.${ms("deletedAt")}) then
     -- A reply that is sent live and not deleted adds to the root's rollup in
-    -- place. A delete, a restore or a reply sent before the newest one asks the
-    -- replies again (ADR 0639).
+    -- place. A delete, a restore or a reply that is not newer than the rollup's
+    -- newest (a copied thread carries its counts, replies of one transaction share
+    -- a time) asks the replies again (ADR 0639).
     if new.${ms("deletedAt")} is null and (tg_op = 'INSERT' or old.${ms("sentAt")} is null) then
       update ${t("messages")} r set
         ${ms("replyCount")} = r.${ms("replyCount")} + 1,
@@ -411,7 +412,7 @@ begin
           else r.${ms("replyUsers")} || new.${ms("author")}
         end
       where r.${ms("id")} = new.${ms("thread")}
-        and (r.${ms("lastReplyAt")} is null or r.${ms("lastReplyAt")} <= new.${ms("sentAt")});
+        and (r.${ms("lastReplyAt")} is null or r.${ms("lastReplyAt")} < new.${ms("sentAt")});
       if found then
         return null;
       end if;

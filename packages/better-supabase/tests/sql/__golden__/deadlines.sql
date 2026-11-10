@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:78ee31d5c2eea1792379b6596a82a218ebb8087f76393a44f5003dacb80a6cea
+-- @bsb-hash sha256:c3c53fcefbf9c391aa96760e6e439c602d43c283f53b4c7416f9a9cc1a32b0b1
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -137,7 +137,7 @@ revoke execute on function "better_supabase"."deadline_subject_readable"(text, t
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true);
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -1699,7 +1699,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
@@ -1768,7 +1768,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:938aaab3d6d64c1569318bf4ed31e0ea7934ad8cc7d290f48ebed2cf693f99e3
+-- @bsb-hash sha256:dadc8c833414833684c57cc9b966e08c249eede4efc2356f4ee22f0198228456
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1904,7 +1904,7 @@ revoke execute on function "better_supabase"."deadline_subject_readable"(text, t
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true);
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -3495,7 +3495,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
@@ -3567,7 +3567,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:86842e3f4957a0121389ffb2af788d960e33d270c74874326aade9e14764cd5d
+-- @bsb-hash sha256:db5b96d13314029db50feb141191be1d076ca33cc1768c0a3fa5dad670a0766e
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3708,7 +3708,7 @@ revoke execute on function "app_private"."deadline_subject_readable"(text, text,
 grant execute on function "app_private"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "app_private"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "app_private"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true);
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "app_private"."deadline_date"(value jsonb)
@@ -5270,7 +5270,7 @@ create policy bsb_tenant_scope_select on "app_private"."deadlines" as restrictiv
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "app_private"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "app_private"."deadlines" as restrictive
   for insert to public
@@ -5339,7 +5339,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:864f0260794aedd91a7c8bf5adcf471ff352238c438d430a5bbb36f1a48dcaea
+-- @bsb-hash sha256:f3b4b4609661f9537efe36d938afdbce6bd07b9e0637a19f8341d64b2e349972
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5475,7 +5475,7 @@ revoke execute on function "better_supabase"."deadline_subject_readable"(text, t
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true);
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -7037,7 +7037,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
@@ -7198,7 +7198,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:703cccf40359d4cfe9e37c282e599ddee0cd04488c68590903f6dbf656bd2223
+-- @bsb-hash sha256:c2cb2b9df6e04527a1b8d36f4f38b99ba5ac5a39989cb6eedd6fe6c2a70e78c3
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7323,7 +7323,7 @@ revoke execute on function "better_supabase"."deadline_subject_readable"(text, t
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_select on "better_supabase"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true);
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -8885,7 +8885,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
@@ -8954,7 +8954,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:44c2f59e077085f2fcda3f68a9bea725309747f719ca5bd6e81aaf65a6029d27
+-- @bsb-hash sha256:280d06a2b9dc2e76f540725b1ac22b1adcbd5a0543555f2345c1f2ca0050b400
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9090,7 +9090,7 @@ revoke execute on function "better_supabase"."deadline_subject_readable"(text, t
 grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "org_id"));
+  using ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true);
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -10652,7 +10652,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "org_id"))
+    or ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and true)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public

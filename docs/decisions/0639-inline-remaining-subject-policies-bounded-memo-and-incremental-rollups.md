@@ -58,7 +58,7 @@ settings.
 
 `messaging_message_written` recounted every reply of the thread for each reply, so a reply costs the
 length of its thread. A reply that is sent live and not deleted now adds to the root in place (count,
-newest time, first three repliers); a delete, a restore or a reply older than the newest one recounts
+newest time, first three repliers); a delete, a restore or a reply that is not newer than the newest recounts
 as before. With 20,000 replies stored, 200 replies sent one at a time take 189 ms in total against
 880 ms for the recount alone. Many replies in one statement still update the root once each, and
 Postgres follows the update chain of that one row, so a 12,000 row insert of replies stays
