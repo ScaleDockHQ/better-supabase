@@ -325,6 +325,47 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("imports a line rate as a percentage", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+begin
+  ${SERVICE}
+  v_id := (better_supabase.create_quote('${TENANT}', '{"title": "Website", "currency": "EUR"}'::jsonb,
+    '[{"description": "Design", "quantity": 1, "unitAmount": "5000", "taxRateBps": 900}]'::jsonb) ->> 'id')::uuid;
+  perform better_supabase.import_quote(null, jsonb_build_object('tenant', '${TENANT}', 'data', jsonb_build_object(
+    'update', 'apply', 'lines', jsonb_build_array(jsonb_build_object('description', 'Design',
+      'taxRateBps', 2100)))), v_id::text);
+  if (select vat_rate from public.proposal_lines where proposal_id = v_id) <> 21.00 then
+    raise exception 'stored %', (select row_to_json(l) from public.proposal_lines l where proposal_id = v_id);
+  end if;
+end;
+$$;`,
+        {
+          app: `${APP}${APP_LINES}
+alter table public.proposal_lines add column vat_rate numeric(5, 2) not null default 0;
+`,
+          blocks: {
+            quotes: {
+              ...LINE_BLOCKS["quotes"],
+              columns: {
+                ...LINE_BLOCKS["quotes"]?.columns,
+                lines: {
+                  ...LINE_BLOCKS["quotes"]?.columns?.["lines"],
+                  taxRateBps: "vat_rate",
+                },
+              },
+              options: { lineRates: "percent" },
+            },
+          },
+          own: { ...OWN_TABLES, "public.proposal_lines": "app.sql" },
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses terms the app's table has no column for", async () => {
     await expect(
       run(`do $$

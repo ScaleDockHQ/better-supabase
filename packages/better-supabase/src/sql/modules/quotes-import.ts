@@ -3,6 +3,7 @@ import type { ImportTargetContribution } from "../contributions.ts";
 import type { QuoteNames } from "./quotes-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { lineRateValue } from "../line-items-sql.ts";
 import { hasLegalEntityColumn } from "../numbering-sql.ts";
 import { fail, serviceGrant } from "../shared.ts";
 
@@ -99,7 +100,7 @@ export function quoteImportFunctions(
   const quoteLineTax = [
     ...(quoteLineHas("taxRateBps")
       ? [
-          `${ql("taxRateBps")} = coalesce((e.l ->> 'taxRateBps')::integer, l.${ql("taxRateBps")})`,
+          `${ql("taxRateBps")} = coalesce(${lineRateValue(ctx, "lines", "taxRateBps", "(e.l ->> 'taxRateBps')::integer")}, l.${ql("taxRateBps")})`,
         ]
       : []),
     ...(quoteLineHas("taxCode")

@@ -3,6 +3,7 @@ import type { ImportTargetContribution } from "../contributions.ts";
 import type { InvoiceNames } from "./invoices-names.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { lineColumn, lineRateValue } from "../line-items-sql.ts";
 import { hasLegalEntityColumn } from "../numbering-sql.ts";
 import { fail, serviceGrant } from "../shared.ts";
 import { openItemsEnabled } from "./invoices-open-items.ts";
@@ -115,7 +116,7 @@ export function invoiceImportFunctions(
   const lineTax = [
     ...(lineHas("taxRateBps")
       ? [
-          `${line("taxRateBps")} = coalesce((e.l ->> 'taxRateBps')::integer, l.${line("taxRateBps")})`,
+          `${line("taxRateBps")} = coalesce(${lineRateValue(ctx, "lines", "taxRateBps", "(e.l ->> 'taxRateBps')::integer")}, l.${line("taxRateBps")})`,
         ]
       : []),
     ...(lineHas("taxCode")
@@ -190,7 +191,7 @@ export function invoiceImportFunctions(
   update ${lineTable} l set ${line("taxCode")} = (
     select min(c.${tax.col("codes", "code")}) from ${tax.table("codes")} c
     join ${tax.table("rates")} r on r.${tax.col("rates", "taxCode")} = c.${tax.col("codes", "id")}
-    where c.${tax.col("codes", "tenant")} = v_tenant and r.${tax.col("rates", "rateBps")} = l.${line("taxRateBps")}
+    where c.${tax.col("codes", "tenant")} = v_tenant and r.${tax.col("rates", "rateBps")} = ${lineColumn(ctx, "lines", "l", "taxRateBps")}
     having count(distinct c.${tax.col("codes", "id")}) = 1
   )
   where l.${line("parent")} = v_id and l.${line("taxCode")} is null;
@@ -200,7 +201,7 @@ export function invoiceImportFunctions(
       and (
         select count(distinct c.${tax.col("codes", "id")}) from ${tax.table("codes")} c
         join ${tax.table("rates")} r on r.${tax.col("rates", "taxCode")} = c.${tax.col("codes", "id")}
-        where c.${tax.col("codes", "tenant")} = v_tenant and r.${tax.col("rates", "rateBps")} = l.${line("taxRateBps")}
+        where c.${tax.col("codes", "tenant")} = v_tenant and r.${tax.col("rates", "rateBps")} = ${lineColumn(ctx, "lines", "l", "taxRateBps")}
       ) > 1
   ) then
     v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_CODE_AMBIGUOUS', 'message', 'a tax rate matches more than one tax code'));
