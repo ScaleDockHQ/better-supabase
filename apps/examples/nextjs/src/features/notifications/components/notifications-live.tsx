@@ -6,16 +6,11 @@ import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { useNotifications } from "@/hooks/use-notifications";
+import {
+  useNotificationCountsLoader,
+  useNotifications,
+} from "@/hooks/use-notifications";
 import { useAuth } from "@/lib/hooks";
-
-import { loadNotificationCounts } from "../notifications-actions";
-
-async function loadCounts(): Promise<readonly NotificationCounts[]> {
-  const result = await loadNotificationCounts({});
-
-  return result.ok ? [result.data] : [];
-}
 
 const unreadOf = (counts: readonly NotificationCounts[]): number =>
   counts[0]?.unread ?? 0;
@@ -32,10 +27,11 @@ export function NotificationsLive({
   const t = useExtracted("notifications");
   const router = useRouter();
   const userId = useAuth().user?.id;
+  const load = useNotificationCountsLoader();
 
   const { items, count } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
-    load: loadCounts,
+    load,
     count: unreadOf,
   });
 
