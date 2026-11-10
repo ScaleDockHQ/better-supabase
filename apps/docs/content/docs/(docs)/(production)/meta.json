@@ -1,4 +1,4 @@
 {
   "title": "Production",
-  "pages": ["production", "rate-limit", "testing", "guides"]
+  "pages": ["production", "rate-limit", "observed-fetch", "testing", "guides"]
 }
