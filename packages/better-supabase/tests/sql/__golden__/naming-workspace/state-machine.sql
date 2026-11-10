@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:8b2784cf4e127b43ba66ce624f1c172a234772ab0510f76ba759eec7629c6482
+-- @bsb-hash sha256:54b13159ff47f975ffee43f995a3296564c7f9cd56af18e41f1b12f5ec69eab2
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -225,6 +225,7 @@ declare
   v_tenant text;
   v_step integer;
   v_paused boolean := false;
+  v_next text[];
 begin
   raise exception 'unknown subject' using errcode = '22023', hint = 'STATE_MACHINE_UNKNOWN';
 end;

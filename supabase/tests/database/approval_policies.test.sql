@@ -4,7 +4,7 @@
 -- (…0002) (supabase/seed.sql). The fixture's floors: customer.refund asks
 -- for nothing, customer.export is confirm mode with the manager as approver.
 begin;
-select plan(28);
+select plan(30);
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, anon, service_role;
@@ -228,6 +228,15 @@ select throws_ok(
   '22023',
   'this approval was already used',
   'an approval is consumed once'
+);
+select is(
+  api.get_approval((select id from ids where name = 'refund')) ->> 'status',
+  'consumed',
+  'a consumed approval has the consumed status'
+);
+select ok(
+  exists (select 1 from pg_constraint where conname = 'bsb_approval_requests_consumed_check'),
+  'a check ties consumed_at to the consumed status'
 );
 select ok(
   api.is_approved('customer', '00000000-0000-4000-8000-00000000a001', 'refund'),

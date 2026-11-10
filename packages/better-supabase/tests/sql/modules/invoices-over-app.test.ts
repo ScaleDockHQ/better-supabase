@@ -77,8 +77,9 @@ async function run(
   modules: AnyBlocksConfig = BLOCKS,
   app: string = APP,
   ownTables: Readonly<Record<string, string>> = OWN_TABLES,
+  names: readonly string[] = ["invoices"],
 ): Promise<void> {
-  const files = renderBlocks(["invoices"], { modules, ownTables });
+  const files = renderBlocks(names, { modules, ownTables });
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -372,6 +373,68 @@ create table public.bill_lines (
         modules: { invoices: { options: { lineRates: "percent" } } },
       }),
     ).toThrow(/lineRates/);
+  });
+
+  it("writes a tax code's rate as a percentage when issuing", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_code uuid;
+  v_id uuid;
+begin
+  ${SERVICE}
+  v_code := (better_supabase.save_tax_code('${TENANT}',
+    '{"code": "VAT21", "name": "VAT 21%", "type": "sales", "rateBps": 2100}'::jsonb) ->> 'id')::uuid;
+  v_id := (better_supabase.create_invoice('${TENANT}', '{"title": "Repair", "currency": "EUR"}'::jsonb,
+    jsonb_build_array(jsonb_build_object('description', 'Part', 'quantity', 1, 'unitAmount', '10000',
+      'taxCodeId', v_code))) ->> 'id')::uuid;
+  perform better_supabase.issue_invoice(v_id, current_date);
+  if (select vat_rate from public.bill_lines where bill_id = v_id) <> 21.00 then
+    raise exception 'stored %', (select row_to_json(l) from public.bill_lines l where bill_id = v_id);
+  end if;
+  if (select tax_rate_bps from better_supabase.invoice_tax_lines where invoice_id = v_id) <> 2100 then
+    raise exception 'tax lines %', (select jsonb_agg(t) from better_supabase.invoice_tax_lines t);
+  end if;
+end;
+$$;`,
+        {
+          invoices: {
+            ...BLOCKS["invoices"],
+            tables: { invoices: "public.bills", lines: "public.bill_lines" },
+            columns: {
+              ...BLOCKS["invoices"]?.columns,
+              lines: {
+                tenant: "org_id",
+                parent: "bill_id",
+                taxRateBps: "vat_rate",
+                discountBps: null,
+                productType: null,
+                productId: null,
+                taxCode: null,
+                createdAt: null,
+              },
+            },
+            options: { lineRates: "percent" },
+          },
+        },
+        `${APP}
+create table public.bill_lines (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  bill_id uuid not null references public.bills (id) on delete cascade,
+  description text not null,
+  quantity numeric not null default 1,
+  unit_amount bigint not null,
+  vat_rate numeric(5, 2) not null default 0,
+  tax_code_id uuid,
+  position integer not null default 0
+);
+`,
+        { ...OWN_TABLES, "public.bill_lines": "app.sql" },
+        ["invoices", "tax"],
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it("refuses a note the app's table has no column for", async () => {
