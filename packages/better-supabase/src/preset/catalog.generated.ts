@@ -21572,6 +21572,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "RiskMatrixLevel"
         },
         {
+          "name": "RiskPageOptions"
+        },
+        {
           "name": "RiskRating"
         },
         {
