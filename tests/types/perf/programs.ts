@@ -274,18 +274,16 @@ export function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
 }
 
 /**
- * Mapper mode writes no database.types.ts, so `Database` comes from
- * generated.ts: the enriched type, which costs the composite profile about four
- * times the instantiations in either mode.
+ * `Database` comes from generated.ts in both modes (mapper mode writes no
+ * database.types.ts), so the files and mapper runs check the same program. It
+ * is the enriched type: against the plain database.types.ts it costs the
+ * composite profile about four times the instantiations (ADR 0638).
  */
-export function consumer(
-  profile: Profile,
-  database = "./database.types.ts",
-): string {
+export function consumer(profile: Profile): string {
   const lines = [
     "import { createClient, type SupabaseClient } from '@supabase/supabase-js';",
     ...(profile.composite
-      ? [`import type { Database } from '${database}';`]
+      ? [`import type { Database } from './generated.ts';`]
       : []),
     "import { createSupabase } from 'better-supabase';",
     "import { membershipsExtension } from 'better-supabase/blocks/memberships';",

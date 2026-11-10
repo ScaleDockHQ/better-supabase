@@ -1,9 +1,10 @@
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { plainDateOf } from "../../core/block-helpers.ts";
+import { pageRowsOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
@@ -124,7 +125,21 @@ export interface LimsSampleListOptions {
   readonly status?: LimsSampleStatus;
   /** 1 to 200. Default 50. */
   readonly limit?: number;
+  /** Pages by number. Use `after` through `samplePage` to page by keyset. */
   readonly offset?: number;
+}
+
+/** What `samplePage` reads: the filters of the list, paged by keyset (ADR 0642). */
+export interface LimsSamplePageOptions extends Omit<
+  LimsSampleListOptions,
+  "offset"
+> {
+  /** The `nextCursor` of the previous page. */
+  readonly after?: readonly string[];
+  /** Also count the matching rows, up to `totalCap`. */
+  readonly total?: boolean;
+  /** The most rows the total counts. Default 10,000. */
+  readonly totalCap?: number;
 }
 
 /** The answer of {@link Lims.instrumentStatus}. */
@@ -156,6 +171,10 @@ export interface Lims {
   listSamples(
     options?: LimsSampleListOptions,
   ): AsyncResultType<readonly LimsSample[]>;
+  /** One keyset page of `listSamples`, with `hasMore` and a `nextCursor`. */
+  samplePage(
+    options?: LimsSamplePageOptions,
+  ): AsyncResultType<ListPage<LimsSample>>;
   /**
    * Records a result and checks it against the method's limits. An out of
    * specification result opens a nonconformity case when the cases block is
@@ -356,6 +375,24 @@ export function createLims(options: LimsOptions): Lims {
             recordsOf(value, "list_samples").map((row) =>
               sampleOf(row, "list_samples"),
             ),
+        ),
+      ),
+    samplePage: (page = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_samples",
+          {
+            tenant: organizationId,
+            filters: { ...definedOf(page), paged: true },
+          },
+          (value) => {
+            const read = pageRowsOf(value, "list_samples");
+
+            return {
+              ...read,
+              items: read.items.map((row) => sampleOf(row, "list_samples")),
+            };
+          },
         ),
       ),
     recordResult: ({ sampleId, methodId, input }) =>
