@@ -4,16 +4,16 @@ import { useExtracted } from "next-intl";
 
 import { Badge } from "@/components/reui/badge";
 
-export function OrderStatusBadge({
-  status,
-}: {
-  status: OrderStatus | "draft";
-}) {
+export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   const t = useExtracted("shop");
 
   switch (status) {
     case "draft": {
       return <Badge variant="secondary">{t("Draft")}</Badge>;
+    }
+
+    case "on_hold": {
+      return <Badge variant="warning-light">{t("On hold")}</Badge>;
     }
 
     case "pending_payment": {

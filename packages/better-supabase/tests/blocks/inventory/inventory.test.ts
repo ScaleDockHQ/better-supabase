@@ -202,6 +202,80 @@ describe("inventory block", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("sends the tax of purchase order lines and reads the tax lines back", async () => {
+    const { calls, transport } = recorder(
+      { id: "po1", status: "draft" },
+      {
+        currency: "EUR",
+        lines: [
+          {
+            taxCode: "NL-21",
+            taxRateBps: 2100,
+            net: "5015",
+            tax: "1053",
+            gross: "6068",
+          },
+          { taxRateBps: 900, net: "1000", tax: "90", gross: "1090" },
+        ],
+      },
+    );
+
+    const inventory = createInventory({ transport });
+    await inventory
+      .savePurchaseOrder({
+        organizationId: "org",
+        input: {
+          locationId: "l1",
+          currency: "EUR",
+          lines: [
+            {
+              variantId: "v1",
+              quantity: 3,
+              unitCost: money(1005n, "EUR"),
+              taxRateBps: 2100,
+              taxCode: "NL-21",
+            },
+            { variantId: "v2", quantity: 1, unitCost: money(1000n, "EUR") },
+          ],
+        },
+      })
+      .orThrow();
+    expect(calls[0]?.args).toEqual(
+      expect.objectContaining({
+        lines: [
+          {
+            variantId: "v1",
+            quantity: 3,
+            unitCost: "1005",
+            taxRateBps: 2100,
+            taxCode: "NL-21",
+          },
+          { variantId: "v2", quantity: 1, unitCost: "1000" },
+        ],
+      }),
+    );
+
+    expect(await inventory.purchaseOrderTaxLines("po1").orThrow()).toEqual([
+      {
+        taxCode: "NL-21",
+        taxRateBps: 2100,
+        net: money(5015n, "EUR"),
+        tax: money(1053n, "EUR"),
+        gross: money(6068n, "EUR"),
+      },
+      {
+        taxRateBps: 900,
+        net: money(1000n, "EUR"),
+        tax: money(90n, "EUR"),
+        gross: money(1090n, "EUR"),
+      },
+    ]);
+    expect(calls[1]).toEqual({
+      fn: "purchase_order_tax_lines",
+      args: { purchase_order: "po1" },
+    });
+  });
+
   it("maps a partial receipt and refuses an unknown status", async () => {
     const { transport } = recorder(
       { status: "partially_received", backordered: 4 },

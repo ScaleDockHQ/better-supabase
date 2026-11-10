@@ -17,10 +17,13 @@ import { useErrorMessage } from "@/lib/use-error-message";
 import {
   sendToKitchen,
   cancelOrder,
+  confirmDraftOrder,
   deliverFulfillment,
   fulfillOrder,
+  holdOrder,
   markOrderPaid,
   placeOrder,
+  releaseOrderHold,
   shipFulfillment,
 } from "../shop-actions";
 
@@ -94,6 +97,21 @@ export function OrderTransitions({
     onError,
   });
 
+  const confirmDraft = useAction(confirmDraftOrder, {
+    onSuccess: done(t("Draft confirmed")),
+    onError,
+  });
+
+  const hold = useAction(holdOrder, {
+    onSuccess: done(t("Order put on hold")),
+    onError,
+  });
+
+  const release = useAction(releaseOrderHold, {
+    onSuccess: done(t("Hold released")),
+    onError,
+  });
+
   const fulfill = useAction(fulfillOrder, {
     onSuccess: done(t("Fulfillment created")),
     onError,
@@ -127,6 +145,9 @@ export function OrderTransitions({
     kitchen.pending ||
     pay.pending ||
     cancel.pending ||
+    confirmDraft.pending ||
+    hold.pending ||
+    release.pending ||
     fulfill.pending ||
     ship.pending ||
     deliver.pending;
@@ -135,6 +156,54 @@ export function OrderTransitions({
   const toDeliver = fulfillments.find((each) => each.status === "shipped");
 
   switch (status) {
+    case "draft": {
+      return (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={pending}
+            onClick={() => {
+              void confirmDraft.run({ orderId });
+            }}
+          >
+            {t("Confirm draft")}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              void cancel.run({ orderId });
+            }}
+          >
+            {t("Cancel order")}
+          </Button>
+        </div>
+      );
+    }
+
+    case "on_hold": {
+      return (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={pending}
+            onClick={() => {
+              void release.run({ orderId });
+            }}
+          >
+            {t("Release hold")}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              void cancel.run({ orderId });
+            }}
+          >
+            {t("Cancel order")}
+          </Button>
+        </div>
+      );
+    }
+
     case "pending_payment": {
       return (
         <div className="flex flex-wrap gap-2">
@@ -145,6 +214,15 @@ export function OrderTransitions({
             }}
           >
             {t("Mark as paid")}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              void hold.run({ orderId });
+            }}
+          >
+            {t("Put on hold")}
           </Button>
           <Button
             variant="outline"
@@ -207,15 +285,26 @@ export function OrderTransitions({
             </Button>
           ) : null}
           {status === "confirmed" && !toShip && !toDeliver ? (
-            <Button
-              variant="outline"
-              disabled={pending}
-              onClick={() => {
-                void cancel.run({ orderId });
-              }}
-            >
-              {t("Cancel order")}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                disabled={pending}
+                onClick={() => {
+                  void hold.run({ orderId });
+                }}
+              >
+                {t("Put on hold")}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={pending}
+                onClick={() => {
+                  void cancel.run({ orderId });
+                }}
+              >
+                {t("Cancel order")}
+              </Button>
+            </>
           ) : null}
         </div>
       );

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:a434518a1e7c3a087b3967541cf05dd4aa7e96c2e8551e70d4f9dace22095018
+-- @bsb-hash sha256:5d5a0eb9ce9c693a90d7fac4af0370e29634697eb22d31a5ab158c207c6234a8
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,6 +162,7 @@ create table "better_supabase"."purchase_order_lines" (
   "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered" - "quantity_canceled"),
   "quantity_canceled" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check1 check ("quantity_canceled" >= 0 and "quantity_canceled" <= "quantity_ordered"),
   "tax_code" text,
+  "tax_rate_bps" integer constraint bsb_purchase_order_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "unit_cost" bigint not null constraint bsb_purchase_order_lines_unit_cost_check check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -171,6 +172,27 @@ revoke all on "better_supabase"."purchase_order_lines" from public, anon, authen
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 create policy bsb_purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- The tax of a purchase order per tax code and rate, rebuilt from its lines
+-- each time the draft is saved. Amounts are minor units of the order's currency.
+create table "better_supabase"."purchase_order_tax_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
+  "tax_code" text,
+  "tax_rate_bps" integer not null constraint bsb_purchase_order_tax_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "net" bigint not null constraint bsb_purchase_order_tax_lines_net_check check ("net" >= 0),
+  "tax" bigint not null constraint bsb_purchase_order_tax_lines_tax_check check ("tax" >= 0),
+  "gross" bigint not null constraint bsb_purchase_order_tax_lines_gross_check check ("gross" >= 0)
+);
+create index purchase_order_tax_lines_order_idx on "better_supabase"."purchase_order_tax_lines" ("purchase_order_id");
+alter table "better_supabase"."purchase_order_tax_lines" enable row level security;
+revoke all on "better_supabase"."purchase_order_tax_lines" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_order_tax_lines" to authenticated;
+grant all on "better_supabase"."purchase_order_tax_lines" to service_role;
+create policy bsb_purchase_order_tax_lines_read on "better_supabase"."purchase_order_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -2600,7 +2622,8 @@ revoke execute on function "better_supabase"."cancel_transfer"(uuid) from public
 grant execute on function "better_supabase"."cancel_transfer"(uuid) to authenticated, service_role;
 
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
--- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
+-- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
+-- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.subjects record, or are both null.
 create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
 returns jsonb
@@ -2633,6 +2656,8 @@ begin
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
         or coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$'
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
     or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
@@ -2662,14 +2687,51 @@ begin
     end if;
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
-  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
+  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
   from jsonb_array_elements(save_purchase_order.lines) e;
+  delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
+  insert into "better_supabase"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
+  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  from (
+    select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
+    from jsonb_array_elements(save_purchase_order.lines) e
+  ) g
+  where g.rate > 0
+  group by g.code, g.rate;
   return jsonb_build_object('id', v_id, 'status', 'draft');
 end;
 $$;
 revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) to authenticated, service_role;
+
+-- The tax of a purchase order per code and rate, with the order's currency.
+-- Amounts are text in minor units.
+create or replace function "better_supabase"."purchase_order_tax_lines"(purchase_order uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+begin
+  select x."tenant_id" as tenant, x."currency" as currency into v_row
+  from "better_supabase"."purchase_orders" x where x."id" = purchase_order_tax_lines.purchase_order;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.read'), false)) then
+    raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
+  end if;
+  return jsonb_build_object('currency', v_row.currency::text, 'lines', coalesce((
+    select jsonb_agg(jsonb_build_object('taxCode', z."tax_code", 'taxRateBps', z."tax_rate_bps",
+      'net', z."net"::text, 'tax', z."tax"::text, 'gross', z."gross"::text) order by z."tax_rate_bps", z."tax_code")
+    from "better_supabase"."purchase_order_tax_lines" z where z."purchase_order_id" = purchase_order_tax_lines.purchase_order), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_tax_lines"(uuid) from public, anon;
+grant execute on function "better_supabase"."purchase_order_tax_lines"(uuid) to authenticated, service_role;
 
 -- Sends a draft purchase order: its quantities count as incoming at its location.
 create or replace function "better_supabase"."place_purchase_order"(purchase_order uuid)
@@ -3304,6 +3366,22 @@ create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive
   for select to public
   using (
@@ -3514,7 +3592,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:5a4450f99146e2569934c2a519cfef7f1b8c92ad6c3481f6c1a2c939bcd52c41
+-- @bsb-hash sha256:8d5cfcada044420244f59933d07eba77e8eff3a3969b2221d468f2b257111c6f
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3675,6 +3753,7 @@ create table "better_supabase"."purchase_order_lines" (
   "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered" - "quantity_canceled"),
   "quantity_canceled" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check1 check ("quantity_canceled" >= 0 and "quantity_canceled" <= "quantity_ordered"),
   "tax_code" text,
+  "tax_rate_bps" integer constraint bsb_purchase_order_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "unit_cost" bigint not null constraint bsb_purchase_order_lines_unit_cost_check check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -3684,6 +3763,27 @@ revoke all on "better_supabase"."purchase_order_lines" from public, anon, authen
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 create policy bsb_purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- The tax of a purchase order per tax code and rate, rebuilt from its lines
+-- each time the draft is saved. Amounts are minor units of the order's currency.
+create table "better_supabase"."purchase_order_tax_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
+  "tax_code" text,
+  "tax_rate_bps" integer not null constraint bsb_purchase_order_tax_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "net" bigint not null constraint bsb_purchase_order_tax_lines_net_check check ("net" >= 0),
+  "tax" bigint not null constraint bsb_purchase_order_tax_lines_tax_check check ("tax" >= 0),
+  "gross" bigint not null constraint bsb_purchase_order_tax_lines_gross_check check ("gross" >= 0)
+);
+create index purchase_order_tax_lines_order_idx on "better_supabase"."purchase_order_tax_lines" ("purchase_order_id");
+alter table "better_supabase"."purchase_order_tax_lines" enable row level security;
+revoke all on "better_supabase"."purchase_order_tax_lines" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_order_tax_lines" to authenticated;
+grant all on "better_supabase"."purchase_order_tax_lines" to service_role;
+create policy bsb_purchase_order_tax_lines_read on "better_supabase"."purchase_order_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -6123,7 +6223,8 @@ revoke execute on function "better_supabase"."cancel_transfer"(uuid) from public
 grant execute on function "better_supabase"."cancel_transfer"(uuid) to authenticated, service_role;
 
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
--- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
+-- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
+-- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.subjects record, or are both null.
 create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
 returns jsonb
@@ -6159,6 +6260,8 @@ begin
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
         or coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$'
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
     or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
@@ -6188,14 +6291,51 @@ begin
     end if;
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
-  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
+  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
   from jsonb_array_elements(save_purchase_order.lines) e;
+  delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
+  insert into "better_supabase"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
+  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  from (
+    select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
+    from jsonb_array_elements(save_purchase_order.lines) e
+  ) g
+  where g.rate > 0
+  group by g.code, g.rate;
   return jsonb_build_object('id', v_id, 'status', 'draft');
 end;
 $$;
 revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) to authenticated, service_role;
+
+-- The tax of a purchase order per code and rate, with the order's currency.
+-- Amounts are text in minor units.
+create or replace function "better_supabase"."purchase_order_tax_lines"(purchase_order uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+begin
+  select x."tenant_id" as tenant, x."currency" as currency into v_row
+  from "better_supabase"."purchase_orders" x where x."id" = purchase_order_tax_lines.purchase_order;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.read'), false)) then
+    raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
+  end if;
+  return jsonb_build_object('currency', v_row.currency::text, 'lines', coalesce((
+    select jsonb_agg(jsonb_build_object('taxCode', z."tax_code", 'taxRateBps', z."tax_rate_bps",
+      'net', z."net"::text, 'tax', z."tax"::text, 'gross', z."gross"::text) order by z."tax_rate_bps", z."tax_code")
+    from "better_supabase"."purchase_order_tax_lines" z where z."purchase_order_id" = purchase_order_tax_lines.purchase_order), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_tax_lines"(uuid) from public, anon;
+grant execute on function "better_supabase"."purchase_order_tax_lines"(uuid) to authenticated, service_role;
 
 -- Sends a draft purchase order: its quantities count as incoming at its location.
 create or replace function "better_supabase"."place_purchase_order"(purchase_order uuid)
@@ -6878,6 +7018,22 @@ create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive
   for select to public
   using (
@@ -7094,7 +7250,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:16072189b58dbeb37e2df38b9cfa20fa95c33d0fb69372b33bde2ac1f3900e5a
+-- @bsb-hash sha256:a512b62feaa50a1152f48725b246122f4874f280fa9e180ee7d9d24690c7f4d6
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7260,6 +7416,7 @@ create table "app_private"."purchase_order_lines" (
   "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered" - "quantity_canceled"),
   "quantity_canceled" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check1 check ("quantity_canceled" >= 0 and "quantity_canceled" <= "quantity_ordered"),
   "tax_code" text,
+  "tax_rate_bps" integer constraint bsb_purchase_order_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "unit_cost" bigint not null constraint bsb_purchase_order_lines_unit_cost_check check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -7269,6 +7426,27 @@ revoke all on "app_private"."purchase_order_lines" from public, anon, authentica
 grant select on "app_private"."purchase_order_lines" to authenticated;
 grant all on "app_private"."purchase_order_lines" to service_role;
 create policy bsb_purchase_order_lines_read on "app_private"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- The tax of a purchase order per tax code and rate, rebuilt from its lines
+-- each time the draft is saved. Amounts are minor units of the order's currency.
+create table "app_private"."purchase_order_tax_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "purchase_order_id" uuid not null references "app_private"."purchase_orders" ("id") on delete cascade,
+  "tax_code" text,
+  "tax_rate_bps" integer not null constraint bsb_purchase_order_tax_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "net" bigint not null constraint bsb_purchase_order_tax_lines_net_check check ("net" >= 0),
+  "tax" bigint not null constraint bsb_purchase_order_tax_lines_tax_check check ("tax" >= 0),
+  "gross" bigint not null constraint bsb_purchase_order_tax_lines_gross_check check ("gross" >= 0)
+);
+create index purchase_order_tax_lines_order_idx on "app_private"."purchase_order_tax_lines" ("purchase_order_id");
+alter table "app_private"."purchase_order_tax_lines" enable row level security;
+revoke all on "app_private"."purchase_order_tax_lines" from public, anon, authenticated;
+grant select on "app_private"."purchase_order_tax_lines" to authenticated;
+grant all on "app_private"."purchase_order_tax_lines" to service_role;
+create policy bsb_purchase_order_tax_lines_read on "app_private"."purchase_order_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -9698,7 +9876,8 @@ revoke execute on function "app_private"."cancel_transfer"(uuid) from public, an
 grant execute on function "app_private"."cancel_transfer"(uuid) to authenticated, service_role;
 
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
--- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
+-- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
+-- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.subjects record, or are both null.
 create or replace function "app_private"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
 returns jsonb
@@ -9731,6 +9910,8 @@ begin
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
         or coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$'
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
     or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
@@ -9760,14 +9941,51 @@ begin
     end if;
     delete from "app_private"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
-  insert into "app_private"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  insert into "app_private"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
+  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
   from jsonb_array_elements(save_purchase_order.lines) e;
+  delete from "app_private"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
+  insert into "app_private"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
+  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  from (
+    select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
+    from jsonb_array_elements(save_purchase_order.lines) e
+  ) g
+  where g.rate > 0
+  group by g.code, g.rate;
   return jsonb_build_object('id', v_id, 'status', 'draft');
 end;
 $$;
 revoke execute on function "app_private"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) from public, anon;
 grant execute on function "app_private"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) to authenticated, service_role;
+
+-- The tax of a purchase order per code and rate, with the order's currency.
+-- Amounts are text in minor units.
+create or replace function "app_private"."purchase_order_tax_lines"(purchase_order uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+begin
+  select x."tenant_id" as tenant, x."currency" as currency into v_row
+  from "app_private"."purchase_orders" x where x."id" = purchase_order_tax_lines.purchase_order;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.read'), false)) then
+    raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
+  end if;
+  return jsonb_build_object('currency', v_row.currency::text, 'lines', coalesce((
+    select jsonb_agg(jsonb_build_object('taxCode', z."tax_code", 'taxRateBps', z."tax_rate_bps",
+      'net', z."net"::text, 'tax', z."tax"::text, 'gross', z."gross"::text) order by z."tax_rate_bps", z."tax_code")
+    from "app_private"."purchase_order_tax_lines" z where z."purchase_order_id" = purchase_order_tax_lines.purchase_order), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "app_private"."purchase_order_tax_lines"(uuid) from public, anon;
+grant execute on function "app_private"."purchase_order_tax_lines"(uuid) to authenticated, service_role;
 
 -- Sends a draft purchase order: its quantities count as incoming at its location.
 create or replace function "app_private"."place_purchase_order"(purchase_order uuid)
@@ -10402,6 +10620,22 @@ create policy bsb_tenant_scope_update on "app_private"."purchase_order_lines" as
 create policy bsb_tenant_scope_delete on "app_private"."purchase_order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_select on "app_private"."purchase_order_tax_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+create policy bsb_tenant_scope_insert on "app_private"."purchase_order_tax_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_update on "app_private"."purchase_order_tax_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_delete on "app_private"."purchase_order_tax_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "app_private"."purchase_requisitions" as restrictive
   for select to public
   using (
@@ -10612,7 +10846,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:b0439ee7c61e653ffcec630d957af031dfb6957c40b74d77423eac3116dfe225
+-- @bsb-hash sha256:67c93fe9b950a89961de07932505e2068db5b6c51e10eae2f49e3c831ad25120
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10773,6 +11007,7 @@ create table "better_supabase"."purchase_order_lines" (
   "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered" - "quantity_canceled"),
   "quantity_canceled" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check1 check ("quantity_canceled" >= 0 and "quantity_canceled" <= "quantity_ordered"),
   "tax_code" text,
+  "tax_rate_bps" integer constraint bsb_purchase_order_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "unit_cost" bigint not null constraint bsb_purchase_order_lines_unit_cost_check check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -10782,6 +11017,27 @@ revoke all on "better_supabase"."purchase_order_lines" from public, anon, authen
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 create policy bsb_purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- The tax of a purchase order per tax code and rate, rebuilt from its lines
+-- each time the draft is saved. Amounts are minor units of the order's currency.
+create table "better_supabase"."purchase_order_tax_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
+  "tax_code" text,
+  "tax_rate_bps" integer not null constraint bsb_purchase_order_tax_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "net" bigint not null constraint bsb_purchase_order_tax_lines_net_check check ("net" >= 0),
+  "tax" bigint not null constraint bsb_purchase_order_tax_lines_tax_check check ("tax" >= 0),
+  "gross" bigint not null constraint bsb_purchase_order_tax_lines_gross_check check ("gross" >= 0)
+);
+create index purchase_order_tax_lines_order_idx on "better_supabase"."purchase_order_tax_lines" ("purchase_order_id");
+alter table "better_supabase"."purchase_order_tax_lines" enable row level security;
+revoke all on "better_supabase"."purchase_order_tax_lines" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_order_tax_lines" to authenticated;
+grant all on "better_supabase"."purchase_order_tax_lines" to service_role;
+create policy bsb_purchase_order_tax_lines_read on "better_supabase"."purchase_order_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -13211,7 +13467,8 @@ revoke execute on function "better_supabase"."cancel_transfer"(uuid) from public
 grant execute on function "better_supabase"."cancel_transfer"(uuid) to authenticated, service_role;
 
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
--- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
+-- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
+-- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.subjects record, or are both null.
 create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
 returns jsonb
@@ -13244,6 +13501,8 @@ begin
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
         or coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$'
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
     or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
@@ -13273,14 +13532,51 @@ begin
     end if;
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
-  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
+  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
   from jsonb_array_elements(save_purchase_order.lines) e;
+  delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
+  insert into "better_supabase"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
+  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  from (
+    select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
+    from jsonb_array_elements(save_purchase_order.lines) e
+  ) g
+  where g.rate > 0
+  group by g.code, g.rate;
   return jsonb_build_object('id', v_id, 'status', 'draft');
 end;
 $$;
 revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) to authenticated, service_role;
+
+-- The tax of a purchase order per code and rate, with the order's currency.
+-- Amounts are text in minor units.
+create or replace function "better_supabase"."purchase_order_tax_lines"(purchase_order uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+begin
+  select x."tenant_id" as tenant, x."currency" as currency into v_row
+  from "better_supabase"."purchase_orders" x where x."id" = purchase_order_tax_lines.purchase_order;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.read'), false)) then
+    raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
+  end if;
+  return jsonb_build_object('currency', v_row.currency::text, 'lines', coalesce((
+    select jsonb_agg(jsonb_build_object('taxCode', z."tax_code", 'taxRateBps', z."tax_rate_bps",
+      'net', z."net"::text, 'tax', z."tax"::text, 'gross', z."gross"::text) order by z."tax_rate_bps", z."tax_code")
+    from "better_supabase"."purchase_order_tax_lines" z where z."purchase_order_id" = purchase_order_tax_lines.purchase_order), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_tax_lines"(uuid) from public, anon;
+grant execute on function "better_supabase"."purchase_order_tax_lines"(uuid) to authenticated, service_role;
 
 -- Sends a draft purchase order: its quantities count as incoming at its location.
 create or replace function "better_supabase"."place_purchase_order"(purchase_order uuid)
@@ -13915,6 +14211,22 @@ create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive
   for select to public
   using (
@@ -14460,6 +14772,16 @@ as $$ select "better_supabase"."save_purchase_order"($1, $2, $3, $4, $5, $6, $7,
 revoke execute on function "api"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) from public, anon;
 grant execute on function "api"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) to authenticated, service_role;
 
+create or replace function "api"."purchase_order_tax_lines"(purchase_order uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."purchase_order_tax_lines"($1) $$;
+revoke execute on function "api"."purchase_order_tax_lines"(uuid) from public, anon;
+grant execute on function "api"."purchase_order_tax_lines"(uuid) to authenticated, service_role;
+
 create or replace function "api"."place_purchase_order"(purchase_order uuid)
 returns boolean
 language sql
@@ -14581,7 +14903,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:af1193fa34680fc46080b371b06885134cb17fe143068281b2bcf215ed46278f
+-- @bsb-hash sha256:52a372c68d70323fef764bc4ef4250a55e0ddee037b3df630162980b2d797882
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14720,12 +15042,32 @@ alter table "better_supabase"."purchase_order_lines" add column if not exists "q
 alter table "better_supabase"."purchase_order_lines" add column if not exists "quantity_canceled" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_canceled" >= 0 and "quantity_canceled" <= "quantity_ordered");
 alter table "better_supabase"."purchase_order_lines" add column if not exists "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check1 check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered" - "quantity_canceled");
 alter table "better_supabase"."purchase_order_lines" add column if not exists "tax_code" text;
+alter table "better_supabase"."purchase_order_lines" add column if not exists "tax_rate_bps" integer constraint bsb_purchase_order_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000);
 alter table "better_supabase"."purchase_order_lines" add column if not exists "unit_cost" bigint constraint bsb_purchase_order_lines_unit_cost_check check ("unit_cost" >= 0);
 create index if not exists purchase_order_lines_variant_idx on "better_supabase"."purchase_order_lines" ("variant_id");
 alter table "better_supabase"."purchase_order_lines" enable row level security;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 create policy bsb_purchase_order_lines_select on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- The tax of a purchase order per tax code and rate, rebuilt from its lines
+-- each time the draft is saved. Amounts are minor units of the order's currency.
+-- better_supabase.purchase_order_tax_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."purchase_order_tax_lines" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."purchase_order_tax_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."purchase_order_tax_lines" add column if not exists "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete cascade;
+alter table "better_supabase"."purchase_order_tax_lines" add column if not exists "tax_code" text;
+alter table "better_supabase"."purchase_order_tax_lines" add column if not exists "tax_rate_bps" integer constraint bsb_purchase_order_tax_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000);
+alter table "better_supabase"."purchase_order_tax_lines" add column if not exists "net" bigint constraint bsb_purchase_order_tax_lines_net_check check ("net" >= 0);
+alter table "better_supabase"."purchase_order_tax_lines" add column if not exists "tax" bigint constraint bsb_purchase_order_tax_lines_tax_check check ("tax" >= 0);
+alter table "better_supabase"."purchase_order_tax_lines" add column if not exists "gross" bigint constraint bsb_purchase_order_tax_lines_gross_check check ("gross" >= 0);
+create index if not exists purchase_order_tax_lines_order_idx on "better_supabase"."purchase_order_tax_lines" ("purchase_order_id");
+alter table "better_supabase"."purchase_order_tax_lines" enable row level security;
+grant select on "better_supabase"."purchase_order_tax_lines" to authenticated;
+grant all on "better_supabase"."purchase_order_tax_lines" to service_role;
+create policy bsb_purchase_order_tax_lines_select on "better_supabase"."purchase_order_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17120,7 +17462,8 @@ revoke execute on function "better_supabase"."cancel_transfer"(uuid) from public
 grant execute on function "better_supabase"."cancel_transfer"(uuid) to authenticated, service_role;
 
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
--- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
+-- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
+-- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.subjects record, or are both null.
 create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
 returns jsonb
@@ -17153,6 +17496,8 @@ begin
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
         or coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$'
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
     or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
@@ -17182,14 +17527,51 @@ begin
     end if;
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
-  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
+  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
   from jsonb_array_elements(save_purchase_order.lines) e;
+  delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
+  insert into "better_supabase"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
+  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  from (
+    select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
+    from jsonb_array_elements(save_purchase_order.lines) e
+  ) g
+  where g.rate > 0
+  group by g.code, g.rate;
   return jsonb_build_object('id', v_id, 'status', 'draft');
 end;
 $$;
 revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) to authenticated, service_role;
+
+-- The tax of a purchase order per code and rate, with the order's currency.
+-- Amounts are text in minor units.
+create or replace function "better_supabase"."purchase_order_tax_lines"(purchase_order uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+begin
+  select x."tenant_id" as tenant, x."currency" as currency into v_row
+  from "better_supabase"."purchase_orders" x where x."id" = purchase_order_tax_lines.purchase_order;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.read'), false)) then
+    raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
+  end if;
+  return jsonb_build_object('currency', v_row.currency::text, 'lines', coalesce((
+    select jsonb_agg(jsonb_build_object('taxCode', z."tax_code", 'taxRateBps', z."tax_rate_bps",
+      'net', z."net"::text, 'tax', z."tax"::text, 'gross', z."gross"::text) order by z."tax_rate_bps", z."tax_code")
+    from "better_supabase"."purchase_order_tax_lines" z where z."purchase_order_id" = purchase_order_tax_lines.purchase_order), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_tax_lines"(uuid) from public, anon;
+grant execute on function "better_supabase"."purchase_order_tax_lines"(uuid) to authenticated, service_role;
 
 -- Sends a draft purchase order: its quantities count as incoming at its location.
 create or replace function "better_supabase"."place_purchase_order"(purchase_order uuid)
@@ -17824,6 +18206,22 @@ create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive
   for select to public
   using (
@@ -18034,7 +18432,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:c507a3d0601457e31ae5668980fc510a5daa3e8190ff66246152cf43b18e0881
+-- @bsb-hash sha256:fe7ae82c429884b33b1a4893f96346f5ae3b4bd4d39261f70d8eb299154fd293
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18195,6 +18593,7 @@ create table "better_supabase"."purchase_order_lines" (
   "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered" - "quantity_canceled"),
   "quantity_canceled" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check1 check ("quantity_canceled" >= 0 and "quantity_canceled" <= "quantity_ordered"),
   "tax_code" text,
+  "tax_rate_bps" integer constraint bsb_purchase_order_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "unit_cost" bigint not null constraint bsb_purchase_order_lines_unit_cost_check check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -18204,6 +18603,27 @@ revoke all on "better_supabase"."purchase_order_lines" from public, anon, authen
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 create policy bsb_purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- The tax of a purchase order per tax code and rate, rebuilt from its lines
+-- each time the draft is saved. Amounts are minor units of the order's currency.
+create table "better_supabase"."purchase_order_tax_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
+  "tax_code" text,
+  "tax_rate_bps" integer not null constraint bsb_purchase_order_tax_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "net" bigint not null constraint bsb_purchase_order_tax_lines_net_check check ("net" >= 0),
+  "tax" bigint not null constraint bsb_purchase_order_tax_lines_tax_check check ("tax" >= 0),
+  "gross" bigint not null constraint bsb_purchase_order_tax_lines_gross_check check ("gross" >= 0)
+);
+create index purchase_order_tax_lines_order_idx on "better_supabase"."purchase_order_tax_lines" ("purchase_order_id");
+alter table "better_supabase"."purchase_order_tax_lines" enable row level security;
+revoke all on "better_supabase"."purchase_order_tax_lines" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_order_tax_lines" to authenticated;
+grant all on "better_supabase"."purchase_order_tax_lines" to service_role;
+create policy bsb_purchase_order_tax_lines_read on "better_supabase"."purchase_order_tax_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -20633,7 +21053,8 @@ revoke execute on function "better_supabase"."cancel_transfer"(uuid) from public
 grant execute on function "better_supabase"."cancel_transfer"(uuid) to authenticated, service_role;
 
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
--- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
+-- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
+-- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.subjects record, or are both null.
 create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
 returns jsonb
@@ -20666,6 +21087,8 @@ begin
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
         or coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$'
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
     or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
@@ -20695,14 +21118,51 @@ begin
     end if;
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
-  insert into "better_supabase"."purchase_order_lines" ("org_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  insert into "better_supabase"."purchase_order_lines" ("org_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
+  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
   from jsonb_array_elements(save_purchase_order.lines) e;
+  delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
+  insert into "better_supabase"."purchase_order_tax_lines" ("org_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
+  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  from (
+    select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
+    from jsonb_array_elements(save_purchase_order.lines) e
+  ) g
+  where g.rate > 0
+  group by g.code, g.rate;
   return jsonb_build_object('id', v_id, 'status', 'draft');
 end;
 $$;
 revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) to authenticated, service_role;
+
+-- The tax of a purchase order per code and rate, with the order's currency.
+-- Amounts are text in minor units.
+create or replace function "better_supabase"."purchase_order_tax_lines"(purchase_order uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+begin
+  select x."org_id" as tenant, x."currency" as currency into v_row
+  from "better_supabase"."purchase_orders" x where x."id" = purchase_order_tax_lines.purchase_order;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.read'), false)) then
+    raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
+  end if;
+  return jsonb_build_object('currency', v_row.currency::text, 'lines', coalesce((
+    select jsonb_agg(jsonb_build_object('taxCode', z."tax_code", 'taxRateBps', z."tax_rate_bps",
+      'net', z."net"::text, 'tax', z."tax"::text, 'gross', z."gross"::text) order by z."tax_rate_bps", z."tax_code")
+    from "better_supabase"."purchase_order_tax_lines" z where z."purchase_order_id" = purchase_order_tax_lines.purchase_order), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_tax_lines"(uuid) from public, anon;
+grant execute on function "better_supabase"."purchase_order_tax_lines"(uuid) to authenticated, service_role;
 
 -- Sends a draft purchase order: its quantities count as incoming at its location.
 create or replace function "better_supabase"."place_purchase_order"(purchase_order uuid)
@@ -21335,6 +21795,22 @@ create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_tax_lines" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive

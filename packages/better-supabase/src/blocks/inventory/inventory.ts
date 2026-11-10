@@ -11,6 +11,7 @@ import type { InventoryProcurement } from "./procurement.ts";
 import type { InventoryReads } from "./reads.ts";
 import type { InventoryTracking } from "./tracking.ts";
 
+import { money } from "../../commerce/money.ts";
 import { detailArg } from "../../commerce/stock-detail.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -166,6 +167,24 @@ export interface TransferInput {
 export interface PurchaseOrderLine extends StockLine {
   /** The cost per unit, in the order's currency. */
   readonly unitCost: Money;
+  /**
+   * The tax rate of the line in basis points (2100 is 21 percent). Lines with a
+   * rate add up into the order's tax lines.
+   */
+  readonly taxRateBps?: number;
+  /** The tax code of the line; the tax lines group by code and rate. */
+  readonly taxCode?: string;
+}
+
+/** The tax of a purchase order at one code and rate. */
+export interface PurchaseOrderTaxLine {
+  readonly taxCode?: string;
+  readonly taxRateBps: number;
+  /** The lines' value before tax. */
+  readonly net: Money;
+  readonly tax: Money;
+  /** The net plus the tax. */
+  readonly gross: Money;
 }
 
 export interface PurchaseOrderInput {
@@ -293,6 +312,13 @@ export interface Inventory<F extends object = Record<never, never>>
     organizationId: string;
     input: PurchaseOrderInput;
   }): AsyncResult<{ readonly id: string }>;
+  /**
+   * The order's tax per code and rate, rebuilt each time the draft is saved
+   * from the lines that carry a `taxRateBps`.
+   */
+  purchaseOrderTaxLines(
+    purchaseOrderId: string,
+  ): AsyncResult<readonly PurchaseOrderTaxLine[]>;
   /** Marks the order as ordered and counts its lines as incoming stock. */
   placePurchaseOrder(purchaseOrderId: string): AsyncResult<boolean>;
   /** Receives some or all of the ordered units; the rest stay on backorder. */
@@ -341,6 +367,25 @@ function maxRowsOf(payload: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
 }
 
+function taxLinesOf(value: unknown): readonly PurchaseOrderTaxLine[] {
+  const row = recordOf(value, "purchase_order_tax_lines");
+  const currency = textOf(row["currency"]);
+  const lines = Array.isArray(row["lines"]) ? row["lines"] : [];
+
+  return lines.map((entry: unknown) => {
+    const line = recordOf(entry, "purchase_order_tax_lines");
+    const code = optionalText(line["taxCode"]);
+
+    return {
+      ...(code ? { taxCode: code } : {}),
+      taxRateBps: Number(line["taxRateBps"]),
+      net: money(BigInt(textOf(line["net"])), currency),
+      tax: money(BigInt(textOf(line["tax"])), currency),
+      gross: money(BigInt(textOf(line["gross"])), currency),
+    };
+  });
+}
+
 function purchaseLines(
   input: PurchaseOrderInput,
 ): readonly Record<string, unknown>[] | string {
@@ -355,6 +400,8 @@ function purchaseLines(
       variantId: line.variantId,
       quantity: line.quantity,
       unitCost: line.unitCost.amount.toString(),
+      ...(line.taxRateBps === undefined ? {} : { taxRateBps: line.taxRateBps }),
+      ...(line.taxCode === undefined ? {} : { taxCode: line.taxCode }),
     });
   }
 
@@ -551,6 +598,12 @@ export function createInventory<
         idOf("save_purchase_order"),
       );
     },
+    purchaseOrderTaxLines: (purchaseOrderId) =>
+      call(
+        "purchase_order_tax_lines",
+        { purchase_order: purchaseOrderId },
+        taxLinesOf,
+      ),
     placePurchaseOrder: (purchaseOrderId) =>
       call("place_purchase_order", { purchase_order: purchaseOrderId }, isTrue),
     receivePurchaseOrder: ({ purchaseOrderId, lines }) =>

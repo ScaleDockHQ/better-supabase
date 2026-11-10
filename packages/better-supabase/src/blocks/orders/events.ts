@@ -8,6 +8,9 @@ export type OrdersEvents = {
   readonly "order.placed": CommerceSubjectEventData;
   readonly "order.paid": CommerceSubjectEventData;
   readonly "order.cancelled": CommerceSubjectEventData;
+  readonly "order.drafted": CommerceSubjectEventData;
+  readonly "order.hold_placed": CommerceSubjectEventData;
+  readonly "order.hold_released": CommerceSubjectEventData;
   readonly "order.fulfilled": CommerceSubjectEventData;
   readonly "order.completed": CommerceSubjectEventData;
   readonly "order.refunded": CommerceSubjectEventData;
@@ -24,6 +27,9 @@ export const ordersEvents: Events<OrdersEvents> = defineEvents({
   "order.placed": event<CommerceSubjectEventData>(),
   "order.paid": event<CommerceSubjectEventData>(),
   "order.cancelled": event<CommerceSubjectEventData>(),
+  "order.drafted": event<CommerceSubjectEventData>(),
+  "order.hold_placed": event<CommerceSubjectEventData>(),
+  "order.hold_released": event<CommerceSubjectEventData>(),
   "order.fulfilled": event<CommerceSubjectEventData>(),
   "order.completed": event<CommerceSubjectEventData>(),
   "order.refunded": event<CommerceSubjectEventData>(),
