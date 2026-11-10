@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:873950765d500c26bd9c7935ab0b5107f2949cd6a2e9e9a9cee675c2bff7814f
+-- @bsb-hash sha256:9aa2417b293703debe5024afa687cf7382e34adf96801c252e4bf7415b391d6a
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
