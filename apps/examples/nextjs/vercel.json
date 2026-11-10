@@ -16,6 +16,14 @@
           "topic": "block_ticks"
         }
       ]
+    },
+    "src/app/api/queues/audit-export/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "audit_export"
+        }
+      ]
     }
   }
 }
