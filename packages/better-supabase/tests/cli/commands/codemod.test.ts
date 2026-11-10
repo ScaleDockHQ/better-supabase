@@ -348,6 +348,22 @@ describe("codemod extra-columns", () => {
     ).toEqual([]);
   });
 
+  it("keeps naming config_invalid when the config has no key to rename", async () => {
+    const configFile = join(root, "better-supabase.config.ts");
+
+    await writeFile(configFile, "export default { nope: 1 };\n");
+
+    const result = await runCodemod(
+      resolveConfig({}, root),
+      parseCommandArgs(codemodCommand("naming"), ["naming"]),
+      undefined,
+      configFile,
+      new CliError("config_invalid", "bad config"),
+    );
+
+    expect(result.errorCode).toBe("config_invalid");
+  });
+
   it("keeps naming config_invalid when the rewritten config still fails", async () => {
     const configFile = join(root, "better-supabase.config.ts");
 

@@ -106,4 +106,46 @@ describe("team members with a required user (BS631)", () => {
     ).toEqual([]);
     expect(requiredTeamMemberUser(context(required, {}))).toEqual([]);
   });
+
+  it("passes custom modes, a missing employees block and a table the database lacks", () => {
+    const required = [
+      column("team_id", false),
+      column("user_id", false),
+      column("employee_id", true),
+    ];
+
+    const custom = context(required);
+
+    expect(
+      requiredTeamMemberUser({
+        ...custom,
+        config: {
+          ...custom.config,
+          blocks: {
+            ...custom.config.blocks,
+            teams: { ...custom.config.blocks["teams"], mode: "custom" },
+          },
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      requiredTeamMemberUser({
+        ...custom,
+        config: resolveConfig({ blocks: { teams: members } }, "/project"),
+      }),
+    ).toEqual([]);
+    expect(
+      requiredTeamMemberUser(
+        context(required, { tables: { members: "other_members" } }),
+      ),
+    ).toEqual([]);
+    expect(
+      requiredTeamMemberUser(
+        context(required, {
+          ...members,
+          columns: { members: { user: "member_id", employee: "staff_id" } },
+        }),
+      ),
+    ).toEqual([]);
+  });
 });

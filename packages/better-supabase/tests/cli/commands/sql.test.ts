@@ -1268,6 +1268,9 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       "better_supabase.actor_may_write, which the prelude defines",
     );
 
+    const dry = await sql(["upgrade", "--dry-run", "--force"], config);
+    expect(dry.data).toHaveProperty("problems");
+
     const kept = await sql(["upgrade"], config);
     expect(kept.code).toBe(1);
     expect(kept.data).toHaveProperty("problems");

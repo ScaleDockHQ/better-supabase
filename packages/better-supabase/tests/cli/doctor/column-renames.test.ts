@@ -68,7 +68,9 @@ select payload ->> 'locked_until';`,
 create trigger bsb_audit after update on better_supabase.api_keys
   for each row execute function better_supabase.audit_row_change('not json');
 create trigger bsb_audit after update on better_supabase.api_keys
-  for each row execute function better_supabase.audit_row_change('[1]');`,
+  for each row execute function better_supabase.audit_row_change('[1]');
+create trigger bsb_audit after update on better_supabase.api_keys
+  for each row execute function better_supabase.audit_row_change('{"ignore": "window_start", "redact": [1, "window_start"]}');`,
       },
     ]);
 
@@ -76,6 +78,9 @@ create trigger bsb_audit after update on better_supabase.api_keys
       expect.objectContaining({
         target: "supabase/schemas/audit.sql:window_start",
         message: expect.stringContaining("window_started_at"),
+      }),
+      expect.objectContaining({
+        message: expect.stringContaining("audit redact"),
       }),
     ]);
   });
