@@ -297,7 +297,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:45e0b66931d73b19fd49d371cf5b46001fcee3e5887c4981a260826a475a777b
+-- @bsb-hash sha256:8530364d444ee4142d8ae0214c166edcc0e52e7f1c9ebe9d584cfec15eeb0829
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -547,11 +547,11 @@ begin
     where id in (
       select w.id from better_supabase.webhook_inbox w
       where ((w.status = 'processed' and (w.processed_at < now() - least(older_than, "better_supabase"."retention_floor"('webhooks'))
-      and w.processed_at < now() - coalesce("better_supabase"."retention_for"('webhooks', (w.tenant)::text), older_than)
-      and not "better_supabase"."is_held"('webhooks', (w.tenant)::text)))
+      and w.processed_at < now() - coalesce("better_supabase"."retention_for_memo"('webhooks', (w.tenant)::text), older_than)
+      and not "better_supabase"."is_held_memo"('webhooks', (w.tenant)::text)))
         or (include_dead and w.status = 'dead' and (w.received_at < now() - least(older_than, "better_supabase"."retention_floor"('webhooks'))
-      and w.received_at < now() - coalesce("better_supabase"."retention_for"('webhooks', (w.tenant)::text), older_than)
-      and not "better_supabase"."is_held"('webhooks', (w.tenant)::text))))
+      and w.received_at < now() - coalesce("better_supabase"."retention_for_memo"('webhooks', (w.tenant)::text), older_than)
+      and not "better_supabase"."is_held_memo"('webhooks', (w.tenant)::text))))
         and (for_tenant is null or w.tenant = for_tenant)
       order by w.id
       limit batch

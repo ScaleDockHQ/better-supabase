@@ -1687,7 +1687,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:581a7873244142bdc17c8ba3244a3c91ed335a03924a8574d4963bd0da190f3d
+-- @bsb-hash sha256:a218560592360a547dbef3fab363681096618654b08c87e58719d10d0db6f8f1
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3251,8 +3251,8 @@ begin
   where "id" in (
     select ev."id" from "better_supabase"."notification_events" ev
     where (ev."created_at" < now() - least(coalesce(older_than, '90 days'), "better_supabase"."retention_floor"('notifications'))
-      and ev."created_at" < now() - coalesce("better_supabase"."retention_for"('notifications', (ev."tenant_id")::text), coalesce(older_than, '90 days'))
-      and not "better_supabase"."is_held"('notifications', (ev."tenant_id")::text))
+      and ev."created_at" < now() - coalesce("better_supabase"."retention_for_memo"('notifications', (ev."tenant_id")::text), coalesce(older_than, '90 days'))
+      and not "better_supabase"."is_held_memo"('notifications', (ev."tenant_id")::text))
     order by ev."created_at"
     limit coalesce(batch, 10000)
   );

@@ -1206,7 +1206,7 @@ export function createModuleContext(
     fallback: string,
   ): string => {
     const policy = lifecycle(
-      "retention_for",
+      "retention_for_memo",
       `${sqlString(kind)}, (${tenant})::text`,
     );
 
@@ -1214,7 +1214,8 @@ export function createModuleContext(
   };
 
   const held = (kind: string, tenant: string): string =>
-    lifecycle("is_held", `${sqlString(kind)}, (${tenant})::text`) ?? "false";
+    lifecycle("is_held_memo", `${sqlString(kind)}, (${tenant})::text`) ??
+    "false";
 
   const owned = tableOwnership(
     { module, tables: names.tables, config, source, tableName },

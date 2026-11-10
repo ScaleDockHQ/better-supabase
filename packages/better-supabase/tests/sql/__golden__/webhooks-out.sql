@@ -715,7 +715,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:537b36230f506f6ea0ac4571874d147197f387a2f1c43cff129ed6608eb2ad17
+-- @bsb-hash sha256:4cb65d7888071bb90db6b22c4bacbf587ce8fe17b5272c00dc6dece975983d7b
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1209,8 +1209,8 @@ begin
     where "id" in (
       select v."id" from "better_supabase"."webhook_deliveries" v
       where (v."created_at" < now() - least(purge_webhook_deliveries.older_than, "better_supabase"."retention_floor"('webhook_deliveries'))
-      and v."created_at" < now() - coalesce("better_supabase"."retention_for"('webhook_deliveries', (v."tenant_id")::text), purge_webhook_deliveries.older_than)
-      and not "better_supabase"."is_held"('webhook_deliveries', (v."tenant_id")::text))
+      and v."created_at" < now() - coalesce("better_supabase"."retention_for_memo"('webhook_deliveries', (v."tenant_id")::text), purge_webhook_deliveries.older_than)
+      and not "better_supabase"."is_held_memo"('webhook_deliveries', (v."tenant_id")::text))
         and (
           v."status" in ('succeeded', 'canceled')
           or (purge_webhook_deliveries.include_dead and v."status" = 'dead')

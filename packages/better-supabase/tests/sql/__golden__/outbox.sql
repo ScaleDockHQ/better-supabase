@@ -515,7 +515,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:0053567a16590d6f9c57a80d6401ac00050817cac61fe8aeb8b35f1cd86dbfe4
+-- @bsb-hash sha256:64af87bb40fa442cd11b45c78f607a18a173a5fb26b03567eac15afda872f543
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -925,16 +925,16 @@ begin
   letters as (
     delete from "better_supabase"."outbox_dead_letters" x
     where (x."dead_at" < now() - least(coalesce(older_than, '30 days'::interval), "better_supabase"."retention_floor"('outbox'))
-      and x."dead_at" < now() - coalesce("better_supabase"."retention_for"('outbox', (null)::text), coalesce(older_than, '30 days'::interval))
-      and not "better_supabase"."is_held"('outbox', (null)::text))
+      and x."dead_at" < now() - coalesce("better_supabase"."retention_for_memo"('outbox', (null)::text), coalesce(older_than, '30 days'::interval))
+      and not "better_supabase"."is_held_memo"('outbox', (null)::text))
   ),
   gone as (
     delete from "better_supabase"."outbox_events" e
     where e."id" in (
       select d."id" from "better_supabase"."outbox_events" d
       where (d."created_at" < now() - least(coalesce(older_than, '30 days'::interval), "better_supabase"."retention_floor"('outbox'))
-      and d."created_at" < now() - coalesce("better_supabase"."retention_for"('outbox', (d."tenant_id")::text), coalesce(older_than, '30 days'::interval))
-      and not "better_supabase"."is_held"('outbox', (d."tenant_id")::text))
+      and d."created_at" < now() - coalesce("better_supabase"."retention_for_memo"('outbox', (d."tenant_id")::text), coalesce(older_than, '30 days'::interval))
+      and not "better_supabase"."is_held_memo"('outbox', (d."tenant_id")::text))
         and (
           not exists (select 1 from active)
           or (d."xid", d."position") <= (
