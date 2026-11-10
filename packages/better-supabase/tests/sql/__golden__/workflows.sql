@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:908b4c2000fc77e6fb75d9614ca57342494fa11fe2283caf1d81bf2dea07cede
+-- @bsb-hash sha256:fba2a47fa1c33ce3974cf6684869b696f938947362e28a29915c58ebb250f995
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,7 @@ create table "better_supabase"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
+create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc, "id" desc);
 create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
@@ -1033,7 +1033,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:2e01a5cdf71392cf95fb6023c0f375b5bb35788d458992dacf0909c22075b179
+-- @bsb-hash sha256:5719c0fbb3d629925baee05c953376e16b0a2a6c569f281f5ba6384597628b3e
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1058,7 +1058,7 @@ create table "better_supabase"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
+create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc, "id" desc);
 create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
@@ -2079,7 +2079,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:2bf411e2f1a34457400d82c909ee130a6b1cb69849616c399e94fe8d14a6c535
+-- @bsb-hash sha256:2a76c67bac309c64639ad4ebed90ae2d59a1c1f43192774a28e14396c6e891b3
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2109,7 +2109,7 @@ create table "app_private"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index workflow_runs_tenant_idx on "app_private"."workflow_runs" ("tenant_id", "created_at" desc);
+create index workflow_runs_tenant_idx on "app_private"."workflow_runs" ("tenant_id", "created_at" desc, "id" desc);
 create index workflow_runs_actor_idx on "app_private"."workflow_runs" ("actor_id", "created_at" desc);
 create index workflow_runs_status_idx on "app_private"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
@@ -3116,7 +3116,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:3370d8f011c1e29add3e9a5d870171cfc900ad5326faed704d422c2e154b30eb
+-- @bsb-hash sha256:e2025a451fed259e99a5d5ec3200f11aec06529d815dbfd91701adda350daee6
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3141,7 +3141,7 @@ create table "better_supabase"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
+create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc, "id" desc);
 create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
@@ -4327,7 +4327,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:628ef6eb73e5d7c37aacd9dc9fd12b90898500a3d16b99ff373a18880650c83b
+-- @bsb-hash sha256:a037118ce5ac65bd631e4d3c8927a55f9a58c1381a61c66fa100c27226a1460d
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4351,7 +4351,7 @@ alter table "better_supabase"."workflow_runs" add column if not exists "started_
 alter table "better_supabase"."workflow_runs" add column if not exists "completed_at" timestamptz;
 alter table "better_supabase"."workflow_runs" add column if not exists "cancel_requested_at" timestamptz;
 create unique index if not exists "workflow_runs_engine_external_id_key" on "better_supabase"."workflow_runs" ("engine", "external_id");
-create index if not exists workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
+create index if not exists workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc, "id" desc);
 create index if not exists workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index if not exists workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
@@ -5348,7 +5348,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:f15d5ce5d8b10182342f5e466fcab39c9ba186c850df13d16847da29c662368d
+-- @bsb-hash sha256:cacc23281a3a2a5966cbc0803742a76304e0b1c12ea9ac2b16f7abbe08bbd1ee
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5373,7 +5373,7 @@ create table "better_supabase"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("org_id", "created_at" desc);
+create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("org_id", "created_at" desc, "id" desc);
 create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or

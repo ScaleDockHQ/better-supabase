@@ -58,3 +58,8 @@ The offset runs vary with machine load, so read them as the same order of magnit
 gains most because its old sort had no index on the nullable due date. The plan `due` filter returns
 full pages now.
 A caller that passed both `offset` and `after` is refused, as in ADR 0642.
+
+The extra keyset code adds server code and a few bytes of First Load JS. The server and First Load
+baselines of 26 entries in `tests/next-build` (brotli, gzip and raw, under 0.05 percent of a route)
+are re-measured from a fresh build of this branch after merging main. The guard in
+`next-build.test.ts` is unchanged.

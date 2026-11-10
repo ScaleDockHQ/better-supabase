@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:a04fb386089f7c02a9f9a1404fa0670054d1eb5cde00c9d33a653a57d7c2a8bc
+-- @bsb-hash sha256:9eee4553340ede89f57a598b03ef1efa75a0c5a6968c306833c9063fd3ae745b
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,7 @@ create table "better_supabase"."guardrail_decisions" (
   "created_at" timestamptz not null default now()
 );
 create index "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 revoke all on "better_supabase"."guardrail_decisions" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_decisions" to service_role;
@@ -183,7 +183,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:3630b5e6e1266a0507888429392318d3b3c08a04e256bf0f88c861b67dbf7748
+-- @bsb-hash sha256:361201ea1c9c3337295293430e75cc72fff9e78f500b6b653109a27a9b0ed537
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -220,7 +220,7 @@ create table "better_supabase"."guardrail_decisions" (
   "created_at" timestamptz not null default now()
 );
 create index "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 revoke all on "better_supabase"."guardrail_decisions" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_decisions" to service_role;
@@ -374,7 +374,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:c2e45bd0a92998e3cd19ae38268e41deeee0d1a3ae1939e5949633472de00c10
+-- @bsb-hash sha256:652041b999bc7b1ccfe448b8185d04986fcd6e2b82ed9ac0c3dbd3ee02c4c4d5
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -416,7 +416,7 @@ create table "app_private"."guardrail_decisions" (
   "created_at" timestamptz not null default now()
 );
 create index "guardrail_decisions_agent_idx" on "app_private"."guardrail_decisions" ("agent", "created_at" desc);
-create index "guardrail_decisions_tenant_idx" on "app_private"."guardrail_decisions" ("tenant_id", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "app_private"."guardrail_decisions" ("tenant_id", "created_at" desc, "id" desc);
 alter table "app_private"."guardrail_decisions" enable row level security;
 revoke all on "app_private"."guardrail_decisions" from public, anon, authenticated;
 grant all on "app_private"."guardrail_decisions" to service_role;
@@ -561,7 +561,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:e30114e392cb58b632c117cc2132d1cd0b8f16c32b703e4904f0f5a915eae4ab
+-- @bsb-hash sha256:4af0cf3bcaabde414b05200d868da986f2698b68cee7667d490c1ae2327752f3
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -598,7 +598,7 @@ create table "better_supabase"."guardrail_decisions" (
   "created_at" timestamptz not null default now()
 );
 create index "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 revoke all on "better_supabase"."guardrail_decisions" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_decisions" to service_role;
@@ -794,7 +794,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:a2b8609a883cebf98defacc8a04030c4a020f232f82edbef4a7a85b48b389783
+-- @bsb-hash sha256:5dcbd157a8f5715798fe0975dd9f15bfb04f1dfa52ab799a42fbb7444a0ccb01
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -828,7 +828,7 @@ alter table "better_supabase"."guardrail_decisions" add column if not exists "ch
 alter table "better_supabase"."guardrail_decisions" add column if not exists "content_hash" text;
 alter table "better_supabase"."guardrail_decisions" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index if not exists "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc);
+create index if not exists "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 grant all on "better_supabase"."guardrail_decisions" to service_role;
 
@@ -972,7 +972,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:b9b1e61f6937d48f5ece96001c76489165e2713fdd1f05ee3d8aea78874aefdd
+-- @bsb-hash sha256:872721457d53490e8119fe9ddf270de22d7232b3932710fd301d64c4f67c7262
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1009,7 +1009,7 @@ create table "better_supabase"."guardrail_decisions" (
   "created_at" timestamptz not null default now()
 );
 create index "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("org_id", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("org_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 revoke all on "better_supabase"."guardrail_decisions" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_decisions" to service_role;

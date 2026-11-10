@@ -331,7 +331,7 @@ create table if not exists ${r} (
   ${cr("cancelRequestedAt")} timestamptz,
   constraint workflow_runs_engine_external_key unique (${cr("engine")}, ${cr("externalId")})
 );${appUniqueIndex(ctx, "runs", ["engine", "externalId"])}
-create index if not exists workflow_runs_tenant_idx on ${r} (${cr("tenant")}, ${cr("createdAt")} desc);
+create index if not exists workflow_runs_tenant_idx on ${r} (${cr("tenant")}, ${cr("createdAt")} desc, ${cr("id")} desc);
 create index if not exists workflow_runs_actor_idx on ${r} (${cr("actor")}, ${cr("createdAt")} desc);
 create index if not exists workflow_runs_status_idx on ${r} (${cr("status")}, ${cr("completedAt")});
 -- The record a run belongs to (subject_type and subject_id, both or

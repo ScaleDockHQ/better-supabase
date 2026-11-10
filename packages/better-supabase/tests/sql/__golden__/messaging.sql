@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:cce4b7ddc93f170671f8930964de39f8d4f80155237bfbf1ce6fa09b65d7f857
+-- @bsb-hash sha256:5c1a0863c011637f5ec67f61c9c001e7d94681db4cb2ab8658d32abe1d909cf5
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -111,6 +111,7 @@ create table "better_supabase"."messages" (
   constraint bsb_messages_check check (("thread_id" is null) = ("parent_id" is null))
 );
 create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_conversation_all_idx on "better_supabase"."messages" ("conversation_id");
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
@@ -231,6 +232,24 @@ begin
     where c."id" = new."conversation_id";
   end if;
   if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."archived_at" is distinct from old."archived_at") then
+    -- A reply that is sent live and not deleted adds to the root's rollup in
+    -- place. A delete, a restore or a reply that is not newer than the rollup's
+    -- newest (a copied thread carries its counts, replies of one transaction share
+    -- a time) asks the replies again (ADR 0644).
+    if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
+      update "better_supabase"."messages" r set
+        "reply_count" = r."reply_count" + 1,
+        "last_reply_at" = greatest(r."last_reply_at", new."sent_at"),
+        "reply_user_ids" = case
+          when new."author_id" is null or new."author_id" = any (r."reply_user_ids") or cardinality(r."reply_user_ids") >= 3 then r."reply_user_ids"
+          else r."reply_user_ids" || new."author_id"
+        end
+      where r."id" = new."thread_id"
+        and (r."last_reply_at" is null or r."last_reply_at" < new."sent_at");
+      if found then
+        return null;
+      end if;
+    end if;
     update "better_supabase"."messages" r set
       "reply_count" = (select count(*) from "better_supabase"."messages" x where x."thread_id" = r."id" and x."sent_at" is not null and x."archived_at" is null),
       "last_reply_at" = (select max(x."sent_at") from "better_supabase"."messages" x where x."thread_id" = r."id" and x."archived_at" is null),
@@ -1595,7 +1614,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:38a89c898c475535040be6b602f90c5aceb3c9783fbfddf0a42341ae06bfba3a
+-- @bsb-hash sha256:dc16c0c836604c7a9ce87b1ce59f7976adcd2a5b9ad8f7c84b4fd772f87bc297
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1708,6 +1727,7 @@ create table "better_supabase"."messages" (
   constraint bsb_messages_check check (("thread_id" is null) = ("parent_id" is null))
 );
 create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_conversation_all_idx on "better_supabase"."messages" ("conversation_id");
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
@@ -1829,6 +1849,24 @@ begin
     where c."id" = new."conversation_id";
   end if;
   if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."archived_at" is distinct from old."archived_at") then
+    -- A reply that is sent live and not deleted adds to the root's rollup in
+    -- place. A delete, a restore or a reply that is not newer than the rollup's
+    -- newest (a copied thread carries its counts, replies of one transaction share
+    -- a time) asks the replies again (ADR 0644).
+    if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
+      update "better_supabase"."messages" r set
+        "reply_count" = r."reply_count" + 1,
+        "last_reply_at" = greatest(r."last_reply_at", new."sent_at"),
+        "reply_user_ids" = case
+          when new."author_id" is null or new."author_id" = any (r."reply_user_ids") or cardinality(r."reply_user_ids") >= 3 then r."reply_user_ids"
+          else r."reply_user_ids" || new."author_id"
+        end
+      where r."id" = new."thread_id"
+        and (r."last_reply_at" is null or r."last_reply_at" < new."sent_at");
+      if found then
+        return null;
+      end if;
+    end if;
     update "better_supabase"."messages" r set
       "reply_count" = (select count(*) from "better_supabase"."messages" x where x."thread_id" = r."id" and x."sent_at" is not null and x."archived_at" is null),
       "last_reply_at" = (select max(x."sent_at") from "better_supabase"."messages" x where x."thread_id" = r."id" and x."archived_at" is null),
@@ -3466,7 +3504,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:dfc767e8dec7871736628d2d6c49dc64fa463e4ca50850f08bd08e29904c0f57
+-- @bsb-hash sha256:50df1c6de81bb301c9ade628036c2b2cb008f4324470d5906b631938f9f42959
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3581,6 +3619,7 @@ create table "app_private"."messages" (
   constraint bsb_messages_check check (("thread_id" is null) = ("parent_id" is null))
 );
 create index messaging_messages_conversation_idx on "app_private"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_conversation_all_idx on "app_private"."messages" ("conversation_id");
 create index messaging_messages_thread_idx on "app_private"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "app_private"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "app_private"."messages" ("author_id");
@@ -3701,6 +3740,24 @@ begin
     where c."id" = new."conversation_id";
   end if;
   if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."archived_at" is distinct from old."archived_at") then
+    -- A reply that is sent live and not deleted adds to the root's rollup in
+    -- place. A delete, a restore or a reply that is not newer than the rollup's
+    -- newest (a copied thread carries its counts, replies of one transaction share
+    -- a time) asks the replies again (ADR 0644).
+    if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
+      update "app_private"."messages" r set
+        "reply_count" = r."reply_count" + 1,
+        "last_reply_at" = greatest(r."last_reply_at", new."sent_at"),
+        "reply_user_ids" = case
+          when new."author_id" is null or new."author_id" = any (r."reply_user_ids") or cardinality(r."reply_user_ids") >= 3 then r."reply_user_ids"
+          else r."reply_user_ids" || new."author_id"
+        end
+      where r."id" = new."thread_id"
+        and (r."last_reply_at" is null or r."last_reply_at" < new."sent_at");
+      if found then
+        return null;
+      end if;
+    end if;
     update "app_private"."messages" r set
       "reply_count" = (select count(*) from "app_private"."messages" x where x."thread_id" = r."id" and x."sent_at" is not null and x."archived_at" is null),
       "last_reply_at" = (select max(x."sent_at") from "app_private"."messages" x where x."thread_id" = r."id" and x."archived_at" is null),
@@ -5065,7 +5122,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:6fa8387692da64ad280b282900da775df7e467f3ac7dd5f96ff084b85b95c74f
+-- @bsb-hash sha256:41aa23afcac01bfbdff7891d3c9171470f71a1ba6afc6aa1ea87bf4d28223957
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5175,6 +5232,7 @@ create table "better_supabase"."messages" (
   constraint bsb_messages_check check (("thread_id" is null) = ("parent_id" is null))
 );
 create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_conversation_all_idx on "better_supabase"."messages" ("conversation_id");
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
@@ -5295,6 +5353,24 @@ begin
     where c."id" = new."conversation_id";
   end if;
   if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."archived_at" is distinct from old."archived_at") then
+    -- A reply that is sent live and not deleted adds to the root's rollup in
+    -- place. A delete, a restore or a reply that is not newer than the rollup's
+    -- newest (a copied thread carries its counts, replies of one transaction share
+    -- a time) asks the replies again (ADR 0644).
+    if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
+      update "better_supabase"."messages" r set
+        "reply_count" = r."reply_count" + 1,
+        "last_reply_at" = greatest(r."last_reply_at", new."sent_at"),
+        "reply_user_ids" = case
+          when new."author_id" is null or new."author_id" = any (r."reply_user_ids") or cardinality(r."reply_user_ids") >= 3 then r."reply_user_ids"
+          else r."reply_user_ids" || new."author_id"
+        end
+      where r."id" = new."thread_id"
+        and (r."last_reply_at" is null or r."last_reply_at" < new."sent_at");
+      if found then
+        return null;
+      end if;
+    end if;
     update "better_supabase"."messages" r set
       "reply_count" = (select count(*) from "better_supabase"."messages" x where x."thread_id" = r."id" and x."sent_at" is not null and x."archived_at" is null),
       "last_reply_at" = (select max(x."sent_at") from "better_supabase"."messages" x where x."thread_id" = r."id" and x."archived_at" is null),
@@ -6922,7 +6998,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:b81452c92f8685bb23dcf08d59f51181eda499bcd9c433b41d06043eeddd9bdb
+-- @bsb-hash sha256:ce81d7487dace1e6cdfc07794df67f113479a14a449d3bf4884dc043777ebefe
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7024,6 +7100,7 @@ alter table "better_supabase"."messages" add column if not exists "edited_at" ti
 alter table "better_supabase"."messages" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."messages" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index if not exists messaging_messages_conversation_all_idx on "better_supabase"."messages" ("conversation_id");
 create index if not exists messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index if not exists messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index if not exists messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
@@ -7135,6 +7212,24 @@ begin
     where c."id" = new."conversation_id";
   end if;
   if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."archived_at" is distinct from old."archived_at") then
+    -- A reply that is sent live and not deleted adds to the root's rollup in
+    -- place. A delete, a restore or a reply that is not newer than the rollup's
+    -- newest (a copied thread carries its counts, replies of one transaction share
+    -- a time) asks the replies again (ADR 0644).
+    if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
+      update "better_supabase"."messages" r set
+        "reply_count" = r."reply_count" + 1,
+        "last_reply_at" = greatest(r."last_reply_at", new."sent_at"),
+        "reply_user_ids" = case
+          when new."author_id" is null or new."author_id" = any (r."reply_user_ids") or cardinality(r."reply_user_ids") >= 3 then r."reply_user_ids"
+          else r."reply_user_ids" || new."author_id"
+        end
+      where r."id" = new."thread_id"
+        and (r."last_reply_at" is null or r."last_reply_at" < new."sent_at");
+      if found then
+        return null;
+      end if;
+    end if;
     update "better_supabase"."messages" r set
       "reply_count" = (select count(*) from "better_supabase"."messages" x where x."thread_id" = r."id" and x."sent_at" is not null and x."archived_at" is null),
       "last_reply_at" = (select max(x."sent_at") from "better_supabase"."messages" x where x."thread_id" = r."id" and x."archived_at" is null),
@@ -8499,7 +8594,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:e3313531653a8df0e9f1a7e3347f33ccd46bca274e9e5162272264159c93c172
+-- @bsb-hash sha256:2c98b2ecc141ef4d97db8b08b4cc151b49c0c628b6a17f5b757a8c85278e4b0b
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8609,6 +8704,7 @@ create table "better_supabase"."messages" (
   constraint bsb_messages_check check (("thread_id" is null) = ("parent_id" is null))
 );
 create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
+create index messaging_messages_conversation_all_idx on "better_supabase"."messages" ("conversation_id");
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
 create index messaging_messages_parent_idx on "better_supabase"."messages" ("parent_id") where "parent_id" is not null;
 create index messaging_messages_author_idx on "better_supabase"."messages" ("author_id");
@@ -8729,6 +8825,24 @@ begin
     where c."id" = new."conversation_id";
   end if;
   if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."archived_at" is distinct from old."archived_at") then
+    -- A reply that is sent live and not deleted adds to the root's rollup in
+    -- place. A delete, a restore or a reply that is not newer than the rollup's
+    -- newest (a copied thread carries its counts, replies of one transaction share
+    -- a time) asks the replies again (ADR 0644).
+    if new."archived_at" is null and (tg_op = 'INSERT' or old."sent_at" is null) then
+      update "better_supabase"."messages" r set
+        "reply_count" = r."reply_count" + 1,
+        "last_reply_at" = greatest(r."last_reply_at", new."sent_at"),
+        "reply_user_ids" = case
+          when new."author_id" is null or new."author_id" = any (r."reply_user_ids") or cardinality(r."reply_user_ids") >= 3 then r."reply_user_ids"
+          else r."reply_user_ids" || new."author_id"
+        end
+      where r."id" = new."thread_id"
+        and (r."last_reply_at" is null or r."last_reply_at" < new."sent_at");
+      if found then
+        return null;
+      end if;
+    end if;
     update "better_supabase"."messages" r set
       "reply_count" = (select count(*) from "better_supabase"."messages" x where x."thread_id" = r."id" and x."sent_at" is not null and x."archived_at" is null),
       "last_reply_at" = (select max(x."sent_at") from "better_supabase"."messages" x where x."thread_id" = r."id" and x."archived_at" is null),

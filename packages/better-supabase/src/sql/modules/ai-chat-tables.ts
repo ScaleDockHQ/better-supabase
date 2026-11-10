@@ -606,7 +606,7 @@ create table if not exists ${t.moderation} (
   ${md.action} text not null check (${md.action} in ('allow', 'flag', 'redact', 'block')),
   ${md.createdAt} timestamptz not null default now()
 );
-create index if not exists ai_moderation_events_tenant_idx on ${t.moderation} (${md.tenant}, ${md.createdAt} desc);
+create index if not exists ai_moderation_events_tenant_idx on ${t.moderation} (${md.tenant}, ${md.createdAt} desc, ${md.id} desc);
 create index if not exists ai_moderation_events_chat_idx on ${t.moderation} (${md.chat});
 create index if not exists ai_moderation_events_user_idx on ${t.moderation} (${md.user});${nullableTenant(ctx, names, "moderation")}
 ${lockTable(t.moderation)}

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:aef7d828a9dac2204cdf2d29eda4637981b49c47e4f80ede0017b1e6172a86e8
+-- @bsb-hash sha256:13aa48d3cd868200ef34e8a73b4cbbeb276d813f95875a237a3e950a35e2f342
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -126,7 +126,7 @@ create table "better_supabase"."invoice_dunning_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
@@ -3993,7 +3993,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:78f2d706930e12dea30c358261bf5b476d9c7969fcbfe20d8f9e21f077faf999
+-- @bsb-hash sha256:a22b848acc2c69f31384bc740cd4e3beb239666af2578fcf6f11fc5cbd459247
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4118,7 +4118,7 @@ create table "better_supabase"."invoice_dunning_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
@@ -8997,7 +8997,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:d8091cbc4116115bf5db6657ed7231c91e16e4e2ebcf9cc04a60ec21177e3fad
+-- @bsb-hash sha256:bfdd8197f2df021332b02201900a14a250f21c47758fbb1a288dfa19664f9285
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9127,7 +9127,7 @@ create table "app_private"."invoice_dunning_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index invoice_dunning_runs_tenant_idx on "app_private"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "app_private"."invoice_dunning_runs" ("tenant_id", "created_at" desc, "id" desc);
 alter table "app_private"."invoice_dunning_runs" enable row level security;
 revoke all on "app_private"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "app_private"."invoice_dunning_runs" to authenticated;
@@ -12994,7 +12994,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:44dd65f1e5528e4fb25cf8e34720eb1ad97c02b031265fa2854b661b868fe949
+-- @bsb-hash sha256:1abbc43e1b0bd7ea862b573dfb77f68e682e309f2f9b364284094bc1b8a21419
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13119,7 +13119,7 @@ create table "better_supabase"."invoice_dunning_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
@@ -17505,7 +17505,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:a79a4533b73a10d6c345bfc1456df7610bed13de412c9b6e1e1ffe31322e95a5
+-- @bsb-hash sha256:80cf158e680fec53c6ff77387523464cd02bb0cce5cc81971368c3053a27c1f5
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17618,7 +17618,7 @@ alter table "better_supabase"."invoice_dunning_runs" add column if not exists "t
 alter table "better_supabase"."invoice_dunning_runs" add column if not exists "as_of" date;
 alter table "better_supabase"."invoice_dunning_runs" add column if not exists "created_by" uuid;
 alter table "better_supabase"."invoice_dunning_runs" add column if not exists "created_at" timestamptz not null default now();
-create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc);
+create index if not exists invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("tenant_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
 grant all on "better_supabase"."invoice_dunning_runs" to service_role;
@@ -21461,7 +21461,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:434ae5f2b6ed494233034920a0d7e72488117c0d6b96e3d71829ca93d00e7549
+-- @bsb-hash sha256:ced31e240bcb31229e12ae76d3a53c5df45418b4538a4484c48cb2371f8f2fd9
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21586,7 +21586,7 @@ create table "better_supabase"."invoice_dunning_runs" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("org_id", "created_at" desc);
+create index invoice_dunning_runs_tenant_idx on "better_supabase"."invoice_dunning_runs" ("org_id", "created_at" desc, "id" desc);
 alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;

@@ -1,0 +1,70 @@
+---
+title: Contexts for every entry point
+description: Build the same ServerContext from a request, a resolution, an auth state or a cron call, and write scheduler routes with cronHandler.
+---
+
+A route, a proxy, a queue consumer and a scheduler each start from something
+different, and `better-supabase/server` has one method for each: `bsb.context`,
+`bsb.contextFromResolution` and `bsb.contextFor`. `entryContext` puts them
+behind one function, so shared code takes a `ContextEntry` and never cares which
+entry point called it:
+
+```ts title="src/lib/supabase/entries.ts"
+import { entryContext } from "better-supabase/server";
+
+import { bsb } from "./server";
+
+export async function totals(entry: Parameters<typeof entryContext>[1]) {
+  const ctx = await entryContext(bsb, entry);
+
+  return ctx.db.customers.count().orThrow();
+}
+
+// A request, with its token or cookie verified once
+await totals({ kind: "request", request });
+// An auth state the proxy or a queue message already resolved
+await totals({ kind: "auth", auth });
+// A trusted scheduler, as the service role
+await totals({ kind: "cron", keyName: "nightly" });
+```
+
+| Kind         | Calls                       | Runs as                          |
+| ------------ | --------------------------- | -------------------------------- |
+| `request`    | `bsb.context`               | the caller of the request        |
+| `resolution` | `bsb.contextFromResolution` | the caller of a resolved request |
+| `auth`       | `bsb.contextFor`            | the auth state you pass          |
+| `cron`       | `bsb.contextFor`            | the service role, as `keyName`   |
+
+`keyName` defaults to `"cron"` (`CRON_KEY_NAME`) and shows up as the actor of
+the service caller, so the audit log tells your jobs apart.
+
+## Cron routes
+
+`cronHandler(bsb, { name, secret }, run)` returns a `(request) => Promise<Response>`
+for a scheduler such as Vercel Cron. It answers 405 to methods other than `GET`
+and `POST`, answers 401 without the `Authorization: Bearer <secret>` header, and
+only then runs `run(ctx, request)` with a service-role context. A `Response` is
+sent as is; any other value goes out as JSON, and nothing as `{ "ok": true }`. It
+throws when `secret` is missing, so a deployment without `CRON_SECRET` fails at
+startup instead of leaving the route open.
+
+```ts title="app/api/cron/digest/route.ts"
+import { cronHandler } from "better-supabase/server";
+
+import { bsb } from "@/lib/supabase/server";
+
+export const GET = cronHandler(
+  bsb,
+  { name: "digest", secret: process.env.CRON_SECRET },
+  async (ctx) => ({ sent: await sendDigests(ctx) }),
+);
+```
+
+The [Express example](https://github.com/ScaleDockHQ/better-supabase/blob/main/apps/examples/express/src/app.ts)
+exports one as `customersCron(secret)`.
+
+## Public API routes
+
+An API that callers reach with an API key does not need a separate kit: pass
+`allow: ["apiKey"]` to `withBetterSupabase`, and the verified key is
+`ctx.auth` with `kind: "apiKey"`, its `keyId`, `scopes` and `organizationId`.

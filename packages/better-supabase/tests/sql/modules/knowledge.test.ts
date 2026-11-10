@@ -201,7 +201,13 @@ describe("knowledge module", () => {
       `"better_supabase"."can_subject"(knowledge_subject_readable.subject_type, knowledge_subject_readable.subject_id, 'read')`,
     );
     expect(subjectsConfig).toContain(
-      `case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else (`,
+      `case when "scope" = 'subject' then case "better_supabase"."knowledge_documents"."subject_type"`,
+    );
+    expect(subjectsConfig).toContain(
+      `when 'ticket' then exists (select 1 from "public"."tickets" s where s."id" = ("better_supabase"."knowledge_documents"."subject_id")::uuid`,
+    );
+    expect(subjectsConfig).toContain(
+      `else coalesce("better_supabase"."can_subject"("better_supabase"."knowledge_documents"."subject_type", "better_supabase"."knowledge_documents"."subject_id", 'read'), false)`,
     );
     expect(subjectsConfig).toContain("'user', 'subject')");
     expect(subjectsConfig).toContain("hint = 'KNOWLEDGE_DOCUMENT_INVALID'");
