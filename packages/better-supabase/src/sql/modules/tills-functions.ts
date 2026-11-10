@@ -1,12 +1,30 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { pageSize, userGrant } from "../shared.ts";
+import { listBody, listDeclare } from "../list-template.ts";
+import { userGrant } from "../shared.ts";
 import { tillsSql } from "./tills-sql.ts";
 
 export function tillsFunctions(ctx: BlockSqlContext): string {
   const sql = tillsSql(ctx);
   const { fn, t, s, tills, sessions } = sql;
   const idType = ctx.idType;
+
+  const list = {
+    name: "list_till_sessions",
+    from: sessions,
+    alias: "x",
+    where: [
+      `x.${s("tenant")} = list_till_sessions.tenant`,
+      `(v_till is null or x.${s("till")}::text = v_till)`,
+      `(v_status is null or x.${s("status")} = v_status)`,
+    ],
+    keys: [
+      { expr: `x.${s("openedAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+    ],
+    rowJson: sql.sessionJson("x"),
+    invalid: sql.invalid,
+  } as const;
 
   // The cash account must exist for the tenant when accounting is installed.
   const accountCheck = (account: string, tenant: string): string =>
@@ -211,7 +229,8 @@ end;
 $$;
 ${userGrant(`${fn("get_till_session")}(uuid)`)}
 
--- Sessions, newest first. filters is { tillId, status, limit, offset }.
+-- Sessions, newest first. filters is { tillId, status, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function ${fn("list_till_sessions")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -222,22 +241,14 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_till_sessions.filters, '{}'::jsonb);
-  v_limit integer := ${pageSize("(v_filters ->> 'limit')::integer", 50, 200)};
+  ${listDeclare(list)}
+  v_till text := nullif(v_filters ->> 'tillId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not ${sql.allowed("list_till_sessions.tenant", sql.read)} then
     ${sql.forbidden("not allowed to read till sessions")}
   end if;
-  return coalesce((
-    select jsonb_agg(${sql.sessionJson("y")} order by y.${s("openedAt")} desc, y.${s("id")})
-    from (
-      select * from ${sessions} x
-      where x.${s("tenant")} = list_till_sessions.tenant
-        and (not v_filters ? 'tillId' or x.${s("till")}::text = v_filters ->> 'tillId')
-        and (not v_filters ? 'status' or x.${s("status")} = v_filters ->> 'status')
-      order by x.${s("openedAt")} desc, x.${s("id")}
-      limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(list)}
 end;
 $$;
 ${userGrant(`${fn("list_till_sessions")}(${idType}, jsonb)`)}

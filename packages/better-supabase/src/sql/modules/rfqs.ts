@@ -229,6 +229,7 @@ create table if not exists ${sql.rfqs} (
   ${q("updatedAt")} timestamptz not null default now(),
   unique (${q("tenant")}, ${q("sequence")})
 );${appKey("rfqs", "tenant_id", `${q("tenant")}, ${q("id")}`)}
+create index if not exists ${name("rfqs", "list_idx")} on ${sql.rfqs} (${q("tenant")}, ${q("sequence")} desc, ${q("id")});
 create index if not exists ${name("rfqs", "status_idx")} on ${sql.rfqs} (${q("tenant")}, ${q("status")});
 ${lockTable(sql.rfqs, { read: true })}
 ${readPolicy("rfqs", q("tenant"))}
