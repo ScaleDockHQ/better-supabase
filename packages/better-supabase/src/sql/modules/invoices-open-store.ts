@@ -1,6 +1,6 @@
-import { sqlIdent } from "../../core/template.ts";
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
@@ -57,7 +57,11 @@ export function openItemsStoreSql(
   }
 
   const table = ctx.table("openItems");
-  const refreshTrigger = sqlIdent(`bsb_${ctx.tableName("openItems").name}_refresh`);
+
+  const refreshTrigger = sqlIdent(
+    `bsb_${ctx.tableName("openItems").name}_refresh`,
+  );
+
   const o = (column: string): string => ctx.col("openItems", column);
   const i = store.i;
   const balance = balanceOf(store, "x");
