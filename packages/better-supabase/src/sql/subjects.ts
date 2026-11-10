@@ -751,7 +751,7 @@ export type CascadeRemove =
  * A `CascadeRemove` that deletes a table's rows for the deleted subject, and
  * scopes them to its tenant column when it has one.
  */
-export const deleteBySubject =
+const deleteBySubject =
   (
     table: string,
     columns: { type: string; id: string; tenant?: string | undefined },
