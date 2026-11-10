@@ -177,3 +177,21 @@ orders the lines of one list; it does not batch lists across a wave.
 ## Write an adapter
 
 The warehouse block calls ports that your own packages implement, such as a route optimizer for pick routes. [Write an adapter](/docs/extending/write-an-adapter) has tested templates, and [Extension interfaces](/docs/extending/interfaces) lists every port.
+
+## Paging a list
+
+`listPickLists` still takes `offset`. `pickListPage` pages the same list by keyset and
+returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
+`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+
+```ts
+const first = await warehouse
+  .pickListPage({ limit: 50, total: true })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await warehouse
+    .pickListPage({ limit: 50, after: first.nextCursor })
+    .orThrow();
+}
+```

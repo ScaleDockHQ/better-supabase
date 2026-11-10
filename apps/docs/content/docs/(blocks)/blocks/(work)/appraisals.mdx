@@ -180,3 +180,21 @@ const appraisal = await db.appraisals.signOff(appraisalId).orThrow();
 
 The hooks are `before_appraisal_cycle_create` and
 `after_appraisal_cycle_create`.
+
+## Paging a list
+
+`listAppraisals` still takes `offset`. `appraisalPage` pages the same list by keyset and
+returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
+`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+
+```ts
+const first = await appraisals
+  .appraisalPage({ limit: 50, total: true })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await appraisals
+    .appraisalPage({ limit: 50, after: first.nextCursor })
+    .orThrow();
+}
+```
