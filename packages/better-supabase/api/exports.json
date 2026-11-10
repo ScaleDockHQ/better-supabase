@@ -744,6 +744,7 @@
       "defineCliCommand",
       "emitBlockConfig",
       "emitBlockConfigModule",
+      "emitBlockReads",
       "emitClientBlocks",
       "emitModule",
       "fromCatalog",
