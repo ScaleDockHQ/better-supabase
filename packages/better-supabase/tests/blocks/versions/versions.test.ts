@@ -38,6 +38,24 @@ function transport(results: Record<string, (args: unknown) => unknown>) {
 }
 
 describe("versions client", () => {
+  it("reads many versions with their content in one call", async () => {
+    const fake = transport({
+      get_versions: () => [
+        { ...ROW, id: "v2", number: 2, content: { title: "Two" } },
+        { ...ROW, content: { title: "One" } },
+      ],
+    });
+
+    const versions = createVersions({ transport: fake, schema: "app" });
+    const read = await versions.getMany(["v2", "v1"]).orThrow();
+
+    expect(read.map((version) => version.id)).toEqual(["v2", "v1"]);
+    expect(read[0]?.content).toEqual({ title: "Two" });
+    expect(fake.calls).toEqual([
+      ["get_versions", { version_ids: ["v2", "v1"] }],
+    ]);
+  });
+
   it("snapshots, lists, labels and deletes", async () => {
     const fake = transport({
       snapshot_version: () => ({

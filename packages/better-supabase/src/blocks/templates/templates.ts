@@ -253,6 +253,11 @@ export interface Templates<F extends object = Record<never, never>> {
    * caller can't read it.
    */
   get(id: string): AsyncResult<TemplateDetail<F> | undefined>;
+  /**
+   * Many templates with their newest published version and draft in one read,
+   * in the order requested. A template the caller can't read has no entry.
+   */
+  getMany(ids: readonly string[]): AsyncResult<readonly TemplateDetail<F>[]>;
   remove(id: string): AsyncResult<boolean>;
   /**
    * Makes it the default for its organization, type and language (or stops it
@@ -531,6 +536,17 @@ export function createTemplates<
       detail === undefined ? AsyncResult.ok(undefined) : fields.row(detail),
     );
 
+  const getMany = (
+    ids: readonly string[],
+  ): AsyncResult<readonly TemplateDetail<F>[]> =>
+    call("templates_get_many", { template_ids: [...ids] }, (value) =>
+      recordsOf(value, "templates_get_many").map((row) => ({
+        ...templateOf(row),
+        published: optionalVersion(row["published"]),
+        draft: optionalVersion(row["draft"]),
+      })),
+    ).andThen(fields.rows);
+
   const saveVersion = (template: string, body: unknown) =>
     call("save_template_draft", { template_id: template, body }, (value) =>
       versionOf(recordOf(value, "save_template_draft")),
@@ -695,6 +711,7 @@ export function createTemplates<
         },
       ).andThen(fields.rows),
     get,
+    getMany,
     remove: (id) =>
       call("remove_template", { template_id: id }, (value) => value === true),
     setDefault: ({ id, isDefault = true }) =>

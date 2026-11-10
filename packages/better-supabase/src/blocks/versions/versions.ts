@@ -132,6 +132,11 @@ export interface Versions<F extends object = Record<never, never>> {
   ): AsyncResult<readonly Version<F>[]>;
   get(id: string): AsyncResult<Version<F>>;
   /**
+   * Many versions with their content in one read, in the order requested. A
+   * version that is missing or that the caller cannot read has no entry.
+   */
+  getMany(ids: readonly string[]): AsyncResult<readonly Version<F>[]>;
+  /**
    * The version a share link is pinned to, with its content, read with the
    * token alone (anon). `null` for an unknown, revoked or expired token, or a
    * link without a version. Needs the share-links module.
@@ -274,6 +279,12 @@ export function createVersions<
         ).andThen(fields.rows),
       ),
     get,
+    getMany: (ids) =>
+      call("get_versions", { version_ids: [...ids] }, (value) =>
+        recordsOf(value, "get_versions").map((row) =>
+          versionOf(row, "get_versions"),
+        ),
+      ).andThen(fields.rows),
     restore: (id) => call("restore_version", { version_id: id }, restoreOf),
     restoreFields: ({ id, fields }) =>
       call(

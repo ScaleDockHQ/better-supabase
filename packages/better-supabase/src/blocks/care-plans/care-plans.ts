@@ -304,6 +304,11 @@ export interface CarePlans<F extends object = Record<never, never>> {
   /** Archives a plan and ends its actions; needs `care_plans.publish`. */
   archive(planId: string): AsyncResult<CarePlan<F>>;
   get(planId: string): AsyncResult<CarePlan<F>>;
+  /**
+   * Many plans with their problems, goals, actions and evaluations in one read,
+   * in the order requested. A plan that is missing or unreadable has no entry.
+   */
+  getMany(planIds: readonly string[]): AsyncResult<readonly CarePlan<F>[]>;
   /** A client's plans, the newest version first. */
   list(
     input: { subjectType: string; subjectId: string } & {
@@ -676,6 +681,10 @@ export function createCarePlans<
       call("get_care_plan", { plan_id: planId }, plan("get_care_plan")).andThen(
         fields.row,
       ),
+    getMany: (planIds) =>
+      call("get_care_plans", { plan_ids: [...planIds] }, (value) =>
+        recordsOf(value, "get_care_plans").map(plan("get_care_plans")),
+      ).andThen(fields.rows),
     list: ({ subjectType, subjectId, limit, ...list }) =>
       call(
         "list_care_plans",

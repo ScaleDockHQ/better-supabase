@@ -108,6 +108,25 @@ describe("templates client", () => {
     ]);
   });
 
+  it("reads many templates with their published version in one call", async () => {
+    const fake = transport({
+      templates_get_many: () => [
+        { ...TEMPLATE, published: VERSION, draft: null },
+        { ...TEMPLATE, id: "t2", published: null, draft: null },
+      ],
+    });
+
+    const templates = createTemplates({ transport: fake });
+    const read = await templates.getMany(["t1", "t2"]).orThrow();
+
+    expect(read.map((detail) => detail.id)).toEqual(["t1", "t2"]);
+    expect(read[0]?.published?.version).toBe(1);
+    expect(read[1]?.published).toBeUndefined();
+    expect(fake.calls).toEqual([
+      ["templates_get_many", { template_ids: ["t1", "t2"] }],
+    ]);
+  });
+
   it("checks settings and bodies against the type's schemas", async () => {
     const fake = transport({
       save_template: () => TEMPLATE,
