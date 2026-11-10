@@ -185,12 +185,12 @@
     "brotli": 704322
   },
   "/[locale]/(app)/drive/[folderId]/page": {
-    "raw": 3339765,
+    "raw": 3340298,
     "gzip": 985053,
     "brotli": 817974
   },
   "/[locale]/(app)/drive/page": {
-    "raw": 3345840,
+    "raw": 3346373,
     "gzip": 986818,
     "brotli": 819557
   },
