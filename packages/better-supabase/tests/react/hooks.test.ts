@@ -30,7 +30,11 @@ import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { createUploadConnector } from "../../src/powersync/connector.ts";
 import { powersyncEngine } from "../../src/powersync/index.ts";
-import { useAction, useActionForm } from "../../src/react/actions.ts";
+import {
+  useAction,
+  useActionForm,
+  useOptimisticAction,
+} from "../../src/react/actions.ts";
 import {
   BetterSupabaseProvider,
   createHooks,
@@ -196,6 +200,22 @@ vi.mock("react", async (importOriginal) => {
         const cleanup = effect();
         cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
       });
+    },
+    // Applies the reducer to the confirmed state at once and keeps it; React
+    // drops it when the transition settles, which this runtime does not model.
+    useOptimistic: (
+      state: unknown,
+      reducer: (current: unknown, input: unknown) => unknown,
+    ) => {
+      const cell = slot();
+
+      return [
+        "value" in cell ? cell.value : state,
+        (input: unknown) => {
+          cell.value = reducer("value" in cell ? cell.value : state, input);
+          schedule();
+        },
+      ];
     },
     // Transitions run at once here; a rejected async one is the boundary's.
     useTransition: () => [
@@ -1152,6 +1172,37 @@ describe("useLiveCount", () => {
     await flush();
     expect(view.result.count).toBe(1);
     view.unmount();
+  });
+});
+
+describe("useOptimisticAction", () => {
+  it("shows the updated state while the action runs and passes the action's result on", async () => {
+    const action = vi.fn((_input: { done: boolean }) =>
+      Promise.resolve<ActionResultOf<{ id: string }>>({
+        ok: true,
+        data: { id: "a" },
+        error: null,
+      }),
+    );
+
+    const view = renderHook(
+      () =>
+        useOptimisticAction(action, {
+          state: false,
+          update: (_done, input: { done: boolean }) => input.done,
+        }),
+      undefined,
+      null,
+    );
+
+    expect(view.result.optimistic).toBe(false);
+
+    await view.result.run({ done: true });
+
+    expect(action).toHaveBeenCalledWith({ done: true });
+    expect(view.result.optimistic).toBe(true);
+    expect(view.result.confirmed).toBe(false);
+    expect(view.result.data).toEqual({ id: "a" });
   });
 });
 

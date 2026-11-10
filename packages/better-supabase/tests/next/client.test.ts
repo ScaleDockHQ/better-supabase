@@ -171,6 +171,43 @@ describe("useSessionWatch", () => {
     }
   });
 
+  it("hands an ended session to onEnded and still refreshes on a claims change", async () => {
+    const onEnded = vi.fn();
+
+    const ended = vi.fn(async () =>
+      Response.json({ ...active("x"), status: "ended", fingerprint: null }),
+    );
+
+    useSessionWatch({
+      fetch: ended,
+      onEnded,
+      fingerprint: "f1",
+      intervalMs: 0,
+      channel: false,
+    });
+    await flush();
+
+    const changed = vi.fn(async () => Response.json(active("f2")));
+
+    useSessionWatch({
+      fetch: changed,
+      onEnded,
+      fingerprint: "f1",
+      intervalMs: 0,
+      channel: false,
+    });
+    await flush();
+
+    expect(onEnded).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ reason: "ended" }),
+    );
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+
+    for (const cleanup of effects.cleanups) {
+      cleanup();
+    }
+  });
+
   it("loads the redirect, or the current page, when the session ends", async () => {
     const assign = vi.fn<(href: string) => void>();
 

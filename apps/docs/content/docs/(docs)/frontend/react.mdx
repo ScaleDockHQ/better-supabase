@@ -159,6 +159,24 @@ const roleOf = (member: Member) =>
     ?.role ?? member.role;
 ```
 
+- `useOptimisticAction(action, { state, update, onSuccess, onError })` is
+  `useAction` with React's `useOptimistic` (React 19). `optimistic` is
+  `update(state, input)` while a run is in flight, and it returns to `state`
+  (the `confirmed` value) when the run settles, so a failed action undoes
+  itself and a successful one shows what the refreshed server render sent:
+
+```tsx
+const toggle = useOptimisticAction(setDone, {
+  state: task.done,
+  update: (_done, input) => input.done,
+});
+
+<Checkbox
+  checked={toggle.optimistic}
+  onCheckedChange={(done) => toggle.run({ id: task.id, done })}
+/>;
+```
+
 - A thrown error (not an `ActionResult` error) still reaches the nearest
   error boundary.
 
