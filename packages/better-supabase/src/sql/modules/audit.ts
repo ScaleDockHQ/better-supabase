@@ -35,6 +35,7 @@ import {
   metadataColumns,
   storedMetadata,
 } from "./audit-metadata.ts";
+import { convertSql } from "./audit-partition.ts";
 import { REGISTRY_TABLE, forgetDropped, register } from "./audit-register.ts";
 import {
   correlationIdSql,
@@ -967,6 +968,7 @@ function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     appendOnly(ctx),
     tagSql(ctx),
     chainSql(ctx),
+    convertSql(ctx),
     readPolicy(ctx),
     retention(ctx),
     listEntries(ctx, restricted, metadataColumns(ctx)),

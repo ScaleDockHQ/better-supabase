@@ -500,6 +500,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0598: Read the audit log and the inbox through the passed filters, with capped counts.
 - 0599: Check import mode in the document freeze trigger's when clause.
 - 0600: Filter subject cascade deletes on the tenant.
+- 0601: Convert the audit log to monthly partitions with a procedure.
 
 ## Pre-release pins
 
