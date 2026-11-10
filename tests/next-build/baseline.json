@@ -127,7 +127,7 @@
   "/[locale]/(app)/crm/quotes/[id]/page": {
     "raw": 1314125,
     "gzip": 411683,
-    "brotli": 358626
+    "brotli": 359535
   },
   "/[locale]/(app)/crm/quotes/page": {
     "raw": 1398772,

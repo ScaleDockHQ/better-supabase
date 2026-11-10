@@ -15,7 +15,7 @@
     "brotli": 334716
   },
   "/.well-known/workflow/v1/flow/route": {
-    "raw": 5101513,
+    "raw": 5102168,
     "gzip": 1290633,
     "brotli": 1058497
   },
@@ -40,7 +40,7 @@
     "brotli": 824288
   },
   "/[locale]/(app)/assistant/activity/page": {
-    "raw": 4943826,
+    "raw": 4944540,
     "gzip": 1476379,
     "brotli": 1222058
   },
@@ -185,12 +185,12 @@
     "brotli": 704322
   },
   "/[locale]/(app)/drive/[folderId]/page": {
-    "raw": 3339765,
+    "raw": 3340294,
     "gzip": 985053,
     "brotli": 817974
   },
   "/[locale]/(app)/drive/page": {
-    "raw": 3345840,
+    "raw": 3346369,
     "gzip": 986818,
     "brotli": 819557
   },
@@ -560,22 +560,22 @@
     "brotli": 707109
   },
   "/[locale]/(app)/workflows/[run]/page": {
-    "raw": 4409399,
+    "raw": 4410113,
     "gzip": 1337502,
     "brotli": 1105484
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
-    "raw": 4437461,
+    "raw": 4438175,
     "gzip": 1348671,
     "brotli": 1115358
   },
   "/[locale]/(app)/workflows/builder/page": {
-    "raw": 4444172,
+    "raw": 4444886,
     "gzip": 1351720,
     "brotli": 1118162
   },
   "/[locale]/(app)/workflows/page": {
-    "raw": 4419148,
+    "raw": 4419862,
     "gzip": 1341519,
     "brotli": 1108967
   },
@@ -720,17 +720,17 @@
     "brotli": 706741
   },
   "/api/chat/durable/[id]/stop/route": {
-    "raw": 4459015,
+    "raw": 4459744,
     "gzip": 1332011,
     "brotli": 1106954
   },
   "/api/chat/durable/[id]/stream/route": {
-    "raw": 4459149,
+    "raw": 4459878,
     "gzip": 1332075,
     "brotli": 1106986
   },
   "/api/chat/durable/route": {
-    "raw": 4459112,
+    "raw": 4459841,
     "gzip": 1332068,
     "brotli": 1106944
   },
@@ -805,7 +805,7 @@
     "brotli": 523808
   },
   "/api/outbox/route": {
-    "raw": 4337925,
+    "raw": 4338654,
     "gzip": 1304778,
     "brotli": 1083799
   },
@@ -820,7 +820,7 @@
     "brotli": 286767
   },
   "/api/queues/block-ticks/route": {
-    "raw": 4027098,
+    "raw": 4027828,
     "gzip": 1229155,
     "brotli": 1022050
   },
@@ -855,12 +855,12 @@
     "brotli": 678127
   },
   "/api/workflows/hooks/[token]/route": {
-    "raw": 3991003,
+    "raw": 3991733,
     "gzip": 1217262,
     "brotli": 1011466
   },
   "/api/workflows/tick/route": {
-    "raw": 3992485,
+    "raw": 3993215,
     "gzip": 1217819,
     "brotli": 1011961
   },
