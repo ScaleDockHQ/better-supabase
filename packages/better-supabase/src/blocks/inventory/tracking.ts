@@ -464,10 +464,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
     releaseAllocation: ({ allocationId, quantity }) =>
       call(
         "release_allocation",
-        {
-          allocation: allocationId,
-          ...(quantity === undefined ? {} : { quantity }),
-        },
+        { allocation: allocationId, quantity: quantity ?? null },
         allocationOf,
       ),
     transferAllocation: ({
@@ -484,7 +481,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
           document_type: documentType,
           document_id: documentId,
           line_id: lineId ?? null,
-          ...(quantity === undefined ? {} : { quantity }),
+          quantity: quantity ?? null,
         },
         allocationOf,
       ),

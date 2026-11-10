@@ -131,48 +131,26 @@ export function inventoryReads(call: BlockCall): InventoryReads {
         "inventory_levels",
         {
           tenant: organizationId,
-          ...(variantIds === undefined ? {} : { variant_ids: variantIds }),
-          ...(locationId === undefined ? {} : { location_id: locationId }),
+          variant_ids: variantIds ?? null,
+          location_id: locationId ?? null,
         },
-        (value) =>
-          decodeRead<readonly StockLevelRead[]>(
-            STOCK_LEVELS_RESULT,
-            value,
-            "inventory_levels",
-          ),
+        (value) => decodeRead(STOCK_LEVELS_RESULT, value, "levels"),
       ),
-    movements: ({
-      organizationId,
-      variantId,
-      locationId,
-      binId,
-      lotId,
-      documentType,
-      documentId,
-      limit,
-      offset,
-    }) =>
+    movements: (input) =>
       call(
         "list_inventory_movements",
         {
-          tenant: organizationId,
-          ...(variantId === undefined ? {} : { variant: variantId }),
-          ...(locationId === undefined ? {} : { location: locationId }),
-          ...(binId === undefined ? {} : { bin: binId }),
-          ...(lotId === undefined ? {} : { lot: lotId }),
-          ...(documentType === undefined
-            ? {}
-            : { document_type: documentType }),
-          ...(documentId === undefined ? {} : { document_id: documentId }),
-          ...(limit === undefined ? {} : { row_limit: limit }),
-          ...(offset === undefined ? {} : { row_offset: offset }),
+          tenant: input.organizationId,
+          variant: input.variantId ?? null,
+          location: input.locationId ?? null,
+          bin: input.binId ?? null,
+          lot: input.lotId ?? null,
+          document_type: input.documentType ?? null,
+          document_id: input.documentId ?? null,
+          row_limit: input.limit ?? null,
+          row_offset: input.offset ?? null,
         },
-        (value) =>
-          decodeRead<readonly StockMovementRead[]>(
-            STOCK_MOVEMENTS_RESULT,
-            value,
-            "list_inventory_movements",
-          ),
+        (value) => decodeRead(STOCK_MOVEMENTS_RESULT, value, "movements"),
       ),
   };
 }

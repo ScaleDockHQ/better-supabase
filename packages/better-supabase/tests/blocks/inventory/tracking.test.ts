@@ -299,7 +299,7 @@ describe("inventory tracking", () => {
       .orThrow();
 
     expect(calls).toEqual([
-      { fn: "release_allocation", args: { allocation: "a1" } },
+      { fn: "release_allocation", args: { allocation: "a1", quantity: null } },
       {
         fn: "transfer_allocation",
         args: {
@@ -307,6 +307,7 @@ describe("inventory tracking", () => {
           document_type: "order",
           document_id: "o2",
           line_id: "l7",
+          quantity: null,
         },
       },
       {
@@ -316,6 +317,7 @@ describe("inventory tracking", () => {
           document_type: "order",
           document_id: "o3",
           line_id: null,
+          quantity: null,
         },
       },
     ]);

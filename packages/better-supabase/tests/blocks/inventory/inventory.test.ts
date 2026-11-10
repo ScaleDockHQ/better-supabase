@@ -379,7 +379,7 @@ describe("inventory levels and movements reads", () => {
     expect(calls).toEqual([
       {
         fn: "inventory_levels",
-        args: { tenant: "org", variant_ids: ["v1", "v2"] },
+        args: { tenant: "org", variant_ids: ["v1", "v2"], location_id: null },
       },
     ]);
   });
@@ -426,8 +426,13 @@ describe("inventory levels and movements reads", () => {
         args: {
           tenant: "org",
           variant: "v1",
+          location: null,
+          bin: null,
+          lot: null,
           document_type: "order",
+          document_id: null,
           row_limit: 20,
+          row_offset: null,
         },
       },
     ]);
