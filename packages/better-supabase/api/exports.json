@@ -3198,6 +3198,7 @@
     "values": [
       "decodeFilterQuery",
       "defineListQuery",
+      "enableFilterTrees",
       "encodeFilterQuery",
       "evaluateFilterQuery",
       "FILTER_OPERATOR_LABELS",

@@ -7,6 +7,8 @@ export {
   FILTER_OPERATORS,
 } from "./filter-query.ts";
 
+export { enableFilterTrees } from "../ir/filter-tree.ts";
+
 export { evaluateFilterQuery } from "./filter-evaluate.ts";
 
 export type { FilterEvaluation, FilterRecordField } from "./filter-evaluate.ts";
