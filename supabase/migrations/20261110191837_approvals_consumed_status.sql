@@ -60,7 +60,7 @@ CREATE OR REPLACE FUNCTION better_supabase.is_approved (
   SET search_path TO ''
   AS $function$
   select coalesce((
-    select x."status" in ('approved', 'consumed') from "better_supabase"."approval_requests" x
+    select x."status"::text in ('approved', 'consumed') from "better_supabase"."approval_requests" x
     where x."subject_type" = is_approved.subject_type and x."subject_id" = is_approved.subject_id and x."action" = is_approved.action
     order by x."created_at" desc limit 1
   ), false)

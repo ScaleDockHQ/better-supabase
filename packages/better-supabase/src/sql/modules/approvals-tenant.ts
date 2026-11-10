@@ -893,7 +893,7 @@ function consumeSql(
   if ${has("fingerprint") ? `v_req.${c("fingerprint")}` : "null::text"} is distinct from consume_approval.fingerprint then
     ${fail("APPROVAL_FINGERPRINT_MISMATCH", "the request changed after it was approved; ask for approval again", "22023")}
   end if;
-  update ${requests} r set ${c("status")} = 'consumed', ${c("consumedAt")} = now()
+  update ${requests} r set ${ctx.owns("requests") ? `${c("status")} = 'consumed', ` : ""}${c("consumedAt")} = now()
     where r.${c("id")} = v_req.${c("id")} returning * into v_req;
   ${record("approval.consumed", "v_req", true)}
   return ${json("v_req")};`

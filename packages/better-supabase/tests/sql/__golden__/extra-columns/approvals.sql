@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:6c44059c01d382a04c30df3766a82d85e091104ceabae1d1ea1c155612b69e1b
+-- @bsb-hash sha256:3e72f748f26b68e9047fc920846497e0301b55a9a43cfc406fffe231ec3c7d52
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1194,7 +1194,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select x."status" in ('approved', 'consumed') from "better_supabase"."approval_requests" x
+    select x."status"::text in ('approved', 'consumed') from "better_supabase"."approval_requests" x
     where x."subject_type" = is_approved.subject_type and x."subject_id" = is_approved.subject_id and x."action" = is_approved.action
     order by x."created_at" desc limit 1
   ), false)

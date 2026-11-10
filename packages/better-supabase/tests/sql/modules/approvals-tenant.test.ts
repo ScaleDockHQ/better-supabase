@@ -147,7 +147,7 @@ describe("approval policies", () => {
     expect(sql).toContain(
       `check (("status" = 'consumed') = ("consumed_at" is not null))`,
     );
-    expect(sql).toContain(`x."status" in ('approved', 'consumed')`);
+    expect(sql).toContain(`x."status"::text in ('approved', 'consumed')`);
   });
 
   it("backfills requests used before the consumed status on upgrade", () => {
@@ -180,5 +180,20 @@ describe("approval policies", () => {
     });
 
     expect(plan?.steps.map((step) => step.sql).join("")).toBe("");
+  });
+
+  it("keeps the status of an app's own requests table when it consumes", () => {
+    const sql = sqlOf(["approvals"], {
+      ownTables: { "public.approval_requests": "app.sql" },
+      modules: {
+        approvals: {
+          tables: { requests: "public.approval_requests" },
+          options: { policies: { invoice: { send: FLOORS.invoice.send } } },
+        },
+      },
+    });
+
+    expect(sql).toContain(`r set "consumed_at" = now()`);
+    expect(sql).not.toContain(`set "status" = 'consumed'`);
   });
 });

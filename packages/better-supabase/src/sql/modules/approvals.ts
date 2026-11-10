@@ -1157,7 +1157,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce((
-    select x.${c("status")} in ('approved', 'consumed') from ${requests} x
+    select x.${c("status")}::text in ('approved', 'consumed') from ${requests} x
     where x.${c("subjectType")} = is_approved.subject_type and x.${c("subjectId")} = is_approved.subject_id and x.${c("action")} = is_approved.action
     order by x.${c("createdAt")} desc limit 1
   ), false)
