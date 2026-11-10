@@ -2,8 +2,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 export const APP = resolve(import.meta.dirname, "../..");
-export const SRC = join(APP, "src");
-export const LOCALE = join(SRC, "app", "[locale]");
+const SRC = join(APP, "src");
+const LOCALE = join(SRC, "app", "[locale]");
 
 const ROUTE_FILES =
   /^(?:page|layout|loading|error|template|not-found|default)\.tsx$/;
@@ -90,7 +90,7 @@ export function clientNamespaces(file: string): Set<string> {
 }
 
 /** Every route file under `dir`, including route files in nested folders. */
-export function routeFiles(dir: string): string[] {
+function routeFiles(dir: string): string[] {
   const found: string[] = [];
 
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -107,7 +107,7 @@ export function routeFiles(dir: string): string[] {
 }
 
 /** The namespaces a layout hands to its subtree, if it renders a provider. */
-export function declaredNamespaces(file: string): string[] | undefined {
+function declaredNamespaces(file: string): string[] | undefined {
   const match = PROVIDER_NAMESPACES.exec(read(file));
 
   if (!match) {
