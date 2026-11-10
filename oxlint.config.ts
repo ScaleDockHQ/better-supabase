@@ -33,6 +33,8 @@ export const ignorePatterns: string[] = [
   "**/generated.ts",
   "**/generated.meta.*",
   "**/generated-*.ts",
+  // The files the zod, nuqs and factories generators write next to generated.ts.
+  "**/generated.{zod,nuqs,factories,valibot}.ts",
   "**/database.types.ts",
   "**/error-codes.data.ts",
   "**/lib/supabase/records/**",
