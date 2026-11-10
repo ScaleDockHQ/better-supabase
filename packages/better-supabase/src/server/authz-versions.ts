@@ -210,7 +210,14 @@ export interface CreateVersionCacheOptions {
    * It bounds how stale a check can be when an eviction message is lost.
    */
   readonly maxStaleMs: number;
+  /**
+   * The most users the in-process map keeps. The least recently used entry goes
+   * first; the shared `store` still has it. Defaults to 10,000.
+   */
+  readonly maxEntries?: number;
 }
+
+const DEFAULT_MAX_ENTRIES = 10_000;
 
 export interface VersionCache extends AuthzVersionCache {
   /** The cached version, or `undefined` when absent or older than `maxStaleMs`. */
@@ -234,12 +241,30 @@ export function createVersionCache(
 ): VersionCache {
   const local = new Map<string, VersionEntry>();
   const { store, maxStaleMs } = options;
+  const maxEntries = Math.max(1, options.maxEntries ?? DEFAULT_MAX_ENTRIES);
+
+  // Map keeps insertion order, so deleting before setting makes the last key
+  // the most recently used and the first key the one to drop.
+  const remember = (userId: string, entry: VersionEntry): void => {
+    local.delete(userId);
+    local.set(userId, entry);
+
+    if (local.size > maxEntries) {
+      const oldest = local.keys().next();
+
+      if (!oldest.done) {
+        local.delete(oldest.value);
+      }
+    }
+  };
 
   return {
     async get(userId) {
       const hit = local.get(userId);
 
       if (hit && Date.now() - hit.at <= maxStaleMs) {
+        remember(userId, hit);
+
         return hit.version;
       }
 
@@ -248,7 +273,7 @@ export function createVersionCache(
       const shared = await store?.get(userId);
 
       if (shared !== undefined) {
-        local.set(userId, { version: shared, at: Date.now() });
+        remember(userId, { version: shared, at: Date.now() });
       }
 
       return shared;
@@ -261,7 +286,7 @@ export function createVersionCache(
           ? Math.max(current.version, version)
           : version;
 
-      local.set(userId, { version: keep, at: Date.now() });
+      remember(userId, { version: keep, at: Date.now() });
       await store?.set(userId, keep);
     },
     async evict(userId) {
