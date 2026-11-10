@@ -1872,6 +1872,17 @@ referenced row. Compare the tenant of the referenced row in the trigger, or list
 the reference in `blocks.memberships.options.sameTenant` so the block emits the
 check. Doctor reads the trigger functions in the schema files.
 
+### BS399
+
+**Info: a large audit log is not partitioned.** `better_supabase.audit_events` is
+a plain table with an estimated one million rows or more, so the retention purge
+deletes row by row and a date-range read scans one large heap. Turn on
+`blocks.audit.options.partitioned` and call
+`better_supabase.convert_audit_log_to_partitioned()` in a quiet period; the
+procedure copies in committed batches and keeps reads open. The estimate is
+`pg_class.reltuples`, so a table that was never analyzed reports nothing. Needs a
+database; saved snapshots skip it.
+
 ### BS369
 
 **Warning: an app file declares an object a block module declares.** A table,
@@ -2685,6 +2696,15 @@ the user column and add unique indexes on `(team_id, user_id)` and
 view and follows watch keys on the columns' own type. When the live catalog
 gives the two columns different types, the comparison stays text and cannot use
 the key's index. Make the columns the same type.
+
+### BS633
+
+**Info: an app row trigger has no `importing()` guard.** An import writes many
+rows in one transaction, and a row trigger of yours runs for each of them. If
+the function sends, enqueues or recomputes something per row, return early
+when `better_supabase.importing()` is true and do the work once after the
+import. Doctor reads the trigger functions in `supabase/schemas` and skips
+triggers named `bsb_*`.
 
 ### BS612
 

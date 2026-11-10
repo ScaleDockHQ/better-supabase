@@ -180,3 +180,21 @@ writes to your maintenance data. Use `ingestTelemetry` to run the same logic
 from a queue, and `parseTelemetryPoints` or `parseOtlpMetrics` on their own.
 A meter's `assetId` ties its readings to an [asset](/docs/blocks/assets), so
 `meterFor` can look a device up from the asset it belongs to.
+
+## Paging a list
+
+`listCalibrations` still takes `offset`. For a deep list, `calibrationPage` pages by keyset and
+returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
+`after`, and set `total: true` to count up to `totalCap` rows (ADR 0642).
+
+```ts
+const first = await maintenance
+  .calibrationPage({ limit: 50, total: true })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await maintenance
+    .calibrationPage({ limit: 50, after: first.nextCursor })
+    .orThrow();
+}
+```

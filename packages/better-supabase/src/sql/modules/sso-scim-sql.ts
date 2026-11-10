@@ -400,7 +400,7 @@ create table if not exists ${log} (
   ${c("status")} integer not null,
 ${line("error")}${line("requestId")}  ${c("createdAt")} timestamptz not null default now()
 );
-create index if not exists ${name}_tenant_idx on ${log} (${c("tenant")}, ${c("createdAt")} desc);
+create index if not exists ${name}_tenant_idx on ${log} (${c("tenant")}, ${c("createdAt")} desc, ${c("id")} desc);
 create index if not exists ${name}_created_idx on ${log} (${c("createdAt")});
 ${lockTable(log)}
 

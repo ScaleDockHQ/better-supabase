@@ -670,6 +670,7 @@ export const INBOX: BlockSqlDefinition = {
     "inbox_messages_json",
     "inbox_contact_read_at",
     "inbox_contact_json",
+    "inbox_contacts_json",
     "inbox_add_message",
     "inbox_file_allowed",
     "inbox_message_broadcast",

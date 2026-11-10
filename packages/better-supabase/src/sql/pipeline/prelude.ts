@@ -27,6 +27,8 @@ export const PRELUDE_FUNCTIONS: ReadonlySet<string> = new Set([
   "import_run",
   "memo_get",
   "memo_set",
+  "memo_slot_get",
+  "memo_slot_set",
   "merge_subject_refs",
   "raise_actor_readonly",
   "normalize_phone",

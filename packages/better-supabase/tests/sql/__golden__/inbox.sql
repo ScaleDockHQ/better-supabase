@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:8120f73acbdda5a2c3a178677cbd153ca94b95b24c4bbf729730a9a9cc8a5ab4
+-- @bsb-hash sha256:7e0b84882be357571986323d988761e03fe1a4e7981737fc84030500addd058d
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1313,10 +1313,56 @@ $$;
 revoke execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) to authenticated, service_role;
 
+-- Contact and read time of conversations, as inbox_contact_json and
+-- inbox_contact_read_at return them one at a time: the contact for staff of
+-- the tenant or the contact's own account, the read time for staff only. ids
+-- picks conversations; term (with an optional tenant) picks those whose
+-- contact's name or email contains it. The permission is asked once per tenant.
+create or replace function "better_supabase"."inbox_contacts_json"(ids uuid[] default null, tenant uuid default null, term text default null)
+returns table (conversation uuid, contact jsonb, contact_read_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  with c as (
+    select v."id" as id, v."tenant_id" as scope, v."contact_id" as person
+    from "better_supabase"."inbox_conversations" v
+    where (inbox_contacts_json.ids is not null or inbox_contacts_json.term is not null)
+      and (inbox_contacts_json.ids is null or v."id" = any (inbox_contacts_json.ids))
+      and (inbox_contacts_json.tenant is null or v."tenant_id" = inbox_contacts_json.tenant)
+  ), staff as (
+    select t.scope, (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(coalesce(better_supabase.can('tenant', t.scope, 'inbox.read'), false), false)) as ok
+    from (select distinct c.scope from c) t
+  )
+  select c.id,
+    case when s.ok or p."user_id" = (select auth.uid()) then
+      jsonb_build_object('id', p."id", 'name', p."name", 'email', p."email", 'phone', p."phone", 'avatar_url', p."avatar_url", 'user_id', p."user_id")
+    end,
+    case when s.ok then (
+      select k."last_read_at" from "better_supabase"."conversation_members" k
+      where k."conversation_id" = c.id and k."user_id" = p."user_id"
+    ) end
+  from c
+  join staff s on s.scope = c.scope
+  join "better_supabase"."people" p on p."id" = c.person
+  where inbox_contacts_json.term is null
+    or ((s.ok or p."user_id" = (select auth.uid())) and (p."name" ilike '%' || inbox_contacts_json.term || '%'
+      or p."email" ilike '%' || inbox_contacts_json.term || '%'));
+end;
+$$;
+revoke execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) from public, anon;
+grant execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) to authenticated, service_role;
+
 -- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
 -- before ({ last_message_at, id } of the previous page's last item), limit.
+-- The page is cut first, then the inbox, the caller's read time and the
+-- contacts join it in one pass (the contacts through inbox_contacts_json, which
+-- asks the permission once per tenant), not one lookup per conversation.
 create or replace function "better_supabase"."list_inbox_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -1325,10 +1371,8 @@ set search_path = ''
 as $$
 begin
   return (
-    select coalesce(jsonb_agg("better_supabase"."inbox_conversation_json"(page."id") || jsonb_build_object('unread', page.unread) order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
-    from (
-      select v."id", v."last_message_at",
-        v."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = v."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz) as unread
+    with page as materialized (
+      select v."id" as id, v."inbox_id" as inbox, v."last_message_at" as last_message_at, to_jsonb(v) as body
       from "better_supabase"."inbox_conversations" v
       where (list_inbox_conversations.tenant is null or v."tenant_id" = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v."inbox_id" = (filter ->> 'inbox_id')::uuid)
@@ -1342,13 +1386,34 @@ begin
         and (nullif(filter ->> 'search', '') is null
           or v."subject" ilike '%' || (filter ->> 'search') || '%'
           or v."last_message_preview" ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'name' ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'email' ilike '%' || (filter ->> 'search') || '%')
+          or v."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, list_inbox_conversations.tenant, filter ->> 'search') m))
         and (filter -> 'before' is null
           or (v."last_message_at", v."id") < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
       order by v."last_message_at" desc, v."id" desc
       limit least(greatest(coalesce((filter ->> 'limit')::integer, 50), 1), 200)
-    ) page
+    ), contacts as materialized (
+      select c.conversation, c.contact, c.contact_read_at
+      from "better_supabase"."inbox_contacts_json"((select coalesce(array_agg(page.id), '{}') from page)) c
+    )
+    select coalesce(jsonb_agg(
+      page.body || jsonb_build_object(
+        'contact', contacts.contact,
+        'inbox', box.item,
+        'last_read_at', seen.at,
+        'contact_read_at', contacts.contact_read_at,
+        'unread', page.last_message_at > coalesce(seen.at, '-infinity'::timestamptz))
+      order by page.last_message_at desc, page.id desc), '[]'::jsonb)
+    from page
+    left join contacts on contacts.conversation = page.id
+    left join lateral (
+      select jsonb_build_object('id', i."id", 'name', i."name", 'channel', i."channel") as item
+      from "better_supabase"."inboxes" i where i."id" = page.inbox
+    ) box on true
+    left join lateral (
+      select k."last_read_at" as at
+      from "better_supabase"."conversation_members" k
+      where k."conversation_id" = page.id and k."user_id" = (select auth.uid())
+    ) seen on true
   );
 end;
 $$;
@@ -2380,7 +2445,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:b5781311ae36ecc224dc96d47ed0548f1c2be0f14d3a1764d8b286f0dc73110a
+-- @bsb-hash sha256:4a11c5a619afb6459c8c804125476d41036d351f2ed049a5e9294c829aeddc1e
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3805,10 +3870,56 @@ $$;
 revoke execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) to authenticated, service_role;
 
+-- Contact and read time of conversations, as inbox_contact_json and
+-- inbox_contact_read_at return them one at a time: the contact for staff of
+-- the tenant or the contact's own account, the read time for staff only. ids
+-- picks conversations; term (with an optional tenant) picks those whose
+-- contact's name or email contains it. The permission is asked once per tenant.
+create or replace function "better_supabase"."inbox_contacts_json"(ids uuid[] default null, tenant uuid default null, term text default null)
+returns table (conversation uuid, contact jsonb, contact_read_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  with c as (
+    select v."id" as id, v."tenant_id" as scope, v."contact_id" as person
+    from "better_supabase"."inbox_conversations" v
+    where (inbox_contacts_json.ids is not null or inbox_contacts_json.term is not null)
+      and (inbox_contacts_json.ids is null or v."id" = any (inbox_contacts_json.ids))
+      and (inbox_contacts_json.tenant is null or v."tenant_id" = inbox_contacts_json.tenant)
+  ), staff as (
+    select t.scope, (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(coalesce(better_supabase.can('tenant', t.scope, 'inbox.read'), false), false)) as ok
+    from (select distinct c.scope from c) t
+  )
+  select c.id,
+    case when s.ok or p."user_id" = (select auth.uid()) then
+      jsonb_build_object('id', p."id", 'name', p."name", 'email', p."email", 'phone', p."phone", 'avatar_url', p."avatar_url", 'user_id', p."user_id")
+    end,
+    case when s.ok then (
+      select k."last_read_at" from "better_supabase"."conversation_members" k
+      where k."conversation_id" = c.id and k."user_id" = p."user_id"
+    ) end
+  from c
+  join staff s on s.scope = c.scope
+  join "better_supabase"."people" p on p."id" = c.person
+  where inbox_contacts_json.term is null
+    or ((s.ok or p."user_id" = (select auth.uid())) and (p."name" ilike '%' || inbox_contacts_json.term || '%'
+      or p."email" ilike '%' || inbox_contacts_json.term || '%'));
+end;
+$$;
+revoke execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) from public, anon;
+grant execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) to authenticated, service_role;
+
 -- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
 -- before ({ last_message_at, id } of the previous page's last item), limit.
+-- The page is cut first, then the inbox, the caller's read time and the
+-- contacts join it in one pass (the contacts through inbox_contacts_json, which
+-- asks the permission once per tenant), not one lookup per conversation.
 create or replace function "better_supabase"."list_inbox_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -3817,10 +3928,8 @@ set search_path = ''
 as $$
 begin
   return (
-    select coalesce(jsonb_agg("better_supabase"."inbox_conversation_json"(page."id") || jsonb_build_object('unread', page.unread) order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
-    from (
-      select v."id", v."last_message_at",
-        v."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = v."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz) as unread
+    with page as materialized (
+      select v."id" as id, v."inbox_id" as inbox, v."last_message_at" as last_message_at, to_jsonb(v) as body
       from "better_supabase"."inbox_conversations" v
       where (list_inbox_conversations.tenant is null or v."tenant_id" = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v."inbox_id" = (filter ->> 'inbox_id')::uuid)
@@ -3834,13 +3943,34 @@ begin
         and (nullif(filter ->> 'search', '') is null
           or v."subject" ilike '%' || (filter ->> 'search') || '%'
           or v."last_message_preview" ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'name' ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'email' ilike '%' || (filter ->> 'search') || '%')
+          or v."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, list_inbox_conversations.tenant, filter ->> 'search') m))
         and (filter -> 'before' is null
           or (v."last_message_at", v."id") < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
       order by v."last_message_at" desc, v."id" desc
       limit least(greatest(coalesce((filter ->> 'limit')::integer, 50), 1), 200)
-    ) page
+    ), contacts as materialized (
+      select c.conversation, c.contact, c.contact_read_at
+      from "better_supabase"."inbox_contacts_json"((select coalesce(array_agg(page.id), '{}') from page)) c
+    )
+    select coalesce(jsonb_agg(
+      page.body || jsonb_build_object(
+        'contact', contacts.contact,
+        'inbox', box.item,
+        'last_read_at', seen.at,
+        'contact_read_at', contacts.contact_read_at,
+        'unread', page.last_message_at > coalesce(seen.at, '-infinity'::timestamptz))
+      order by page.last_message_at desc, page.id desc), '[]'::jsonb)
+    from page
+    left join contacts on contacts.conversation = page.id
+    left join lateral (
+      select jsonb_build_object('id', i."id", 'name', i."name", 'channel', i."channel") as item
+      from "better_supabase"."inboxes" i where i."id" = page.inbox
+    ) box on true
+    left join lateral (
+      select k."last_read_at" as at
+      from "better_supabase"."conversation_members" k
+      where k."conversation_id" = page.id and k."user_id" = (select auth.uid())
+    ) seen on true
   );
 end;
 $$;
@@ -4898,7 +5028,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:645cb26f4b1dc9059e954c229e8aa74fc968c7ccfc20fcebe6053923c7ffa52d
+-- @bsb-hash sha256:0c7994d8ea1f54302df6dc2403ff455565565e17f4bcc5d88537306e8c5ed040
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6215,10 +6345,56 @@ $$;
 revoke execute on function "app_private"."edit_inbox_message"(uuid, text, boolean) from public, anon;
 grant execute on function "app_private"."edit_inbox_message"(uuid, text, boolean) to authenticated, service_role;
 
+-- Contact and read time of conversations, as inbox_contact_json and
+-- inbox_contact_read_at return them one at a time: the contact for staff of
+-- the tenant or the contact's own account, the read time for staff only. ids
+-- picks conversations; term (with an optional tenant) picks those whose
+-- contact's name or email contains it. The permission is asked once per tenant.
+create or replace function "app_private"."inbox_contacts_json"(ids uuid[] default null, tenant uuid default null, term text default null)
+returns table (conversation uuid, contact jsonb, contact_read_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  with c as (
+    select v."id" as id, v."tenant_id" as scope, v."contact_id" as person
+    from "app_private"."inbox_conversations" v
+    where (inbox_contacts_json.ids is not null or inbox_contacts_json.term is not null)
+      and (inbox_contacts_json.ids is null or v."id" = any (inbox_contacts_json.ids))
+      and (inbox_contacts_json.tenant is null or v."tenant_id" = inbox_contacts_json.tenant)
+  ), staff as (
+    select t.scope, (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(coalesce(better_supabase.can('tenant', t.scope, 'inbox.read'), false), false)) as ok
+    from (select distinct c.scope from c) t
+  )
+  select c.id,
+    case when s.ok or p."user_id" = (select auth.uid()) then
+      jsonb_build_object('id', p."id", 'name', p."name", 'email', p."email", 'phone', p."phone", 'avatar_url', p."avatar_url", 'user_id', p."user_id")
+    end,
+    case when s.ok then (
+      select k."last_read_at" from "better_supabase"."conversation_members" k
+      where k."conversation_id" = c.id and k."user_id" = p."user_id"
+    ) end
+  from c
+  join staff s on s.scope = c.scope
+  join "better_supabase"."people" p on p."id" = c.person
+  where inbox_contacts_json.term is null
+    or ((s.ok or p."user_id" = (select auth.uid())) and (p."name" ilike '%' || inbox_contacts_json.term || '%'
+      or p."email" ilike '%' || inbox_contacts_json.term || '%'));
+end;
+$$;
+revoke execute on function "app_private"."inbox_contacts_json"(uuid[], uuid, text) from public, anon;
+grant execute on function "app_private"."inbox_contacts_json"(uuid[], uuid, text) to authenticated, service_role;
+
 -- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
 -- before ({ last_message_at, id } of the previous page's last item), limit.
+-- The page is cut first, then the inbox, the caller's read time and the
+-- contacts join it in one pass (the contacts through inbox_contacts_json, which
+-- asks the permission once per tenant), not one lookup per conversation.
 create or replace function "app_private"."list_inbox_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -6227,10 +6403,8 @@ set search_path = ''
 as $$
 begin
   return (
-    select coalesce(jsonb_agg("app_private"."inbox_conversation_json"(page."id") || jsonb_build_object('unread', page.unread) order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
-    from (
-      select v."id", v."last_message_at",
-        v."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = v."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz) as unread
+    with page as materialized (
+      select v."id" as id, v."inbox_id" as inbox, v."last_message_at" as last_message_at, to_jsonb(v) as body
       from "app_private"."inbox_conversations" v
       where (list_inbox_conversations.tenant is null or v."tenant_id" = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v."inbox_id" = (filter ->> 'inbox_id')::uuid)
@@ -6244,13 +6418,34 @@ begin
         and (nullif(filter ->> 'search', '') is null
           or v."subject" ilike '%' || (filter ->> 'search') || '%'
           or v."last_message_preview" ilike '%' || (filter ->> 'search') || '%'
-          or "app_private"."inbox_contact_json"(v."id") ->> 'name' ilike '%' || (filter ->> 'search') || '%'
-          or "app_private"."inbox_contact_json"(v."id") ->> 'email' ilike '%' || (filter ->> 'search') || '%')
+          or v."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, list_inbox_conversations.tenant, filter ->> 'search') m))
         and (filter -> 'before' is null
           or (v."last_message_at", v."id") < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
       order by v."last_message_at" desc, v."id" desc
       limit least(greatest(coalesce((filter ->> 'limit')::integer, 50), 1), 200)
-    ) page
+    ), contacts as materialized (
+      select c.conversation, c.contact, c.contact_read_at
+      from "app_private"."inbox_contacts_json"((select coalesce(array_agg(page.id), '{}') from page)) c
+    )
+    select coalesce(jsonb_agg(
+      page.body || jsonb_build_object(
+        'contact', contacts.contact,
+        'inbox', box.item,
+        'last_read_at', seen.at,
+        'contact_read_at', contacts.contact_read_at,
+        'unread', page.last_message_at > coalesce(seen.at, '-infinity'::timestamptz))
+      order by page.last_message_at desc, page.id desc), '[]'::jsonb)
+    from page
+    left join contacts on contacts.conversation = page.id
+    left join lateral (
+      select jsonb_build_object('id', i."id", 'name', i."name", 'channel', i."channel") as item
+      from "app_private"."inboxes" i where i."id" = page.inbox
+    ) box on true
+    left join lateral (
+      select k."last_read_at" as at
+      from "better_supabase"."conversation_members" k
+      where k."conversation_id" = page.id and k."user_id" = (select auth.uid())
+    ) seen on true
   );
 end;
 $$;
@@ -7282,7 +7477,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:70b1c05867ed4db9d07c07ca59904de29085c8d229cc3ff4686380128afefb13
+-- @bsb-hash sha256:0fd045dd38acd5a300980a8c6429cfdcf3bc9686015af9c443c8ed23897a0c32
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8594,10 +8789,56 @@ $$;
 revoke execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) to authenticated, service_role;
 
+-- Contact and read time of conversations, as inbox_contact_json and
+-- inbox_contact_read_at return them one at a time: the contact for staff of
+-- the tenant or the contact's own account, the read time for staff only. ids
+-- picks conversations; term (with an optional tenant) picks those whose
+-- contact's name or email contains it. The permission is asked once per tenant.
+create or replace function "better_supabase"."inbox_contacts_json"(ids uuid[] default null, tenant uuid default null, term text default null)
+returns table (conversation uuid, contact jsonb, contact_read_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  with c as (
+    select v."id" as id, v."tenant_id" as scope, v."contact_id" as person
+    from "better_supabase"."inbox_conversations" v
+    where (inbox_contacts_json.ids is not null or inbox_contacts_json.term is not null)
+      and (inbox_contacts_json.ids is null or v."id" = any (inbox_contacts_json.ids))
+      and (inbox_contacts_json.tenant is null or v."tenant_id" = inbox_contacts_json.tenant)
+  ), staff as (
+    select t.scope, (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(coalesce(better_supabase.can('tenant', t.scope, 'inbox.read'), false), false)) as ok
+    from (select distinct c.scope from c) t
+  )
+  select c.id,
+    case when s.ok or p."user_id" = (select auth.uid()) then
+      jsonb_build_object('id', p."id", 'name', p."name", 'email', p."email", 'phone', p."phone", 'avatar_url', p."avatar_url", 'user_id', p."user_id")
+    end,
+    case when s.ok then (
+      select k."last_read_at" from "better_supabase"."conversation_members" k
+      where k."conversation_id" = c.id and k."user_id" = p."user_id"
+    ) end
+  from c
+  join staff s on s.scope = c.scope
+  join "better_supabase"."people" p on p."id" = c.person
+  where inbox_contacts_json.term is null
+    or ((s.ok or p."user_id" = (select auth.uid())) and (p."name" ilike '%' || inbox_contacts_json.term || '%'
+      or p."email" ilike '%' || inbox_contacts_json.term || '%'));
+end;
+$$;
+revoke execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) from public, anon;
+grant execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) to authenticated, service_role;
+
 -- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
 -- before ({ last_message_at, id } of the previous page's last item), limit.
+-- The page is cut first, then the inbox, the caller's read time and the
+-- contacts join it in one pass (the contacts through inbox_contacts_json, which
+-- asks the permission once per tenant), not one lookup per conversation.
 create or replace function "better_supabase"."list_inbox_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -8606,10 +8847,8 @@ set search_path = ''
 as $$
 begin
   return (
-    select coalesce(jsonb_agg("better_supabase"."inbox_conversation_json"(page."id") || jsonb_build_object('unread', page.unread) order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
-    from (
-      select v."id", v."last_message_at",
-        v."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = v."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz) as unread
+    with page as materialized (
+      select v."id" as id, v."inbox_id" as inbox, v."last_message_at" as last_message_at, to_jsonb(v) as body
       from "better_supabase"."inbox_conversations" v
       where (list_inbox_conversations.tenant is null or v."tenant_id" = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v."inbox_id" = (filter ->> 'inbox_id')::uuid)
@@ -8623,13 +8862,34 @@ begin
         and (nullif(filter ->> 'search', '') is null
           or v."subject" ilike '%' || (filter ->> 'search') || '%'
           or v."last_message_preview" ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'name' ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'email' ilike '%' || (filter ->> 'search') || '%')
+          or v."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, list_inbox_conversations.tenant, filter ->> 'search') m))
         and (filter -> 'before' is null
           or (v."last_message_at", v."id") < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
       order by v."last_message_at" desc, v."id" desc
       limit least(greatest(coalesce((filter ->> 'limit')::integer, 50), 1), 200)
-    ) page
+    ), contacts as materialized (
+      select c.conversation, c.contact, c.contact_read_at
+      from "better_supabase"."inbox_contacts_json"((select coalesce(array_agg(page.id), '{}') from page)) c
+    )
+    select coalesce(jsonb_agg(
+      page.body || jsonb_build_object(
+        'contact', contacts.contact,
+        'inbox', box.item,
+        'last_read_at', seen.at,
+        'contact_read_at', contacts.contact_read_at,
+        'unread', page.last_message_at > coalesce(seen.at, '-infinity'::timestamptz))
+      order by page.last_message_at desc, page.id desc), '[]'::jsonb)
+    from page
+    left join contacts on contacts.conversation = page.id
+    left join lateral (
+      select jsonb_build_object('id', i."id", 'name', i."name", 'channel', i."channel") as item
+      from "better_supabase"."inboxes" i where i."id" = page.inbox
+    ) box on true
+    left join lateral (
+      select k."last_read_at" as at
+      from "better_supabase"."conversation_members" k
+      where k."conversation_id" = page.id and k."user_id" = (select auth.uid())
+    ) seen on true
   );
 end;
 $$;
@@ -10083,7 +10343,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:0e1400a14df4ea5ec870ef38d3d1f28d633f9fd965d6c8ea304418d1b91bc575
+-- @bsb-hash sha256:1088eedeb75437837869eb683bf7f6394f095164d74a4a915b88c1a80ccc38ac
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11375,10 +11635,56 @@ $$;
 revoke execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) to authenticated, service_role;
 
+-- Contact and read time of conversations, as inbox_contact_json and
+-- inbox_contact_read_at return them one at a time: the contact for staff of
+-- the tenant or the contact's own account, the read time for staff only. ids
+-- picks conversations; term (with an optional tenant) picks those whose
+-- contact's name or email contains it. The permission is asked once per tenant.
+create or replace function "better_supabase"."inbox_contacts_json"(ids uuid[] default null, tenant uuid default null, term text default null)
+returns table (conversation uuid, contact jsonb, contact_read_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  with c as (
+    select v."id" as id, v."tenant_id" as scope, v."contact_id" as person
+    from "better_supabase"."inbox_conversations" v
+    where (inbox_contacts_json.ids is not null or inbox_contacts_json.term is not null)
+      and (inbox_contacts_json.ids is null or v."id" = any (inbox_contacts_json.ids))
+      and (inbox_contacts_json.tenant is null or v."tenant_id" = inbox_contacts_json.tenant)
+  ), staff as (
+    select t.scope, (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(coalesce(better_supabase.can('tenant', t.scope, 'inbox.read'), false), false)) as ok
+    from (select distinct c.scope from c) t
+  )
+  select c.id,
+    case when s.ok or p."user_id" = (select auth.uid()) then
+      jsonb_build_object('id', p."id", 'name', p."name", 'email', p."email", 'phone', p."phone", 'avatar_url', p."avatar_url", 'user_id', p."user_id")
+    end,
+    case when s.ok then (
+      select k."last_read_at" from "better_supabase"."conversation_members" k
+      where k."conversation_id" = c.id and k."user_id" = p."user_id"
+    ) end
+  from c
+  join staff s on s.scope = c.scope
+  join "better_supabase"."people" p on p."id" = c.person
+  where inbox_contacts_json.term is null
+    or ((s.ok or p."user_id" = (select auth.uid())) and (p."name" ilike '%' || inbox_contacts_json.term || '%'
+      or p."email" ilike '%' || inbox_contacts_json.term || '%'));
+end;
+$$;
+revoke execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) from public, anon;
+grant execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) to authenticated, service_role;
+
 -- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
 -- before ({ last_message_at, id } of the previous page's last item), limit.
+-- The page is cut first, then the inbox, the caller's read time and the
+-- contacts join it in one pass (the contacts through inbox_contacts_json, which
+-- asks the permission once per tenant), not one lookup per conversation.
 create or replace function "better_supabase"."list_inbox_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -11387,10 +11693,8 @@ set search_path = ''
 as $$
 begin
   return (
-    select coalesce(jsonb_agg("better_supabase"."inbox_conversation_json"(page."id") || jsonb_build_object('unread', page.unread) order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
-    from (
-      select v."id", v."last_message_at",
-        v."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = v."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz) as unread
+    with page as materialized (
+      select v."id" as id, v."inbox_id" as inbox, v."last_message_at" as last_message_at, jsonb_build_object('id', v."id", 'tenant_id', v."tenant_id", 'inbox_id', v."inbox_id", 'contact_id', v."contact_id", 'subject', v."subject", 'status', v."status", 'priority', v."priority", 'assignee_id', v."assignee_id", 'team_id', v."team_id", 'bot_mode', v."bot_mode", 'thread_id', v."thread_id", 'snooze_expires_at', v."snooze_expires_at", 'last_message_at', v."last_message_at", 'last_inbound_at', v."last_inbound_at", 'active_stream_id', v."active_stream_id", 'last_message_preview', v."last_message_preview", 'first_response_at', v."first_response_at", 'resolved_at', v."resolved_at", 'metadata', v."metadata", 'created_at', v."created_at", 'updated_at', v."updated_at") as body
       from "better_supabase"."inbox_conversations" v
       where (list_inbox_conversations.tenant is null or v."tenant_id" = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v."inbox_id" = (filter ->> 'inbox_id')::uuid)
@@ -11404,13 +11708,34 @@ begin
         and (nullif(filter ->> 'search', '') is null
           or v."subject" ilike '%' || (filter ->> 'search') || '%'
           or v."last_message_preview" ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'name' ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'email' ilike '%' || (filter ->> 'search') || '%')
+          or v."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, list_inbox_conversations.tenant, filter ->> 'search') m))
         and (filter -> 'before' is null
           or (v."last_message_at", v."id") < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
       order by v."last_message_at" desc, v."id" desc
       limit least(greatest(coalesce((filter ->> 'limit')::integer, 50), 1), 200)
-    ) page
+    ), contacts as materialized (
+      select c.conversation, c.contact, c.contact_read_at
+      from "better_supabase"."inbox_contacts_json"((select coalesce(array_agg(page.id), '{}') from page)) c
+    )
+    select coalesce(jsonb_agg(
+      page.body || jsonb_build_object(
+        'contact', contacts.contact,
+        'inbox', box.item,
+        'last_read_at', seen.at,
+        'contact_read_at', contacts.contact_read_at,
+        'unread', page.last_message_at > coalesce(seen.at, '-infinity'::timestamptz))
+      order by page.last_message_at desc, page.id desc), '[]'::jsonb)
+    from page
+    left join contacts on contacts.conversation = page.id
+    left join lateral (
+      select jsonb_build_object('id', i."id", 'name', i."name", 'channel', i."channel") as item
+      from "better_supabase"."inboxes" i where i."id" = page.inbox
+    ) box on true
+    left join lateral (
+      select k."last_read_at" as at
+      from "better_supabase"."conversation_members" k
+      where k."conversation_id" = page.id and k."user_id" = (select auth.uid())
+    ) seen on true
   );
 end;
 $$;
@@ -12447,7 +12772,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:639f0033a0f4180ee2419778a01a641be151ba7b76fbc008ab2b8b2e1bad2a0e
+-- @bsb-hash sha256:3b75169a0ed304d344a380466258c0ad957fef814ff63d0c5f19a5169a622fee
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13759,10 +14084,56 @@ $$;
 revoke execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."edit_inbox_message"(uuid, text, boolean) to authenticated, service_role;
 
+-- Contact and read time of conversations, as inbox_contact_json and
+-- inbox_contact_read_at return them one at a time: the contact for staff of
+-- the tenant or the contact's own account, the read time for staff only. ids
+-- picks conversations; term (with an optional tenant) picks those whose
+-- contact's name or email contains it. The permission is asked once per tenant.
+create or replace function "better_supabase"."inbox_contacts_json"(ids uuid[] default null, tenant uuid default null, term text default null)
+returns table (conversation uuid, contact jsonb, contact_read_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  with c as (
+    select v."id" as id, v."org_id" as scope, v."contact_id" as person
+    from "better_supabase"."inbox_conversations" v
+    where (inbox_contacts_json.ids is not null or inbox_contacts_json.term is not null)
+      and (inbox_contacts_json.ids is null or v."id" = any (inbox_contacts_json.ids))
+      and (inbox_contacts_json.tenant is null or v."org_id" = inbox_contacts_json.tenant)
+  ), staff as (
+    select t.scope, (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(coalesce(better_supabase.can('tenant', t.scope, 'inbox.read'), false), false)) as ok
+    from (select distinct c.scope from c) t
+  )
+  select c.id,
+    case when s.ok or p."user_id" = (select auth.uid()) then
+      jsonb_build_object('id', p."id", 'name', p."name", 'email', p."email", 'phone', p."phone", 'avatar_url', p."avatar_url", 'user_id', p."user_id")
+    end,
+    case when s.ok then (
+      select k."last_read_at" from "better_supabase"."conversation_members" k
+      where k."conversation_id" = c.id and k."user_id" = p."user_id"
+    ) end
+  from c
+  join staff s on s.scope = c.scope
+  join "better_supabase"."people" p on p."id" = c.person
+  where inbox_contacts_json.term is null
+    or ((s.ok or p."user_id" = (select auth.uid())) and (p."name" ilike '%' || inbox_contacts_json.term || '%'
+      or p."email" ilike '%' || inbox_contacts_json.term || '%'));
+end;
+$$;
+revoke execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) from public, anon;
+grant execute on function "better_supabase"."inbox_contacts_json"(uuid[], uuid, text) to authenticated, service_role;
+
 -- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
 -- before ({ last_message_at, id } of the previous page's last item), limit.
+-- The page is cut first, then the inbox, the caller's read time and the
+-- contacts join it in one pass (the contacts through inbox_contacts_json, which
+-- asks the permission once per tenant), not one lookup per conversation.
 create or replace function "better_supabase"."list_inbox_conversations"(tenant uuid default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -13771,10 +14142,8 @@ set search_path = ''
 as $$
 begin
   return (
-    select coalesce(jsonb_agg("better_supabase"."inbox_conversation_json"(page."id") || jsonb_build_object('unread', page.unread) order by page."last_message_at" desc, page."id" desc), '[]'::jsonb)
-    from (
-      select v."id", v."last_message_at",
-        v."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = v."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz) as unread
+    with page as materialized (
+      select v."id" as id, v."inbox_id" as inbox, v."last_message_at" as last_message_at, to_jsonb(v) as body
       from "better_supabase"."inbox_conversations" v
       where (list_inbox_conversations.tenant is null or v."org_id" = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v."inbox_id" = (filter ->> 'inbox_id')::uuid)
@@ -13788,13 +14157,34 @@ begin
         and (nullif(filter ->> 'search', '') is null
           or v."subject" ilike '%' || (filter ->> 'search') || '%'
           or v."last_message_preview" ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'name' ilike '%' || (filter ->> 'search') || '%'
-          or "better_supabase"."inbox_contact_json"(v."id") ->> 'email' ilike '%' || (filter ->> 'search') || '%')
+          or v."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, list_inbox_conversations.tenant, filter ->> 'search') m))
         and (filter -> 'before' is null
           or (v."last_message_at", v."id") < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
       order by v."last_message_at" desc, v."id" desc
       limit least(greatest(coalesce((filter ->> 'limit')::integer, 50), 1), 200)
-    ) page
+    ), contacts as materialized (
+      select c.conversation, c.contact, c.contact_read_at
+      from "better_supabase"."inbox_contacts_json"((select coalesce(array_agg(page.id), '{}') from page)) c
+    )
+    select coalesce(jsonb_agg(
+      page.body || jsonb_build_object(
+        'contact', contacts.contact,
+        'inbox', box.item,
+        'last_read_at', seen.at,
+        'contact_read_at', contacts.contact_read_at,
+        'unread', page.last_message_at > coalesce(seen.at, '-infinity'::timestamptz))
+      order by page.last_message_at desc, page.id desc), '[]'::jsonb)
+    from page
+    left join contacts on contacts.conversation = page.id
+    left join lateral (
+      select jsonb_build_object('id', i."id", 'name', i."name", 'channel', i."channel") as item
+      from "better_supabase"."inboxes" i where i."id" = page.inbox
+    ) box on true
+    left join lateral (
+      select k."last_read_at" as at
+      from "better_supabase"."conversation_members" k
+      where k."conversation_id" = page.id and k."user_id" = (select auth.uid())
+    ) seen on true
   );
 end;
 $$;

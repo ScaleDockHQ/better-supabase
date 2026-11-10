@@ -13,6 +13,7 @@ import {
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
+import { registryReadable } from "./attachments-app.ts";
 import {
   COLLECTION_GRANTS,
   COLLECTIONS,
@@ -390,9 +391,20 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const scoped = `${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${ctx.scope.check(d.tenant, read)}) or ${ctx.scope.check(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)})`;
 
+  // The policy inlines the check over the row's columns (ADR 0644), qualified
+  // with the table so a subject's own columns can't capture them; the function
+  // stays for the write paths and for a type a later module's table holds.
+  const subjectPolicy = subjectScoped
+    ? registryReadable(ctx, layout, "knowledge", {
+        type: `${documents}.${d.subjectType}`,
+        id: `${documents}.${d.subjectId}`,
+        tenant: `${documents}.${d.tenant}`,
+      })
+    : "false";
+
   const readable = `(${d.tenant} is null or ${
     subjectColumns
-      ? `case when ${isSubject("")} then ${subjectScoped ? `${fn("knowledge_subject_readable")}(${d.subjectType}, ${d.subjectId})` : "false"} else (${scoped}) end`
+      ? `case when ${isSubject("")} then ${subjectPolicy} else (${scoped}) end`
       : scoped
   })${inCollection}`;
 

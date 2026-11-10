@@ -299,7 +299,7 @@ describe("inventory tracking", () => {
       .orThrow();
 
     expect(calls).toEqual([
-      { fn: "release_allocation", args: { allocation: "a1" } },
+      { fn: "release_allocation", args: { allocation: "a1", quantity: null } },
       {
         fn: "transfer_allocation",
         args: {
@@ -307,6 +307,7 @@ describe("inventory tracking", () => {
           document_type: "order",
           document_id: "o2",
           line_id: "l7",
+          quantity: null,
         },
       },
       {
@@ -316,6 +317,7 @@ describe("inventory tracking", () => {
           document_type: "order",
           document_id: "o3",
           line_id: null,
+          quantity: null,
         },
       },
     ]);
@@ -438,5 +440,38 @@ describe("inventory tracking", () => {
     });
 
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("inventory partial allocation moves", () => {
+  it("passes a quantity to a release and a transfer only when given", async () => {
+    const { calls, transport } = recorder(ALLOCATION);
+    const inventory = createInventory({ transport });
+
+    await inventory
+      .releaseAllocation({ allocationId: "a1", quantity: 3 })
+      .orThrow();
+    await inventory
+      .transferAllocation({
+        allocationId: "a1",
+        documentType: "order",
+        documentId: "o4",
+        quantity: 2.5,
+      })
+      .orThrow();
+
+    expect(calls).toEqual([
+      { fn: "release_allocation", args: { allocation: "a1", quantity: 3 } },
+      {
+        fn: "transfer_allocation",
+        args: {
+          allocation: "a1",
+          document_type: "order",
+          document_id: "o4",
+          line_id: null,
+          quantity: 2.5,
+        },
+      },
+    ]);
   });
 });

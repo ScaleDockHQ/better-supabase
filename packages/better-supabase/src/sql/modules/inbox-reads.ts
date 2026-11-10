@@ -12,6 +12,7 @@ export function inboxReadFunctions(q: InboxSql): string {
   const core = q.core;
   const cm = core.cols("messages");
   const ck = core.cols("members");
+  const ib = q.cols("inboxes");
   const conversationJson = fn("inbox_conversation_json");
   const messagesJson = fn("inbox_messages_json");
 
@@ -19,24 +20,31 @@ export function inboxReadFunctions(q: InboxSql): string {
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
 
-  // The contact's name and email come through inbox_contact_json: the person
-  // table asks for the contacts read key, which an agent need not hold.
+  // The contact's name and email come through inbox_contacts_json: the person
+  // table asks for the contacts read key, which an agent need not hold. One
+  // call finds the matching people, so a search never asks per conversation.
   const searched = [
     ...(["subject", "preview"] as const)
       .filter((column) => q.has("conversations", column))
-      .map((column) => `v.${cv(column)}`),
-    ...(["name", "email"] as const)
-      .filter((column) => q.people.has(column))
       .map(
-        (column) =>
-          `${fn("inbox_contact_json")}(v.${cv("id")}) ->> '${column}'`,
+        (column) => `v.${cv(column)} ilike '%' || (filter ->> 'search') || '%'`,
       ),
+    ...((["name", "email"] as const).some((column) => q.people.has(column))
+      ? [
+          `v.${cv("id")} in (select m.conversation from ${fn("inbox_contacts_json")}(null, list_inbox_conversations.tenant, filter ->> 'search') m)`,
+        ]
+      : []),
   ];
 
-  return `-- Conversations the caller reads (staff of the tenant, or a contact's own),
+  return `${inboxContactsFunctions(q)}
+
+-- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
 -- assignee ('me', 'unassigned' or an id), team_id, contact_id, search,
 -- before ({ last_message_at, id } of the previous page's last item), limit.
+-- The page is cut first, then the inbox, the caller's read time and the
+-- contacts join it in one pass (the contacts through inbox_contacts_json, which
+-- asks the permission once per tenant), not one lookup per conversation.
 create or replace function ${fn("list_inbox_conversations")}(tenant ${id} default null, filter jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -45,10 +53,8 @@ set search_path = ''
 as $$
 begin
   return (
-    select coalesce(jsonb_agg(${conversationJson}(page.${cv("id")}) || jsonb_build_object('unread', page.unread) order by page.${cv("lastMessageAt")} desc, page.${cv("id")} desc), '[]'::jsonb)
-    from (
-      select v.${cv("id")}, v.${cv("lastMessageAt")},
-        v.${cv("lastMessageAt")} > coalesce((select k.${ck("lastReadAt")} from ${core.t("members")} k where k.${ck("conversation")} = v.${cv("id")} and k.${ck("user")} = (select auth.uid())), '-infinity'::timestamptz) as unread
+    with page as materialized (
+      select v.${cv("id")} as id, v.${cv("inbox")} as inbox, v.${cv("lastMessageAt")} as last_message_at, ${q.json("conversations", "v")} as body
       from ${T("conversations")} v
       where (list_inbox_conversations.tenant is null or v.${cv("tenant")} = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v.${cv("inbox")} = (filter ->> 'inbox_id')::uuid)
@@ -62,14 +68,36 @@ begin
         and (nullif(filter ->> 'search', '') is null${searched
           .map(
             (column) => `
-          or ${column} ilike '%' || (filter ->> 'search') || '%'`,
+          or ${column}`,
           )
           .join("")})
         and (filter -> 'before' is null
           or (v.${cv("lastMessageAt")}, v.${cv("id")}) < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
       order by v.${cv("lastMessageAt")} desc, v.${cv("id")} desc
       limit ${pageSize("(filter ->> 'limit')::integer", 50, 200)}
-    ) page
+    ), contacts as materialized (
+      select c.conversation, c.contact, c.contact_read_at
+      from ${fn("inbox_contacts_json")}((select coalesce(array_agg(page.id), '{}') from page)) c
+    )
+    select coalesce(jsonb_agg(
+      page.body || jsonb_build_object(
+        'contact', contacts.contact,
+        'inbox', box.item,
+        'last_read_at', seen.at,
+        'contact_read_at', contacts.contact_read_at,
+        'unread', page.last_message_at > coalesce(seen.at, '-infinity'::timestamptz))
+      order by page.last_message_at desc, page.id desc), '[]'::jsonb)
+    from page
+    left join contacts on contacts.conversation = page.id
+    left join lateral (
+      select jsonb_build_object('id', i.${ib("id")}, 'name', i.${ib("name")}, 'channel', i.${ib("channel")}) as item
+      from ${T("inboxes")} i where i.${ib("id")} = page.inbox
+    ) box on true
+    left join lateral (
+      select k.${ck("lastReadAt")} as at
+      from ${core.t("members")} k
+      where k.${ck("conversation")} = page.id and k.${ck("user")} = (select auth.uid())
+    ) seen on true
   );
 end;
 $$;
@@ -278,4 +306,70 @@ end;
 $$;
 revoke execute on function ${fn("inbox_contact_read_at")}(uuid) from public, anon;
 grant execute on function ${fn("inbox_contact_read_at")}(uuid) to authenticated, service_role;`;
+}
+
+/**
+ * The contacts of many conversations in one pass, or the conversations whose
+ * contact matches a search term. It runs as its owner, like
+ * `inbox_contact_json`, and asks the staff permission once per tenant instead
+ * of once per conversation. It is plpgsql, so the contacts and messaging tables
+ * bind when it runs, not when the inbox renders.
+ */
+function inboxContactsFunctions(q: InboxSql): string {
+  const { fn, people } = q;
+  const cv = q.cols("conversations");
+  const ck = q.core.cols("members");
+  const pc = people.c;
+
+  const staff = (tenant: string): string =>
+    `(${q.service} or coalesce(${q.can(tenant, "read")}, false))`;
+
+  const matches = (["name", "email"] as const)
+    .filter((column) => people.has(column))
+    .map(
+      (column) =>
+        `p.${pc(column)} ilike '%' || inbox_contacts_json.term || '%'`,
+    );
+
+  return `-- Contact and read time of conversations, as inbox_contact_json and
+-- inbox_contact_read_at return them one at a time: the contact for staff of
+-- the tenant or the contact's own account, the read time for staff only. ids
+-- picks conversations; term (with an optional tenant) picks those whose
+-- contact's name or email contains it. The permission is asked once per tenant.
+create or replace function ${fn("inbox_contacts_json")}(ids uuid[] default null, tenant ${q.id} default null, term text default null)
+returns table (conversation uuid, contact jsonb, contact_read_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  with c as (
+    select v.${cv("id")} as id, v.${cv("tenant")} as scope, v.${cv("contact")} as person
+    from ${q.t("conversations")} v
+    where (inbox_contacts_json.ids is not null or inbox_contacts_json.term is not null)
+      and (inbox_contacts_json.ids is null or v.${cv("id")} = any (inbox_contacts_json.ids))
+      and (inbox_contacts_json.tenant is null or v.${cv("tenant")} = inbox_contacts_json.tenant)
+  ), staff as (
+    select t.scope, ${staff("t.scope")} as ok
+    from (select distinct c.scope from c) t
+  )
+  select c.id,
+    case when s.ok or p.${pc("user")} = (select auth.uid()) then
+      jsonb_build_object('id', p.${pc("id")}, 'name', ${people.or("p", "name")}, 'email', ${people.or("p", "email")}, 'phone', ${people.or("p", "phone")}, 'avatar_url', ${people.or("p", "avatarUrl")}, 'user_id', ${people.or("p", "user")})
+    end,
+    case when s.ok then (
+      select k.${ck("lastReadAt")} from ${q.core.t("members")} k
+      where k.${ck("conversation")} = c.id and k.${ck("user")} = p.${pc("user")}
+    ) end
+  from c
+  join staff s on s.scope = c.scope
+  join ${people.t} p on p.${pc("id")} = c.person
+  where inbox_contacts_json.term is null
+    or ((s.ok or p.${pc("user")} = (select auth.uid())) and (${matches.length > 0 ? matches.join("\n      or ") : "false"}));
+end;
+$$;
+revoke execute on function ${fn("inbox_contacts_json")}(uuid[], ${q.id}, text) from public, anon;
+grant execute on function ${fn("inbox_contacts_json")}(uuid[], ${q.id}, text) to authenticated, service_role;`;
 }

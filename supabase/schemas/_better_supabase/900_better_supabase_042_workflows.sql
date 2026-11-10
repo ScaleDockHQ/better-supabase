@@ -1,6 +1,6 @@
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:3a4405c33bd517a0013dc3f35addb30774bc0c474fbcba482c1bebd198223190
+-- @bsb-hash sha256:b9eb2c3ab72d2be8bb09695b83d416eb4e1dd39f3c8a16d30107df0f9b8c2a80
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ create table "better_supabase"."workflow_runs" (
   "cancel_requested_at" timestamptz,
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
-create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc);
+create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc, "id" desc);
 create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
