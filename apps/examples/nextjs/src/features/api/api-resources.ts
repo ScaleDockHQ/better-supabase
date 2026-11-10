@@ -4,9 +4,9 @@ import { dbError, err } from "better-supabase";
 import { defineAction } from "better-supabase/next";
 import * as v from "valibot";
 
-import type { bsb } from "@/lib/supabase/server";
+import type { bsbApi } from "@/lib/supabase/server-api";
 
-type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
+type Db = Awaited<ReturnType<typeof bsbApi.cached>>["db"];
 
 /** The REST API's base path; the OpenAPI document and the routes share it. */
 export const API_BASE_PATH = "/api/v1";
@@ -132,4 +132,4 @@ export const apiResources = {
       }),
     },
   },
-} satisfies Parameters<typeof bsb.resources>[0];
+} satisfies Parameters<typeof bsbApi.resources>[0];

@@ -66,6 +66,15 @@ flag.
   anything there. `pnpm test:e2e` in the example builds with the flag and
   runs `next start`; it needs the local stack and is not part of `verify`.
 
+## Write refresh
+
+- A write calls `refreshCaller(auth, [DOMAIN_TAG, ...])` (ADR 0615, 0636). Every
+  `'use cache: private'` read of a domain calls `cacheTag` with its own tag and the
+  tags of every domain whose rows it shows, so a new read that joins another
+  domain's table needs that table's tag too. `tests/lib/refresh-tags.test.ts`
+  checks the two sides. Only roles, sessions and trash call `refreshCaller(auth)`
+  with no tags, because they change what every read shows.
+
 ## Offline and PWA
 
 - The example has one service worker, `public/sw.js`, for push and the
