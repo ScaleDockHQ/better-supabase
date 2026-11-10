@@ -35,3 +35,15 @@ export { pipelinesBlock } from "./manifest.ts";
 export { pipelinesEvents } from "./events.ts";
 
 export type { PipelinesEvents } from "./events.ts";
+
+export { createBoardController } from "./client.ts";
+
+export type {
+  BoardActions,
+  BoardCard,
+  BoardController,
+  BoardLane,
+  BoardMove,
+  BoardOptions,
+  BoardSnapshot,
+} from "./client.ts";
