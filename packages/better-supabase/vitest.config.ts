@@ -1,5 +1,38 @@
+import type { TestSpecification } from "vitest/node";
+
+import { relative } from "node:path";
 import { argv, env } from "node:process";
+import { fileURLToPath } from "node:url";
 import { defineConfig, mergeConfig } from "vitest/config";
+import { BaseSequencer } from "vitest/node";
+
+import { assignShard, readDurations } from "./tests/unit-shard.ts";
+
+const durations = readDurations(
+  fileURLToPath(new URL("tests/unit-durations.json", import.meta.url)),
+);
+
+/** Packs `--shard` by the measured file durations instead of by path hash. */
+class DurationSequencer extends BaseSequencer {
+  override shard(files: TestSpecification[]): Promise<TestSpecification[]> {
+    const shard = this.ctx.config.shard;
+
+    if (shard === undefined) {
+      return Promise.resolve(files);
+    }
+
+    return Promise.resolve(
+      assignShard(
+        files,
+        (spec) =>
+          relative(this.ctx.config.root, spec.moduleId).replaceAll("\\", "/"),
+        durations,
+        shard.index,
+        shard.count,
+      ),
+    );
+  }
+}
 
 // A CI shard covers part of the code, so only `vitest --merge-reports --coverage` checks the
 // thresholds. autoUpdate edits the defineConfig below, so the real numbers stay there.
@@ -41,6 +74,8 @@ export default mergeConfig(
             // The first test in a CLI file pays the lazy command imports; with coverage on and
             // every workspace testing in parallel, that passes the 5 second default.
             testTimeout: 20_000,
+            // Only this project: integration shards stay on Vitest's path hash.
+            sequence: { sequencer: DurationSequencer },
             typecheck: {
               enabled: true,
               include: ["tests/**/*.test-d.ts"],
