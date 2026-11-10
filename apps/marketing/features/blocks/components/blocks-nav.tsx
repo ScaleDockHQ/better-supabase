@@ -4,7 +4,6 @@ import { CatalogLink } from "@/features/catalog/components/catalog-link";
 import { blockGroups, blockPath } from "@/lib/blocks";
 
 import { categoryStyle } from "../categories";
-import { BlockGlyph } from "./block-icon";
 import { CategoryIcon } from "./category-icon";
 
 /**
@@ -41,7 +40,6 @@ export function BlocksNav() {
               {group.blocks.map((block) => (
                 <li key={block.name}>
                   <CatalogLink href={blockPath(block.name)} className="min-h-7">
-                    <BlockGlyph name={block.name} category={block.category} />
                     <span className="truncate">{block.title}</span>
                   </CatalogLink>
                 </li>

@@ -4,16 +4,14 @@ import { Suspense } from "react";
 
 import type { RecipeGroup } from "@/lib/recipes";
 
-import { Badge } from "@/components/reui/badge";
 import { JsonLd } from "@/components/site/json-ld";
 import { SiteLink } from "@/components/site/site-link";
 import { categoryStyle } from "@/features/blocks/categories";
-import { BlockIcon } from "@/features/blocks/components/block-icon";
 import { CategoryIcon } from "@/features/blocks/components/category-icon";
 import { PageHeader } from "@/features/catalog/components/page-header";
+import { MoreRecipes } from "@/features/recipes/components/more-recipes";
 import { RecipeFilters } from "@/features/recipes/components/recipe-filters";
 import { RecipeTile } from "@/features/recipes/components/recipe-tile";
-import { blockPath } from "@/lib/blocks";
 import {
   availableRecipes,
   recipeGroups,
@@ -29,6 +27,12 @@ export const metadata: Metadata = {
     "Build a notification bell, a command search or a settings screen from your own shadcn components and a block, on the web and in React Native.",
   alternates: { canonical: "/recipes" },
 };
+
+/**
+ * How many recipes of a category get a tile. The rest are links in a collapsed
+ * list, so the page's document stays under 512 KB (Vercel warns above it).
+ */
+const TILES_PER_CATEGORY = 1;
 
 function RecipeGroupSection({ group }: { group: RecipeGroup }) {
   const headingId = `${categoryStyle(group.category).slug}-recipes`;
@@ -52,53 +56,26 @@ function RecipeGroupSection({ group }: { group: RecipeGroup }) {
       </h2>
       {group.available.length === 0 ? null : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {group.available.map((recipe) => (
+          {group.available.slice(0, TILES_PER_CATEGORY).map((recipe) => (
             <li key={recipe.slug}>
               <RecipeTile recipe={recipeSummary(recipe)} />
             </li>
           ))}
         </ul>
       )}
+      {group.available.length > TILES_PER_CATEGORY ? (
+        <MoreRecipes
+          category={group.category}
+          shown={TILES_PER_CATEGORY}
+          total={group.available.length}
+        />
+      ) : null}
       {group.planned.length === 0 ? null : (
-        <ul
-          aria-label={`Planned ${group.category} recipes`}
-          className="flex flex-col divide-y divide-border rounded-xl border border-border"
-        >
-          {group.planned.map((recipe) => (
-            <li
-              key={recipe.slug}
-              className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4"
-            >
-              <span className="flex items-center gap-3 text-sm font-medium sm:w-56">
-                <BlockIcon
-                  name={recipe.block}
-                  category={group.category}
-                  size="sm"
-                />
-                {recipe.title}
-              </span>
-              <span className="flex flex-1 flex-col gap-1">
-                <span className="text-sm text-muted-foreground">
-                  {recipe.description}
-                </span>
-                {recipe.missing ? (
-                  <span className="text-xs text-muted-foreground">
-                    Waits for: {recipe.missing}
-                  </span>
-                ) : null}
-              </span>
-              <span className="flex items-center gap-2">
-                <Badge variant="outline">planned</Badge>
-                <SiteLink
-                  href={blockPath(recipe.block)}
-                  className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {recipe.block}
-                </SiteLink>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <p className="text-sm leading-6 text-muted-foreground">
+          <span className="font-medium text-foreground">Planned:</span>{" "}
+          {group.planned.map((recipe) => recipe.title).join(", ")}. Each waits
+          for a feature of its block; the block&apos;s page says which.
+        </p>
       )}
     </section>
   );
@@ -127,7 +104,6 @@ export default function RecipesPage() {
       </PageHeader>
 
       <RecipeFilters
-        recipes={availableRecipes.map(recipeSummary)}
         categories={groups
           .filter((group) => group.available.length > 0)
           .map((group) => group.category)}

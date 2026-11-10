@@ -54,7 +54,7 @@ export default function BlocksPage() {
         </ul>
       </nav>
 
-      <BlockSearch blocks={blocks}>
+      <BlockSearch count={blocks.length}>
         <div className="flex flex-col gap-14">
           {groups.map((group, index) =>
             // The first category is above the fold; each later one streams in its own boundary.

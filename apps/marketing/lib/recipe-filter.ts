@@ -1,6 +1,8 @@
 // Kept apart from `recipes.ts`, which loads the recipe and catalog JSON, so
 // the client filters can import it.
 
+import * as v from "valibot";
+
 import type { RecipePlatform } from "./recipe-platform";
 
 /** A piece of UI inside a page, or a whole page. */
@@ -32,6 +34,24 @@ export interface RecipeSummary {
     readonly height: number;
   } | null;
 }
+
+/** The `/recipes/index.json` document, checked before the filters use it. */
+export const recipeSummariesSchema = v.array(
+  v.object({
+    slug: v.string(),
+    title: v.string(),
+    description: v.string(),
+    block: v.string(),
+    blocks: v.array(v.string()),
+    category: v.string(),
+    kind: v.picklist(["component", "screen"]),
+    platforms: v.array(v.picklist(["web", "native"])),
+    hook: v.nullable(v.string()),
+    screenshot: v.nullable(
+      v.object({ src: v.string(), width: v.number(), height: v.number() }),
+    ),
+  }),
+);
 
 export function recipePath(slug: string): `/recipes/${string}` {
   return `/recipes/${slug}`;

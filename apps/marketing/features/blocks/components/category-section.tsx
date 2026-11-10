@@ -6,8 +6,18 @@ import { categoryStyle } from "../categories";
 import { BlockPreview } from "./block-preview";
 import { BlockTile } from "./block-tile";
 import { CategoryIcon } from "./category-icon";
+import { MoreBlocks } from "./more-blocks";
 
-/** A category on `/blocks`: its scene and summary, then a tile per block. */
+/**
+ * How many blocks of a category get a tile. The rest load on demand behind a
+ * button, so the page's document stays under 512 KB (Vercel warns above it).
+ */
+export const TILES_PER_CATEGORY = 2;
+
+/**
+ * A category on `/blocks`: its scene and summary, a tile per leading block,
+ * then a button for the rest.
+ */
 export function CategorySection({ group }: { group: BlockGroup }) {
   const style = categoryStyle(group.category);
   const headingId = `${style.slug}-heading`;
@@ -43,12 +53,19 @@ export function CategorySection({ group }: { group: BlockGroup }) {
         />
       </div>
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {group.blocks.map((block) => (
+        {group.blocks.slice(0, TILES_PER_CATEGORY).map((block) => (
           <li key={block.name}>
             <BlockTile block={block} />
           </li>
         ))}
       </ul>
+      {count > TILES_PER_CATEGORY ? (
+        <MoreBlocks
+          category={group.category}
+          shown={TILES_PER_CATEGORY}
+          total={count}
+        />
+      ) : null}
     </section>
   );
 }
