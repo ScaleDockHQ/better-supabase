@@ -2686,6 +2686,15 @@ view and follows watch keys on the columns' own type. When the live catalog
 gives the two columns different types, the comparison stays text and cannot use
 the key's index. Make the columns the same type.
 
+### BS633
+
+**Info: an app row trigger has no `importing()` guard.** An import writes many
+rows in one transaction, and a row trigger of yours runs for each of them. If
+the function sends, enqueues or recomputes something per row, return early
+when `better_supabase.importing()` is true and do the work once after the
+import. Doctor reads the trigger functions in `supabase/schemas` and skips
+triggers named `bsb_*`.
+
 ### BS612
 
 **Info: the proxy re-syncs session cookies with `setAll`.** Since 0.40 the library's own cookie handling in `bsb.proxy` writes them. Remove the callback.
