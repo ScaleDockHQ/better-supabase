@@ -130,6 +130,7 @@ describe("columnPins", () => {
             ...drive,
             options: { extraColumns: { label: "text" }, uniqueNumber: false },
           },
+          tags: undefined,
         },
         instances: {
           files: {

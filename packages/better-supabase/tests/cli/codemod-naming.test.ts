@@ -396,6 +396,7 @@ describe("block references", () => {
         '// blocks["time-tracking"] stays in a comment',
         'defineBlocks(blockConfig, { "time-tracking": blocks["time-tracking"].with({}) });',
         'const e = { "time-tracking": other["time-tracking"] };',
+        '// "time-tracking": blocks["time-entries"] and db.$blocks.timeTracking',
         "",
       ].join("\n"),
     );
@@ -410,6 +411,7 @@ describe("block references", () => {
         '// blocks["time-tracking"] stays in a comment',
         'defineBlocks(blockConfig, { "time-entries": blocks["time-entries"].with({}) });',
         'const e = { "time-tracking": other["time-tracking"] };',
+        '// "time-tracking": blocks["time-entries"] and db.$blocks.timeTracking',
         "",
       ].join("\n"),
     );
