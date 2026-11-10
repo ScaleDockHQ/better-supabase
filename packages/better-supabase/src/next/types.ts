@@ -245,8 +245,18 @@ export interface ActionOptions<
       "auth" | "resolution" | "supabase"
     >,
   ) => DbError | undefined | Promise<DbError | undefined>;
-  /** Maps the `ActionResult` before it returns, for example to translate errors. */
-  readonly result?: (outcome: ActionResult<unknown>) => ActionResult<unknown>;
+  /**
+   * Maps the `ActionResult` before it returns, for example to translate errors
+   * or to answer in the app's own shape. It may be async.
+   */
+  readonly result?: (
+    outcome: ActionResult<unknown>,
+  ) => ActionResult<unknown> | Promise<ActionResult<unknown>>;
+  /**
+   * Tables a successful call changes: drops the cache entries `bsb.tags` tagged
+   * with them, such as `reads.deals.board.tables`.
+   */
+  readonly invalidates?: readonly string[];
 }
 
 /**
@@ -633,13 +643,8 @@ export interface BetterNext<
   >(
     client: (ctx: ServerContext<M, F, E, C, P, B, D>) => Cl,
     method: K & BlockMethodName<Cl>,
-    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> & {
-      /**
-       * Tables a successful call changes: drops the cache entries `bsb.tags`
-       * tagged with them, such as `reads.deals.board.tables`.
-       */
-      readonly invalidates?: readonly string[];
-    } & BlockActionParams<
+    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> &
+      BlockActionParams<
         S,
         BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
         ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>
