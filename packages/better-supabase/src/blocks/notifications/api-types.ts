@@ -127,9 +127,15 @@ export interface ListOptions<
 
 export interface PageOptions<K extends string = string> extends Omit<
   ListOptions<K>,
-  "before" | "cursor"
+  "before"
 > {
+  /** Skip this many items. Prefer `cursor`, which never reads skipped rows. */
   readonly offset?: number;
+  /**
+   * Stop counting `total` here (default 10,000). `null` counts every match,
+   * which reads the whole inbox.
+   */
+  readonly totalCap?: number | null;
 }
 
 export interface NotificationPage<
@@ -137,7 +143,12 @@ export interface NotificationPage<
   R extends Rendered<K> = Rendered<K>,
 > {
   readonly items: readonly R[];
+  /** The matches counted, at most `totalCap`. */
   readonly total: number;
+  /** Whether `total` stopped at `totalCap`: "10,000 or more". */
+  readonly totalCapped: boolean;
+  /** Whether an older page exists after these items. */
+  readonly hasMore: boolean;
 }
 
 export interface NotificationSubscription {
@@ -480,8 +491,13 @@ export interface Notifications<
   page(
     options?: PageOptions<TypeName<K>>,
   ): AsyncResult<NotificationPage<TypeName<K>, NotificationOf<K, F>>>;
+  /**
+   * Each count stops at `cap` (default 100), so a badge shows "99+" without
+   * reading the whole inbox. `null` counts every row.
+   */
   counts(options?: {
     readonly tenant?: string;
+    readonly cap?: number | null;
   }): AsyncResult<NotificationCounts>;
   /** Marks the given notifications, or all of them, read. */
   markRead(options?: {

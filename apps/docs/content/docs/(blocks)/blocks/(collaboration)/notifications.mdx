@@ -224,10 +224,15 @@ const { items, total } = await notifications
 ```
 
 It calls `notification_page(tenant, status, types, subject_types, search,
-max_items, skip, read, resolved, dismissed)`, which counts the matches in
-the same query. `list_notifications` takes the same three filters after
-`search`. `list` stays
-the cheaper choice for an infinite scroll.
+max_items, skip, read, resolved, dismissed, before, before_id, total_cap)`.
+Both reads build their query from the filters you pass, so the default inbox
+reads the partial inbox index in order. The total stops at `totalCap`
+(default 10,000) and `totalCapped` says when it did, so an inbox with
+hundreds of thousands of rows is never counted in full; pass `totalCap: null`
+for an exact count. Pass `cursor` (the last item's `createdAt` and `id`)
+instead of `offset` to page by key: the page then never reads the skipped
+rows, and `hasMore` says whether an older page exists. `list` stays the
+cheaper choice for an infinite scroll.
 
 ### Unread again and counts
 
@@ -237,7 +242,9 @@ the changed notifications and leaves dismissed notifications alone.
 
 `counts()` returns `unread`, `actionable` (unresolved notifications of the
 `actionable` types) and `actionableSubjects`, which counts each subject
-once. Two reminders about the same invoice count as two in `actionable` and
+once. Each count stops at `cap` (default 100), so a badge reads at most 100
+rows of the unread index and shows "99+" above it; `counts({ cap: null })`
+counts every row. Two reminders about the same invoice count as two in `actionable` and
 as one in `actionableSubjects`, which suits a badge that counts open tasks.
 
 ### Hydrating a page

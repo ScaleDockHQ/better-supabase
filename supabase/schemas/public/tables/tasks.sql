@@ -91,6 +91,8 @@ create index "tasks_project_id_idx" on "public"."tasks" ("project_id");
 
 create index "tasks_status_rank_idx" on "public"."tasks" ("status", "rank");
 
+create index "tasks_organization_id_rank_idx" on "public"."tasks" ("organization_id", "rank");
+
 drop trigger if exists "bsb_updated_at" on "public"."tasks";
 
 create trigger "bsb_updated_at" before update on "public"."tasks"

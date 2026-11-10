@@ -644,7 +644,8 @@ ${serviceGrant(`${fn("copy_comments")}(${id}, text, text, text, text)`)}
 ${assignSql(ctx)}${subjectCascades(
     ctx,
     subjectsOption(ctx, [], { registryOnly: true }),
-    `delete from ${m.table("conversations")} c where c.${cv("kind")} = 'subject' and c.${cv("subjectType")} = v_type and c.${cv("subjectId")} = v_id and (v_tenant is null or c.${cv("tenant")}::text = v_tenant);`,
+    (tenantAnd) =>
+      `delete from ${m.table("conversations")} c where c.${cv("kind")} = 'subject' and c.${cv("subjectType")} = v_type and c.${cv("subjectId")} = v_id${tenantAnd("c", cv("tenant"))};`,
     { tenant: true },
   )}`;
 }

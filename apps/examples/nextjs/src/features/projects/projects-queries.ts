@@ -30,6 +30,7 @@ const TASK_LIMIT = 500;
 
 /** The filters of a task query as a repository `where`. */
 interface TaskWhere {
+  organizationId?: { eq: string };
   title?: { contains: string };
   status?: { eq: TaskStatus };
   projectId?: { eq: string };
@@ -37,8 +38,10 @@ interface TaskWhere {
 
 function taskWhere(
   query: Pick<TaskQuery, "q" | "status" | "projectId">,
+  tenant: string,
 ): TaskWhere {
-  const where: TaskWhere = {};
+  // The tenant leads the filter so the (organization_id, rank) index serves the list.
+  const where: TaskWhere = { organizationId: { eq: tenant } };
 
   if (query.q !== "") {
     where.title = { contains: query.q };
@@ -96,15 +99,16 @@ export async function getTasks(
 ): Promise<readonly TaskRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  const tenant = tenantOf(session);
 
-  if (!tenantOf(session)) {
+  if (!tenant) {
     return null;
   }
 
   const tasks = await db.tasks
     .list({
       select: [...TASK_COLUMNS],
-      where: taskWhere(query),
+      where: taskWhere(query, tenant),
       orderBy: { rank: "asc" },
       limit: TASK_LIMIT,
     })
@@ -119,15 +123,16 @@ export async function getProjectOptions(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
+  const tenant = tenantOf(session);
 
-  if (!tenantOf(session)) {
+  if (!tenant) {
     return null;
   }
 
   return db.projects
     .list({
       select: ["id", "name"],
-      where: { deletedAt: { isNull: true } },
+      where: { organizationId: { eq: tenant }, deletedAt: { isNull: true } },
       orderBy: { name: "asc" },
       limit: TASK_LIMIT,
     })

@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:c58f33374f7b6d2d366986778424d03ca6bac98371b3ae47a14db6c1cfcee5ae
+-- @bsb-hash sha256:826ce195acdd7280bf6f109136578c138c703b05630354bed6f36e3197ffe2c5
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -533,18 +533,23 @@ as $$
 declare
   v_type text := tg_argv[0];
   v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
 begin
-  delete from "better_supabase"."reactions" r where r."subject_type" = v_type and r."subject_id" = v_id;
+  if v_tenant is null then
+    delete from "better_supabase"."reactions" r where r."subject_type" = v_type and r."subject_id" = v_id;
+  else
+    delete from "better_supabase"."reactions" r where r."subject_type" = v_type and r."subject_id" = v_id and r."tenant_id" = v_tenant::uuid;
+  end if;
   return null;
 end;
 $$;
 revoke execute on function "better_supabase"."reactions_subject_deleted"() from public, anon, authenticated;
 create trigger "bsb_reactions_product_cascade"
   after delete on "better_supabase"."products"
-  for each row execute function "better_supabase"."reactions_subject_deleted"('product', 'id');
+  for each row execute function "better_supabase"."reactions_subject_deleted"('product', 'id', 'tenant_id');
 create trigger "bsb_reactions_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
-  for each row execute function "better_supabase"."reactions_subject_deleted"('product_variant', 'id');
+  for each row execute function "better_supabase"."reactions_subject_deleted"('product_variant', 'id', 'tenant_id');
 
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.

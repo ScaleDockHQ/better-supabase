@@ -28,7 +28,7 @@ and the rate-limit header helpers to `better-supabase/server/rate-limit`. The
 old names have no alias.
 
 The block builder checks port uniqueness and resolves every consumed port to
-its provider once per block set (`wiringOf` in `blocks/create-blocks.ts`) and
+its provider once per block set (`checked` in `blocks/create-blocks.ts`) and
 keeps the result, so each later builder reads it. Plugin `afterMutation` events
 copy the returned rows on the first read of `rows`, as the `mutation` event
 already did.

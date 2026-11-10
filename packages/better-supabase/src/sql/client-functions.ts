@@ -43,7 +43,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   attachments:
     "claim_attachment_upload confirm_attachment create_attachment define_attachment_document_type delete_attachment delete_attachment_document_type get_attachment list_attachment_document_types list_attachment_versions list_attachments mark_attachment_missing object_scan replace_attachment restore_attachment_version set_attachment_status set_object_scan",
   audit:
-    "audit_event audit_event_many audit_events_tenants chain_heads chain_proof count_audit_events list_audit_events list_chain_checkpoints purge_audit_log record_chain_checkpoint verify_chain",
+    "audit_event audit_event_many audit_event_types audit_events_tenants chain_heads chain_proof count_audit_events get_audit_event list_audit_events list_chain_checkpoints purge_audit_log record_chain_checkpoint verify_chain",
   automations:
     "install_default_rules matching_rules rank_rule record_rule_evaluation remove_rule reset_default_rule rule_evaluations_list rule_fields_list rule_get rule_versions_list rules_list run_rules save_rule set_rule_enabled sync_rule_fields",
   banking:

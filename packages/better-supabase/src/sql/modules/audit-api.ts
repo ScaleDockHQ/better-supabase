@@ -57,31 +57,40 @@ export function listEntries(
       : [],
   );
 
-  const pairs = ENTRY_KEYS.filter(
-    ([logical]) =>
-      hasColumn(ctx, "log", logical) &&
-      !hidden.has(logical) &&
-      !(restricted && (logical === "old" || logical === "new")),
-  ).map(([logical, key]) => {
-    const value = `l.${c(logical)}`;
+  const entryOf = (omit: ReadonlySet<string>): string => {
+    const pairs = ENTRY_KEYS.filter(
+      ([logical]) =>
+        hasColumn(ctx, "log", logical) &&
+        !hidden.has(logical) &&
+        !omit.has(logical) &&
+        !(restricted && (logical === "old" || logical === "new")),
+    ).map(([logical, key]) => {
+      const value = `l.${c(logical)}`;
 
-    return `'${key}', ${isAuditValueColumn(logical) ? auditRead(ctx, logical, value) : value}`;
-  });
+      return `'${key}', ${isAuditValueColumn(logical) ? auditRead(ctx, logical, value) : value}`;
+    });
 
-  if (extra.length > 0) {
-    pairs.push(
-      `'columns', jsonb_build_object(${extra.map(([column]) => `${sqlString(column)}, l.${sqlIdent(column)}`).join(", ")})`,
-    );
-  }
+    if (extra.length > 0 && !omit.has("columns")) {
+      pairs.push(
+        `'columns', jsonb_build_object(${extra.map(([column]) => `${sqlString(column)}, l.${sqlIdent(column)}`).join(", ")})`,
+      );
+    }
 
-  // jsonb_build_object takes at most 100 arguments; split in chunks of 20 keys.
-  const chunks: string[] = [];
+    // jsonb_build_object takes at most 100 arguments; split in chunks of 20 keys.
+    const chunks: string[] = [];
 
-  for (let index = 0; index < pairs.length; index += 20) {
-    chunks.push(
-      `jsonb_build_object(${pairs.slice(index, index + 20).join(", ")})`,
-    );
-  }
+    for (let index = 0; index < pairs.length; index += 20) {
+      chunks.push(
+        `jsonb_build_object(${pairs.slice(index, index + 20).join(", ")})`,
+      );
+    }
+
+    return chunks.join(" || ");
+  };
+
+  const fullEntry = entryOf(new Set());
+  // The summary form leaves out what makes a row large: the old and new record, the changed columns and the metadata.
+  const summaryEntry = entryOf(new Set(["old", "new", "changed", "metadata"]));
 
   // The filters and their positions in the dynamic query's `using` list.
   const conditions: string[] = [];
@@ -164,7 +173,9 @@ export function listEntries(
   until timestamptz default null`;
 
   const filterTypes = `${id}[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz`;
-  const listTypes = `${filterTypes}, timestamptz, text, integer, boolean, integer`;
+  const previousListTypes = `${filterTypes}, timestamptz, text, integer, boolean, integer`;
+  const listTypes = `${previousListTypes}, text`;
+  const countTypes = `${filterTypes}, integer`;
 
   // A managed log without options.readPolicy grants users no select, so the
   // invoker functions would only raise 42501 for them.
@@ -178,6 +189,48 @@ export function listEntries(
       ? `revoke execute on function ${fn}(${types}) from authenticated;\n`
       : "";
 
+  const eventTypes = hasColumn(ctx, "log", "eventType")
+    ? `
+
+-- The distinct event types the caller can read, found by skipping through the
+-- event type index (a recursive loose scan) instead of reading every row.
+create or replace function ${ctx.fn("audit_event_types")}(for_tenants ${id}[] default null)
+returns text[]
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_types text[] := '{}';
+  v_next text;
+begin
+  -- One loose index scan per tenant: min() over the (tenant, event type) index
+  -- reads one entry, where "tenant = any(...)" would read every row. Without
+  -- for_tenants the scan has no tenant to lead with, so pass the tenants.
+  loop
+    if cardinality(for_tenants) > 0 then
+      execute $q$select min(x.m) from unnest($1) t(scope_id)
+        cross join lateral (select min(l.${c("eventType")}) as m from ${log} l
+          where l.${c("tenant")} = t.scope_id and l.${c("eventType")} > $2) x$q$
+      into v_next
+      using for_tenants, coalesce(v_types[cardinality(v_types)], '');
+    else
+      execute $q$select min(l.${c("eventType")}) from ${log} l where l.${c("eventType")} > $1$q$
+      into v_next
+      using coalesce(v_types[cardinality(v_types)], '');
+    end if;
+    exit when v_next is null;
+    v_types := v_types || v_next;
+    exit when cardinality(v_types) >= 500;
+  end loop;
+  return v_types;
+end;
+$$;
+revoke execute on function ${ctx.fn("audit_event_types")}(${id}[]) from public, anon;
+${revokeUsers(ctx.fn("audit_event_types"), `${id}[]`)}grant execute on function ${ctx.fn("audit_event_types")}(${id}[]) to ${callers};`
+    : "";
+
   return `-- A page of the entries the caller can read, newest first unless ascending:
 -- the read policy decides (security invoker). Each filter takes several
 -- values; search matches the event type, summary, labels, record and table.
@@ -186,13 +239,15 @@ export function listEntries(
 -- skip is ignored with a cursor, so keyset pages never scan skipped rows.
 drop function if exists ${ctx.fn("list_audit_events")}(${id}, text, uuid, text, text, timestamptz, timestamptz, timestamptz, text, integer);
 drop function if exists ${ctx.fn("list_audit_events")}(${filterTypes}, timestamptz, text, integer, boolean);
+drop function if exists ${ctx.fn("list_audit_events")}(${previousListTypes});
 create or replace function ${ctx.fn("list_audit_events")}(
   ${filters},
   cursor_at timestamptz default null,
   cursor_id text default null,
   max_items integer default 50,
   ascending boolean default false,
-  skip integer default 0
+  skip integer default 0,
+  entry_fields text default 'full'
 )
 returns jsonb
 language plpgsql
@@ -204,8 +259,16 @@ declare
   v_where text := 'true';
   v_order text := case when ascending then 'asc' else 'desc' end;
   v_skip text := '';
+  v_entry text;
   result jsonb;
 begin
+  -- 'summary' leaves out the old and new record, the changed columns and the
+  -- metadata, so a page of a busy log stays small. get_audit_event returns the
+  -- full entry.
+  v_entry := case when entry_fields = 'summary'
+    then $e$${summaryEntry}$e$
+    else $e$${fullEntry}$e$
+  end;
 ${where}
   if cursor_at is not null then
     v_where := v_where || case when ascending
@@ -219,7 +282,7 @@ ${where}
   -- "is null or" branches and can use the (tenant, occurred_at) index.
   execute $q$select coalesce(jsonb_agg(x.entry order by x.occurred_at $q$ || v_order || $q$, x.id $q$ || v_order || $q$), '[]')
   from (
-    select ${chunks.join(" || ")} as entry, l.${c("occurredAt")} as occurred_at, ${idKey} as id
+    select $q$ || v_entry || $q$ as entry, l.${c("occurredAt")} as occurred_at, ${idKey} as id
     from ${log} l
     where $q$ || v_where || $q$
     order by l.${c("occurredAt")} $q$ || v_order || $q$, ${idKey} $q$ || v_order || $q$
@@ -233,8 +296,10 @@ $$;
 revoke execute on function ${ctx.fn("list_audit_events")}(${listTypes}) from public, anon;
 ${revokeUsers(ctx.fn("list_audit_events"), listTypes)}grant execute on function ${ctx.fn("list_audit_events")}(${listTypes}) to ${callers};
 
+drop function if exists ${ctx.fn("count_audit_events")}(${filterTypes});
 create or replace function ${ctx.fn("count_audit_events")}(
-  ${filters}
+  ${filters},
+  cap integer default null
 )
 returns bigint
 language plpgsql
@@ -247,14 +312,38 @@ declare
   result bigint;
 begin
 ${where}
-  execute $q$select count(*) from ${log} l where $q$ || v_where
+  -- With cap the count stops there: a result equal to cap means "cap or more",
+  -- and a filtered view over a large log never counts every match (ADR 0425).
+  execute $q$select count(*) from (select 1 from ${log} l where $q$ || v_where
+    || case when cap is null then '' else format(' limit %s', greatest(cap, 1)) end || $q$) x$q$
   into result
   using ${using};
   return result;
 end;
 $$;
-revoke execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) from public, anon;
-${revokeUsers(ctx.fn("count_audit_events"), filterTypes)}grant execute on function ${ctx.fn("count_audit_events")}(${filterTypes}) to ${callers};`;
+revoke execute on function ${ctx.fn("count_audit_events")}(${countTypes}) from public, anon;
+${revokeUsers(ctx.fn("count_audit_events"), countTypes)}grant execute on function ${ctx.fn("count_audit_events")}(${countTypes}) to ${callers};
+
+-- One full entry by id, as list_audit_events returns it with entry_fields
+-- 'full'. The read policy decides, so an entry the caller can't read is null.
+create or replace function ${ctx.fn("get_audit_event")}(entry_id text)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  result jsonb;
+begin
+  execute $q$select $q$ || $e$${fullEntry}$e$ || $q$ from ${log} l where ${idKey} = $1$q$
+  into result
+  using ${ctx.owns("log") ? "entry_id::bigint" : "entry_id"};
+  return result;
+end;
+$$;
+revoke execute on function ${ctx.fn("get_audit_event")}(text) from public, anon;
+${revokeUsers(ctx.fn("get_audit_event"), "text")}grant execute on function ${ctx.fn("get_audit_event")}(text) to ${callers};${eventTypes}`;
 }
 
 /**

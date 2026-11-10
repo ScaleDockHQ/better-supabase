@@ -100,6 +100,17 @@ export interface AuditListOptions {
   readonly search?: string;
   readonly order?: "desc" | "asc";
   readonly count?: boolean;
+  /**
+   * With `count`, stop counting here: `total` is then "at most this many", and
+   * a log of millions of rows is never counted in full. Without it every match
+   * is counted.
+   */
+  readonly countCap?: number;
+  /**
+   * `"summary"` leaves out `old`, `new`, `changed` and `metadata`, which make a
+   * row large; `get` returns one full entry. Default `"full"`.
+   */
+  readonly fields?: "summary" | "full";
   /** Entries at or after this instant. */
   readonly since?: Temporal.Instant;
   /** Entries before this instant. */
@@ -297,6 +308,20 @@ export interface AuditLog<Columns extends AuditColumns = AuditColumns> {
     organizationId?: string | undefined;
     limit?: number | undefined;
   }): AsyncResult<readonly AuditRecord<Columns>[]>;
+  /**
+   * One full entry by id, with `old`, `new` and `metadata`, for a page that
+   * lists `fields: "summary"`. `null` when it doesn't exist or the read policy
+   * hides it.
+   */
+  get(entryId: string): AsyncResult<AuditRecord<Columns> | null>;
+  /**
+   * The distinct event types the caller can read in the given tenants, found by
+   * skipping through the event type index, so a filter menu doesn't read the
+   * log. Pass `organizationId`: without it the scan reads every row.
+   */
+  eventTypes(options?: {
+    readonly organizationId?: OneOrMany;
+  }): AsyncResult<readonly string[]>;
   /**
    * The restricted details of one entry for a caller with the reveal permission
    * in its tenant (or platform staff); the reveal is itself recorded as
@@ -531,6 +556,7 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
         max_items: limit,
         ascending: list.order === "asc",
         skip: list.offset,
+        ...(list.fields === undefined ? {} : { entry_fields: list.fields }),
       },
       (value): AuditPage<Columns> => {
         const entries = (Array.isArray(value) ? value : []).map((entry) =>
@@ -554,10 +580,14 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
     }
 
     return page.andThen((data) =>
-      call("count_audit_events", filters, (value) => ({
-        ...data,
-        total: Number(value),
-      })),
+      call(
+        "count_audit_events",
+        {
+          ...filters,
+          ...(list.countCap === undefined ? {} : { cap: list.countCap }),
+        },
+        (value) => ({ ...data, total: Number(value) }),
+      ),
     );
   };
 
@@ -736,6 +766,21 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
 
         return ok(entries);
       }),
+    get: (entryId) =>
+      call("get_audit_event", { entry_id: entryId }, (value) =>
+        value === null || value === undefined
+          ? null
+          : recordOfEntry<Columns>(value),
+      ),
+    eventTypes: (typeOptions = {}) =>
+      call(
+        "audit_event_types",
+        { for_tenants: many(typeOptions.organizationId) },
+        (value) =>
+          (Array.isArray(value) ? value : []).filter(
+            (type): type is string => typeof type === "string",
+          ),
+      ),
     reveal: (entryId) =>
       call("reveal_audit_entry", { entry: entryId }, (value) =>
         detailsOf(value, entryId),

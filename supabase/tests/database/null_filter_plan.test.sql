@@ -1,9 +1,8 @@
 -- 9.7: a `param is null or col = any(param)` filter cannot use an index under a
 -- generic plan. The branch form can. knowledge_search forces a custom plan,
--- and mark_notifications_read branches. list_notifications still filters types
--- with coalesce after the join, and subject_types with `is null or = any`.
--- That index access belongs to the large-tenant work, so this test does not
--- change list_notifications. Run with `supabase test db`.
+-- and mark_notifications_read branches. list_notifications builds its where
+-- clause from the filters that are passed, so no "is null or" branch is left.
+-- Run with `supabase test db`.
 begin;
 select plan(5);
 
@@ -27,8 +26,8 @@ select ok(
 
 select ok(
   pg_get_functiondef('better_supabase.list_notifications(uuid, text, text[], timestamptz, integer, uuid, text[], text, boolean, boolean, boolean)'::regprocedure)
-    ~ 'any\(coalesce\(',
-  'list_notifications types filter uses coalesce'
+    !~ 'is null or|any\(coalesce\(',
+  'list_notifications adds only the filters that are passed'
 );
 
 create table public.null_filter_probe (

@@ -1039,7 +1039,7 @@ describe.skipIf(!live)("notifications", () => {
       expect(await notifications.get({ id: fence.id }).orThrow()).toBeNull();
       expect(
         await notifications.page({ tenant: organization }).orThrow(),
-      ).toEqual({ items: [], total: 0 });
+      ).toEqual({ items: [], total: 0, totalCapped: false, hasMore: false });
 
       await s.as("member");
       expect(await notifications.dismiss([fence.id]).orThrow()).toMatchObject({

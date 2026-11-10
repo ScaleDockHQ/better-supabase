@@ -509,6 +509,38 @@ const { entries, total, next } = await audit
   .orThrow();
 ```
 
+## Large logs
+
+A log of millions of entries needs a few habits on the audit screen:
+
+- Always pass `organizationId`. The log has indexes that lead with the tenant:
+  `(tenant, occurred_at, id)`, `(tenant, actor, occurred_at, id)` and
+  `(tenant, event_type, occurred_at, id)`, so a page, an actor filter and an
+  event type filter each read in index order. Without a tenant the planner
+  walks the whole log for a rare filter.
+- Pass `fields: "summary"` to `list`. It leaves out `old`, `new`, `changed` and
+  `metadata`, which make a row large. `audit.get(entryId)` returns one full
+  entry when the reader opens it.
+- Pass `since`. A search matches text in every row of its window, so search
+  always carries a time window.
+- Pass `countCap` with `count: true`, or show an estimate. With `countCap:
+10000` the count stops there and `total` means "10,000 or more".
+- `audit.eventTypes({ organizationId })` returns the distinct event types for a
+  filter menu by skipping through the event type index, in a few milliseconds
+  on a log of millions of rows.
+
+```ts
+const page = await audit
+  .list({
+    organizationId,
+    since: Temporal.Now.instant().subtract({ hours: 24 * 30 }),
+    fields: "summary",
+    count: true,
+    countCap: 10_000,
+  })
+  .orThrow();
+```
+
 ## Reverting changes
 
 `audit.revert(entryIds)` writes the old values of row changes back, newest

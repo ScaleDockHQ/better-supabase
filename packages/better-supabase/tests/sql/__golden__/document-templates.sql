@@ -1166,7 +1166,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:9f20c0d6c5086bfe571b110b6d09f28473d96e8132586cc152043c1a0e57709f
+-- @bsb-hash sha256:7e6ec5f3363d1bcc121eb0d282f303d568f032d13b376e05b174b7716bacc074
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2759,7 +2759,7 @@ create constraint trigger bsb_document_freeze
   after update of "status" on "better_supabase"."invoices"
   deferrable initially deferred
   for each row
-  when (old."status" = 'draft' and new."status" not in ('draft', 'void'))
+  when (old."status" = 'draft' and new."status" not in ('draft', 'void') and not (better_supabase.import_run() is not null))
   execute function "better_supabase"."freeze_issued_invoice"();
 
 -- Seeds the rows every organization starts with for document-templates. Safe to run

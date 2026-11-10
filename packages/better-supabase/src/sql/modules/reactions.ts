@@ -668,7 +668,7 @@ begin
   end if;
 end;
 $do$;
-${subjectCascades(ctx, subjects, `delete from ${reactions} r where r.${c("subjectType")} = v_type and r.${c("subjectId")} = v_id;`)}${subjectMergeHandler(ctx, subjects, moveSubjectRows({ table: reactions, type: c("subjectType"), id: c("subjectId"), unique: [c("actor"), c("emoji")] }, "v_type"))}
+${subjectCascades(ctx, subjects, (tenantAnd) => `delete from ${reactions} r where r.${c("subjectType")} = v_type and r.${c("subjectId")} = v_id${ctx.has("reactions", "tenant") ? tenantAnd("r", c("tenant")) : ""};`, { tenant: ctx.has("reactions", "tenant") })}${subjectMergeHandler(ctx, subjects, moveSubjectRows({ table: reactions, type: c("subjectType"), id: c("subjectId"), unique: [c("actor"), c("emoji")] }, "v_type"))}
 `;
 }
 

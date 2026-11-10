@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:8ec55b67153578ac347a673e9b477dbaf0249c69885ae73a3a78a9165af635fa
+-- @bsb-hash sha256:f921d3a77dca1a02a29722635f8266425f92e4a81d995bf5c651585d9d5eb6b4
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -463,7 +463,11 @@ declare
   v_id text := to_jsonb(old) ->> tg_argv[1];
   v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
 begin
-  delete from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_id and (v_tenant is null or c."tenant_id"::text = v_tenant);
+  if v_tenant is null then
+    delete from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_id;
+  else
+    delete from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_id and c."tenant_id" = v_tenant::uuid;
+  end if;
   return null;
 end;
 $$;

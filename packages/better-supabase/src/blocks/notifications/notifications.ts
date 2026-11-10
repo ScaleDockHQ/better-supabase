@@ -819,17 +819,25 @@ export function createNotifications<
         "notification_page",
         {
           ...filtersOf(pageOptions),
+          ...cursorOf(pageOf(pageOptions).cursor),
           max_items: pageOptions.limit ?? 50,
           skip: pageOptions.offset ?? 0,
+          ...(pageOptions.totalCap === undefined
+            ? {}
+            : { total_cap: pageOptions.totalCap }),
         },
         (value) => ({
           items: itemsOf(isRecord(value) ? value["items"] : []),
           total: Number(isRecord(value) ? (value["total"] ?? 0) : 0),
+          totalCapped: isRecord(value) && value["totalCapped"] === true,
+          hasMore: isRecord(value) && value["hasMore"] === true,
         }),
       ).andThen((found) =>
         decorate(found.items, pageOptions).map((items) => ({
           items,
           total: found.total,
+          totalCapped: found.totalCapped,
+          hasMore: found.hasMore,
         })),
       );
     },
@@ -839,6 +847,7 @@ export function createNotifications<
         {
           tenant: countOptions.tenant ?? null,
           actionable: options.actionable ?? [],
+          ...(countOptions.cap === undefined ? {} : { cap: countOptions.cap }),
         },
         (value) => ({
           unread: Number(isRecord(value) ? (value["unread"] ?? 0) : 0),

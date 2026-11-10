@@ -353,7 +353,7 @@ export interface BlockNameRegistry {
       readonly "restricted": "entry" | "old" | "new" | "ip" | "userAgent" | "metadata" | "sessionId" | "changedValues";
       readonly "registry": "target" | "ignore" | "keyColumns" | "redact" | "category" | "eventPrefix" | "targetType" | "tenantColumn" | "labelColumn";
     };
-    readonly functions: "audit" | "audit_event" | "audit_event_many" | "audit_read_tenants" | "audit_reads_all" | "count_audit_events" | "list_audit_events" | "purge_audit_log";
+    readonly functions: "audit" | "audit_event" | "audit_event_many" | "audit_event_types" | "audit_read_tenants" | "audit_reads_all" | "count_audit_events" | "get_audit_event" | "list_audit_events" | "purge_audit_log";
     readonly actions: "read" | "readAll" | "revert" | "reveal";
     readonly hooks: "audit_retention";
     readonly entities: {};

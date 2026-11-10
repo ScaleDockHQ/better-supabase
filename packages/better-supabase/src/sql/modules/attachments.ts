@@ -18,9 +18,9 @@ import {
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
   subjectAccess,
-  subjectCascades,
   subjectReadable,
   subjectsOption,
+  tableCascades,
 } from "../subjects.ts";
 import {
   attachmentInsertDefaults,
@@ -397,11 +397,7 @@ end;`;
     fallback: `${ctx.fn("attachment_subject_readable")}(${q("subjectType")}, ${q("subjectId")}, ${q("tenant")})`,
   });
 
-  const cascades = subjectCascades(
-    ctx,
-    subjects,
-    `delete from ${t} x where x.${c("subjectType")} = v_type and x.${c("subjectId")} = v_id;`,
-  );
+  const cascades = tableCascades(ctx, subjects, "attachments");
 
   const scans = ctx.table("scans");
   const sc = (logical: string): string => ctx.col("scans", logical);
