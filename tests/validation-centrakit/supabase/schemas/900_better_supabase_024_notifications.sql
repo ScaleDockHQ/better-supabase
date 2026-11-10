@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:1ca1fc2d8d38ba6805730123672a2947f93ef8c803c93a57d12070d827443c61
+-- @bsb-hash sha256:9df33a0d60de09f30f158935db92fb7fb611fc927f5db0ddde042afe23b7d86a
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -448,37 +448,70 @@ create or replace function "better_supabase"."list_notifications"(
   dismissed boolean default false
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
+declare
+  v_where text;
+  result jsonb;
+begin
+  v_where := $q$rc."recipient_user_id" = $1$q$;
+  if coalesce(list_notifications.status, 'all') = 'settled' then
+    v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
+  elsif list_notifications.dismissed is not null then
+    v_where := v_where || case when list_notifications.dismissed
+      then $q$ and rc."dismissed_at" is not null$q$
+      else $q$ and rc."dismissed_at" is null$q$ end;
+  end if;
+  if list_notifications.read is not null then
+    v_where := v_where || case when list_notifications.read
+      then $q$ and rc."read_at" is not null$q$
+      else $q$ and rc."read_at" is null$q$ end;
+  end if;
+  if list_notifications.resolved is not null then
+    v_where := v_where || case when list_notifications.resolved
+      then $q$ and rc."resolved_at" is not null$q$
+      else $q$ and rc."resolved_at" is null$q$ end;
+  end if;
+  if list_notifications.tenant is not null then
+    v_where := v_where || $q$ and rc."organization_id" = $2$q$;
+  end if;
+  if list_notifications.types is not null then
+    v_where := v_where || $q$ and ev."type" = any($3)$q$;
+  end if;
+  if list_notifications.subject_types is not null then
+    v_where := v_where || $q$ and ev."subject_type" = any($4)$q$;
+  end if;
+  if btrim(coalesce(list_notifications.search, '')) <> '' then
+    v_where := v_where || $q$ and concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike $5$q$;
+  end if;
+  case coalesce(list_notifications.status, 'all')
+    when 'unread' then v_where := v_where || $q$ and rc."read_at" is null$q$;
+    when 'read' then v_where := v_where || $q$ and rc."read_at" is not null$q$;
+    when 'unresolved' then v_where := v_where || $q$ and rc."resolved_at" is null$q$;
+    else null;
+  end case;
+  if list_notifications.before is not null then
+    v_where := v_where || $q$ and (rc."created_at", rc."id") < ($9, $10)$q$;
+  end if;
+  execute $q$select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
   from (
     select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "centrakit"."notification_recipients" rc
     join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
-    where rc."recipient_user_id" = auth.uid()
-      and case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when list_notifications.dismissed is null then true else (rc."dismissed_at" is not null) = list_notifications.dismissed end
-      and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
-      and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
-      and (list_notifications.tenant is null or rc."organization_id" = list_notifications.tenant)
-      and ev."type" = any(coalesce(list_notifications.types, array[ev."type"]))
-      and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
-      and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
-      and case coalesce(list_notifications.status, 'all')
-        when 'unread' then rc."read_at" is null
-        when 'read' then rc."read_at" is not null
-        when 'unresolved' then rc."resolved_at" is null
-        else true
-      end
-      and (
-        list_notifications.before is null
-        or (rc."created_at", rc."id") < (list_notifications.before, coalesce(list_notifications.before_id, '00000000-0000-0000-0000-000000000000'::uuid))
-      )
+    where $q$ || v_where || $q$
     order by rc."created_at" desc, rc."id" desc
-    limit least(coalesce(list_notifications.max_items, 50), 200)
-  ) x
+    limit $11
+  ) x$q$
+  into result
+  using auth.uid(), list_notifications.tenant, list_notifications.types, list_notifications.subject_types,
+    case when btrim(coalesce(list_notifications.search, '')) = '' then null else '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, list_notifications.read, list_notifications.resolved, list_notifications.dismissed,
+    list_notifications.before, coalesce(list_notifications.before_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    least(coalesce(list_notifications.max_items, 50), 200);
+  return result;
+end;
 $$;
 
 create or replace function "better_supabase"."notification_page"(
@@ -491,49 +524,104 @@ create or replace function "better_supabase"."notification_page"(
   skip integer default 0,
   read boolean default null,
   resolved boolean default null,
-  dismissed boolean default false
+  dismissed boolean default false,
+  before timestamptz default null,
+  before_id uuid default null,
+  total_cap integer default 10000
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  with matched as (
+declare
+  v_where text;
+  v_limit integer := least(greatest(coalesce(notification_page.max_items, 50), 1), 200);
+  v_items jsonb;
+  v_total bigint;
+  v_args_cap integer := notification_page.total_cap;
+begin
+  v_where := $q$rc."recipient_user_id" = $1$q$;
+  if coalesce(notification_page.status, 'all') = 'settled' then
+    v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
+  elsif notification_page.dismissed is not null then
+    v_where := v_where || case when notification_page.dismissed
+      then $q$ and rc."dismissed_at" is not null$q$
+      else $q$ and rc."dismissed_at" is null$q$ end;
+  end if;
+  if notification_page.read is not null then
+    v_where := v_where || case when notification_page.read
+      then $q$ and rc."read_at" is not null$q$
+      else $q$ and rc."read_at" is null$q$ end;
+  end if;
+  if notification_page.resolved is not null then
+    v_where := v_where || case when notification_page.resolved
+      then $q$ and rc."resolved_at" is not null$q$
+      else $q$ and rc."resolved_at" is null$q$ end;
+  end if;
+  if notification_page.tenant is not null then
+    v_where := v_where || $q$ and rc."organization_id" = $2$q$;
+  end if;
+  if notification_page.types is not null then
+    v_where := v_where || $q$ and ev."type" = any($3)$q$;
+  end if;
+  if notification_page.subject_types is not null then
+    v_where := v_where || $q$ and ev."subject_type" = any($4)$q$;
+  end if;
+  if btrim(coalesce(notification_page.search, '')) <> '' then
+    v_where := v_where || $q$ and concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike $5$q$;
+  end if;
+  case coalesce(notification_page.status, 'all')
+    when 'unread' then v_where := v_where || $q$ and rc."read_at" is null$q$;
+    when 'read' then v_where := v_where || $q$ and rc."read_at" is not null$q$;
+    when 'unresolved' then v_where := v_where || $q$ and rc."resolved_at" is null$q$;
+    else null;
+  end case;
+  if notification_page.before is not null then
+    v_where := v_where || $q$ and (rc."created_at", rc."id") < ($9, $10)$q$;
+  end if;
+  -- One row more than the page says whether an older page exists, and the
+  -- total stops counting at total_cap (null counts every row), so a large
+  -- inbox never counts all of it. Pass before and before_id to page by key
+  -- instead of skip.
+  execute $q$select coalesce(jsonb_agg(p.item order by p.created_at desc, p.id desc), '[]')
+  from (
     select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "centrakit"."notification_recipients" rc
     join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
-    where rc."recipient_user_id" = auth.uid()
-      and case when coalesce(notification_page.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when notification_page.dismissed is null then true else (rc."dismissed_at" is not null) = notification_page.dismissed end
-      and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
-      and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
-      and (notification_page.tenant is null or rc."organization_id" = notification_page.tenant)
-      and ev."type" = any(coalesce(notification_page.types, array[ev."type"]))
-      and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
-      and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
-      and case coalesce(notification_page.status, 'all')
-        when 'unread' then rc."read_at" is null
-        when 'read' then rc."read_at" is not null
-        when 'unresolved' then rc."resolved_at" is null
-        else true
-      end
-  )
-  select jsonb_build_object(
-    'items', coalesce((
-      select jsonb_agg(p.item order by p.created_at desc, p.id desc)
-      from (
-        select m.item, m.created_at, m.id from matched m
-        order by m.created_at desc, m.id desc
-        offset greatest(coalesce(notification_page.skip, 0), 0)
-        limit least(greatest(coalesce(notification_page.max_items, 50), 1), 200)
-      ) p
-    ), '[]'),
-    'total', (select count(*) from matched)
-  )
+    where $q$ || v_where || $q$
+    order by rc."created_at" desc, rc."id" desc
+    offset $11
+    limit $12 + 1
+  ) p$q$
+  into v_items
+  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,
+    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,
+    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    greatest(coalesce(notification_page.skip, 0), 0), v_limit;
+  execute $q$select count(*) from (
+    select 1 from "centrakit"."notification_recipients" rc
+    join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
+    where $q$ || v_where || case when v_args_cap is null then '' else format(' limit %s', greatest(v_args_cap, 1)) end || $q$
+  ) c$q$
+  into v_total
+  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,
+    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,
+    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid);
+  return jsonb_build_object(
+    'items', coalesce((select jsonb_agg(x.value order by x.ordinality) from jsonb_array_elements(v_items) with ordinality x(value, ordinality) where x.ordinality <= v_limit), '[]'),
+    'hasMore', jsonb_array_length(v_items) > v_limit,
+    'total', v_total,
+    'totalCapped', v_args_cap is not null and v_total >= v_args_cap
+  );
+end;
 $$;
 
--- Unread and, for the types in actionable, unresolved counts.
-create or replace function "better_supabase"."notification_counts"(tenant uuid default null, actionable text[] default null)
+-- Unread and, for the types in actionable, unresolved counts. Each count stops
+-- at cap (default 100, null counts every row), so a badge reads at most cap
+-- rows through the unread index however large the inbox is.
+create or replace function "better_supabase"."notification_counts"(tenant uuid default null, actionable text[] default null, cap integer default 100)
 returns jsonb
 language sql
 stable
@@ -541,19 +629,34 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object(
-    'unread', count(*) filter (where rc."read_at" is null),
-    'actionable', count(*) filter (
-      where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
+    'unread', (
+      select count(*) from (
+        select 1 from "centrakit"."notification_recipients" rc
+        where rc."recipient_user_id" = auth.uid()
+          and rc."read_at" is null
+          and rc."dismissed_at" is null
+          and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
+        limit notification_counts.cap
+      ) u
     ),
-    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
-      where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
-    )
+    'actionable', coalesce(act.rows, 0),
+    'actionable_subjects', coalesce(act.subjects, 0)
   )
-  from "centrakit"."notification_recipients" rc
-  join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
-  where rc."recipient_user_id" = auth.uid()
-    and rc."dismissed_at" is null
-    and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
+  from (select 1) one
+  left join lateral (
+    select count(*) as rows, count(distinct a.subject_key) as subjects
+    from (
+      select case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end as subject_key
+      from "centrakit"."notification_recipients" rc
+      join "centrakit"."notification_events" ev on ev."id" = rc."event_id"
+      where cardinality(coalesce(notification_counts.actionable, '{}')) > 0
+        and rc."recipient_user_id" = auth.uid()
+        and rc."dismissed_at" is null
+        and rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
+        and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
+      limit notification_counts.cap
+    ) a
+  ) act on true
 $$;
 
 create or replace function "better_supabase"."get_notification"(id uuid)
@@ -715,10 +818,10 @@ as $$
 $$;
 revoke execute on function "better_supabase".list_notifications(uuid, text, text[], timestamptz, integer, uuid, text[], text, boolean, boolean, boolean) from public, anon;
 grant execute on function "better_supabase".list_notifications(uuid, text, text[], timestamptz, integer, uuid, text[], text, boolean, boolean, boolean) to authenticated, service_role;
-revoke execute on function "better_supabase".notification_page(uuid, text, text[], text[], text, integer, integer, boolean, boolean, boolean) from public, anon;
-grant execute on function "better_supabase".notification_page(uuid, text, text[], text[], text, integer, integer, boolean, boolean, boolean) to authenticated, service_role;
-revoke execute on function "better_supabase".notification_counts(uuid, text[]) from public, anon;
-grant execute on function "better_supabase".notification_counts(uuid, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase".notification_page(uuid, text, text[], text[], text, integer, integer, boolean, boolean, boolean, timestamptz, uuid, integer) from public, anon;
+grant execute on function "better_supabase".notification_page(uuid, text, text[], text[], text, integer, integer, boolean, boolean, boolean, timestamptz, uuid, integer) to authenticated, service_role;
+revoke execute on function "better_supabase".notification_counts(uuid, text[], integer) from public, anon;
+grant execute on function "better_supabase".notification_counts(uuid, text[], integer) to authenticated, service_role;
 revoke execute on function "better_supabase".mark_notifications_unread(uuid[], uuid) from public, anon;
 grant execute on function "better_supabase".mark_notifications_unread(uuid[], uuid) to authenticated, service_role;
 revoke execute on function "better_supabase".mark_notifications_read(uuid[], uuid) from public, anon;
