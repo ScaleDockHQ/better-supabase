@@ -56,6 +56,8 @@ export function driveSubject(
       title: "name",
       body: ["content"],
       from: { view: `${schema}.drive_node_search`, key: "id" },
+      // The view reads the node's name; the text comes from drive_node_texts.
+      columns: ["name"],
       watch: [{ table: `${schema}.drive_node_texts`, key: "node_id" }],
     },
   };

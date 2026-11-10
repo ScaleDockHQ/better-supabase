@@ -87,6 +87,7 @@ type SubjectSearchInput = {
   description?: string | undefined;
   exclude?: string | undefined;
   from?: { view: string; key: string } | undefined;
+  columns?: string[] | undefined;
   watch?:
     | {
         table: string;
@@ -106,6 +107,7 @@ export const subjectSearchSchema: v.GenericSchema<SubjectSearchInput> =
     description: v.optional(v.string()),
     exclude: v.optional(v.string()),
     from: v.optional(v.strictObject({ view: v.string(), key: v.string() })),
+    columns: v.optional(v.array(v.string())),
     watch: v.optional(
       v.array(
         v.strictObject({

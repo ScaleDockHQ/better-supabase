@@ -182,6 +182,13 @@ export interface SubjectSearch {
    */
   readonly from?: { readonly view: string; readonly key: string };
   /**
+   * With `from`: the columns of the record's own table that the view reads. The
+   * indexing trigger then fires on an update of these (and the id, tenant and
+   * archive columns) instead of on every update, so a change to another column
+   * costs no re-index. Without it the trigger fires on every update.
+   */
+  readonly columns?: readonly string[];
+  /**
    * Tables whose changes re-index the record: `key` is the column holding the
    * record's id, or, with `via`, the column the record's `via` column points
    * at. `through` follows `key` across further tables first, such as a junction
