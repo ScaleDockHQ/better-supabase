@@ -51,6 +51,29 @@ function contents(files: readonly { path: string; contents: string }[]) {
 const CUSTOMER = "src/lib/supabase/records/customer.ts";
 const PROJECT = "src/lib/supabase/records/project.ts";
 
+describe("record types with block modules", () => {
+  it("import a renamed block from its own module, never blocks.generated.ts", () => {
+    const renamed = resolveDefault(
+      {
+        recordTypes: { customer: { table: "customers" } },
+        blocks: {
+          memberships: {},
+          permissions: {},
+          tasks: { names: { task: { name: "work_item" } } },
+        },
+        gen: { tableModules: false, blockModules: true },
+      },
+      "/project",
+    );
+
+    const files = contents(emitRecords(renamed));
+    const record = files[CUSTOMER];
+
+    expect(record).toContain('from "../blocks/tasks-block.ts"');
+    expect(record).not.toContain("blocks.generated");
+  });
+});
+
 describe("record types", () => {
   it("writes one file per record type with each block that serves it", () => {
     const files = contents(emitRecords(config()));

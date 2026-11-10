@@ -17,7 +17,7 @@
   "/.well-known/workflow/v1/webhook/[token]/route": {
     "raw": 1531276,
     "gzip": 473491,
-    "brotli": 391332
+    "brotli": 391328
   },
   "/[locale]/(app)/appraisals/page": {
     "raw": 2834222,
