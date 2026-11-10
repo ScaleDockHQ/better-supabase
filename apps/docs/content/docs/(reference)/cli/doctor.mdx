@@ -1872,6 +1872,17 @@ referenced row. Compare the tenant of the referenced row in the trigger, or list
 the reference in `blocks.memberships.options.sameTenant` so the block emits the
 check. Doctor reads the trigger functions in the schema files.
 
+### BS399
+
+**Info: a large audit log is not partitioned.** `better_supabase.audit_events` is
+a plain table with an estimated one million rows or more, so the retention purge
+deletes row by row and a date-range read scans one large heap. Turn on
+`blocks.audit.options.partitioned` and call
+`better_supabase.convert_audit_log_to_partitioned()` in a quiet period; the
+procedure copies in committed batches and keeps reads open. The estimate is
+`pg_class.reltuples`, so a table that was never analyzed reports nothing. Needs a
+database; saved snapshots skip it.
+
 ### BS369
 
 **Warning: an app file declares an object a block module declares.** A table,
