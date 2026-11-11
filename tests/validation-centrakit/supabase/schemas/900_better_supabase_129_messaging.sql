@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:86d8da5de966e2ff7eb970d5b6c79b1358ab7230335d05c47131756649224bf5
+-- @bsb-hash sha256:b2540859dc6ae3dfccebce28881a88119ba33a92fbc76e645fa866f598320f15
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -287,7 +287,7 @@ as $$
   from "better_supabase"."messages" y
   join "centrakit"."profiles" pr on pr."user_id" = y."author_id"
   where y."id" = any ($1)
-    and exists (select 1 from "better_supabase"."conversations" c where c."id" = y."conversation_id" and (((coalesce(better_supabase.can('tenant', c."tenant_id", 'comments.read'), false)
+    and y."conversation_id" = any (array(select c."id" from "better_supabase"."conversations" c where c."id" = any (array(select distinct v."conversation_id" from "better_supabase"."messages" v where v."id" = any ($1))) and (((coalesce(better_supabase.can('tenant', c."tenant_id", 'comments.read'), false)
     or (c."access" = 'subject' and coalesce(case c."subject_type" when 'project' then c."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('comments.read') as t(id)) else false end, false)))
     or (c."access" = 'subject' and coalesce(case c."subject_type" when 'file_node' then c."subject_id" in (select s."id"::text from "centrakit"."file_node" s) else false end, false)))
     and case c."access"
@@ -295,7 +295,7 @@ as $$
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
       when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
       else false
-    end))
+    end)))
 $$;
 revoke execute on function "better_supabase"."message_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."message_authors"(uuid[]) to authenticated, service_role;

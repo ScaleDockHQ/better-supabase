@@ -278,6 +278,10 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     ? `q.${qc("plan")} = '*' or q.${qc("plan")} = any (${entitled})${planKeys}`
     : `q.${qc("plan")} = '*'`;
 
+  const planMatchesOnce = entitled
+    ? `q.${qc("plan")} = '*' or q.${qc("plan")} = any ((select ${ctx.entitlements("usage_overview.tenant") ?? entitled})::text[])${planKeys === "" ? "" : ` or q.${qc("plan")} = any ((select better_supabase.tenant_plans(usage_overview.tenant))::text[])`}`
+    : `q.${qc("plan")} = '*'`;
+
   return `${schemaPreamble(ctx)}
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table if not exists ${counters} (
@@ -710,8 +714,9 @@ begin
 end;
 $$;
 
--- One row per meter: the quota resolved once, the window once per distinct
--- period, and the counters summed in one grouped join. The catalog is read once.
+-- One row per meter: the tenant's plans and entitlements read once, the quota
+-- resolved once, the window once per distinct period, and the counters summed
+-- in one grouped join. The catalog is read once.
 create or replace function ${fn("usage_overview")}(tenant ${id})
 returns jsonb
 language plpgsql
@@ -724,12 +729,15 @@ begin
     ${fail("USAGE_FORBIDDEN", "Not allowed to read usage in this tenant")}
   end if;
   return (
-    with meters as (
+    with scoped as materialized (
+      select q.* from ${quotas} q
+      where q.${qc("tenant")} = usage_overview.tenant
+        or (q.${qc("tenant")} is null and (${planMatchesOnce}))
+    ),
+    meters as (
       select jsonb_object_keys(${fn("usage_meters")}()) as meter
       union
-      select q.${qc("meter")} from ${quotas} q
-      where q.${qc("tenant")} = usage_overview.tenant
-        or (q.${qc("tenant")} is null and (${planMatches.replaceAll("(tenant)", "(usage_overview.tenant)")}))
+      select q.${qc("meter")} from scoped q
       union
       select distinct c.${cc("meter")} from ${counters} c
       where c.${cc("tenant")} = usage_overview.tenant
@@ -739,10 +747,8 @@ begin
         q.${qc("meter")} as meter,
         q.${qc("limit")} as quota_limit,
         ${quotaPeriod("q")} as period
-      from ${quotas} q
+      from scoped q
       join meters m on m.meter = q.${qc("meter")}
-      where q.${qc("tenant")} = usage_overview.tenant
-        or (q.${qc("tenant")} is null and (${planMatches.replaceAll("(tenant)", "(usage_overview.tenant)")}))
       order by q.${qc("meter")}, (q.${qc("tenant")} is not null) desc, q.${qc("limit")} desc nulls first
     ),
     chosen as (

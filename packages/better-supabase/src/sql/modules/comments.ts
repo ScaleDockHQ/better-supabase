@@ -408,14 +408,26 @@ set search_path = ''
 as $$
 begin
   return (
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements(${m.fn("messaging_messages_json")}(comments_json.ids)) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c.${cv("id")} as id, c.${cv("subjectType")} as subject_type, c.${cv("subjectId")} as subject_id
+      from ${m.table("conversations")} c
+      where c.${cv("id")} = any (array(select distinct (e.row ->> ${key(ms("conversation"))})::uuid from e))
+    ),
+    t as materialized (
+      select t.${k("message")} as message, t.${k("task")} as task from ${tasks} t
+      where t.${k("message")} = any (comments_json.ids)
+    )
     select coalesce(jsonb_agg(e.row || jsonb_build_object(
-      'subject_type', c.${cv("subjectType")},
-      'subject_id', c.${cv("subjectId")},
-      'task_id', t.${k("task")}
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
     ) order by e.n), '[]'::jsonb)
-    from jsonb_array_elements(${m.fn("messaging_messages_json")}(comments_json.ids)) with ordinality e(row, n)
-    join ${m.table("conversations")} c on c.${cv("id")} = (e.row ->> ${key(ms("conversation"))})::uuid
-    left join ${tasks} t on t.${k("message")} = (e.row ->> ${key(ms("id"))})::uuid
+    from e
+    join c on c.id = (e.row ->> ${key(ms("conversation"))})::uuid
+    left join t on t.message = (e.row ->> ${key(ms("id"))})::uuid
   );
 end;
 $$;
