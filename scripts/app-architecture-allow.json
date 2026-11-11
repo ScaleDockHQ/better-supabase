@@ -68,7 +68,6 @@
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/payroll/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/people/hiring/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/people/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/people/time/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/prescriptions/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/production/page.tsx",

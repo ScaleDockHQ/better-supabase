@@ -8,6 +8,10 @@ export type NavId =
   | "customers"
   | "people"
   | "hiring"
+  | "leave"
+  | "onboarding"
+  | "deadlines"
+  | "documentTemplates"
   | "time"
   | "calendar"
   | "availability"
@@ -150,6 +154,30 @@ export const navItems: readonly NavItem[] = [
     href: "/people/hiring",
     area: "people",
     requires: "hiring.read",
+  },
+  {
+    id: "leave",
+    href: "/people/leave",
+    area: "people",
+    requires: "leave.request",
+  },
+  {
+    id: "onboarding",
+    href: "/people/onboarding",
+    area: "people",
+    requires: "enrollments.read",
+  },
+  {
+    id: "deadlines",
+    href: "/deadlines",
+    area: "work",
+    requires: "deadlines.read",
+  },
+  {
+    id: "documentTemplates",
+    href: "/documents/templates",
+    area: "content",
+    requires: "document_templates.read",
   },
   {
     id: "time",

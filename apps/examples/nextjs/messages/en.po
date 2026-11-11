@@ -441,6 +441,16 @@ msgctxt "dam.NZSq_3"
 msgid "Who may use your files, where, and until when."
 msgstr "Who may use your files, where, and until when."
 
+#: src/app/[locale]/(app)/deadlines/page.tsx
+msgctxt "work.SxEfhc"
+msgid "Deadlines"
+msgstr "Deadlines"
+
+#: src/app/[locale]/(app)/deadlines/page.tsx
+msgctxt "work.1fyTIR"
+msgid "Due dates computed from approved rules, and the ones still open."
+msgstr "Due dates computed from approved rules, and the ones still open."
+
 #: src/app/[locale]/(app)/documents/[id]/page.tsx
 msgctxt "documents.lXxMRw"
 msgid "All documents"
@@ -455,6 +465,21 @@ msgstr "Documents"
 msgctxt "documents.O1SdeO"
 msgid "Shared notes the team writes together."
 msgstr "Shared notes the team writes together."
+
+#: src/app/[locale]/(app)/documents/templates/[id]/page.tsx
+msgctxt "documents.3QWPvO"
+msgid "All templates"
+msgstr "All templates"
+
+#: src/app/[locale]/(app)/documents/templates/page.tsx
+msgctxt "documents.3xSXlo"
+msgid "Document templates"
+msgstr "Document templates"
+
+#: src/app/[locale]/(app)/documents/templates/page.tsx
+msgctxt "documents.5TSdnZ"
+msgid "The layout of invoices, quotes and other documents, per language."
+msgstr "The layout of invoices, quotes and other documents, per language."
 
 #: src/app/[locale]/(app)/drive/[folderId]/page.tsx
 #: src/app/[locale]/(app)/drive/page.tsx
@@ -774,6 +799,11 @@ msgctxt "payroll-export.af223Z"
 msgid "The worked and leave hours of each period, ready to hand to the payroll provider."
 msgstr "The worked and leave hours of each period, ready to hand to the payroll provider."
 
+#: src/app/[locale]/(app)/people/[id]/page.tsx
+msgctxt "people.Kufi7V"
+msgid "All people"
+msgstr "All people"
+
 #: src/app/[locale]/(app)/people/hiring/page.tsx
 #: src/features/people/components/hiring-board.tsx
 msgctxt "people.XuEwXv"
@@ -799,6 +829,16 @@ msgstr "Leave"
 msgctxt "people.X6M2Jq"
 msgid "Time off by type, requests approved by a manager, and your balances."
 msgstr "Time off by type, requests approved by a manager, and your balances."
+
+#: src/app/[locale]/(app)/people/onboarding/page.tsx
+msgctxt "people.GjrgLY"
+msgid "Onboarding"
+msgstr "Onboarding"
+
+#: src/app/[locale]/(app)/people/onboarding/page.tsx
+msgctxt "people.2FDp0B"
+msgid "New hires and the steps they finish in their first weeks."
+msgstr "New hires and the steps they finish in their first weeks."
 
 #: src/app/[locale]/(app)/people/page.tsx
 msgctxt "people.Tpy00S"
@@ -1159,6 +1199,11 @@ msgstr "Workflow templates"
 msgctxt "workflows.sOxTzh"
 msgid "Start from a graph that already runs. Each template becomes a draft you can change."
 msgstr "Start from a graph that already runs. Each template becomes a draft you can change."
+
+#: src/app/[locale]/(public)/portal/page.tsx
+msgctxt "portal.7fx3Mw"
+msgid "Shared with you"
+msgstr "Shared with you"
 
 #: src/app/[locale]/islands/page.tsx
 msgctxt "islands.a8EoBn"
@@ -7398,6 +7443,206 @@ msgctxt "dashboard.-a-2ug"
 msgid "Members"
 msgstr "Members"
 
+#: src/features/deadlines/components/deadline-badges.tsx
+msgctxt "work.eKEL_g"
+msgid "Pending"
+msgstr "Pending"
+
+#: src/features/deadlines/components/deadline-badges.tsx
+#: src/features/work/use-work-labels.ts
+msgctxt "work.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/deadlines/components/deadline-badges.tsx
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.g9pEhE"
+msgid "Due"
+msgstr "Due"
+
+#: src/features/deadlines/components/deadline-badges.tsx
+msgctxt "work.5jeq8P"
+msgid "Unknown"
+msgstr "Unknown"
+
+#: src/features/deadlines/components/deadline-overview.tsx
+msgctxt "work.BsCAMY"
+msgid "Deadlines didn't load"
+msgstr "Deadlines didn't load"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.065UXh"
+msgid "No date"
+msgstr "No date"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.9BRK8k"
+msgid "provisional"
+msgstr "provisional"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.yjcwJc"
+msgid "Deadline marked done"
+msgstr "Deadline marked done"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.tQpQon"
+msgid "Mark done"
+msgstr "Mark done"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.8_Da7A"
+msgid "Deadline"
+msgstr "Deadline"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.HpoDwk"
+msgid "Group"
+msgstr "Group"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.7Y6Yvq"
+msgid "Record"
+msgstr "Record"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.ZpQ6us"
+msgid "Result"
+msgstr "Result"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.tRfJ2g"
+msgid "Nearest due"
+msgstr "Nearest due"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.X_AUJt"
+msgid "Search deadlines"
+msgstr "Search deadlines"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.YWpFyG"
+msgid "No deadlines found"
+msgstr "No deadlines found"
+
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.2Ehlbi"
+msgid "Deadlines appear when a record's rules compute them, or change the filters."
+msgstr "Deadlines appear when a record's rules compute them, or change the filters."
+
+#: src/features/document-templates/components/add-starter-template-button.tsx
+msgctxt "documents.vXkTGm"
+msgid "Template added"
+msgstr "Template added"
+
+#: src/features/document-templates/components/add-starter-template-button.tsx
+msgctxt "documents.wo8T3p"
+msgid "Add a starter invoice template"
+msgstr "Add a starter invoice template"
+
+#: src/features/document-templates/components/template-active-badge.tsx
+msgctxt "documents.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/document-templates/components/template-active-badge.tsx
+msgctxt "documents.6Tps09"
+msgid "Inactive"
+msgstr "Inactive"
+
+#: src/features/document-templates/components/template-detail.tsx
+msgctxt "documents.h_e5Dv"
+msgid "This template didn't load"
+msgstr "This template didn't load"
+
+#: src/features/document-templates/components/template-detail.tsx
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.1NdqJf"
+msgid "Body"
+msgstr "Body"
+
+#: src/features/document-templates/components/template-overview.tsx
+msgctxt "documents.chP83u"
+msgid "Templates didn't load"
+msgstr "Templates didn't load"
+
+#: src/features/document-templates/components/template-record-list.tsx
+msgctxt "documents.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/document-templates/components/template-record-list.tsx
+msgctxt "documents.so2_17"
+msgid "Document type"
+msgstr "Document type"
+
+#: src/features/document-templates/components/template-record-list.tsx
+msgctxt "documents.y1Z3or"
+msgid "Language"
+msgstr "Language"
+
+#: src/features/document-templates/components/template-record-list.tsx
+msgctxt "documents.I3b4hn"
+msgid "Version"
+msgstr "Version"
+
+#: src/features/document-templates/components/template-record-list.tsx
+msgctxt "documents.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/document-templates/components/template-record-list.tsx
+msgctxt "documents.aLAF_5"
+msgid "Recently changed"
+msgstr "Recently changed"
+
+#: src/features/document-templates/components/template-record-list.tsx
+msgctxt "documents.9eTz-D"
+msgid "Search templates"
+msgstr "Search templates"
+
+#: src/features/document-templates/components/template-record-list.tsx
+msgctxt "documents.rZJ7O4"
+msgid "No templates found"
+msgstr "No templates found"
+
+#: src/features/document-templates/components/template-record-list.tsx
+msgctxt "documents.fqR-P6"
+msgid "Add a template, or change the filters."
+msgstr "Add a template, or change the filters."
+
+#: src/features/document-templates/components/template-toggle.tsx
+msgctxt "documents.OyPmwT"
+msgid "Template activated"
+msgstr "Template activated"
+
+#: src/features/document-templates/components/template-toggle.tsx
+msgctxt "documents.eFx013"
+msgid "Template deactivated"
+msgstr "Template deactivated"
+
+#: src/features/document-templates/components/template-toggle.tsx
+msgctxt "documents.e0kEtS"
+msgid "Deactivate"
+msgstr "Deactivate"
+
+#: src/features/document-templates/components/template-toggle.tsx
+msgctxt "documents.AcxDgz"
+msgid "Activate"
+msgstr "Activate"
+
 #: src/features/documents/components/document-editor-view.tsx
 msgctxt "documents.cDI3Bm"
 msgid "The document didn't load"
@@ -7482,11 +7727,6 @@ msgstr "Title"
 msgctxt "documents.3kbIhS"
 msgid "Untitled"
 msgstr "Untitled"
-
-#: src/features/documents/components/document-editor.tsx
-msgctxt "documents.1NdqJf"
-msgid "Body"
-msgstr "Body"
 
 #: src/features/documents/components/document-editor.tsx
 msgctxt "documents.lmBbi0"
@@ -10819,12 +11059,14 @@ msgid "Dates"
 msgstr "Dates"
 
 #: src/features/leave/components/leave-record-list.tsx
-#: src/features/people/components/employee-table.tsx
+#: src/features/onboarding/components/onboarding-record-list.tsx
+#: src/features/people/components/employee-record-list.tsx
 msgctxt "people.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
 #: src/features/leave/components/leave-record-list.tsx
+#: src/features/people/components/employee-record-list.tsx
 msgctxt "people.zBHBco"
 msgid "Latest start"
 msgstr "Latest start"
@@ -10835,8 +11077,9 @@ msgid "Latest end"
 msgstr "Latest end"
 
 #: src/features/leave/components/leave-record-list.tsx
+#: src/features/onboarding/components/onboarding-record-list.tsx
 #: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/employee-table.tsx
+#: src/features/people/components/employee-record-list.tsx
 msgctxt "people.HAlOn1"
 msgid "Name"
 msgstr "Name"
@@ -10874,6 +11117,7 @@ msgid "Rejected"
 msgstr "Rejected"
 
 #: src/features/leave/components/leave-status.tsx
+#: src/features/onboarding/components/onboarding-status.tsx
 msgctxt "people.3wsVWF"
 msgid "Cancelled"
 msgstr "Cancelled"
@@ -12048,6 +12292,30 @@ msgstr "Hiring"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.fnihsY"
+msgid "Leave"
+msgstr "Leave"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.GjrgLY"
+msgid "Onboarding"
+msgstr "Onboarding"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.SxEfhc"
+msgid "Deadlines"
+msgstr "Deadlines"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.3xSXlo"
+msgid "Document templates"
+msgstr "Document templates"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.ug01Mk"
 msgid "Time"
 msgstr "Time"
@@ -12953,6 +13221,93 @@ msgctxt "optionSets.gzp6xc"
 msgid "Change the filters to see more."
 msgstr "Change the filters to see more."
 
+#: src/features/onboarding/components/enroll-employee-form.tsx
+msgctxt "people.rcr0h1"
+msgid "Employee enrolled"
+msgstr "Employee enrolled"
+
+#: src/features/onboarding/components/enroll-employee-form.tsx
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.7ScoLI"
+msgid "Program"
+msgstr "Program"
+
+#: src/features/onboarding/components/enroll-employee-form.tsx
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.HlMWir"
+msgid "Employee"
+msgstr "Employee"
+
+#: src/features/onboarding/components/enroll-employee-form.tsx
+msgctxt "people.nz3jzj"
+msgid "Enroll"
+msgstr "Enroll"
+
+#: src/features/onboarding/components/onboarding-overview.tsx
+msgctxt "people.7n3KQt"
+msgid "Onboarding didn't load"
+msgstr "Onboarding didn't load"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.VEFdtk"
+msgid "{done} of {total} steps"
+msgstr "{done} of {total} steps"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.sIMS7i"
+msgid "Progress"
+msgstr "Progress"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.9anxhq"
+msgid "Starts"
+msgstr "Starts"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.3aEZlP"
+msgid "Least done"
+msgstr "Least done"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.SejFmF"
+msgid "Search onboarding"
+msgstr "Search onboarding"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.pTgQzH"
+msgid "No onboarding runs found"
+msgstr "No onboarding runs found"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.z_EEAK"
+msgid "Enroll an employee, or change the filters."
+msgstr "Enroll an employee, or change the filters."
+
+#: src/features/onboarding/components/onboarding-status.tsx
+msgctxt "people.q1WWIr"
+msgid "In progress"
+msgstr "In progress"
+
+#: src/features/onboarding/components/onboarding-status.tsx
+msgctxt "people.95stPq"
+msgid "Completed"
+msgstr "Completed"
+
+#: src/features/onboarding/components/setup-onboarding-button.tsx
+msgctxt "people.kT-0FF"
+msgid "New hire program created"
+msgstr "New hire program created"
+
+#: src/features/onboarding/components/setup-onboarding-button.tsx
+msgctxt "people.NjPctq"
+msgid "Set up the new hire program"
+msgstr "Set up the new hire program"
+
 #: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.lehIHr"
 msgid "Organization created"
@@ -13386,7 +13741,7 @@ msgid "Work email"
 msgstr "Work email"
 
 #: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/employee-table.tsx
+#: src/features/people/components/employee-record-list.tsx
 msgctxt "people.HsQ3BK"
 msgid "Job title"
 msgstr "Job title"
@@ -13402,7 +13757,7 @@ msgid "Start date"
 msgstr "Start date"
 
 #: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/employee-table.tsx
+#: src/features/people/components/employee-private-details.tsx
 msgctxt "people.O95R3Z"
 msgid "Phone"
 msgstr "Phone"
@@ -13413,7 +13768,7 @@ msgid "Private: only people who can see sensitive fields read it."
 msgstr "Private: only people who can see sensitive fields read it."
 
 #: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/employee-table.tsx
+#: src/features/people/components/employee-private-details.tsx
 msgctxt "people.Wlp3oI"
 msgid "Personal email"
 msgstr "Personal email"
@@ -13458,116 +13813,138 @@ msgctxt "people.VzzYJk"
 msgid "Create"
 msgstr "Create"
 
-#: src/features/people/components/employee-directory.tsx
-msgctxt "people.HHzdGS"
-msgid "Employees"
-msgstr "Employees"
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.4igezZ"
+msgid "This employee didn't load"
+msgstr "This employee didn't load"
 
-#: src/features/people/components/employee-directory.tsx
-msgctxt "people.nqSYWv"
-msgid "Everyone in the organization and who they report to."
-msgstr "Everyone in the organization and who they report to."
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.GPMLWt"
+msgid "Private details"
+msgstr "Private details"
 
-#: src/features/people/components/employee-directory.tsx
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.1ZgrhW"
+msgid "Role"
+msgstr "Role"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.rPDUOM"
+msgid "Reports to"
+msgstr "Reports to"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.tcxpLX"
+msgid "No one"
+msgstr "No one"
+
+#: src/features/people/components/employee-detail.tsx
+#: src/features/people/components/employee-record-list.tsx
+msgctxt "people.TDUfVk"
+msgid "Started"
+msgstr "Started"
+
+#: src/features/people/components/employee-detail.tsx
+#: src/features/people/components/employee-private-details.tsx
+msgctxt "people.p5LNtB"
+msgid "Not set"
+msgstr "Not set"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.bNMeN_"
+msgid "Direct reports"
+msgstr "Direct reports"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.E6kgbM"
+msgid "No direct reports."
+msgstr "No direct reports."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.ZwpbZp"
+msgid "Contracts"
+msgstr "Contracts"
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.CCDxZe"
+msgid "No contracts you can read."
+msgstr "No contracts you can read."
+
+#: src/features/people/components/employee-detail.tsx
+msgctxt "people.voV900"
+msgid "{hours} h a week"
+msgstr "{hours} h a week"
+
+#: src/features/people/components/employee-overview.tsx
 msgctxt "people.9FS_rO"
 msgid "The directory didn't load"
 msgstr "The directory didn't load"
 
-#: src/features/people/components/employee-directory.tsx
-msgctxt "people.b51HyQ"
-msgid "No employees yet"
-msgstr "No employees yet"
-
-#: src/features/people/components/employee-directory.tsx
-msgctxt "people.nYs1vh"
-msgid "Add the first employee to start the org chart."
-msgstr "Add the first employee to start the org chart."
-
-#: src/features/people/components/employee-directory.tsx
-msgctxt "people.HIppEA"
-msgid "Ask an admin to add employees."
-msgstr "Ask an admin to add employees."
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.3a5wL8"
-msgid "Active"
-msgstr "Active"
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.c83exo"
-msgid "Preboarding"
-msgstr "Preboarding"
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.cnG-nl"
-msgid "On leave"
-msgstr "On leave"
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.Icti08"
-msgid "Offboarded"
-msgstr "Offboarded"
-
-#: src/features/people/components/employee-table.tsx
+#: src/features/people/components/employee-private-details.tsx
 msgctxt "people.xwok6-"
 msgid "The private details didn't load"
 msgstr "The private details didn't load"
 
-#: src/features/people/components/employee-table.tsx
+#: src/features/people/components/employee-private-details.tsx
 #: src/features/people/components/people-load-error.tsx
 msgctxt "people.62nsdy"
 msgid "Retry"
 msgstr "Retry"
 
-#: src/features/people/components/employee-table.tsx
+#: src/features/people/components/employee-private-details.tsx
+msgctxt "people.1qqK5K"
+msgid "Reveal private details"
+msgstr "Reveal private details"
+
+#: src/features/people/components/employee-private-details.tsx
 msgctxt "people.2zQ_Df"
 msgid "Birth date"
 msgstr "Birth date"
 
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.p5LNtB"
-msgid "Not set"
-msgstr "Not set"
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.O5C_Z-"
-msgid "Search by name, title or email"
-msgstr "Search by name, title or email"
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.r4tSD3"
-msgid "Search employees"
-msgstr "Search employees"
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.PP-YfD"
-msgid "No one matches"
-msgstr "No one matches"
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.HV10uZ"
-msgid "Try another name, title or email."
-msgstr "Try another name, title or email."
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.4YJHut"
-msgid "Clear search"
-msgstr "Clear search"
-
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.rPDUOM"
-msgid "Reports to"
-msgstr "Reports to"
-
-#: src/features/people/components/employee-table.tsx
+#: src/features/people/components/employee-record-list.tsx
 msgctxt "people.Ppx673"
 msgid "Reports"
 msgstr "Reports"
 
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.RB_c3Z"
-msgid "Only people who can see sensitive fields read these."
-msgstr "Only people who can see sensitive fields read these."
+#: src/features/people/components/employee-record-list.tsx
+msgctxt "people.AebSgL"
+msgid "Most reports"
+msgstr "Most reports"
+
+#: src/features/people/components/employee-record-list.tsx
+msgctxt "people.r4tSD3"
+msgid "Search employees"
+msgstr "Search employees"
+
+#: src/features/people/components/employee-record-list.tsx
+msgctxt "people.PP-YfD"
+msgid "No one matches"
+msgstr "No one matches"
+
+#: src/features/people/components/employee-record-list.tsx
+msgctxt "people.HV10uZ"
+msgid "Try another name, title or email."
+msgstr "Try another name, title or email."
+
+#: src/features/people/components/employee-status.tsx
+msgctxt "people.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/people/components/employee-status.tsx
+msgctxt "people.c83exo"
+msgid "Preboarding"
+msgstr "Preboarding"
+
+#: src/features/people/components/employee-status.tsx
+msgctxt "people.cnG-nl"
+msgid "On leave"
+msgstr "On leave"
+
+#: src/features/people/components/employee-status.tsx
+msgctxt "people.Icti08"
+msgid "Offboarded"
+msgstr "Offboarded"
 
 #: src/features/people/components/hiring-board.tsx
 msgctxt "people.lwkrpf"
@@ -13767,6 +14144,31 @@ msgstr "Log a block of time or start the timer on a project."
 msgctxt "people.MJ2jZQ"
 msgid "Total"
 msgstr "Total"
+
+#: src/features/portal/components/guest-portal.tsx
+msgctxt "portal.UliVJq"
+msgid "The portal didn't load"
+msgstr "The portal didn't load"
+
+#: src/features/portal/components/guest-portal.tsx
+msgctxt "portal.Ey9q_5"
+msgid "Reload the page to try again."
+msgstr "Reload the page to try again."
+
+#: src/features/portal/components/guest-portal.tsx
+msgctxt "portal.gxlh1l"
+msgid "Nothing is shared with you yet"
+msgstr "Nothing is shared with you yet"
+
+#: src/features/portal/components/guest-portal.tsx
+msgctxt "portal.Bo7wea"
+msgid "Records an organization shares with you appear here."
+msgstr "Records an organization shares with you appear here."
+
+#: src/features/portal/components/guest-portal.tsx
+msgctxt "portal.AnykoJ"
+msgid "Until {date}"
+msgstr "Until {date}"
 
 #: src/features/privacy/components/privacy-controls.tsx
 msgctxt "privacy.wntQpy"
@@ -20935,16 +21337,6 @@ msgid "Drop an item here."
 msgstr "Drop an item here."
 
 #: src/features/work/components/work-item-grid.tsx
-msgctxt "work.fwIt1X"
-msgid "Newest"
-msgstr "Newest"
-
-#: src/features/work/components/work-item-grid.tsx
-msgctxt "work.ku-mDU"
-msgid "State"
-msgstr "State"
-
-#: src/features/work/components/work-item-grid.tsx
 msgctxt "work.JAYugF"
 msgid "Save view"
 msgstr "Save view"
@@ -21063,11 +21455,6 @@ msgstr "To do"
 msgctxt "work.q1WWIr"
 msgid "In progress"
 msgstr "In progress"
-
-#: src/features/work/use-work-labels.ts
-msgctxt "work.JXdbo8"
-msgid "Done"
-msgstr "Done"
 
 #: src/features/work/use-work-labels.ts
 msgctxt "work.PFtMy9"

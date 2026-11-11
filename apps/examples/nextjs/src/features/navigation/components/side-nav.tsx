@@ -80,6 +80,10 @@ import {
   PackageSearchIcon,
   ReceiptTextIcon,
   WalletIcon,
+  TreePalmIcon,
+  UserRoundCheckIcon,
+  HourglassIcon,
+  FileStackIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { getExtracted } from "next-intl/server";
@@ -104,6 +108,10 @@ const ICONS = {
   customers: UsersIcon,
   people: IdCardIcon,
   hiring: BriefcaseIcon,
+  leave: TreePalmIcon,
+  onboarding: UserRoundCheckIcon,
+  deadlines: HourglassIcon,
+  documentTemplates: FileStackIcon,
   time: ClockIcon,
   calendar: CalendarIcon,
   availability: CalendarCheckIcon,
