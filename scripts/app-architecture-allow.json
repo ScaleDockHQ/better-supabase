@@ -113,10 +113,6 @@
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/warehouse/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/work/grid/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/work/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/workflows/[run]/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/workflows/builder/[definition]/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/workflows/builder/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/workflows/page.tsx",
     "instant-export tests/init-fixture/nextjs/src/app/(app)/account/[section]/page.tsx",
     "instant-export tests/init-fixture/nextjs/src/app/(app)/page.tsx"
   ]

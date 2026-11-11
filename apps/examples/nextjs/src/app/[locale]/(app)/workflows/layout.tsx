@@ -9,7 +9,7 @@ export default function WorkflowsLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "workflows"])}
+      messages={pick(messages, [...APP_NAMESPACES, "workflows", "recordList"])}
     >
       {children}
     </NextIntlClientProvider>

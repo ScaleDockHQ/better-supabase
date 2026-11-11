@@ -590,14 +590,24 @@ msgctxt "imports.dlTl_2"
 msgid "Bring customers in from a spreadsheet."
 msgstr "Haal klanten binnen uit een spreadsheet."
 
-#: src/app/[locale]/(app)/inbox/page.tsx
+#: src/app/[locale]/(app)/inbox/layout.tsx
 msgctxt "inbox.VCMKbt"
 msgid "Inbox"
 msgstr "Inbox"
 
+#: src/app/[locale]/(app)/inbox/layout.tsx
+msgctxt "inbox.X_KToh"
+msgid "One queue for the web widget, email, Slack and WhatsApp, kept live over Realtime."
+msgstr ""
+
 #: src/app/[locale]/(app)/inbox/page.tsx
-msgctxt "inbox.DRlmpk"
-msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
+msgctxt "inbox.SZLu0S"
+msgid "Pick a conversation"
+msgstr "Kies een gesprek"
+
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.j6NWwp"
+msgid "Its messages, notes, context and actions show here."
 msgstr ""
 
 #: src/app/[locale]/(app)/inspections/page.tsx
@@ -775,6 +785,21 @@ msgctxt "people.w4O5ud"
 msgid "Openings and their candidates by interview stage."
 msgstr "Vacatures en hun kandidaten per gespreksfase."
 
+#: src/app/[locale]/(app)/people/leave/[id]/page.tsx
+msgctxt "people.RtbAu5"
+msgid "All leave"
+msgstr ""
+
+#: src/app/[locale]/(app)/people/leave/page.tsx
+msgctxt "people.fnihsY"
+msgid "Leave"
+msgstr ""
+
+#: src/app/[locale]/(app)/people/leave/page.tsx
+msgctxt "people.X6M2Jq"
+msgid "Time off by type, requests approved by a manager, and your balances."
+msgstr ""
+
 #: src/app/[locale]/(app)/people/page.tsx
 msgctxt "people.Tpy00S"
 msgid "People"
@@ -851,6 +876,11 @@ msgctxt "rfqs.yaZl1M"
 msgid "Requests sent to suppliers, their quotes and the award."
 msgstr "Aanvragen bij leveranciers, hun offertes en de toewijzing."
 
+#: src/app/[locale]/(app)/risks/[id]/page.tsx
+msgctxt "risks.bEf8AN"
+msgid "All risks"
+msgstr ""
+
 #: src/app/[locale]/(app)/risks/page.tsx
 msgctxt "risks._s79W_"
 msgid "Risks"
@@ -886,10 +916,25 @@ msgctxt "audit.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
+#: src/app/[locale]/(app)/settings/jobs/page.tsx
+msgctxt "jobs.-P2HMk"
+msgid "Search all runs"
+msgstr ""
+
+#: src/app/[locale]/(app)/settings/jobs/runs/[queue]/[id]/page.tsx
+msgctxt "jobs.B8K6dt"
+msgid "All job runs"
+msgstr ""
+
 #: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
 msgctxt "members.sKwqTt"
 msgid "All members"
 msgstr "Alle leden"
+
+#: src/app/[locale]/(app)/settings/option-sets/[id]/page.tsx
+msgctxt "optionSets.i_1uRf"
+msgid "All option sets"
+msgstr ""
 
 #: src/app/[locale]/(app)/settings/roles/[roleId]/page.tsx
 msgctxt "roles.0QowWF"
@@ -1059,25 +1104,11 @@ msgctxt "work.HzfrYu"
 msgid "Grid"
 msgstr "Raster"
 
-#: src/app/[locale]/(app)/workflows/[run]/page.tsx
-msgctxt "workflows.lPyu8U"
-msgid "All runs"
-msgstr "Alle runs"
-
 #: src/app/[locale]/(app)/workflows/builder/[definition]/page.tsx
+#: src/app/[locale]/(app)/workflows/templates/page.tsx
 msgctxt "workflows.hR2s7I"
 msgid "All workflows"
 msgstr "Alle workflows"
-
-#: src/app/[locale]/(app)/workflows/builder/page.tsx
-msgctxt "workflows.Rm3xgH"
-msgid "Workflow builder"
-msgstr "Workflowbouwer"
-
-#: src/app/[locale]/(app)/workflows/builder/page.tsx
-msgctxt "workflows.DQVRjW"
-msgid "Workflows the organization draws on a canvas, published in versions and run on the Workflow SDK."
-msgstr "Workflows die de organisatie op een canvas tekent, in versies publiceert en op de Workflow SDK draait."
 
 #: src/app/[locale]/(app)/workflows/page.tsx
 msgctxt "workflows.6La3aS"
@@ -1085,14 +1116,49 @@ msgid "Workflows"
 msgstr "Workflows"
 
 #: src/app/[locale]/(app)/workflows/page.tsx
-msgctxt "workflows.O9538F"
-msgid "Durable runs on the Workflow SDK with the Supabase World. The list stays live over Realtime."
-msgstr "Duurzame runs op de Workflow SDK met de Supabase World. De lijst blijft live via Realtime."
+msgctxt "workflows.DQVRjW"
+msgid "Workflows the organization draws on a canvas, published in versions and run on the Workflow SDK."
+msgstr "Workflows die de organisatie op een canvas tekent, in versies publiceert en op de Workflow SDK draait."
 
 #: src/app/[locale]/(app)/workflows/page.tsx
+msgctxt "workflows.A3ptul"
+msgid "Templates"
+msgstr ""
+
+#: src/app/[locale]/(app)/workflows/page.tsx
+msgctxt "workflows.W1Qs5O"
+msgid "Runs"
+msgstr ""
+
+#: src/app/[locale]/(app)/workflows/runs/[run]/page.tsx
+msgctxt "workflows.lPyu8U"
+msgid "All runs"
+msgstr "Alle runs"
+
+#: src/app/[locale]/(app)/workflows/runs/page.tsx
+msgctxt "workflows.Xre2hP"
+msgid "Workflow runs"
+msgstr ""
+
+#: src/app/[locale]/(app)/workflows/runs/page.tsx
+msgctxt "workflows.IEmMWV"
+msgid "Every run of the organization, newest first. The list reloads while runs change."
+msgstr ""
+
+#: src/app/[locale]/(app)/workflows/runs/page.tsx
 msgctxt "workflows.F42bEw"
 msgid "Schedules"
 msgstr "Planningen"
+
+#: src/app/[locale]/(app)/workflows/templates/page.tsx
+msgctxt "workflows.djEdEN"
+msgid "Workflow templates"
+msgstr ""
+
+#: src/app/[locale]/(app)/workflows/templates/page.tsx
+msgctxt "workflows.sOxTzh"
+msgid "Start from a graph that already runs. Each template becomes a draft you can change."
+msgstr ""
 
 #: src/app/[locale]/islands/page.tsx
 msgctxt "islands.a8EoBn"
@@ -1613,6 +1679,16 @@ msgstr "Te laat sinds {date}"
 msgctxt "acknowledgements.5vDqi-"
 msgid "Due {date}"
 msgstr "Uiterlijk {date}"
+
+#: src/features/admin-lists/admin-record-list.tsx
+msgctxt "adminLists.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/admin-lists/admin-record-list.tsx
+msgctxt "adminLists.h-T3T7"
+msgid "Oldest first"
+msgstr ""
 
 #: src/features/ai-providers/components/ai-provider-section.tsx
 #: src/features/ai-providers/components/ai-provider-settings.tsx
@@ -7507,6 +7583,162 @@ msgctxt "documents.PeEood"
 msgid "Customer updated"
 msgstr "Klant bijgewerkt"
 
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.NBobyu"
+msgid "Domain added"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.EkcNZU"
+msgid "Add domain"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.hV6QJL"
+msgid "Add a domain"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.huYv5o"
+msgid "Your organization is served on a domain once you publish its TXT record and verify it."
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.uPDgth"
+msgid "Hostname"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.yt0E0t"
+msgid "A hostname you control, without https://."
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.3Ziraf"
+msgid "Primary domain set"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.s06fQf"
+msgid "Make primary"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.s6dhLG"
+msgid "Domain verified"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.q5Xl0M"
+msgid "Verify"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.5-Lw27"
+msgid "Remove {hostname}"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.1_tBtU"
+msgid "Remove {hostname}?"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.j4c7IO"
+msgid "The organization stops being served on this domain. You can add it again later."
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.TetbMu"
+msgid "Domain removed"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.G_yZLu"
+msgid "Remove"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.k5AM0y"
+msgid "Copy the TXT value"
+msgstr ""
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.weiK8h"
+msgid "Value copied"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.t2Wr8I"
+msgid "Primary"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.Z8971h"
+msgid "Verified"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.eKEL_g"
+msgid "Pending"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.e5x8FT"
+msgid "Kind"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.wF0wlc"
+msgid "TXT record"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.rIAJlE"
+msgid "Added"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.Sjo1P4"
+msgid "Custom"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.A6ivgz"
+msgid "Subdomain"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.cAiIGl"
+msgid "Search domains"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.PqbjSZ"
+msgid "No domains found"
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.FseT8F"
+msgid "Add a domain, or change the filters."
+msgstr ""
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.gzp6xc"
+msgid "Change the filters to see more."
+msgstr ""
+
 #: src/features/drive/components/document-register.tsx
 msgctxt "drive.W6nwjo"
 msgid "Draft"
@@ -9065,13 +9297,91 @@ msgctxt "imports.6FpVY9"
 msgid "Import another file"
 msgstr "Nog een bestand importeren"
 
+#: src/features/inbox/components/channel-simulator-lazy.tsx
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.xUO0eO"
+msgid "Simulate a message"
+msgstr ""
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.HEdsgA"
+msgid "Simulate an incoming message"
+msgstr ""
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.UsYAg6"
+msgid "The message arrives as if the channel delivered it. The same address continues one conversation."
+msgstr ""
+
+#: src/features/inbox/components/channel-simulator.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.KeO51o"
+msgid "Channel"
+msgstr ""
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.HAlOn1"
+msgid "Name"
+msgstr ""
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.N_nrM1"
+msgid "Email or phone number"
+msgstr ""
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.LLtKhp"
+msgid "Subject"
+msgstr ""
+
+#: src/features/inbox/components/channel-simulator.tsx
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.T7Ry38"
+msgid "Message"
+msgstr "Bericht"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.l8WU4w"
+msgid "Receive message"
+msgstr ""
+
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.X4M1tJ"
 msgid "Reply scheduled"
 msgstr "Antwoord ingepland"
 
 #: src/features/inbox/components/composer.tsx
-#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.8_Hr8S"
+msgid "AI draft for the team"
+msgstr ""
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.wEQDC6"
+msgid "Edit"
+msgstr ""
+
+#: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.9WRlF4"
+msgid "Send"
+msgstr "Versturen"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.nmpevl"
+msgid "Discard"
+msgstr ""
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.Q-qA3k"
+msgid "The WhatsApp reply window is closed"
+msgstr ""
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.A18cx6"
+msgid "The contact wrote more than 24 hours ago. Send an approved template, or add an internal note."
+msgstr ""
+
+#: src/features/inbox/components/composer.tsx
 msgctxt "inbox.qMePPG"
 msgid "Note"
 msgstr "Notitie"
@@ -9092,9 +9402,30 @@ msgid "Write a reply"
 msgstr "Schrijf een antwoord"
 
 #: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.0kc5kM"
 msgid "Internal note"
 msgstr "Interne notitie"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.Et-jZs"
+msgid "Macros"
+msgstr ""
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.A3ptul"
+msgid "Templates"
+msgstr ""
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.gQYJeA"
+msgid "Insert a macro"
+msgstr ""
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.slZtLX"
+msgid "Send a template"
+msgstr ""
 
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.7tFha1"
@@ -9106,11 +9437,131 @@ msgctxt "inbox.KgAlAZ"
 msgid "Add note"
 msgstr "Notitie toevoegen"
 
-#: src/features/inbox/components/composer.tsx
-#: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.9WRlF4"
-msgid "Send"
-msgstr "Versturen"
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.v7m7rk"
+msgid "Web widget"
+msgstr ""
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.sy-pv5"
+msgid "Email"
+msgstr ""
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.sjzDbu"
+msgid "Slack"
+msgstr ""
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.5ow6dg"
+msgid "WhatsApp"
+msgstr ""
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.k5NtsF"
+msgid "SMS"
+msgstr ""
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.RY1JgY"
+msgid "SLA breached"
+msgstr ""
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox._0mWw0"
+msgid "SLA due soon"
+msgstr ""
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.W6nSYE"
+msgid "Resolved"
+msgstr "Opgelost"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.iH-vKS"
+msgid "Snoozed"
+msgstr ""
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.eKEL_g"
+msgid "Pending"
+msgstr "In afwachting"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.O95R3Z"
+msgid "Phone"
+msgstr ""
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.ccLKRu"
+msgid "Channel account"
+msgstr ""
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.8lCjAM"
+msgid "Priority"
+msgstr ""
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.fe7Ds3"
+msgid "First response"
+msgstr ""
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.ZxgDJj"
+msgid "Waiting (target {minutes} min)"
+msgstr ""
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.TDUfVk"
+msgid "Started"
+msgstr ""
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.zFegDD"
+msgid "Contact"
+msgstr ""
+
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.OGqTOQ"
+msgid "Visitor"
+msgstr "Bezoeker"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.qRLDGS"
+msgid "Earlier conversations"
+msgstr ""
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.ebTvVL"
+msgid "This is the first conversation with this contact."
+msgstr ""
+
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.Zay6OH"
+msgid "No subject"
+msgstr "Geen onderwerp"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.Nb_g9b"
+msgid "No messages"
+msgstr ""
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.iHyFD4"
@@ -9123,38 +9574,19 @@ msgid "Conversation"
 msgstr "Gesprek"
 
 #: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.Zay6OH"
-msgid "No subject"
-msgstr "Geen onderwerp"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.OGqTOQ"
-msgid "Visitor"
-msgstr "Bezoeker"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.W6nSYE"
-msgid "Resolved"
-msgstr "Opgelost"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.JfG49w"
-msgid "Open"
-msgstr "Open"
-
-#: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.9OHSlH"
-msgid "Snoozed until {time}"
+msgctxt "inbox.oGjCbW"
+msgid "Until {time}"
 msgstr ""
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.Vja_gq"
 msgid "Bot answers"
 msgstr "Bot antwoordt"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.uwMaA2"
+msgid "Bot paused"
+msgstr ""
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.seEgGq"
@@ -9177,6 +9609,11 @@ msgid "Take over from the bot"
 msgstr "Overnemen van de bot"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.fee4dL"
+msgid "Hand back to the bot"
+msgstr ""
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.9qc7BX"
 msgid "Snooze"
 msgstr "Snoozen"
@@ -9192,9 +9629,30 @@ msgid "Resolve"
 msgstr "Oplossen"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.tzwHXE"
+msgid "Someone is typing…"
+msgstr "Iemand typt…"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.03nvvB"
+msgid "Bot"
+msgstr ""
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.wsUmh9"
+msgid "Team"
+msgstr ""
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.1r7-tf"
 msgid "Message deleted"
 msgstr "Bericht verwijderd"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.0x75v-"
+msgid "Not delivered"
+msgstr ""
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.d_fRcX"
@@ -9202,9 +9660,95 @@ msgid "Seen"
 msgstr "Gezien"
 
 #: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.tzwHXE"
-msgid "Someone is typing…"
-msgstr "Iemand typt…"
+msgctxt "inbox.DMqnF4"
+msgid "Delivered"
+msgstr ""
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.GeN5hs"
+msgid "All channels"
+msgstr ""
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.fvK8Qi"
+msgid "All statuses"
+msgstr ""
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.TFJD82"
+msgid "Anyone"
+msgstr "Iedereen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.snC7V6"
+msgid "Mine"
+msgstr "Van mij"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.a1eoKk"
+msgid "Unassigned"
+msgstr "Niet toegewezen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.1udzha"
+msgid "Conversations"
+msgstr "Gesprekken"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.TA1mK7"
+msgid "Search conversations"
+msgstr ""
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.vx8bv3"
+msgid "Assignee"
+msgstr "Toegewezen aan"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.XayNHe"
+msgid "The queue did not load"
+msgstr ""
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.xUnZ3u"
+msgid "Check your connection and try again."
+msgstr ""
+
+#: src/features/inbox/components/conversation-queue.tsx
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.1NNSUY"
+msgid "No conversations"
+msgstr "Geen gesprekken"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.W0PonI"
+msgid "Nothing matches these filters. Clear them, or use the simulator to receive a message."
+msgstr ""
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.F4gyn3"
+msgid "Clear filters"
+msgstr ""
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.bW7B87"
+msgid "New"
+msgstr "Nieuw"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.00LcfG"
+msgid "Load more"
+msgstr ""
 
 #: src/features/inbox/components/help-sheet-lazy.tsx
 #: src/features/inbox/components/help-sheet.tsx
@@ -9233,11 +9777,6 @@ msgid "Could not send"
 msgstr "Versturen mislukt"
 
 #: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.T7Ry38"
-msgid "Message"
-msgstr "Bericht"
-
-#: src/features/inbox/components/help-sheet.tsx
 msgctxt "inbox.zsMxWw"
 msgid "How can we help?"
 msgstr "Waarmee kunnen we helpen?"
@@ -9246,66 +9785,6 @@ msgstr "Waarmee kunnen we helpen?"
 msgctxt "inbox.PQ8A3I"
 msgid "New conversation"
 msgstr "Nieuw gesprek"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.TFJD82"
-msgid "Anyone"
-msgstr "Iedereen"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.snC7V6"
-msgid "Mine"
-msgstr "Van mij"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.a1eoKk"
-msgid "Unassigned"
-msgstr "Niet toegewezen"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.1udzha"
-msgid "Conversations"
-msgstr "Gesprekken"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.eKEL_g"
-msgid "Pending"
-msgstr "In afwachting"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.zQvVDJ"
-msgid "All"
-msgstr ""
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.vx8bv3"
-msgid "Assignee"
-msgstr "Toegewezen aan"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.SZLu0S"
-msgid "Pick a conversation"
-msgstr "Kies een gesprek"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.PjS425"
-msgid "Its messages, notes and actions show here."
-msgstr ""
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.1NNSUY"
-msgid "No conversations"
-msgstr "Geen gesprekken"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.K_kIrH"
-msgid "Open Help in the header to start one as a customer."
-msgstr ""
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.bW7B87"
-msgid "New"
-msgstr "Nieuw"
 
 #: src/features/inbox/components/later-items.tsx
 msgctxt "inbox._qJpQY"
@@ -9333,11 +9812,6 @@ msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
 #: src/features/inbox/components/scheduled-replies.tsx
-msgctxt "inbox.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/inbox/components/scheduled-replies.tsx
 msgctxt "inbox.yGEFsz"
 msgid "Scheduled replies"
 msgstr "Ingeplande antwoorden"
@@ -9346,6 +9820,194 @@ msgstr "Ingeplande antwoorden"
 msgctxt "inbox.pC2KQV"
 msgid "Cancel scheduled reply"
 msgstr "Ingepland antwoord annuleren"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.e_tg3W"
+msgid "Copy {label}"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.p556q3"
+msgid "Copied"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.KK_nq1"
+msgid "Add endpoint"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.kX2R92"
+msgid "Copy the trigger URL"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.eqg3yk"
+msgid "This is the only time the token and the secret are shown. Senders post to the URL."
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.galdNg"
+msgid "Trigger path"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.CtZMCP"
+msgid "Secret"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.JXdbo8"
+msgid "Done"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.YW0KIR"
+msgid "Add an incoming endpoint"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.5tyIwL"
+msgid "Deliveries land in the webhook inbox for a worker to process."
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.HAlOn1"
+msgid "Name"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.FpxElY"
+msgid "Verification"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.UmHyI8"
+msgid "Standard Webhooks signature"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.BWYdJ0"
+msgid "HMAC SHA-256 header"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.ue5Glg"
+msgid "Shared secret header"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.450Fty"
+msgid "None"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.w9pRps"
+msgid "Enable {name}"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.FTNuuD"
+msgid "Endpoint turned on"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.OywY9Q"
+msgid "Endpoint turned off"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.JpsXCp"
+msgid "Delete {name}"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.g9o_2L"
+msgid "Delete {name}?"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.wLHXcc"
+msgid "Its secrets are deleted too. Senders that post to its URL get a 404."
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.PK7pDv"
+msgid "Endpoint deleted"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.K3r6DQ"
+msgid "Delete"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.z_wUXE"
+msgid "Received"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.TMXkY7"
+msgid "Last delivery"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.Zh-5A6"
+msgid "On"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.OvzONl"
+msgid "Off"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.xDM7s1"
+msgid "Standard Webhooks"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.0_Ssji"
+msgid "HMAC SHA-256"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.ubQ1f-"
+msgid "Shared secret"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.mPfj7c"
+msgid "Search endpoints"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.VfRI0m"
+msgid "No incoming endpoints found"
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.AEWJ-8"
+msgid "Add an endpoint, or change the filters."
+msgstr ""
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.gzp6xc"
+msgid "Change the filters to see more."
+msgstr ""
 
 #: src/features/inspections/components/inspection-labels.tsx
 #: src/features/inspections/components/inspection-program-calendar.tsx
@@ -9823,6 +10485,83 @@ msgctxt "islands.dJi4TF"
 msgid "Not in the token"
 msgstr "Niet in het token"
 
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.Cnm0QA"
+msgid "Queued"
+msgstr "In de wachtrij"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.cXAlMR"
+msgid "Scheduled"
+msgstr ""
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.nDyaq_"
+msgid "Running"
+msgstr ""
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.6p8Isg"
+msgid "Retrying"
+msgstr ""
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.LOghU6"
+msgid "Succeeded"
+msgstr ""
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.vXCeIi"
+msgid "Failed"
+msgstr ""
+
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.MEvKnW"
+msgid "Job"
+msgstr "Taak"
+
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-run-detail.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.HhYIki"
+msgid "Attempts"
+msgstr "Pogingen"
+
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-run-detail.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.EQpfkS"
+msgid "Finished"
+msgstr "Afgerond"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.4YDNPC"
+msgid "Queue"
+msgstr ""
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.nzr43B"
+msgid "Search jobs"
+msgstr ""
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.sBpLKt"
+msgid "No job runs found"
+msgstr ""
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.SKAI4r"
+msgid "Jobs are queued when the app hands work to the background. Queue a test job, or change the filters."
+msgstr ""
+
 #: src/features/jobs/components/job-run-controls.tsx
 msgctxt "jobs.IJu8c2"
 msgid "Test job queued"
@@ -9843,6 +10582,21 @@ msgstr "Taak opnieuw in de wachtrij gezet"
 msgctxt "jobs.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
+
+#: src/features/jobs/components/job-run-detail.tsx
+msgctxt "jobs.06BF9b"
+msgid "Queued {when}"
+msgstr ""
+
+#: src/features/jobs/components/job-run-detail.tsx
+msgctxt "jobs.LnoDao"
+msgid "Last error"
+msgstr ""
+
+#: src/features/jobs/components/job-run-detail.tsx
+msgctxt "jobs.T7Ry38"
+msgid "Message"
+msgstr ""
 
 #: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.Tl-kE3"
@@ -9873,31 +10627,6 @@ msgstr "Nog geen taakruns"
 msgctxt "jobs.hZ4xf9"
 msgid "Jobs are queued when the app hands work to the background, such as a webhook delivery or an import. Queue a test job to see one here."
 msgstr "Taken komen in de wachtrij als de app werk naar de achtergrond doorgeeft, zoals een webhook-levering of een import. Zet een testtaak in de wachtrij om er hier een te zien."
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.MEvKnW"
-msgid "Job"
-msgstr "Taak"
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.HhYIki"
-msgid "Attempts"
-msgstr "Pogingen"
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.Cnm0QA"
-msgid "Queued"
-msgstr "In de wachtrij"
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.EQpfkS"
-msgid "Finished"
-msgstr "Afgerond"
 
 #: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.wL7VAE"
@@ -9980,9 +10709,244 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nog niets gevonden. Een nieuw document is doorzoekbaar zodra het klaar is."
 
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.yPz9pN"
+msgid "Leave approved"
+msgstr ""
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.TuojOb"
+msgid "Leave rejected"
+msgstr ""
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.-WlnTr"
+msgid "Leave cancelled"
+msgstr ""
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.WCaf5C"
+msgid "Approve"
+msgstr ""
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.VzIOKf"
+msgid "Reject"
+msgstr ""
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.biq8aT"
+msgid "Cancel request"
+msgstr ""
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.sM61xn"
+msgid "This leave request didn't load"
+msgstr ""
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.H5-NAX"
+msgid "Balance"
+msgstr ""
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.TuODKn"
+msgid "This type isn't tracked against a balance."
+msgstr ""
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.UjLMLI"
+msgid "{available} {unit} available"
+msgstr ""
+
+#: src/features/leave/components/leave-detail.tsx
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.p1P-hQ"
+msgid "Request"
+msgstr ""
+
+#: src/features/leave/components/leave-detail.tsx
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people._0TOL5"
+msgid "Amount"
+msgstr ""
+
+#: src/features/leave/components/leave-detail.tsx
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.qMePPG"
+msgid "Note"
+msgstr ""
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.scwekL"
+msgid "Ledger"
+msgstr ""
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.Xypua0"
+msgid "Nothing is booked until the request is approved."
+msgstr ""
+
 #: src/features/leave/components/leave-overview.tsx
 msgctxt "people.-eTI8w"
 msgid "Leave didn't load"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.rCrCme"
+msgid "{amount} h"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.VovTji"
+msgid "{amount} d"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.o8KenS"
+msgid "Who"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.-U6ozc"
+msgid "Type"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.D6b0Au"
+msgid "Dates"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+#: src/features/people/components/employee-table.tsx
+msgctxt "people.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.zBHBco"
+msgid "Latest start"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.WP_0ih"
+msgid "Latest end"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+#: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/employee-table.tsx
+msgctxt "people.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.169voX"
+msgid "Search leave"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.EjRYCx"
+msgid "No leave found"
+msgstr ""
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people._MTwuH"
+msgid "Request leave, or change the filters."
+msgstr ""
+
+#: src/features/leave/components/leave-status.tsx
+msgctxt "people.eKEL_g"
+msgid "Pending"
+msgstr ""
+
+#: src/features/leave/components/leave-status.tsx
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.6XFO_C"
+msgid "Approved"
+msgstr "Goedgekeurd"
+
+#: src/features/leave/components/leave-status.tsx
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.5qaD7s"
+msgid "Rejected"
+msgstr "Afgewezen"
+
+#: src/features/leave/components/leave-status.tsx
+msgctxt "people.3wsVWF"
+msgid "Cancelled"
+msgstr ""
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.JnfIJA"
+msgid "Leave requested for {amount} days"
+msgstr ""
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.U7O43u"
+msgid "Whole days"
+msgstr ""
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people._kzk_m"
+msgid "Morning"
+msgstr ""
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.mF-J9o"
+msgid "Afternoon"
+msgstr ""
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.0mCWLj"
+msgid "Request leave"
+msgstr ""
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.AhMZc-"
+msgid "A manager approves the request. Working days are counted for you."
+msgstr ""
+
+#: src/features/leave/components/request-leave-dialog.tsx
+#: src/features/people/components/log-time-dialog.tsx
+msgctxt "people.dM-p3_"
+msgid "From"
+msgstr "Van"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+#: src/features/people/components/log-time-dialog.tsx
+msgctxt "people.9j3hXO"
+msgid "To"
+msgstr "Tot"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.kgMIFw"
+msgid "Leave empty for one day."
+msgstr ""
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.pVQj2-"
+msgid "Part of the day"
+msgstr ""
+
+#: src/features/leave/components/request-leave-dialog.tsx
+#: src/features/people/components/add-candidate-dialog.tsx
+#: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/create-opening-dialog.tsx
+#: src/features/people/components/log-time-dialog.tsx
+msgctxt "people.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/leave/components/set-up-leave-button.tsx
+msgctxt "people.qGpe0B"
+msgid "Leave types created"
+msgstr ""
+
+#: src/features/leave/components/set-up-leave-button.tsx
+msgctxt "people.3N5ht9"
+msgid "Set up leave types"
 msgstr ""
 
 #: src/features/legal-entities/components/legal-entity-sections.tsx
@@ -11457,9 +12421,9 @@ msgstr "Workflows"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
-msgctxt "navigation.Rm3xgH"
-msgid "Workflow builder"
-msgstr "Workflowbouwer"
+msgctxt "navigation.Xre2hP"
+msgid "Workflow runs"
+msgstr ""
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
@@ -11828,6 +12792,166 @@ msgstr "Wijzigingen en pagina's die nog wachten, laden zodra je weer online bent
 msgctxt "offline.qf5KUv"
 msgid "Waiting for connection"
 msgstr "Wacht op verbinding"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.2FTlRV"
+msgid "Priority options created"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.7qTpLv"
+msgid "Create task priorities"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.z_4wqP"
+msgid "Option saved"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets._S1NDL"
+msgid "Edit {label}"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.LdswFL"
+msgid "Edit option"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.nz91sE"
+msgid "Records keep the option's level, so sorting and reports stay the same."
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.753yX5"
+msgid "Label"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.uMhpKe"
+msgid "Color"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.jvo0vs"
+msgid "Save"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.WLanec"
+msgid "Archive {label}"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.rIXhbX"
+msgid "Archive {label}?"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.zXuu9d"
+msgid "New records can no longer pick it. An option that records still use can't be archived until they move to another option."
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.sbWa4_"
+msgid "Option archived"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.hrgo-E"
+msgid "Archive"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.9hEsCf"
+msgid "{type}, field {field}"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-detail.tsx
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.0HT-Ib"
+msgid "Archived"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-detail.tsx
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.3a5wL8"
+msgid "Active"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.EcglP9"
+msgid "Key"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.y1Qr81"
+msgid "Level"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-detail.tsx
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.wL7VAE"
+msgid "Actions"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.lKv8ex"
+msgid "Default"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.HAlOn1"
+msgid "Name"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.QbUmZX"
+msgid "Record type"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.AbvQFb"
+msgid "Field"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.NDV5Mq"
+msgid "Options"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.MhUSfT"
+msgid "Search option sets"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.bg7STD"
+msgid "No option sets found"
+msgstr ""
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.-U70Ig"
+msgid "Create the task priorities, or change the filters."
+msgstr ""
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.gzp6xc"
+msgid "Change the filters to see more."
+msgstr ""
 
 #: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.lehIHr"
@@ -12232,14 +13356,6 @@ msgstr "Kandidaten zijn voorlopig klantrecords."
 
 #: src/features/people/components/add-candidate-dialog.tsx
 #: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/create-opening-dialog.tsx
-#: src/features/people/components/log-time-dialog.tsx
-msgctxt "people.47FYwb"
-msgid "Cancel"
-msgstr "Annuleren"
-
-#: src/features/people/components/add-candidate-dialog.tsx
-#: src/features/people/components/add-employee-dialog.tsx
 msgctxt "people.2_2yg-"
 msgid "Add"
 msgstr "Toevoegen"
@@ -12263,12 +13379,6 @@ msgstr "Medewerker toevoegen"
 msgctxt "people.rlzij2"
 msgid "They start as preboarding until their start date."
 msgstr "Ze staan op preboarding tot hun startdatum."
-
-#: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.HAlOn1"
-msgid "Name"
-msgstr "Naam"
 
 #: src/features/people/components/add-employee-dialog.tsx
 msgctxt "people.HHRIuR"
@@ -12450,11 +13560,6 @@ msgid "Reports to"
 msgstr "Rapporteert aan"
 
 #: src/features/people/components/employee-table.tsx
-msgctxt "people.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/people/components/employee-table.tsx
 msgctxt "people.Ppx673"
 msgid "Reports"
 msgstr "Ondergeschikten"
@@ -12547,16 +13652,6 @@ msgid "Day"
 msgstr "Dag"
 
 #: src/features/people/components/log-time-dialog.tsx
-msgctxt "people.dM-p3_"
-msgid "From"
-msgstr "Van"
-
-#: src/features/people/components/log-time-dialog.tsx
-msgctxt "people.9j3hXO"
-msgid "To"
-msgstr "Tot"
-
-#: src/features/people/components/log-time-dialog.tsx
 #: src/features/people/components/timesheet.tsx
 msgctxt "people.cwvEov"
 msgid "Billable"
@@ -12647,16 +13742,6 @@ msgstr "Open"
 msgctxt "people.raexxM"
 msgid "Submitted"
 msgstr "Ingediend"
-
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.6XFO_C"
-msgid "Approved"
-msgstr "Goedgekeurd"
-
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.5qaD7s"
-msgid "Rejected"
-msgstr "Afgewezen"
 
 #: src/features/people/components/timesheet.tsx
 msgctxt "people.wa4-aS"
@@ -13759,22 +14844,121 @@ msgctxt "rfqs.o9xrOU"
 msgid "Read the requests guide"
 msgstr "Lees de gids over aanvragen"
 
-#: src/features/risks/components/risk-heatmap.tsx
-msgctxt "risks.4_EFCP"
-msgid "The heatmap didn't load"
-msgstr "De heatmap is niet geladen"
+#: src/features/risks/components/risk-band-badge.tsx
+msgctxt "risks.3Q1Pj6"
+msgid "Not assessed"
+msgstr "Niet beoordeeld"
 
+#: src/features/risks/components/risk-band-badge.tsx
+msgctxt "risks.fyIg53"
+msgid "{band} · {score, number}"
+msgstr "{band} · {score, number}"
+
+#: src/features/risks/components/risk-detail-error.tsx
+msgctxt "risks.Fb3hee"
+msgid "The risk didn't load"
+msgstr ""
+
+#: src/features/risks/components/risk-detail-error.tsx
 #: src/features/risks/components/risk-heatmap.tsx
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.162kF7"
 msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
+#: src/features/risks/components/risk-detail-error.tsx
 #: src/features/risks/components/risk-heatmap.tsx
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.ETRyBL"
+msgid "Rating"
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.wlDLs5"
+msgid "Inherent"
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.Efoqaa"
+msgid "Residual"
+msgstr "Restrisico"
+
+#: src/features/risks/components/risk-detail.tsx
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.ep8Oy7"
+msgid "Next review"
+msgstr "Volgende review"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.SzG9JL"
+msgid "Treatment"
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.YgyuGj"
+msgid "Mitigated by"
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.mVCHM1"
+msgid "No controls linked yet."
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.-rrJAW"
+msgid "Materialized as"
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.dxHwqQ"
+msgid "No cases linked."
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.Q8Qw5B"
+msgid "Description"
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.LGYdYn"
+msgid "Cause"
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.SDaxN-"
+msgid "Consequence"
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.0dtPyZ"
+msgid "Assessments"
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks._iWYfY"
+msgid "Each assessment freezes the risk's version, newest first."
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.MJht_-"
+msgid "Not assessed yet. Score the likelihood and impact before and after controls."
+msgstr ""
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.M-Limx"
+msgid "then"
+msgstr ""
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.4_EFCP"
+msgid "The heatmap didn't load"
+msgstr "De heatmap is niet geladen"
 
 #: src/features/risks/components/risk-heatmap.tsx
 msgctxt "risks.WEDRDw"
@@ -13831,70 +15015,40 @@ msgctxt "risks.BAeF44"
 msgid "{band}: {count, plural, one {# risk} other {# risks}}"
 msgstr "{band}: {count, plural, one {# risico} other {# risico's}}"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.3Q1Pj6"
-msgid "Not assessed"
-msgstr "Niet beoordeeld"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.fyIg53"
-msgid "{band} · {score, number}"
-msgstr "{band} · {score, number}"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.7cv4Uf"
-msgid "Identified"
-msgstr "Geïdentificeerd"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.asYiRT"
-msgid "Assessed"
-msgstr "Beoordeeld"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.n50oTI"
-msgid "Treating"
-msgstr "In behandeling"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.aFyFm0"
-msgid "Accepted"
-msgstr "Geaccepteerd"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.Fv1ZSz"
-msgid "Closed"
-msgstr "Gesloten"
-
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.kFkPWB"
 msgid "Number"
 msgstr "Nummer"
 
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.v6rYjQ"
 msgid "Risk"
 msgstr "Risico"
 
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.ccXLVi"
 msgid "Category"
 msgstr "Categorie"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.Efoqaa"
-msgid "Residual"
-msgstr "Restrisico"
-
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.ep8Oy7"
-msgid "Next review"
-msgstr "Volgende review"
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.Bi2plb"
+msgid "Search risks"
+msgstr ""
+
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.DLKKCh"
+msgid "No risks found"
+msgstr ""
+
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.hGljWs"
+msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix, or change the filters."
+msgstr ""
 
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.mvPZOS"
@@ -13911,20 +15065,30 @@ msgctxt "risks.dJC62W"
 msgid "The risk register didn't load"
 msgstr "Het risicoregister is niet geladen"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.XwQph0"
-msgid "No risks yet"
-msgstr ""
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.7cv4Uf"
+msgid "Identified"
+msgstr "Geïdentificeerd"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.xjr51A"
-msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix."
-msgstr ""
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.asYiRT"
+msgid "Assessed"
+msgstr "Beoordeeld"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.ruQnUX"
-msgid "Read the risks guide"
-msgstr ""
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.n50oTI"
+msgid "Treating"
+msgstr "In behandeling"
+
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.aFyFm0"
+msgid "Accepted"
+msgstr "Geaccepteerd"
+
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
 
 #: src/features/roles/components/permission-matrix.tsx
 msgctxt "roles.JzR7p4"
@@ -16805,6 +17969,21 @@ msgstr "API-sleutels"
 msgctxt "settings.hf7LJX"
 msgid "Webhooks"
 msgstr "Webhooks"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.RHDnsC"
+msgid "Incoming webhooks"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.NZ8yBj"
+msgid "Domains"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.7lS5o3"
+msgid "Option sets"
+msgstr ""
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.Y0PHiM"
@@ -19956,6 +21135,7 @@ msgid "Revoke"
 msgstr "Intrekken"
 
 #: src/features/workflows/builder/components/credential-sheet.tsx
+#: src/features/workflows/builder/components/definition-record-list.tsx
 #: src/features/workflows/components/schedule-controls.tsx
 msgctxt "workflows.HAlOn1"
 msgid "Name"
@@ -19971,25 +21151,254 @@ msgctxt "workflows.o3mPr9"
 msgid "Add credential"
 msgstr "Inloggegeven toevoegen"
 
-#: src/features/workflows/builder/components/definition-list.tsx
-msgctxt "workflows.yW1OYL"
-msgid "No workflows yet. Members who can edit create one above."
-msgstr "Nog geen workflows. Leden die mogen bewerken maken er hierboven een aan."
+#: src/features/workflows/builder/components/data-picker.tsx
+msgctxt "workflows.774Be0"
+msgid "Insert data into {field}"
+msgstr ""
 
-#: src/features/workflows/builder/components/definition-list.tsx
-msgctxt "workflows.4hC_e1"
-msgid "v{version}"
-msgstr "v{version}"
+#: src/features/workflows/builder/components/data-picker.tsx
+msgctxt "workflows.tSZGC5"
+msgid "Find a field"
+msgstr ""
 
-#: src/features/workflows/builder/components/definition-list.tsx
+#: src/features/workflows/builder/components/data-picker.tsx
+msgctxt "workflows.wYRrjv"
+msgid "Nothing to pick yet"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.w7tf2z"
+msgid "Published"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
 msgctxt "workflows.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
 
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.0WZ-rc"
+msgid "Not saved yet"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.C1envw"
+msgid "Workflow deleted"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.JpsXCp"
+msgid "Delete {name}"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.g9o_2L"
+msgid "Delete {name}?"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.k6a_tV"
+msgid "Its versions and triggers go with it. Runs already started keep their history."
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+msgctxt "workflows.K3r6DQ"
+msgid "Delete"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+#: src/features/workflows/components/runs-record-list.tsx
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.pv1lF7"
+msgid "Workflow"
+msgstr "Workflow"
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.xrk6zg"
+msgid "Updated"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.ie_Tbp"
+msgid "Recently updated"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.V7sfAL"
+msgid "Search workflows"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.miEAIy"
+msgid "No workflows found"
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.99nqxY"
+msgid "Create one above, start from a template, or change the filters."
+msgstr ""
+
+#: src/features/workflows/builder/components/definition-record-list.tsx
+msgctxt "workflows.jhIaTc"
+msgid "Browse templates"
+msgstr ""
+
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+msgctxt "workflows.JkS37H"
+msgid "Undo"
+msgstr ""
+
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+msgctxt "workflows.3XyF4d"
+msgid "Redo"
+msgstr ""
+
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+msgctxt "workflows.4l6vz1"
+msgid "Copy"
+msgstr ""
+
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+msgctxt "workflows.ZQbg51"
+msgid "Paste"
+msgstr ""
+
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+msgctxt "workflows.4fHiNl"
+msgid "Duplicate"
+msgstr ""
+
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.R2zJFp"
+msgid "Save draft"
+msgstr "Concept opslaan"
+
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+msgctxt "workflows.UDIJXC"
+msgid "Auto layout"
+msgstr ""
+
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+msgctxt "workflows.vzYPVX"
+msgid "Keyboard shortcuts"
+msgstr ""
+
+#: src/features/workflows/builder/components/editor-toolbar.tsx
+msgctxt "workflows.j7WSfa"
+msgid "Unsaved changes"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+msgctxt "workflows.nDLXf7"
+msgid "No node selected"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+msgctxt "workflows.jdDKQx"
+msgid "Select a node on the canvas to edit it."
+msgstr ""
+
+#: src/features/workflows/builder/components/node-inspector.tsx
 #: src/features/workflows/builder/components/node-panel.tsx
 msgctxt "workflows.753yX5"
 msgid "Label"
 msgstr "Label"
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+msgctxt "workflows.mHep2R"
+msgid "Last run"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+msgctxt "workflows.ttRJI4"
+msgid "attempt {n}"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+msgctxt "workflows.-Th32v"
+msgid "The node failed"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.fio5op"
+msgid "Output"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+#: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.WCaf5C"
+msgid "Approve"
+msgstr "Goedkeuren"
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+#: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.VzIOKf"
+msgid "Reject"
+msgstr "Afwijzen"
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.D6C3H7"
+msgid "Remove node"
+msgstr "Node verwijderen"
+
+#: src/features/workflows/builder/components/node-palette.tsx
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.GnWmca"
+msgid "Triggers"
+msgstr "Triggers"
+
+#: src/features/workflows/builder/components/node-palette.tsx
+msgctxt "workflows.wL7VAE"
+msgid "Actions"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-palette.tsx
+msgctxt "workflows.HhyGLP"
+msgid "Logic"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-palette.tsx
+msgctxt "workflows.Tpy00S"
+msgid "People"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-palette.tsx
+msgctxt "workflows.ijQrZ0"
+msgid "AI"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-palette.tsx
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.eA7dRH"
+msgid "Palette"
+msgstr "Palet"
+
+#: src/features/workflows/builder/components/node-palette.tsx
+msgctxt "workflows.oXlXxs"
+msgid "Search nodes"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-palette.tsx
+msgctxt "workflows.pTqtFs"
+msgid "No node matches {query}"
+msgstr ""
 
 #: src/features/workflows/builder/components/node-panel.tsx
 msgctxt "workflows.Sa3kyT"
@@ -19997,6 +21406,8 @@ msgid "Pick a credential"
 msgstr "Kies een inloggegeven"
 
 #: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/components/runs-record-list.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.IuFETn"
 msgid "Duration"
 msgstr "Duur"
@@ -20016,44 +21427,58 @@ msgctxt "workflows.GufXy5"
 msgid "Value"
 msgstr "Waarde"
 
-#: src/features/workflows/builder/components/node-panel.tsx
-#: src/features/workflows/components/workflow-run-detail.tsx
-msgctxt "workflows.WCaf5C"
-msgid "Approve"
-msgstr "Goedkeuren"
+#: src/features/workflows/builder/components/problems-panel.tsx
+msgctxt "workflows.IIlFww"
+msgid "No problems"
+msgstr ""
 
-#: src/features/workflows/builder/components/node-panel.tsx
-#: src/features/workflows/components/workflow-run-detail.tsx
-msgctxt "workflows.VzIOKf"
-msgid "Reject"
-msgstr "Afwijzen"
+#: src/features/workflows/builder/components/problems-panel.tsx
+msgctxt "workflows.XJ-1yG"
+msgid "The graph is ready to publish."
+msgstr ""
 
-#: src/features/workflows/builder/components/node-panel.tsx
-msgctxt "workflows.D6C3H7"
-msgid "Remove node"
-msgstr "Node verwijderen"
+#: src/features/workflows/builder/components/problems-panel.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.KN7zKn"
+msgid "Error"
+msgstr ""
+
+#: src/features/workflows/builder/components/problems-panel.tsx
+msgctxt "workflows.3SVI5p"
+msgid "Warning"
+msgstr ""
+
+#: src/features/workflows/builder/components/problems-panel.tsx
+msgctxt "workflows.2M-iHV"
+msgid "Show node"
+msgstr ""
 
 #: src/features/workflows/builder/components/publish-dialog.tsx
+#: src/features/workflows/builder/components/versions-panel.tsx
 msgctxt "workflows.xm3F7A"
 msgid "Nodes added"
 msgstr "Nodes toegevoegd"
 
 #: src/features/workflows/builder/components/publish-dialog.tsx
+#: src/features/workflows/builder/components/versions-panel.tsx
 msgctxt "workflows.kMH7dy"
 msgid "Nodes removed"
 msgstr "Nodes verwijderd"
 
 #: src/features/workflows/builder/components/publish-dialog.tsx
+#: src/features/workflows/builder/components/versions-panel.tsx
 msgctxt "workflows.mWq4c6"
 msgid "Nodes changed"
 msgstr "Nodes gewijzigd"
 
 #: src/features/workflows/builder/components/publish-dialog.tsx
+#: src/features/workflows/builder/components/versions-panel.tsx
 msgctxt "workflows.AFN2jr"
 msgid "Edges added"
 msgstr "Verbindingen toegevoegd"
 
 #: src/features/workflows/builder/components/publish-dialog.tsx
+#: src/features/workflows/builder/components/versions-panel.tsx
 msgctxt "workflows.FCmWxO"
 msgid "Edges removed"
 msgstr "Verbindingen verwijderd"
@@ -20079,9 +21504,82 @@ msgid "New runs start on the published version. Runs in progress finish on the v
 msgstr "Nieuwe runs starten op de gepubliceerde versie. Lopende runs maken de versie af waarop ze begonnen."
 
 #: src/features/workflows/builder/components/publish-dialog.tsx
-msgctxt "workflows.47FYwb"
-msgid "Cancel"
-msgstr "Annuleren"
+msgctxt "workflows.etgv7N"
+msgid "Fix {count} errors in the Problems tab before publishing."
+msgstr ""
+
+#: src/features/workflows/builder/components/run-panel.tsx
+msgctxt "workflows.3DRIwe"
+msgid "Run input"
+msgstr ""
+
+#: src/features/workflows/builder/components/run-panel.tsx
+msgctxt "workflows.LtOJOH"
+msgid "Text, or a JSON object such as {example}"
+msgstr ""
+
+#: src/features/workflows/builder/components/run-panel.tsx
+msgctxt "workflows.Zy_d2h"
+msgid "Text becomes input.text; a JSON object becomes the input."
+msgstr ""
+
+#: src/features/workflows/builder/components/run-panel.tsx
+msgctxt "workflows.ut7dzv"
+msgid "Test stubs (JSON)"
+msgstr ""
+
+#: src/features/workflows/builder/components/run-panel.tsx
+msgctxt "workflows.yKUlFS"
+msgid "What each node returns in a test run, by node id. Approvals take {example} to test the other branch."
+msgstr ""
+
+#: src/features/workflows/builder/components/run-panel.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.lAE6P2"
+msgid "Test run"
+msgstr ""
+
+#: src/features/workflows/builder/components/run-panel.tsx
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+#: src/features/workflows/builder/components/workflow-editor.tsx
+msgctxt "workflows.KiXNvz"
+msgid "Run"
+msgstr "Uitvoeren"
+
+#: src/features/workflows/builder/components/run-panel.tsx
+msgctxt "workflows.47NMpz"
+msgid "Show a run on the canvas"
+msgstr ""
+
+#: src/features/workflows/builder/components/run-panel.tsx
+msgctxt "workflows.2lgrM5"
+msgid "No run shown"
+msgstr ""
+
+#: src/features/workflows/builder/components/run-panel.tsx
+msgctxt "workflows.RRv_ST"
+msgid "Open the run"
+msgstr ""
+
+#: src/features/workflows/builder/components/schema-form.tsx
+msgctxt "workflows.orxoH6"
+msgid "This is not valid JSON"
+msgstr ""
+
+#: src/features/workflows/builder/components/schema-form.tsx
+msgctxt "workflows.lXeyAt"
+msgid "This node has no settings."
+msgstr ""
+
+#: src/features/workflows/builder/components/template-gallery.tsx
+msgctxt "workflows.dQvZ-J"
+msgid "Use template"
+msgstr ""
+
+#: src/features/workflows/builder/components/template-gallery.tsx
+msgctxt "workflows.OihGtO"
+msgid "{count} nodes"
+msgstr ""
 
 #: src/features/workflows/builder/components/trigger-sheet.tsx
 msgctxt "workflows.VKCWKe"
@@ -20102,11 +21600,6 @@ msgstr "Schema"
 msgctxt "workflows.M59JhX"
 msgid "Manual"
 msgstr "Handmatig"
-
-#: src/features/workflows/builder/components/trigger-sheet.tsx
-msgctxt "workflows.GnWmca"
-msgid "Triggers"
-msgstr "Triggers"
 
 #: src/features/workflows/builder/components/trigger-sheet.tsx
 msgctxt "workflows.f1FufG"
@@ -20145,20 +21638,42 @@ msgctxt "workflows.qE1eug"
 msgid "Add trigger"
 msgstr "Trigger toevoegen"
 
+#: src/features/workflows/builder/components/versions-panel.tsx
+msgctxt "workflows.8UC74Z"
+msgid "No versions yet"
+msgstr ""
+
+#: src/features/workflows/builder/components/versions-panel.tsx
+msgctxt "workflows.kHyQGX"
+msgid "Save the draft or publish to start the history."
+msgstr ""
+
+#: src/features/workflows/builder/components/versions-panel.tsx
+msgctxt "workflows.zsIpf-"
+msgid "Select a version to compare it with the canvas."
+msgstr ""
+
+#: src/features/workflows/builder/components/versions-panel.tsx
+msgctxt "workflows.5RCJQq"
+msgid "Version {version} compared with the canvas"
+msgstr ""
+
+#: src/features/workflows/builder/components/versions-panel.tsx
+msgctxt "workflows.iqqhGX"
+msgid "Restore into the draft"
+msgstr ""
+
 #: src/features/workflows/builder/components/workflow-canvas.tsx
+#: src/features/workflows/builder/components/workflow-editor.tsx
 msgctxt "workflows.JLulyJ"
 msgid "Draft saved"
 msgstr "Concept opgeslagen"
 
 #: src/features/workflows/builder/components/workflow-canvas.tsx
+#: src/features/workflows/builder/components/workflow-editor.tsx
 msgctxt "workflows.7KALUt"
 msgid "Version {version} published"
 msgstr "Versie {version} gepubliceerd"
-
-#: src/features/workflows/builder/components/workflow-canvas.tsx
-msgctxt "workflows.R2zJFp"
-msgid "Save draft"
-msgstr "Concept opslaan"
 
 #: src/features/workflows/builder/components/workflow-canvas.tsx
 msgctxt "workflows.Z-RXZI"
@@ -20166,19 +21681,9 @@ msgid "Input text"
 msgstr "Invoertekst"
 
 #: src/features/workflows/builder/components/workflow-canvas.tsx
-msgctxt "workflows.KiXNvz"
-msgid "Run"
-msgstr "Uitvoeren"
-
-#: src/features/workflows/builder/components/workflow-canvas.tsx
 msgctxt "workflows.alUnC1"
 msgid "Show a run"
 msgstr "Een run tonen"
-
-#: src/features/workflows/builder/components/workflow-canvas.tsx
-msgctxt "workflows.eA7dRH"
-msgid "Palette"
-msgstr "Palet"
 
 #: src/features/workflows/builder/components/workflow-canvas.tsx
 msgctxt "workflows.Mmft-L"
@@ -20194,6 +21699,95 @@ msgstr "Goedkeuring"
 msgctxt "workflows.XMpO69"
 msgid "Condition"
 msgstr "Voorwaarde"
+
+#: src/features/workflows/builder/components/workflow-editor.tsx
+msgctxt "workflows.H1o9T9"
+msgid "Test run {n}"
+msgstr ""
+
+#: src/features/workflows/builder/components/workflow-editor.tsx
+msgctxt "workflows.2KLkia"
+msgid "The test stubs are not a JSON object"
+msgstr ""
+
+#: src/features/workflows/builder/components/workflow-editor.tsx
+msgctxt "workflows.8b7JuR"
+msgid "Inspector"
+msgstr ""
+
+#: src/features/workflows/builder/components/workflow-editor.tsx
+msgctxt "workflows.ivkv_L"
+msgid "Node"
+msgstr ""
+
+#: src/features/workflows/builder/components/workflow-editor.tsx
+msgctxt "workflows.3Ret8M"
+msgid "Problems"
+msgstr ""
+
+#: src/features/workflows/builder/components/workflow-editor.tsx
+msgctxt "workflows.4SJxF5"
+msgid "Versions"
+msgstr ""
+
+#: src/features/workflows/builder/components/workflow-editor.tsx
+msgctxt "workflows.qpG9y3"
+msgid "Version {version} is on the canvas. Save to keep it as the draft."
+msgstr ""
+
+#: src/features/workflows/components/runs-record-list.tsx
+msgctxt "workflows.s8HBot"
+msgid "Last hour"
+msgstr ""
+
+#: src/features/workflows/components/runs-record-list.tsx
+msgctxt "workflows.8O9cAb"
+msgid "Last 24 hours"
+msgstr ""
+
+#: src/features/workflows/components/runs-record-list.tsx
+msgctxt "workflows.irFBKn"
+msgid "Last 7 days"
+msgstr ""
+
+#: src/features/workflows/components/runs-record-list.tsx
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/workflows/components/runs-record-list.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.TDUfVk"
+msgid "Started"
+msgstr "Gestart"
+
+#: src/features/workflows/components/runs-record-list.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.mrOnjM"
+msgid "Mode"
+msgstr ""
+
+#: src/features/workflows/components/runs-record-list.tsx
+msgctxt "workflows.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/workflows/components/runs-record-list.tsx
+msgctxt "workflows.3ZutbO"
+msgid "Search runs"
+msgstr ""
+
+#: src/features/workflows/components/runs-record-list.tsx
+msgctxt "workflows.0SANjE"
+msgid "No runs found"
+msgstr ""
+
+#: src/features/workflows/components/runs-record-list.tsx
+msgctxt "workflows.rV7jAM"
+msgid "Start a sample workflow, run one from the editor, or change the filters."
+msgstr ""
 
 #: src/features/workflows/components/schedule-controls.tsx
 msgctxt "workflows.3y9DGg"
@@ -20261,15 +21855,29 @@ msgid "Request approval"
 msgstr "Goedkeuring aanvragen"
 
 #: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.qLCCUF"
+msgid "{n} attempts"
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.2zPIPd"
+msgid "Input (the node's config)"
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.6u8gTN"
+msgid "The run did not reach this node."
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.6ybLXk"
+msgid "This node has not run yet."
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.ORGv1Q"
 msgid "Created"
 msgstr "Aangemaakt"
-
-#: src/features/workflows/components/workflow-run-detail.tsx
-#: src/features/workflows/components/workflow-runs.tsx
-msgctxt "workflows.TDUfVk"
-msgid "Started"
-msgstr "Gestart"
 
 #: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.EQpfkS"
@@ -20277,9 +21885,59 @@ msgid "Finished"
 msgstr "Afgerond"
 
 #: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.cV3SXo"
+msgid "Live run"
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.I3b4hn"
+msgid "Version"
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.4hC_e1"
+msgid "v{version}"
+msgstr "v{version}"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.7iaw3U"
+msgid "test"
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.z1CJwP"
+msgid "Open in the editor"
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.lsX7TX"
 msgid "Cancel run"
 msgstr "Run annuleren"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.huCHmk"
+msgid "Steps"
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.sINgHA"
+msgid "A test run returns each node's stub and keeps no step records, so the nodes stay pending."
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.njcGj1"
+msgid "Each node of the version this run started on, with what it did."
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.N8mj9w"
+msgid "No step records"
+msgstr ""
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.cnJYUX"
+msgid "Only workflows drawn in the editor record each step."
+msgstr ""
 
 #: src/features/workflows/components/workflow-runs.tsx
 msgctxt "workflows.x3qvaC"
@@ -20290,16 +21948,6 @@ msgstr "Nog geen runs"
 msgctxt "workflows.G5eG81"
 msgid "Start a sample workflow to see its run here."
 msgstr "Start een voorbeeldworkflow om de run hier te zien."
-
-#: src/features/workflows/components/workflow-runs.tsx
-msgctxt "workflows.pv1lF7"
-msgid "Workflow"
-msgstr "Workflow"
-
-#: src/features/workflows/components/workflow-runs.tsx
-msgctxt "workflows.tzMNF3"
-msgid "Status"
-msgstr "Status"
 
 #: src/lib/use-error-message.ts
 msgctxt "errors.JI3eca"

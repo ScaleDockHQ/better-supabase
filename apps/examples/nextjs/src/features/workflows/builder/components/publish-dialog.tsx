@@ -22,12 +22,15 @@ import {
 export function PublishDialog({
   published,
   graph,
+  errors = 0,
   pending,
   onPublish,
 }: {
   published: { readonly version: number; readonly graph: WorkflowGraph } | null;
   /** The canvas as it is now. */
   graph: WorkflowGraph;
+  /** Problems that block publishing; the confirm stays off while any remain. */
+  errors?: number;
   pending: boolean;
   onPublish: () => void;
 }) {
@@ -73,12 +76,21 @@ export function PublishDialog({
             </div>
           ))}
         </dl>
+        {errors === 0 ? null : (
+          <p className="text-sm text-destructive" role="alert">
+            {t("Fix {count} errors in the Problems tab before publishing.", {
+              count: String(errors),
+            })}
+          </p>
+        )}
         <DialogFooter>
           <DialogClose render={<Button type="button" variant="outline" />}>
             {t("Cancel")}
           </DialogClose>
           <DialogClose
-            render={<Button disabled={pending} onClick={onPublish} />}
+            render={
+              <Button disabled={pending || errors > 0} onClick={onPublish} />
+            }
           >
             {t("Publish")}
           </DialogClose>

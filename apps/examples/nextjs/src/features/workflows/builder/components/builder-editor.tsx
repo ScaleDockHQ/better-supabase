@@ -1,10 +1,9 @@
 import { notFound } from "next/navigation";
 
-import { Skeleton } from "@/components/ui/skeleton";
-
 import { getBuilderDetail } from "../builder-queries";
-import { WorkflowCanvas } from "./workflow-canvas";
+import { WorkflowEditorLazy } from "./workflow-editor-lazy";
 
+// skeleton: BuilderEditorSkeleton lives in its own file because the lazy editor shares it
 /** Render inside `<Suspense>`: reads the `definition` param. */
 export async function BuilderEditor({ definition }: { definition: string }) {
   const detail = await getBuilderDetail(definition);
@@ -16,11 +15,7 @@ export async function BuilderEditor({ definition }: { definition: string }) {
   return (
     <>
       <h2 className="text-lg font-semibold">{detail.definition.name}</h2>
-      <WorkflowCanvas detail={detail} />
+      <WorkflowEditorLazy detail={detail} />
     </>
   );
-}
-
-export function BuilderEditorSkeleton() {
-  return <Skeleton className="h-160 w-full" aria-busy="true" />;
 }

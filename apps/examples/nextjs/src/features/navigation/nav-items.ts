@@ -75,7 +75,7 @@ export type NavId =
   | "funding"
   | "notifications"
   | "workflows"
-  | "workflowBuilder"
+  | "workflowRuns"
   | "inbox"
   | "chat"
   | "assistant"
@@ -424,8 +424,8 @@ export const navItems: readonly NavItem[] = [
     requires: "workflows.read",
   },
   {
-    id: "workflowBuilder",
-    href: "/workflows/builder",
+    id: "workflowRuns",
+    href: "/workflows/runs",
     area: "ai",
     requires: "workflows.read",
   },

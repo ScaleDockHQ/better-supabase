@@ -9,6 +9,8 @@ import { bsb } from "@/lib/supabase/server";
 
 import { builderFor } from "./builder-server";
 import { GRAPH_APPROVAL } from "./graph-steps";
+import { runInput } from "./run-input";
+import { templateOf, workflowTemplates } from "./workflow-templates";
 
 const Id = v.pipe(v.string(), v.minLength(1), v.maxLength(100));
 
@@ -162,9 +164,115 @@ export const runDefinition = bsb.action(
 
     return builderFor(supabase).run({
       definition,
-      input: { text: text ?? "" },
+      input: runInput(text ?? ""),
       actor: auth.user.id,
     });
+  },
+);
+
+/**
+ * Starts a test run of the open draft (or the published version): steps return
+ * their stubs and never run, so nothing is sent. `stubs` maps a node id to the
+ * output the node returns.
+ */
+export const testRun = bsb.action(
+  {
+    input: v.object({
+      definition: Id,
+      text: v.optional(v.pipe(v.string(), v.maxLength(20_000))),
+      stubs: v.optional(v.record(Id, v.unknown()), {}),
+    }),
+    requireTenant: true,
+    permission: "workflow_editor.write",
+  },
+  async ({ definition, text, stubs }, { supabase }) =>
+    builderFor(supabase).test({
+      definition,
+      input: runInput(text ?? ""),
+      stubs,
+    }),
+);
+
+/** A version's graph, for the diff and for restoring it into the draft. */
+export const loadVersionGraph = bsb.action(
+  {
+    input: v.object({ version: Id }),
+    requireTenant: true,
+    permission: "workflow_editor.write",
+  },
+  async ({ version }, { supabase }) => {
+    const found = await builderFor(supabase).versions.get(version);
+
+    if (!found.ok) {
+      return found;
+    }
+
+    return found.data?.graph === undefined
+      ? err(dbError("not_found", "No such version"))
+      : ok(found.data.graph);
+  },
+);
+
+/** A new definition from a gallery template, as a draft. */
+export const createFromTemplate = bsb.action(
+  {
+    input: v.object({
+      template: v.picklist(workflowTemplates.map((template) => template.id)),
+    }),
+    requireTenant: true,
+    permission: "workflow_editor.write",
+  },
+  async ({ template }, { tenant, supabase }) => {
+    const chosen = templateOf(template);
+
+    if (chosen === undefined) {
+      return err(dbError("not_found", "No such template"));
+    }
+
+    const builder = builderFor(supabase);
+
+    const saved = await builder.definitions.upsert({
+      tenant,
+      slug: `${slugOf(chosen.name)}-${crypto.randomUUID().slice(0, 4)}`,
+      name: chosen.name,
+      description: chosen.description,
+    });
+
+    if (!saved.ok) {
+      return saved;
+    }
+
+    const draft = await builder.versions.upsert({
+      definition: saved.data.id,
+      graph: chosen.graph,
+    });
+
+    if (!draft.ok) {
+      return draft;
+    }
+
+    refresh();
+
+    return ok(saved.data.id);
+  },
+);
+
+export const removeDefinition = bsb.action(
+  {
+    input: v.object({ id: Id }),
+    requireTenant: true,
+    permission: "workflow_editor.manage",
+  },
+  async ({ id }, { supabase }) => {
+    const removed = await builderFor(supabase).definitions.remove(id);
+
+    if (!removed.ok) {
+      return removed;
+    }
+
+    refresh();
+
+    return ok(removed.data);
   },
 );
 

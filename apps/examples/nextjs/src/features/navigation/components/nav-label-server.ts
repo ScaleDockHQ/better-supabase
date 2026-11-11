@@ -295,8 +295,8 @@ export async function getNavLabel(): Promise<(id: NavId) => string> {
         return t("Workflows");
       }
 
-      case "workflowBuilder": {
-        return t("Workflow builder");
+      case "workflowRuns": {
+        return t("Workflow runs");
       }
 
       case "inbox": {
