@@ -431,3 +431,8 @@ select better_supabase.create_referral_code('00000000-0000-4000-8000-00000000000
 select better_supabase.attribute_referral('00000000-0000-4000-8000-000000000001', 'ACMEFRIENDS', null, null, 'friend@initech.test');
 
 select set_config('request.jwt.claims', '', false);
+-- The numbering page shows these sequences (finding EX-502).
+insert into better_supabase.number_sequences (tenant_id, entity, period, last_number) values
+  ('00000000-0000-4000-8000-000000000001', 'invoice', to_char(now(), 'YYYY'), 41),
+  ('00000000-0000-4000-8000-000000000001', 'quote', to_char(now(), 'YYYY'), 17)
+on conflict do nothing;
