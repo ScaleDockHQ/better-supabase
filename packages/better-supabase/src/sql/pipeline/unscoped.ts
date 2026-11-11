@@ -94,7 +94,7 @@ export function withUnscopedFile(
       module: UNSCOPED_MODULE,
       kind: "schema",
       path: `${dir}/${prefix}_999_${UNSCOPED_MODULE}.sql`,
-      contents: `${header}\n\n${found.join("\n\n")}\n`,
+      contents: `${header}\n\n${[...new Set(found)].join("\n\n")}\n`,
     },
   ];
 }
