@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:dad53c9142e4431d63616d33a8594f3522e5fcd26be40929d6b69f7f20c90e7a
+-- @bsb-hash sha256:d209789e06db22017229f3ac0310bec8fa36795e7bdc8229c1da560091c57d5d
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -313,14 +313,14 @@ stable
 security invoker
 set search_path = ''
 as $$
-  with r as materialized (
+  with checked as materialized (
     select m.* from "better_supabase"."messaging_message_rows"(messaging_messages_json.ids) m
   ),
   page_rows as (
-    select r.* from r
-    where r."conversation_id" = any (array(
+    select k.* from checked k
+    where k."conversation_id" = any (array(
       select c."id" from "better_supabase"."conversations" c
-      where c."id" = any (array(select distinct v."conversation_id" from r v))
+      where c."id" = any (array(select distinct v."conversation_id" from checked v))
     ))
   )
   select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note"))) order by coalesce(x."sent_at", x."scheduled_at", x."created_at"), x."id"), '[]'::jsonb)
@@ -940,11 +940,7 @@ as $$
   select case when not coalesce("better_supabase"."can_subject"(list_record_mentions.subject_type, list_record_mentions.subject_id, 'read'), false)
     then '[]'::jsonb
     else coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'message', "better_supabase"."messaging_messages_json"(array[p.message]) -> 0,
-        'conversation', jsonb_build_object('id', c."id", 'kind', c."kind", 'title', c."title", 'subject_type', c."subject_type", 'subject_id', c."subject_id")
-      ) order by p.created_at desc, p.message desc)
-      from (
+      with p as materialized (
         select x."message_id" as message, x."conversation_id" as conversation, x."created_at" as created_at
         from "better_supabase"."message_record_mentions" x
         where x."subject_type" = list_record_mentions.subject_type and x."subject_id" = list_record_mentions.subject_id
@@ -952,8 +948,17 @@ as $$
             or (x."created_at", x."message_id") < (list_record_mentions.before, coalesce(list_record_mentions.before_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
         order by x."created_at" desc, x."message_id" desc
         limit least(greatest(coalesce(list_record_mentions.max_rows, 20), 1), 100)
-      ) p
+      ),
+      j as materialized (
+        select e.row from jsonb_array_elements("better_supabase"."messaging_messages_json"(array(select p.message from p))) e(row)
+      )
+      select jsonb_agg(jsonb_build_object(
+        'message', j.row,
+        'conversation', jsonb_build_object('id', c."id", 'kind', c."kind", 'title', c."title", 'subject_type', c."subject_type", 'subject_id', c."subject_id")
+      ) order by p.created_at desc, p.message desc)
+      from p
       join "better_supabase"."conversations" c on c."id" = p.conversation
+      left join j on (j.row ->> 'id')::uuid = p.message
     ), '[]'::jsonb)
   end
 $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:47cc49644a183c082f4f7f85b72d3eadbe5109e5fbb8e9687429d7e0acc1e91a
+-- @bsb-hash sha256:a9ef3b80831b16cd37e788b751d5bd4dc16a35a0b09f7efd10fc3de7d5adb144
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -132,7 +132,7 @@ begin
     select 1 from "better_supabase"."conversations" c
     where c."id" = comment_page.conversation and c."kind" = 'subject'
       and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (((coalesce(better_supabase.can('tenant', c."tenant_id", 'comments.read'), false)
-    or (c."access" = 'subject' and coalesce(case c."subject_type" when 'project' then coalesce(better_supabase.can('project', c."subject_id", 'comments.read'), false) else false end, false)))
+    or (c."access" = 'subject' and coalesce(case c."subject_type" when 'project' then c."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('comments.read') as t(id)) else false end, false)))
     or (c."access" = 'subject' and coalesce(case c."subject_type" when 'file_node' then c."subject_id" in (select s."id"::text from "centrakit"."file_node" s) else false end, false)))
     and case c."access"
       when 'tenant' then true
@@ -442,7 +442,7 @@ begin
       select c."id" from "better_supabase"."conversations" c
       where c."id" = any (comment_count_rows.conversations) and c."kind" = 'subject'
         and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (((coalesce(better_supabase.can('tenant', c."tenant_id", 'comments.read'), false)
-    or (c."access" = 'subject' and coalesce(case c."subject_type" when 'project' then coalesce(better_supabase.can('project', c."subject_id", 'comments.read'), false) else false end, false)))
+    or (c."access" = 'subject' and coalesce(case c."subject_type" when 'project' then c."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('comments.read') as t(id)) else false end, false)))
     or (c."access" = 'subject' and coalesce(case c."subject_type" when 'file_node' then c."subject_id" in (select s."id"::text from "centrakit"."file_node" s) else false end, false)))
     and case c."access"
       when 'tenant' then true

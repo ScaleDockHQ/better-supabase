@@ -4,9 +4,12 @@ import type {
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
-import type { BlockSqlDefinition, BlockSqlUpgrade } from "../module-types.ts";
+import type {
+  BlockSqlDefinition,
+  BlockSqlLayout,
+  BlockSqlUpgrade,
+} from "../module-types.ts";
 
-import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { declareRead } from "../reads.ts";
@@ -27,6 +30,7 @@ import {
   subjectTypeGuard,
 } from "../subjects.ts";
 import { followersSql, watchSql } from "../watch-sql.ts";
+import { mentionGroupsOf } from "./comments-mention-groups.ts";
 import { messagingSql } from "./messaging-names.ts";
 import {
   conversationReadable,
@@ -90,63 +94,6 @@ const NAMES: BlockSqlNames = {
 
 /** Sorts after every uuid, so `after` without `after_id` means strictly later. */
 const MAX_UUID = "'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid";
-
-interface MentionGroups {
-  readonly table: string;
-  readonly group: string;
-  readonly member: string;
-  readonly tenant?: string;
-}
-
-const MENTION_GROUP_KEYS = new Set(["table", "group", "member", "tenant"]);
-
-function mentionGroupsOf(ctx: BlockSqlContext): MentionGroups | undefined {
-  const option = ctx.option("mentionGroups");
-
-  if (option === undefined) {
-    return undefined;
-  }
-
-  const where = "blocks.comments.options.mentionGroups";
-
-  if (!isRecord(option)) {
-    throw new TypeError(`${where} must be { table, group, member, tenant? }`);
-  }
-
-  for (const key of Object.keys(option)) {
-    if (!MENTION_GROUP_KEYS.has(key)) {
-      throw new TypeError(
-        `${where}.${key} is not an option. Options: table, group, member, tenant`,
-      );
-    }
-  }
-
-  const text = (key: string): string | undefined => {
-    const value = option[key];
-
-    if (value === undefined) {
-      return undefined;
-    }
-
-    if (typeof value !== "string" || value.length === 0) {
-      throw new TypeError(`${where}.${key} must be a non-empty string`);
-    }
-
-    return value;
-  };
-
-  const table = text("table");
-  const group = text("group");
-  const member = text("member");
-
-  if (table === undefined || group === undefined || member === undefined) {
-    throw new TypeError(`${where} needs table, group and member`);
-  }
-
-  const tenant = text("tenant");
-
-  return { table, group, member, ...(tenant !== undefined && { tenant }) };
-}
 
 /** A column name as a JSON key of `to_jsonb(row)`. */
 const key = (column: string): string => sqlString(column.replaceAll('"', ""));
@@ -310,7 +257,7 @@ $$;
 ${userGrant(`${fn("assign_comment")}(uuid, uuid, jsonb)`)}`;
 }
 
-function build(ctx: BlockSqlContext): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -339,7 +286,7 @@ function build(ctx: BlockSqlContext): string {
     union select g.${sqlIdent(groups.member)} from ${quotedTable(groups.table)} g where g.${sqlIdent(groups.group)} = any (v_raw)${groups.tenant === undefined ? "" : ` and g.${sqlIdent(groups.tenant)} = create_comment.tenant`}`;
 
   const sent = afterSend(ctx);
-  const mq = messagingSql(m);
+  const mq = messagingSql(m, layout.accessProvider);
 
   // A page of a conversation's sent comments for the arguments of function f.
   const pageIds = (

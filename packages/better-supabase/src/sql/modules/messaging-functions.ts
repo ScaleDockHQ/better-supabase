@@ -49,7 +49,7 @@ function messagesJson(q: MessagingSql): string {
         const a = (column: string): string => at.col("attachments", column);
 
         return `,
-  f as (
+  f as materialized (
     select coalesce(jsonb_object_agg(g.id, g.files), '{}'::jsonb) as files
     from (
       select a.${a("subjectId")} as id, jsonb_agg(jsonb_build_object('id', a.${a("id")}, 'name', a.${a("name")}, 'mimeType', a.${a("mimeType")}, 'size', a.${a("size")}, 'status', a.${a("status")}) order by a.${a("createdAt")}, a.${a("id")}) as files
@@ -65,7 +65,7 @@ function messagesJson(q: MessagingSql): string {
 
   const reactions = ctx.installed("reactions")
     ? `,
-  r as (
+  r as materialized (
     select coalesce(jsonb_object_agg(g.tenant, ${ctx.of("reactions").fn("reaction_summary")}(g.tenant, ${message}, g.ids)), '{}'::jsonb) as reactions
     from (
       select m.${ms("tenant")} as tenant, array_agg(m.${ms("id")}::text) as ids from page_rows m group by m.${ms("tenant")}
@@ -102,7 +102,7 @@ function messagesJson(q: MessagingSql): string {
   const select = (
     rows: string,
     ids: string,
-  ): string => `  with ${rows}${authors ? `,\n  a as (select ${authors.call(ids)} as authors)` : ""}${files}${reactions}
+  ): string => `  with ${rows}${authors ? `,\n  a as materialized (select ${authors.call(ids)} as authors)` : ""}${files}${reactions}
   select coalesce(jsonb_agg(${json} order by coalesce(x.${ms("sentAt")}, ${ctx.has("messages", "scheduledFor") ? `x.${ms("scheduledFor")}, ` : ""}x.${ms("createdAt")}), x.${ms("id")}), '[]'::jsonb)
   from ${from}`;
 
@@ -142,14 +142,14 @@ security invoker
 set search_path = ''
 as $$
 ${select(
-  `r as materialized (
+  `checked as materialized (
     select m.* from ${fn("messaging_message_rows")}(messaging_messages_json.ids) m
   ),
   page_rows as (
-    select r.* from r
-    where r.${ms("conversation")} = any (array(
+    select k.* from checked k
+    where k.${ms("conversation")} = any (array(
       select c.${cv("id")} from ${t("conversations")} c
-      where c.${cv("id")} = any (array(select distinct v.${ms("conversation")} from r v))
+      where c.${cv("id")} = any (array(select distinct v.${ms("conversation")} from checked v))
     ))
   )`,
   "messaging_messages_json.ids",
@@ -570,11 +570,7 @@ as $$
   select case when not coalesce(${ctx.of("subjects").fn("can_subject")}(list_record_mentions.subject_type, list_record_mentions.subject_id, 'read'), false)
     then '[]'::jsonb
     else coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'message', ${fn("messaging_messages_json")}(array[p.message]) -> 0,
-        'conversation', jsonb_build_object('id', c.${cv("id")}, 'kind', c.${cv("kind")}, 'title', c.${cv("title")}, 'subject_type', c.${cv("subjectType")}, 'subject_id', c.${cv("subjectId")})
-      ) order by p.created_at desc, p.message desc)
-      from (
+      with p as materialized (
         select x.${rm("message")} as message, x.${rm("conversation")} as conversation, x.${rm("createdAt")} as created_at
         from ${t("recordMentions")} x
         where x.${rm("subjectType")} = list_record_mentions.subject_type and x.${rm("subjectId")} = list_record_mentions.subject_id
@@ -582,8 +578,17 @@ as $$
             or (x.${rm("createdAt")}, x.${rm("message")}) < (list_record_mentions.before, coalesce(list_record_mentions.before_id, ${MAX_UUID})))
         order by x.${rm("createdAt")} desc, x.${rm("message")} desc
         limit ${pageSize("list_record_mentions.max_rows", 20, 100)}
-      ) p
+      ),
+      j as materialized (
+        select e.row from jsonb_array_elements(${fn("messaging_messages_json")}(array(select p.message from p))) e(row)
+      )
+      select jsonb_agg(jsonb_build_object(
+        'message', j.row,
+        'conversation', jsonb_build_object('id', c.${cv("id")}, 'kind', c.${cv("kind")}, 'title', c.${cv("title")}, 'subject_type', c.${cv("subjectType")}, 'subject_id', c.${cv("subjectId")})
+      ) order by p.created_at desc, p.message desc)
+      from p
       join ${t("conversations")} c on c.${cv("id")} = p.conversation
+      left join j on (j.row ->> ${sqlString(ms("id").replaceAll('"', ""))})::uuid = p.message
     ), '[]'::jsonb)
   end
 $$;

@@ -52,6 +52,7 @@ analyze public.projects;
 select org as tenant, id as one from scale_projects where g = 1 and p = 1 \gset
 select id as thread from scale_projects where g = 1 and p = 2 \gset
 select array_agg(id::text)::text as ids from scale_projects where org = :'tenant' \gset
+select array_agg(id)::text as thread_ids from better_supabase.messages where conversation_id = :'thread' \gset
 
 grant select on scale_projects to public;
 
@@ -80,9 +81,7 @@ select diag('SCALE_MS list_comments_thread_50=' || round(extract(epoch from cloc
 update t0 set calls = pg_temp.can_subject_calls();
 
 update t0 set t = clock_timestamp(), calls = pg_temp.can_subject_calls();
-select jsonb_array_length(better_supabase.messaging_messages_json(array(
-  select m.id from better_supabase.messages m where m.conversation_id = :'thread'
-))) as json_count \gset
+select jsonb_array_length(better_supabase.messaging_messages_json(:'thread_ids'::uuid[])) as json_count \gset
 select pg_temp.can_subject_calls() - (select calls from t0) as json_calls \gset
 select diag('SCALE_MS messages_json_thread_50=' || round(extract(epoch from clock_timestamp() - (select t from t0)) * 1000) || ' SCALE_CALLS ' || (pg_temp.can_subject_calls() - (select calls from t0)));
 update t0 set calls = pg_temp.can_subject_calls();

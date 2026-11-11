@@ -17,15 +17,13 @@ insert into ids values
   ('draft', gen_random_uuid()),
   ('globex_sent', gen_random_uuid());
 
-insert into public.projects (id, organization_id, name)
-select (select id from ids where name = 'acme_project'), '00000000-0000-4000-8000-000000000001', 'Acme comments'
-union all
-select (select id from ids where name = 'globex_project'), '00000000-0000-4000-8000-000000000002', 'Globex comments';
+insert into public.projects (id, organization_id, name) values
+  ((select id from ids where name = 'acme_project'), '00000000-0000-4000-8000-000000000001', 'Acme comments'),
+  ((select id from ids where name = 'globex_project'), '00000000-0000-4000-8000-000000000002', 'Globex comments');
 
-insert into better_supabase.conversations (id, tenant_id, kind, access, subject_type, subject_id)
-select (select id from ids where name = 'acme_conv'), '00000000-0000-4000-8000-000000000001', 'subject', 'subject', 'project', (select id from ids where name = 'acme_project')::text
-union all
-select (select id from ids where name = 'globex_conv'), '00000000-0000-4000-8000-000000000002', 'subject', 'subject', 'project', (select id from ids where name = 'globex_project')::text;
+insert into better_supabase.conversations (id, tenant_id, kind, access, subject_type, subject_id) values
+  ((select id from ids where name = 'acme_conv'), '00000000-0000-4000-8000-000000000001', 'subject', 'subject', 'project', (select id from ids where name = 'acme_project')::text),
+  ((select id from ids where name = 'globex_conv'), '00000000-0000-4000-8000-000000000002', 'subject', 'subject', 'project', (select id from ids where name = 'globex_project')::text);
 
 insert into better_supabase.messages (id, tenant_id, conversation_id, author_id, body, sent_at, scheduled_at)
 values

@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:719a56f2dc1be394226c6022ede65a6321b3c25f247422364f4f12e943ff5e95
+-- @bsb-hash sha256:0acd68211f65cc732c855bfba7d053122e5b76117565071dc137b81c169e94f8
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -342,18 +342,18 @@ stable
 security invoker
 set search_path = ''
 as $$
-  with r as materialized (
+  with checked as materialized (
     select m.* from "better_supabase"."messaging_message_rows"(messaging_messages_json.ids) m
   ),
   page_rows as (
-    select r.* from r
-    where r."conversation_id" = any (array(
+    select k.* from checked k
+    where k."conversation_id" = any (array(
       select c."id" from "better_supabase"."conversations" c
-      where c."id" = any (array(select distinct v."conversation_id" from r v))
+      where c."id" = any (array(select distinct v."conversation_id" from checked v))
     ))
   ),
-  a as (select "better_supabase"."message_authors"(messaging_messages_json.ids) as authors),
-  f as (
+  a as materialized (select "better_supabase"."message_authors"(messaging_messages_json.ids) as authors),
+  f as materialized (
     select coalesce(jsonb_object_agg(g.id, g.files), '{}'::jsonb) as files
     from (
       select a."subject_id" as id, jsonb_agg(jsonb_build_object('id', a."id", 'name', a."name", 'mimeType', a."mime_type", 'size', a."size", 'status', a."status") order by a."created_at", a."id") as files
@@ -384,8 +384,8 @@ as $$
   with page_rows as (
     select m.* from "better_supabase"."messages" m where m."id" = any (messaging_messages_json_unchecked.ids)
   ),
-  a as (select "better_supabase"."message_authors"(messaging_messages_json_unchecked.ids) as authors),
-  f as (
+  a as materialized (select "better_supabase"."message_authors"(messaging_messages_json_unchecked.ids) as authors),
+  f as materialized (
     select coalesce(jsonb_object_agg(g.id, g.files), '{}'::jsonb) as files
     from (
       select a."subject_id" as id, jsonb_agg(jsonb_build_object('id', a."id", 'name', a."name", 'mimeType', a."mime_type", 'size', a."size", 'status', a."status") order by a."created_at", a."id") as files
@@ -1153,11 +1153,7 @@ as $$
   select case when not coalesce("better_supabase"."can_subject"(list_record_mentions.subject_type, list_record_mentions.subject_id, 'read'), false)
     then '[]'::jsonb
     else coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'message', "better_supabase"."messaging_messages_json"(array[p.message]) -> 0,
-        'conversation', jsonb_build_object('id', c."id", 'kind', c."kind", 'title', c."title", 'subject_type', c."subject_type", 'subject_id', c."subject_id")
-      ) order by p.created_at desc, p.message desc)
-      from (
+      with p as materialized (
         select x."message_id" as message, x."conversation_id" as conversation, x."created_at" as created_at
         from "better_supabase"."message_record_mentions" x
         where x."subject_type" = list_record_mentions.subject_type and x."subject_id" = list_record_mentions.subject_id
@@ -1165,8 +1161,17 @@ as $$
             or (x."created_at", x."message_id") < (list_record_mentions.before, coalesce(list_record_mentions.before_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
         order by x."created_at" desc, x."message_id" desc
         limit least(greatest(coalesce(list_record_mentions.max_rows, 20), 1), 100)
-      ) p
+      ),
+      j as materialized (
+        select e.row from jsonb_array_elements("better_supabase"."messaging_messages_json"(array(select p.message from p))) e(row)
+      )
+      select jsonb_agg(jsonb_build_object(
+        'message', j.row,
+        'conversation', jsonb_build_object('id', c."id", 'kind', c."kind", 'title', c."title", 'subject_type', c."subject_type", 'subject_id', c."subject_id")
+      ) order by p.created_at desc, p.message desc)
+      from p
       join "better_supabase"."conversations" c on c."id" = p.conversation
+      left join j on (j.row ->> 'id')::uuid = p.message
     ), '[]'::jsonb)
   end
 $$;
