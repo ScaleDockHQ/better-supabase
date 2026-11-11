@@ -1,4 +1,4 @@
-# 0671: Raise two next-build raw baselines after draft orders and purchase order numbers
+# 0673: Raise two next-build raw baselines after draft orders and purchase order numbers
 
 - Status: accepted
 - Date: 2026-11-11
