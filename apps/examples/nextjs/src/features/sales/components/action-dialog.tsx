@@ -106,7 +106,10 @@ export function ActionDialog({
         {trigger}
       </DialogTrigger>
       <DialogContent>
-        <form {...form.formProps} className="grid gap-6">
+        <form
+          {...form.formProps}
+          className="grid max-h-[calc(100dvh-6rem)] gap-6 overflow-y-auto"
+        >
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             {description ? (

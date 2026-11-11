@@ -6,7 +6,7 @@ import {
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import { customerRuleFields } from "./rule-fields";
+import { companyRuleFields, customerRuleFields } from "./rule-fields";
 
 /**
  * Writes the customer field catalog, so the rule editor offers these fields and
@@ -21,9 +21,12 @@ export async function syncRuleFields(): Promise<void> {
     schema,
   });
 
-  const synced = await admin.syncFields(customerRuleFields);
+  for (const fields of [customerRuleFields, companyRuleFields]) {
+    // Sequential: each call replaces the catalog of one record type.
+    const synced = await admin.syncFields(fields);
 
-  if (!synced.ok) {
-    console.warn(`Rule fields not synced: ${synced.error.message}`);
+    if (!synced.ok) {
+      console.warn(`Rule fields not synced: ${synced.error.message}`);
+    }
   }
 }

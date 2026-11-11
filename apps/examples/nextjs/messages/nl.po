@@ -590,25 +590,15 @@ msgctxt "imports.dlTl_2"
 msgid "Bring customers in from a spreadsheet."
 msgstr "Haal klanten binnen uit een spreadsheet."
 
-#: src/app/[locale]/(app)/inbox/layout.tsx
+#: src/app/[locale]/(app)/inbox/page.tsx
 msgctxt "inbox.VCMKbt"
 msgid "Inbox"
 msgstr "Inbox"
 
-#: src/app/[locale]/(app)/inbox/layout.tsx
-msgctxt "inbox.X_KToh"
-msgid "One queue for the web widget, email, Slack and WhatsApp, kept live over Realtime."
-msgstr "Eén wachtrij voor de webwidget, e-mail, Slack en WhatsApp, live bijgewerkt via Realtime."
-
 #: src/app/[locale]/(app)/inbox/page.tsx
-msgctxt "inbox.SZLu0S"
-msgid "Pick a conversation"
-msgstr "Kies een gesprek"
-
-#: src/app/[locale]/(app)/inbox/page.tsx
-msgctxt "inbox.j6NWwp"
-msgid "Its messages, notes, context and actions show here."
-msgstr "De berichten, notities, context en acties staan hier."
+msgctxt "inbox.DRlmpk"
+msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
+msgstr ""
 
 #: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
@@ -896,25 +886,10 @@ msgctxt "audit.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
-#: src/app/[locale]/(app)/settings/jobs/page.tsx
-msgctxt "jobs.-P2HMk"
-msgid "Search all runs"
-msgstr ""
-
-#: src/app/[locale]/(app)/settings/jobs/runs/[queue]/[id]/page.tsx
-msgctxt "jobs.B8K6dt"
-msgid "All job runs"
-msgstr ""
-
 #: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
 msgctxt "members.sKwqTt"
 msgid "All members"
 msgstr "Alle leden"
-
-#: src/app/[locale]/(app)/settings/option-sets/[id]/page.tsx
-msgctxt "optionSets.i_1uRf"
-msgid "All option sets"
-msgstr ""
 
 #: src/app/[locale]/(app)/settings/roles/[roleId]/page.tsx
 msgctxt "roles.0QowWF"
@@ -1638,16 +1613,6 @@ msgstr "Te laat sinds {date}"
 msgctxt "acknowledgements.5vDqi-"
 msgid "Due {date}"
 msgstr "Uiterlijk {date}"
-
-#: src/features/admin-lists/admin-record-list.tsx
-msgctxt "adminLists.MeKajs"
-msgid "Newest first"
-msgstr ""
-
-#: src/features/admin-lists/admin-record-list.tsx
-msgctxt "adminLists.h-T3T7"
-msgid "Oldest first"
-msgstr ""
 
 #: src/features/ai-providers/components/ai-provider-section.tsx
 #: src/features/ai-providers/components/ai-provider-settings.tsx
@@ -7542,162 +7507,6 @@ msgctxt "documents.PeEood"
 msgid "Customer updated"
 msgstr "Klant bijgewerkt"
 
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.NBobyu"
-msgid "Domain added"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.EkcNZU"
-msgid "Add domain"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.hV6QJL"
-msgid "Add a domain"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.huYv5o"
-msgid "Your organization is served on a domain once you publish its TXT record and verify it."
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.uPDgth"
-msgid "Hostname"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.yt0E0t"
-msgid "A hostname you control, without https://."
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.47FYwb"
-msgid "Cancel"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.3Ziraf"
-msgid "Primary domain set"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.s06fQf"
-msgid "Make primary"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.s6dhLG"
-msgid "Domain verified"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.q5Xl0M"
-msgid "Verify"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.5-Lw27"
-msgid "Remove {hostname}"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.1_tBtU"
-msgid "Remove {hostname}?"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.j4c7IO"
-msgid "The organization stops being served on this domain. You can add it again later."
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.TetbMu"
-msgid "Domain removed"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.G_yZLu"
-msgid "Remove"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.k5AM0y"
-msgid "Copy the TXT value"
-msgstr ""
-
-#: src/features/domains/components/domain-controls.tsx
-msgctxt "domains.weiK8h"
-msgid "Value copied"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.t2Wr8I"
-msgid "Primary"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.Z8971h"
-msgid "Verified"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.eKEL_g"
-msgid "Pending"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.ku-mDU"
-msgid "State"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.e5x8FT"
-msgid "Kind"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.wF0wlc"
-msgid "TXT record"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.rIAJlE"
-msgid "Added"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.Sjo1P4"
-msgid "Custom"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.A6ivgz"
-msgid "Subdomain"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.cAiIGl"
-msgid "Search domains"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.PqbjSZ"
-msgid "No domains found"
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.FseT8F"
-msgid "Add a domain, or change the filters."
-msgstr ""
-
-#: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.gzp6xc"
-msgid "Change the filters to see more."
-msgstr ""
-
 #: src/features/drive/components/document-register.tsx
 msgctxt "drive.W6nwjo"
 msgid "Draft"
@@ -9256,91 +9065,13 @@ msgctxt "imports.6FpVY9"
 msgid "Import another file"
 msgstr "Nog een bestand importeren"
 
-#: src/features/inbox/components/channel-simulator-lazy.tsx
-#: src/features/inbox/components/channel-simulator.tsx
-msgctxt "inbox.xUO0eO"
-msgid "Simulate a message"
-msgstr "Bericht simuleren"
-
-#: src/features/inbox/components/channel-simulator.tsx
-msgctxt "inbox.HEdsgA"
-msgid "Simulate an incoming message"
-msgstr "Een binnenkomend bericht simuleren"
-
-#: src/features/inbox/components/channel-simulator.tsx
-msgctxt "inbox.UsYAg6"
-msgid "The message arrives as if the channel delivered it. The same address continues one conversation."
-msgstr "Het bericht komt binnen alsof het kanaal het bezorgde. Hetzelfde adres zet één gesprek voort."
-
-#: src/features/inbox/components/channel-simulator.tsx
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.KeO51o"
-msgid "Channel"
-msgstr "Kanaal"
-
-#: src/features/inbox/components/channel-simulator.tsx
-msgctxt "inbox.HAlOn1"
-msgid "Name"
-msgstr "Naam"
-
-#: src/features/inbox/components/channel-simulator.tsx
-msgctxt "inbox.N_nrM1"
-msgid "Email or phone number"
-msgstr "E-mailadres of telefoonnummer"
-
-#: src/features/inbox/components/channel-simulator.tsx
-msgctxt "inbox.LLtKhp"
-msgid "Subject"
-msgstr "Onderwerp"
-
-#: src/features/inbox/components/channel-simulator.tsx
-#: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.T7Ry38"
-msgid "Message"
-msgstr "Bericht"
-
-#: src/features/inbox/components/channel-simulator.tsx
-msgctxt "inbox.l8WU4w"
-msgid "Receive message"
-msgstr "Bericht ontvangen"
-
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.X4M1tJ"
 msgid "Reply scheduled"
 msgstr "Antwoord ingepland"
 
 #: src/features/inbox/components/composer.tsx
-msgctxt "inbox.8_Hr8S"
-msgid "AI draft for the team"
-msgstr "AI-concept voor het team"
-
-#: src/features/inbox/components/composer.tsx
-msgctxt "inbox.wEQDC6"
-msgid "Edit"
-msgstr "Bewerken"
-
-#: src/features/inbox/components/composer.tsx
-#: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.9WRlF4"
-msgid "Send"
-msgstr "Versturen"
-
-#: src/features/inbox/components/composer.tsx
-msgctxt "inbox.nmpevl"
-msgid "Discard"
-msgstr "Verwerpen"
-
-#: src/features/inbox/components/composer.tsx
-msgctxt "inbox.Q-qA3k"
-msgid "The WhatsApp reply window is closed"
-msgstr "Het WhatsApp-antwoordvenster is gesloten"
-
-#: src/features/inbox/components/composer.tsx
-msgctxt "inbox.A18cx6"
-msgid "The contact wrote more than 24 hours ago. Send an approved template, or add an internal note."
-msgstr "De contactpersoon schreef meer dan 24 uur geleden. Stuur een goedgekeurde sjabloon of voeg een interne notitie toe."
-
-#: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.qMePPG"
 msgid "Note"
 msgstr "Notitie"
@@ -9361,30 +9092,9 @@ msgid "Write a reply"
 msgstr "Schrijf een antwoord"
 
 #: src/features/inbox/components/composer.tsx
-#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.0kc5kM"
 msgid "Internal note"
 msgstr "Interne notitie"
-
-#: src/features/inbox/components/composer.tsx
-msgctxt "inbox.Et-jZs"
-msgid "Macros"
-msgstr "Macro's"
-
-#: src/features/inbox/components/composer.tsx
-msgctxt "inbox.A3ptul"
-msgid "Templates"
-msgstr "Sjablonen"
-
-#: src/features/inbox/components/composer.tsx
-msgctxt "inbox.gQYJeA"
-msgid "Insert a macro"
-msgstr "Een macro invoegen"
-
-#: src/features/inbox/components/composer.tsx
-msgctxt "inbox.slZtLX"
-msgid "Send a template"
-msgstr "Een sjabloon versturen"
 
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.7tFha1"
@@ -9396,131 +9106,11 @@ msgctxt "inbox.KgAlAZ"
 msgid "Add note"
 msgstr "Notitie toevoegen"
 
-#: src/features/inbox/components/conversation-badges.tsx
-msgctxt "inbox.v7m7rk"
-msgid "Web widget"
-msgstr "Webwidget"
-
-#: src/features/inbox/components/conversation-badges.tsx
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.sy-pv5"
-msgid "Email"
-msgstr "E-mail"
-
-#: src/features/inbox/components/conversation-badges.tsx
-msgctxt "inbox.sjzDbu"
-msgid "Slack"
-msgstr "Slack"
-
-#: src/features/inbox/components/conversation-badges.tsx
-msgctxt "inbox.5ow6dg"
-msgid "WhatsApp"
-msgstr "WhatsApp"
-
-#: src/features/inbox/components/conversation-badges.tsx
-msgctxt "inbox.k5NtsF"
-msgid "SMS"
-msgstr "Sms"
-
-#: src/features/inbox/components/conversation-badges.tsx
-msgctxt "inbox.RY1JgY"
-msgid "SLA breached"
-msgstr "SLA overschreden"
-
-#: src/features/inbox/components/conversation-badges.tsx
-msgctxt "inbox._0mWw0"
-msgid "SLA due soon"
-msgstr "SLA bijna verlopen"
-
-#: src/features/inbox/components/conversation-badges.tsx
-#: src/features/inbox/components/conversation-context.tsx
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.W6nSYE"
-msgid "Resolved"
-msgstr "Opgelost"
-
-#: src/features/inbox/components/conversation-badges.tsx
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.iH-vKS"
-msgid "Snoozed"
-msgstr "Uitgesteld"
-
-#: src/features/inbox/components/conversation-badges.tsx
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.eKEL_g"
-msgid "Pending"
-msgstr "In afwachting"
-
-#: src/features/inbox/components/conversation-badges.tsx
-#: src/features/inbox/components/conversation-context.tsx
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.JfG49w"
-msgid "Open"
-msgstr "Open"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.O95R3Z"
-msgid "Phone"
-msgstr "Telefoon"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.ccLKRu"
-msgid "Channel account"
-msgstr "Kanaalaccount"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.8lCjAM"
-msgid "Priority"
-msgstr "Prioriteit"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.fe7Ds3"
-msgid "First response"
-msgstr "Eerste reactie"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.ZxgDJj"
-msgid "Waiting (target {minutes} min)"
-msgstr "Wacht (doel {minutes} min)"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.TDUfVk"
-msgid "Started"
-msgstr "Gestart"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.zFegDD"
-msgid "Contact"
-msgstr "Contactpersoon"
-
-#: src/features/inbox/components/conversation-context.tsx
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.OGqTOQ"
-msgid "Visitor"
-msgstr "Bezoeker"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.qRLDGS"
-msgid "Earlier conversations"
-msgstr "Eerdere gesprekken"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.ebTvVL"
-msgid "This is the first conversation with this contact."
-msgstr "Dit is het eerste gesprek met deze contactpersoon."
-
-#: src/features/inbox/components/conversation-context.tsx
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.Zay6OH"
-msgid "No subject"
-msgstr "Geen onderwerp"
-
-#: src/features/inbox/components/conversation-context.tsx
-msgctxt "inbox.Nb_g9b"
-msgid "No messages"
-msgstr "Geen berichten"
+#: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.9WRlF4"
+msgid "Send"
+msgstr "Versturen"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.iHyFD4"
@@ -9533,19 +9123,38 @@ msgid "Conversation"
 msgstr "Gesprek"
 
 #: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.oGjCbW"
-msgid "Until {time}"
-msgstr "Tot {time}"
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.Zay6OH"
+msgid "No subject"
+msgstr "Geen onderwerp"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.OGqTOQ"
+msgid "Visitor"
+msgstr "Bezoeker"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.W6nSYE"
+msgid "Resolved"
+msgstr "Opgelost"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.9OHSlH"
+msgid "Snoozed until {time}"
+msgstr ""
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.Vja_gq"
 msgid "Bot answers"
 msgstr "Bot antwoordt"
-
-#: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.uwMaA2"
-msgid "Bot paused"
-msgstr "Bot gepauzeerd"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.seEgGq"
@@ -9568,11 +9177,6 @@ msgid "Take over from the bot"
 msgstr "Overnemen van de bot"
 
 #: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.fee4dL"
-msgid "Hand back to the bot"
-msgstr "Teruggeven aan de bot"
-
-#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.9qc7BX"
 msgid "Snooze"
 msgstr "Snoozen"
@@ -9588,30 +9192,9 @@ msgid "Resolve"
 msgstr "Oplossen"
 
 #: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.tzwHXE"
-msgid "Someone is typing…"
-msgstr "Iemand typt…"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.03nvvB"
-msgid "Bot"
-msgstr "Bot"
-
-#: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.wsUmh9"
-msgid "Team"
-msgstr "Team"
-
-#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.1r7-tf"
 msgid "Message deleted"
 msgstr "Bericht verwijderd"
-
-#: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.0x75v-"
-msgid "Not delivered"
-msgstr "Niet bezorgd"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.d_fRcX"
@@ -9619,95 +9202,9 @@ msgid "Seen"
 msgstr "Gezien"
 
 #: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.DMqnF4"
-msgid "Delivered"
-msgstr "Bezorgd"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.GeN5hs"
-msgid "All channels"
-msgstr "Alle kanalen"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.fvK8Qi"
-msgid "All statuses"
-msgstr "Alle statussen"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.TFJD82"
-msgid "Anyone"
-msgstr "Iedereen"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.snC7V6"
-msgid "Mine"
-msgstr "Van mij"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.a1eoKk"
-msgid "Unassigned"
-msgstr "Niet toegewezen"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.1udzha"
-msgid "Conversations"
-msgstr "Gesprekken"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.TA1mK7"
-msgid "Search conversations"
-msgstr "Gesprekken zoeken"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.vx8bv3"
-msgid "Assignee"
-msgstr "Toegewezen aan"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.XayNHe"
-msgid "The queue did not load"
-msgstr "De wachtrij is niet geladen"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.xUnZ3u"
-msgid "Check your connection and try again."
-msgstr "Controleer je verbinding en probeer het opnieuw."
-
-#: src/features/inbox/components/conversation-queue.tsx
-#: src/features/inbox/components/scheduled-replies.tsx
-msgctxt "inbox.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.1NNSUY"
-msgid "No conversations"
-msgstr "Geen gesprekken"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.W0PonI"
-msgid "Nothing matches these filters. Clear them, or use the simulator to receive a message."
-msgstr "Niets komt overeen met deze filters. Wis ze, of gebruik de simulator om een bericht te ontvangen."
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.F4gyn3"
-msgid "Clear filters"
-msgstr "Filters wissen"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.bW7B87"
-msgid "New"
-msgstr "Nieuw"
-
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.00LcfG"
-msgid "Load more"
-msgstr "Meer laden"
+msgctxt "inbox.tzwHXE"
+msgid "Someone is typing…"
+msgstr "Iemand typt…"
 
 #: src/features/inbox/components/help-sheet-lazy.tsx
 #: src/features/inbox/components/help-sheet.tsx
@@ -9736,6 +9233,11 @@ msgid "Could not send"
 msgstr "Versturen mislukt"
 
 #: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.T7Ry38"
+msgid "Message"
+msgstr "Bericht"
+
+#: src/features/inbox/components/help-sheet.tsx
 msgctxt "inbox.zsMxWw"
 msgid "How can we help?"
 msgstr "Waarmee kunnen we helpen?"
@@ -9744,6 +9246,66 @@ msgstr "Waarmee kunnen we helpen?"
 msgctxt "inbox.PQ8A3I"
 msgid "New conversation"
 msgstr "Nieuw gesprek"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.TFJD82"
+msgid "Anyone"
+msgstr "Iedereen"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.snC7V6"
+msgid "Mine"
+msgstr "Van mij"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.a1eoKk"
+msgid "Unassigned"
+msgstr "Niet toegewezen"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.1udzha"
+msgid "Conversations"
+msgstr "Gesprekken"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.eKEL_g"
+msgid "Pending"
+msgstr "In afwachting"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.zQvVDJ"
+msgid "All"
+msgstr ""
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.vx8bv3"
+msgid "Assignee"
+msgstr "Toegewezen aan"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.SZLu0S"
+msgid "Pick a conversation"
+msgstr "Kies een gesprek"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.PjS425"
+msgid "Its messages, notes and actions show here."
+msgstr ""
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.1NNSUY"
+msgid "No conversations"
+msgstr "Geen gesprekken"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.K_kIrH"
+msgid "Open Help in the header to start one as a customer."
+msgstr ""
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.bW7B87"
+msgid "New"
+msgstr "Nieuw"
 
 #: src/features/inbox/components/later-items.tsx
 msgctxt "inbox._qJpQY"
@@ -9771,6 +9333,11 @@ msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
 #: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/inbox/components/scheduled-replies.tsx
 msgctxt "inbox.yGEFsz"
 msgid "Scheduled replies"
 msgstr "Ingeplande antwoorden"
@@ -9779,194 +9346,6 @@ msgstr "Ingeplande antwoorden"
 msgctxt "inbox.pC2KQV"
 msgid "Cancel scheduled reply"
 msgstr "Ingepland antwoord annuleren"
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.e_tg3W"
-msgid "Copy {label}"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.p556q3"
-msgid "Copied"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.KK_nq1"
-msgid "Add endpoint"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.kX2R92"
-msgid "Copy the trigger URL"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.eqg3yk"
-msgid "This is the only time the token and the secret are shown. Senders post to the URL."
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.galdNg"
-msgid "Trigger path"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.CtZMCP"
-msgid "Secret"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.JXdbo8"
-msgid "Done"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.YW0KIR"
-msgid "Add an incoming endpoint"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.5tyIwL"
-msgid "Deliveries land in the webhook inbox for a worker to process."
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.HAlOn1"
-msgid "Name"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.FpxElY"
-msgid "Verification"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.UmHyI8"
-msgid "Standard Webhooks signature"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.BWYdJ0"
-msgid "HMAC SHA-256 header"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.ue5Glg"
-msgid "Shared secret header"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.450Fty"
-msgid "None"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.47FYwb"
-msgid "Cancel"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.w9pRps"
-msgid "Enable {name}"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.FTNuuD"
-msgid "Endpoint turned on"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.OywY9Q"
-msgid "Endpoint turned off"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.JpsXCp"
-msgid "Delete {name}"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.g9o_2L"
-msgid "Delete {name}?"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.wLHXcc"
-msgid "Its secrets are deleted too. Senders that post to its URL get a 404."
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.PK7pDv"
-msgid "Endpoint deleted"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
-msgctxt "incomingWebhooks.K3r6DQ"
-msgid "Delete"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.z_wUXE"
-msgid "Received"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.TMXkY7"
-msgid "Last delivery"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.Zh-5A6"
-msgid "On"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.OvzONl"
-msgid "Off"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.xDM7s1"
-msgid "Standard Webhooks"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.0_Ssji"
-msgid "HMAC SHA-256"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.ubQ1f-"
-msgid "Shared secret"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.ku-mDU"
-msgid "State"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.mPfj7c"
-msgid "Search endpoints"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.VfRI0m"
-msgid "No incoming endpoints found"
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.AEWJ-8"
-msgid "Add an endpoint, or change the filters."
-msgstr ""
-
-#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
-msgctxt "incomingWebhooks.gzp6xc"
-msgid "Change the filters to see more."
-msgstr ""
 
 #: src/features/inspections/components/inspection-labels.tsx
 #: src/features/inspections/components/inspection-program-calendar.tsx
@@ -10444,83 +9823,6 @@ msgctxt "islands.dJi4TF"
 msgid "Not in the token"
 msgstr "Niet in het token"
 
-#: src/features/jobs/components/job-record-list.tsx
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.Cnm0QA"
-msgid "Queued"
-msgstr "In de wachtrij"
-
-#: src/features/jobs/components/job-record-list.tsx
-msgctxt "jobs.cXAlMR"
-msgid "Scheduled"
-msgstr ""
-
-#: src/features/jobs/components/job-record-list.tsx
-msgctxt "jobs.nDyaq_"
-msgid "Running"
-msgstr ""
-
-#: src/features/jobs/components/job-record-list.tsx
-msgctxt "jobs.6p8Isg"
-msgid "Retrying"
-msgstr ""
-
-#: src/features/jobs/components/job-record-list.tsx
-msgctxt "jobs.LOghU6"
-msgid "Succeeded"
-msgstr ""
-
-#: src/features/jobs/components/job-record-list.tsx
-msgctxt "jobs.vXCeIi"
-msgid "Failed"
-msgstr ""
-
-#: src/features/jobs/components/job-record-list.tsx
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.MEvKnW"
-msgid "Job"
-msgstr "Taak"
-
-#: src/features/jobs/components/job-record-list.tsx
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/jobs/components/job-record-list.tsx
-#: src/features/jobs/components/job-run-detail.tsx
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.HhYIki"
-msgid "Attempts"
-msgstr "Pogingen"
-
-#: src/features/jobs/components/job-record-list.tsx
-#: src/features/jobs/components/job-run-detail.tsx
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.EQpfkS"
-msgid "Finished"
-msgstr "Afgerond"
-
-#: src/features/jobs/components/job-record-list.tsx
-msgctxt "jobs.4YDNPC"
-msgid "Queue"
-msgstr ""
-
-#: src/features/jobs/components/job-record-list.tsx
-msgctxt "jobs.nzr43B"
-msgid "Search jobs"
-msgstr ""
-
-#: src/features/jobs/components/job-record-list.tsx
-msgctxt "jobs.sBpLKt"
-msgid "No job runs found"
-msgstr ""
-
-#: src/features/jobs/components/job-record-list.tsx
-msgctxt "jobs.SKAI4r"
-msgid "Jobs are queued when the app hands work to the background. Queue a test job, or change the filters."
-msgstr ""
-
 #: src/features/jobs/components/job-run-controls.tsx
 msgctxt "jobs.IJu8c2"
 msgid "Test job queued"
@@ -10541,21 +9843,6 @@ msgstr "Taak opnieuw in de wachtrij gezet"
 msgctxt "jobs.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
-
-#: src/features/jobs/components/job-run-detail.tsx
-msgctxt "jobs.06BF9b"
-msgid "Queued {when}"
-msgstr ""
-
-#: src/features/jobs/components/job-run-detail.tsx
-msgctxt "jobs.LnoDao"
-msgid "Last error"
-msgstr ""
-
-#: src/features/jobs/components/job-run-detail.tsx
-msgctxt "jobs.T7Ry38"
-msgid "Message"
-msgstr ""
 
 #: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.Tl-kE3"
@@ -10586,6 +9873,31 @@ msgstr "Nog geen taakruns"
 msgctxt "jobs.hZ4xf9"
 msgid "Jobs are queued when the app hands work to the background, such as a webhook delivery or an import. Queue a test job to see one here."
 msgstr "Taken komen in de wachtrij als de app werk naar de achtergrond doorgeeft, zoals een webhook-levering of een import. Zet een testtaak in de wachtrij om er hier een te zien."
+
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.MEvKnW"
+msgid "Job"
+msgstr "Taak"
+
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.HhYIki"
+msgid "Attempts"
+msgstr "Pogingen"
+
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.Cnm0QA"
+msgid "Queued"
+msgstr "In de wachtrij"
+
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.EQpfkS"
+msgid "Finished"
+msgstr "Afgerond"
 
 #: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.wL7VAE"
@@ -12516,166 +11828,6 @@ msgstr "Wijzigingen en pagina's die nog wachten, laden zodra je weer online bent
 msgctxt "offline.qf5KUv"
 msgid "Waiting for connection"
 msgstr "Wacht op verbinding"
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.2FTlRV"
-msgid "Priority options created"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.7qTpLv"
-msgid "Create task priorities"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.z_4wqP"
-msgid "Option saved"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets._S1NDL"
-msgid "Edit {label}"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.LdswFL"
-msgid "Edit option"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.nz91sE"
-msgid "Records keep the option's level, so sorting and reports stay the same."
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-#: src/features/option-sets/components/option-set-detail.tsx
-msgctxt "optionSets.753yX5"
-msgid "Label"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-#: src/features/option-sets/components/option-set-detail.tsx
-msgctxt "optionSets.uMhpKe"
-msgid "Color"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.47FYwb"
-msgid "Cancel"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.jvo0vs"
-msgid "Save"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.WLanec"
-msgid "Archive {label}"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.rIXhbX"
-msgid "Archive {label}?"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.zXuu9d"
-msgid "New records can no longer pick it. An option that records still use can't be archived until they move to another option."
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.sbWa4_"
-msgid "Option archived"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-controls.tsx
-msgctxt "optionSets.hrgo-E"
-msgid "Archive"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-detail.tsx
-msgctxt "optionSets.9hEsCf"
-msgid "{type}, field {field}"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-detail.tsx
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.0HT-Ib"
-msgid "Archived"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-detail.tsx
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.3a5wL8"
-msgid "Active"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-detail.tsx
-msgctxt "optionSets.EcglP9"
-msgid "Key"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-detail.tsx
-msgctxt "optionSets.y1Qr81"
-msgid "Level"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-detail.tsx
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.ku-mDU"
-msgid "State"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-detail.tsx
-msgctxt "optionSets.wL7VAE"
-msgid "Actions"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.lKv8ex"
-msgid "Default"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.HAlOn1"
-msgid "Name"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.QbUmZX"
-msgid "Record type"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.AbvQFb"
-msgid "Field"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.NDV5Mq"
-msgid "Options"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.MhUSfT"
-msgid "Search option sets"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.bg7STD"
-msgid "No option sets found"
-msgstr ""
-
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.-U70Ig"
-msgid "Create the task priorities, or change the filters."
-msgstr ""
-
-#: src/features/option-sets/components/option-set-record-list.tsx
-msgctxt "optionSets.gzp6xc"
-msgid "Change the filters to see more."
-msgstr ""
 
 #: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.lehIHr"
@@ -17653,21 +16805,6 @@ msgstr "API-sleutels"
 msgctxt "settings.hf7LJX"
 msgid "Webhooks"
 msgstr "Webhooks"
-
-#: src/features/settings/components/settings-nav-links.tsx
-msgctxt "settings.RHDnsC"
-msgid "Incoming webhooks"
-msgstr ""
-
-#: src/features/settings/components/settings-nav-links.tsx
-msgctxt "settings.NZ8yBj"
-msgid "Domains"
-msgstr ""
-
-#: src/features/settings/components/settings-nav-links.tsx
-msgctxt "settings.7lS5o3"
-msgid "Option sets"
-msgstr ""
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.Y0PHiM"
