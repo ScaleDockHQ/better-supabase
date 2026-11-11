@@ -84,7 +84,11 @@ export function renameArguments(
       const after = text.slice(at + match[0].length).trimStart();
       const previous = before.at(-1);
       const key = after.startsWith(":") && !after.startsWith("::");
-      const shorthand = after.startsWith(",") || after.startsWith("}");
+
+      const shorthand =
+        (previous === "{" || previous === ",") &&
+        (after.startsWith(",") || after.startsWith("}"));
+
       const inObject = openBracket(text, at, ranges) === "{";
       const memberOf = previous === "." && before.at(-2) !== ".";
       const listed = /\b(?:import|export)(?:\s+type)?\s*\{[^}]*$/.test(before);

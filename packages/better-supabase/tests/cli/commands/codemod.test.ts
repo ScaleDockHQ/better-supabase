@@ -15,6 +15,7 @@ import type { Codemod } from "../../../src/cli/codemod.ts";
 import { CODEMODS } from "../../../src/cli/codemod.ts";
 import {
   codemodCommand,
+  liveColumns,
   runCodemod,
 } from "../../../src/cli/commands/codemod.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
@@ -198,6 +199,41 @@ describe("runCodemod", () => {
   it("writes no SQL migration while the table has no SQL renames", async () => {
     await codemod(["naming"]);
     expect(await readdir(root)).not.toContain("supabase");
+  });
+});
+
+describe("liveColumns", () => {
+  const config = resolveConfig({}, tmpdir());
+  const env = { DATABASE_URL: "postgresql://db.example/postgres" };
+
+  it("groups the database's columns by table", async () => {
+    let closed = false;
+
+    const found = await liveColumns(config, env, ["public.a"], async () => ({
+      client: {
+        query: async <R>() => ({
+          rows: [
+            { name: "public.a", column: "x" },
+            { name: "public.a", column: "y" },
+          ] as R[],
+        }),
+      },
+      close: async () => {
+        closed = true;
+      },
+      describe: "db",
+    }));
+
+    expect(found?.get("public.a")).toEqual(new Set(["x", "y"]));
+    expect(closed).toBe(true);
+  });
+
+  it("returns undefined when the database can't be reached", async () => {
+    await expect(
+      liveColumns(config, env, ["public.a"], () =>
+        Promise.reject(new Error("down")),
+      ),
+    ).resolves.toBeUndefined();
   });
 });
 

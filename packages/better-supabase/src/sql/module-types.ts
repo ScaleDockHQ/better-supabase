@@ -416,6 +416,12 @@ export interface BlockSqlLayout {
    */
   readonly declaredColumns?: Readonly<Record<string, readonly string[]>>;
   /**
+   * Each declared table's not-null columns, `schema.table` to names. A derived
+   * `sameTenant` entry whose referenced tenant column may be null passes rows
+   * with no tenant (`shared`).
+   */
+  readonly notNullColumns?: Readonly<Record<string, readonly string[]>>;
+  /**
    * The columns the app's own triggers read or write, `schema.table` to names.
    * `sameTenant.auto` emits nothing for a column an app trigger already guards
    * (Lienlink's `jobs_organization_fixed`).
