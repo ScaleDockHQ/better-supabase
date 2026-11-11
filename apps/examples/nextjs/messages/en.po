@@ -1419,11 +1419,7 @@ msgstr "Next page"
 msgctxt "recordDetail.M56d6a"
 msgid "Tabs"
 msgstr "Tabs"
-||||||| parent of 862cf66a68 (feat(examples): register finance routes, nav items and block coverage)
-#: src/components/record-detail/record-detail-tabs.tsx
-msgctxt "recordDetail.M56d6a"
-msgid "Tabs"
-msgstr "Tabs"
+
 #: src/components/finance-pages/finance-pages.tsx
 msgctxt "finance.6dqYnF"
 msgid "Invoices"

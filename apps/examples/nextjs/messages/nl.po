@@ -1425,6 +1425,15 @@ msgid "Tabs"
 
 
 
+
+
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.6dqYnF"
+msgid "Invoices"
+msgstr "Facturen"
+
+
 #: src/components/finance-pages/finance-pages.tsx
 msgctxt "finance.mLpx1z"
 msgid "Every sales and purchase invoice, with its status, due date and what is still owed."
@@ -20959,6 +20968,14 @@ msgid "Referrals appear when someone signs up with a code."
 msgstr ""
 
 
+
+
+
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.SMrXWc"
+msgid "Favorites"
+msgstr "Favorieten"
 
 
 
