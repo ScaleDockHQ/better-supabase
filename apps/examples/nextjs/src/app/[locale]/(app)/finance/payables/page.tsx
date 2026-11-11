@@ -1,6 +1,7 @@
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { FinanceOverviewPage } from "@/components/finance-pages/finance-pages";
 import { PageHeader } from "@/components/page-header";
 import {
   PayablesAgingSection,
@@ -24,6 +25,7 @@ export default function PayablesPage() {
           <PayablesAgingSection />
         </PermissionGate>
       </Suspense>
+      <FinanceOverviewPage entity="payables" embedded />
     </>
   );
 }

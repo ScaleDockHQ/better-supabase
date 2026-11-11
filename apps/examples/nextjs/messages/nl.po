@@ -19044,6 +19044,7 @@ msgstr "Uit"
 msgctxt "sales.47FYwb"
 msgid "Cancel"
 msgstr ""
+
 #: src/features/search-settings/components/search-settings-record-list.tsx
 msgctxt "searchSettings.9a9-ww"
 msgid "Title"
@@ -19139,6 +19140,7 @@ msgstr ""
 msgctxt "sales.ERnpdU"
 msgid "Scored"
 msgstr ""
+
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.V52jNn"
 msgid "Enabled"
@@ -25886,3 +25888,1662 @@ msgstr "De agent wordt verwijderd voor iedereen die hem heeft geïnstalleerd. Di
 msgctxt "agents.47FYwb"
 msgid "Cancel"
 msgstr "Annuleren"
+
+
+
+#: src/app/[locale]/(app)/crm/contacts/page.tsx
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.4S241U"
+msgid "Contacts"
+msgstr "Contacten"
+
+#: src/app/[locale]/(app)/crm/contacts/page.tsx
+msgctxt "crm.p8A2D3"
+msgid "The companies you sell to and the people you talk to."
+msgstr "De bedrijven waaraan je verkoopt en de mensen met wie je praat."
+
+#: src/app/[locale]/(app)/crm/deals/page.tsx
+msgctxt "crm._sIyOI"
+msgid "Your pipeline by stage, and how the targets are going."
+msgstr "Je pijplijn per fase, en hoe de doelen ervoor staan."
+
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.DRlmpk"
+msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
+msgstr "Klantgesprekken uit de Help-widget en chatkanalen, live bijgewerkt via Realtime."
+
+#: src/app/[locale]/(app)/workflows/builder/page.tsx
+msgctxt "workflows.Rm3xgH"
+msgid "Workflow builder"
+msgstr "Workflowbouwer"
+
+#: src/app/[locale]/(app)/workflows/page.tsx
+msgctxt "workflows.O9538F"
+msgid "Durable runs on the Workflow SDK with the Supabase World. The list stays live over Realtime."
+msgstr "Duurzame runs op de Workflow SDK met de Supabase World. De lijst blijft live via Realtime."
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.6dqYnF"
+msgid "Invoices"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.mLpx1z"
+msgid "Every sales and purchase invoice, with its status, due date and what is still owed."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.xokkbK"
+msgid "Bills"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.jetl6T"
+msgid "Purchase invoices to approve and pay."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.k2VBcF"
+msgid "Expenses"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.Ag7vv5"
+msgid "Expense reports from submission to reimbursement, with their receipts."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.scwekL"
+msgid "Ledger"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.SDRL1a"
+msgid "The append-only transactions the blocks post, each with its entries."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.046zjm"
+msgid "Journal"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.vXbo1p"
+msgid "Double-entry journal entries of the books, with their lines per account."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.feoJsy"
+msgid "Billable time"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.Q4V37R"
+msgid "Logged time with its rate, and what is already on an invoice."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.X0dr3X"
+msgid "Recurring postings"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.9e2rci"
+msgid "Schedules that spread an amount over periods, such as deferred revenue."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.wk1uc7"
+msgid "Tax returns"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.UQQNUh"
+msgid "Returns prepared from posted tax, per period."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.6XETNf"
+msgid "Periods"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.he0nhG"
+msgid "Fiscal periods that lock and close the books."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.stJAkN"
+msgid "Payroll runs"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.KqHVHJ"
+msgid "Runs collected from worked and leave hours."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.8K_n1E"
+msgid "Legal entities"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.CfoX_J"
+msgid "Companies inside this organization."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.FqvBgl"
+msgid "Awards"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.pUDBDO"
+msgid "Units funders award, with the share each award used."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.N2AVeQ"
+msgid "Bank accounts"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.ZLGRAF"
+msgid "Accounts statements are imported into."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.SR-JUq"
+msgid "Bank transactions"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.r9SNtB"
+msgid "Every imported transaction, matched or not."
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.RAJ7vv"
+msgid "All invoices"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.Lp56oi"
+msgid "All bills"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.wvkjbi"
+msgid "All expense reports"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.LxsAwH"
+msgid "All ledger transactions"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.zX76u_"
+msgid "All journal entries"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.PCjPcH"
+msgid "All time entries"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.F9VtUz"
+msgid "All schedules"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.m3UNlA"
+msgid "All tax returns"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.R3KR2u"
+msgid "All periods"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.RlNyWu"
+msgid "All payroll runs"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.PqnET0"
+msgid "All legal entities"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.CDpe3x"
+msgid "All awards"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.OxBquZ"
+msgid "All bank accounts"
+msgstr ""
+
+#: src/components/finance-pages/finance-pages.tsx
+msgctxt "finance.Ta_gLr"
+msgid "All bank transactions"
+msgstr ""
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.qQSmVj"
+msgid "The contacts didn't load"
+msgstr "De contacten zijn niet geladen"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.nbX5yC"
+msgid "No contacts yet"
+msgstr "Nog geen contacten"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.7cMBJi"
+msgid "Add the companies you sell to and the people you talk to."
+msgstr "Voeg de bedrijven toe waaraan je verkoopt en de mensen met wie je praat."
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.6XFO_C"
+msgid "Approved"
+msgstr "Goedgekeurd"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.2s7KhN"
+msgid "Conditional"
+msgstr "Voorwaardelijk"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.qUJTsT"
+msgid "Blocked"
+msgstr "Geblokkeerd"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.KkpdQS"
+msgid "{count, plural, one {# contact} other {# contacts}}"
+msgstr "{count, plural, one {# contact} other {# contacten}}"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.MWM7ma"
+msgid "Email or domain"
+msgstr "E-mail of domein"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.TGAGHp"
+msgid "Lifecycle"
+msgstr "Levenscyclus"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.5Ya43Y"
+msgid "Supplier"
+msgstr "Leverancier"
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.uf8udd"
+msgid "The record did not load"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-list.tsx
+msgctxt "finance.162kF7"
+msgid "Try again in a moment."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-list.tsx
+msgctxt "finance.62nsdy"
+msgid "Retry"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.a5msuh"
+msgid "Yes"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.oUWADl"
+msgid "No"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.W6nwjo"
+msgid "Draft"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.3-19Kb"
+msgid "Issued"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.nJRLgb"
+msgid "Partly paid"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.u_vOPu"
+msgid "Paid"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-actions.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.jHfCjd"
+msgid "Void"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.45hFQt"
+msgid "Uncollectible"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.raexxM"
+msgid "Submitted"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.6XFO_C"
+msgid "Approved"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.OtrNLH"
+msgid "Reimbursed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.3wsVWF"
+msgid "Cancelled"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.JfG49w"
+msgid "Open"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.oL0rU6"
+msgid "Locked"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.Fv1ZSz"
+msgid "Closed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.wo6YUd"
+msgid "Filed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.DPnkvq"
+msgid "Exported"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.QYYHH3"
+msgid "Posted"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.3a5wL8"
+msgid "Active"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.0HT-Ib"
+msgid "Archived"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.mcDm_r"
+msgid "Matched"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.o6v3D_"
+msgid "Unmatched"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.TckqjB"
+msgid "Ignored"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.DZ2Koj"
+msgid "Direction"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.g9pEhE"
+msgid "Due"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.L8seEc"
+msgid "Subtotal"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.AwzkSM"
+msgid "Tax"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.MJ2jZQ"
+msgid "Total"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.ChZ06t"
+msgid "Credited"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.R8TqTF"
+msgid "Reminder level"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.j_8eD7"
+msgid "Supplier reference"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.T2ZVQY"
+msgid "Lines"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.Q8Qw5B"
+msgid "Description"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.qVGRIE"
+msgid "Quantity"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.0FCkLd"
+msgid "Unit amount"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.tNXtxu"
+msgid "No lines."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.-vBFap"
+msgid "Reminders"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.P7PLVj"
+msgid "Date"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.y1Qr81"
+msgid "Level"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.uT4OlP"
+msgid "Fee"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.m4vW-f"
+msgid "Open balance"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.glgl91"
+msgid "No reminders were sent."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.IuowYT"
+msgid "E-invoice deliveries"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.KeO51o"
+msgid "Channel"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.zQLEfz"
+msgid "Format"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.0NdaA9"
+msgid "Not sent as an e-invoice."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.WPjm1n"
+msgid "Bank matches"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.kHkPdE"
+msgid "Booked"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.SzEtQB"
+msgid "Counterparty"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance._0TOL5"
+msgid "Amount"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.4J66lh"
+msgid "No bank transaction pays this invoice yet."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-actions.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.55hdQy"
+msgid "Currency"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.8c1ZmJ"
+msgid "Receipts"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.ccXLVi"
+msgid "Category"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.OXxq1t"
+msgid "No receipts on this report."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.qX5-jY"
+msgid "Ledger transaction"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.0yLcs0"
+msgid "Effective"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.e5x8FT"
+msgid "Kind"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.mcUhhf"
+msgid "Reference"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.87ZCAe"
+msgid "Entries"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.TwyMau"
+msgid "Account"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.xkB-8Z"
+msgid "Unit"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.Hxgazl"
+msgid "No entries."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.hp694z"
+msgid "Entry {number}"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.aH4De2"
+msgid "Source"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.MxD6vP"
+msgid "Debit"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.mLvz-r"
+msgid "Credit"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.TDUfVk"
+msgid "Started"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.TP_cMX"
+msgid "Ended"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.IuFETn"
+msgid "Duration"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.cwvEov"
+msgid "Billable"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.Isupm3"
+msgid "Hourly rate"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.7Y6Yvq"
+msgid "Record"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.iX4iZC"
+msgid "Invoiced on"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.Ecfndm"
+msgid "Invoice"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.o-gZM4"
+msgid "Hours billed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.c0b5XV"
+msgid "Rate"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.exrJ8D"
+msgid "Not invoiced yet."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.9anxhq"
+msgid "Starts"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.04xGLE"
+msgid "Ends"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.YcUhLa"
+msgid "Line"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.XWvDEW"
+msgid "Postings"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.7seQHV"
+msgid "No postings are planned."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.F77KSL"
+msgid "Prepared"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.IwXom3"
+msgid "Boxes"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.tlTERc"
+msgid "Box"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.MA_K-j"
+msgid "The return has no boxes."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.Gz0Fja"
+msgid "Payroll run"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.I0HSpZ"
+msgid "Checksum"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.HlMWir"
+msgid "Employee"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-actions.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.h2vipu"
+msgid "Code"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.bz6Y0E"
+msgid "The run has no lines yet."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-actions.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.5VJ7dT"
+msgid "VAT number"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.9iaGlY"
+msgid "Chamber of Commerce"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-actions.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.-SgU-0"
+msgid "IBAN"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.lKv8ex"
+msgid "Default"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.iiBcnn"
+msgid "Funding award"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.A1ykkc"
+msgid "Units"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.jCNpEL"
+msgid "Period"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.5b-jFB"
+msgid "Deliveries"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.liHfFD"
+msgid "Nothing was delivered against this award."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-actions.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.Lckebo"
+msgid "Holder"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.XftF-N"
+msgid "BIC"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.t2Wr8I"
+msgid "Primary"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.6NKLg1"
+msgid "Latest transactions"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.Fqcn86"
+msgid "No transactions were imported."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.sSgGIc"
+msgid "Bank transaction"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.8obSEL"
+msgid "Counterparty IBAN"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.93deTK"
+msgid "Remittance"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.iudNd-"
+msgid "Matches"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.OUNRzL"
+msgid "Matched to"
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.xKMeoe"
+msgid "Not matched to an invoice or an entry."
+msgstr ""
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.Lv0zJu"
+msgid "Details"
+msgstr ""
+
+#: src/features/finance-records/components/finance-list.tsx
+msgctxt "finance.PihCom"
+msgid "The list did not load"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.zA_67Y"
+msgid "Submit for approval"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.UhLbvT"
+msgid "Report submitted"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.WCaf5C"
+msgid "Approve"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.Hvtpbz"
+msgid "Report approved"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.VzIOKf"
+msgid "Reject"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.IXh1nG"
+msgid "Report rejected"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.yYwWTr"
+msgid "Reimburse"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.rZbekS"
+msgid "Report reimbursed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.ryAzxy"
+msgid "Issue"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.IqALam"
+msgid "Invoice issued"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.8ohSMp"
+msgid "Record a payment"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.GYD5W-"
+msgid "The payment is booked in the invoice's currency."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.ldCcj1"
+msgid "Record payment"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.jdTej-"
+msgid "Payment recorded"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.MRDuKA"
+msgid "Amount ({currency})"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.XmAFMC"
+msgid "Invoice voided"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.V2DTdy"
+msgid "Approve for payment"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.MtOqM3"
+msgid "Bill approved"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.Zl4_y9"
+msgid "Lock"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.dIVZf_"
+msgid "Period locked"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.ff97BB"
+msgid "Close period"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.RG8RGb"
+msgid "Period closed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.8ujEro"
+msgid "Reopen"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.haf8W7"
+msgid "Period reopened"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.iSHzSm"
+msgid "File return"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.6CpckH"
+msgid "Return filed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.NTqSMk"
+msgid "Prepare a tax return"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.n8_axE"
+msgid "The return adds up the posted tax of the period."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.Ljv19w"
+msgid "Prepare return"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance._S2FM4"
+msgid "Return prepared"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.dM-p3_"
+msgid "From"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.9j3hXO"
+msgid "To"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.753yX5"
+msgid "Label"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.XJ9cV5"
+msgid "Invoice unbilled time"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.sjtJ3x"
+msgid "Draft invoice created"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.2aoA8Y"
+msgid "New payroll run"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.U4l5yW"
+msgid "The run collects worked and leave hours of the period."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.2CmZLo"
+msgid "New run"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.T4emv5"
+msgid "Create run"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.JA5AO7"
+msgid "Payroll run created"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.Pi8h8T"
+msgid "Collect again"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.bjd5DY"
+msgid "Run refreshed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.DJfFX3"
+msgid "New legal entity"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.qv8Qzw"
+msgid "The first entity of an organization becomes its default."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.Ey0waK"
+msgid "Create entity"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.6DR6-o"
+msgid "Legal entity created"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.HAlOn1"
+msgid "Name"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.duoFVO"
+msgid "Make default"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.qLyEZl"
+msgid "Default entity changed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.hrgo-E"
+msgid "Archive"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.i0LP-Q"
+msgid "Legal entity archived"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance._3W02J"
+msgid "End today"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.3wwqtB"
+msgid "Award ended"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.8DAmAg"
+msgid "Cancel award"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.AEeyi3"
+msgid "Award canceled"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance._KP1qx"
+msgid "New bank account"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.aCoou3"
+msgid "Import a statement into it to start matching."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.HYg2Xr"
+msgid "New account"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.huqKGl"
+msgid "Create account"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-actions.tsx
+msgctxt "finance.1sAfmV"
+msgid "Bank account created"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.c8nvms"
+msgid "Sales"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.J6Eyds"
+msgid "Purchase"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.X-lh2y"
+msgid "Search bills"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.DsYydA"
+msgid "Search invoices"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.gH3duZ"
+msgid "No bills found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.tNWQb7"
+msgid "No invoices found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.of0ze8"
+msgid "Invoices show up here once they are created."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.9a9-ww"
+msgid "Title"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.kFkPWB"
+msgid "Number"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.EomJQc"
+msgid "Owed"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.l3AfOI"
+msgid "Due date"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.YK65ec"
+msgid "Largest total"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.imt5dH"
+msgid "Search expense reports"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.gqPiLO"
+msgid "No expense reports found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.eB8qbc"
+msgid "Reports show up here once someone files them."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.x5Tz6M"
+msgid "Report"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.gjLkOO"
+msgid "Search transactions"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.CxUSbK"
+msgid "No ledger transactions found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.KoE7dZ"
+msgid "Postings show up here once a block writes to the ledger."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.D5NqQO"
+msgid "Memo"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.h-T3T7"
+msgid "Oldest first"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.GrfmXq"
+msgid "Search journal entries"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.1bddgm"
+msgid "No journal entries found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.85btFB"
+msgid "Entries show up here once they are posted."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.wR7xTu"
+msgid "Entry"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.GCA4qa"
+msgid "Search time entries"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.e32zhM"
+msgid "No time entries found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.h-aLaI"
+msgid "Logged time shows up here."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.qMePPG"
+msgid "Note"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.sE1HJj"
+msgid "Invoiced"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.FhuzzS"
+msgid "Longest first"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.hQ6AFM"
+msgid "Search schedules"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.83xcan"
+msgid "No schedules found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.rDFwPL"
+msgid "Deferrals and recurring postings show up here."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.-U6ozc"
+msgid "Type"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.567XKl"
+msgid "Largest amount"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.1eDUCv"
+msgid "Search tax returns"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.I6t9yx"
+msgid "No tax returns found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.7yGXHT"
+msgid "Prepare a return for a period to see it here."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.cWxMg7"
+msgid "Search periods"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.w6hLm4"
+msgid "No periods found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.EBvFEb"
+msgid "Periods are created the first time a date needs one."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.7Knhyz"
+msgid "Search payroll runs"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.uuaiya"
+msgid "No payroll runs found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.DjsPJG"
+msgid "Create a run for a period to collect worked hours."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.KiXNvz"
+msgid "Run"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.zzeNUu"
+msgid "Newest period"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.RqFGIj"
+msgid "Oldest period"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.5UwL6K"
+msgid "Search legal entities"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.Yx4pdj"
+msgid "No legal entities found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.HGIMOC"
+msgid "Add the companies your organization invoices from."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.euASIZ"
+msgid "Search awards"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.eogE8d"
+msgid "No awards found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.Cix4W6"
+msgid "Awards show up here once a funder grants units."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.XYkq4n"
+msgid "Used"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.8Q8162"
+msgid "Most units"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.DgHeiI"
+msgid "Search accounts"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.NsdmS-"
+msgid "No bank accounts found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.QxTXzH"
+msgid "Add an account to import statements."
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.Zo_xjB"
+msgid "No bank transactions found"
+msgstr ""
+
+#: src/features/finance-records/components/finance-record-list.tsx
+msgctxt "finance.fILb54"
+msgid "Import a statement to see transactions here."
+msgstr ""
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.9OHSlH"
+msgid "Snoozed until {time}"
+msgstr "Gesnoozed tot {time}"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.zQvVDJ"
+msgid "All"
+msgstr "Alle"
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.PjS425"
+msgid "Its messages, notes and actions show here."
+msgstr "De berichten, notities en acties verschijnen hier."
+
+#: src/features/inbox/components/inbox-view.tsx
+msgctxt "inbox.K_kIrH"
+msgid "Open Help in the header to start one as a customer."
+msgstr "Open Help in de kop om er als klant een te beginnen."
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.Rm3xgH"
+msgid "Workflow builder"
+msgstr "Workflowbouwer"
+
+#: src/features/people/components/employee-directory.tsx
+msgctxt "people.HHzdGS"
+msgid "Employees"
+msgstr "Medewerkers"
+
+#: src/features/people/components/employee-directory.tsx
+msgctxt "people.nqSYWv"
+msgid "Everyone in the organization and who they report to."
+msgstr "Iedereen in de organisatie en aan wie ze rapporteren."
+
+#: src/features/people/components/employee-directory.tsx
+msgctxt "people.b51HyQ"
+msgid "No employees yet"
+msgstr "Nog geen medewerkers"
+
+#: src/features/people/components/employee-directory.tsx
+msgctxt "people.nYs1vh"
+msgid "Add the first employee to start the org chart."
+msgstr "Voeg de eerste medewerker toe om het organogram te starten."
+
+#: src/features/people/components/employee-directory.tsx
+msgctxt "people.HIppEA"
+msgid "Ask an admin to add employees."
+msgstr "Vraag een beheerder om medewerkers toe te voegen."
+
+#: src/features/people/components/employee-table.tsx
+msgctxt "people.O5C_Z-"
+msgid "Search by name, title or email"
+msgstr "Zoek op naam, functie of e-mail"
+
+#: src/features/people/components/employee-table.tsx
+msgctxt "people.4YJHut"
+msgid "Clear search"
+msgstr "Zoekopdracht wissen"
+
+#: src/features/people/components/employee-table.tsx
+msgctxt "people.RB_c3Z"
+msgid "Only people who can see sensitive fields read these."
+msgstr "Alleen mensen die gevoelige velden mogen zien, lezen deze."
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.XwQph0"
+msgid "No risks yet"
+msgstr "Nog geen risico's"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.xjr51A"
+msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix."
+msgstr "Registreer een risico met oorzaak en gevolg en beoordeel het daarna op de matrix van de organisatie."
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.ruQnUX"
+msgid "Read the risks guide"
+msgstr "Lees de gids over risico's"
+
+#: src/features/workflows/builder/components/definition-list.tsx
+msgctxt "workflows.yW1OYL"
+msgid "No workflows yet. Members who can edit create one above."
+msgstr "Nog geen workflows. Leden die mogen bewerken maken er hierboven een aan."
+

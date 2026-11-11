@@ -1,6 +1,7 @@
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { FinanceOverviewPage } from "@/components/finance-pages/finance-pages";
 import { PageHeader } from "@/components/page-header";
 import {
   AwardUsage,
@@ -21,6 +22,7 @@ export default function FundingPage() {
       <Suspense fallback={<AwardUsageSkeleton />}>
         <AwardUsage />
       </Suspense>
+      <FinanceOverviewPage entity="funding" embedded />
     </>
   );
 }

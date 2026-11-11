@@ -1,6 +1,7 @@
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { FinanceOverviewPage } from "@/components/finance-pages/finance-pages";
 import { PageHeader } from "@/components/page-header";
 import {
   PayrollRuns,
@@ -24,6 +25,7 @@ export default function PayrollPage() {
           <PayrollRuns />
         </PermissionGate>
       </Suspense>
+      <FinanceOverviewPage entity="payroll" embedded />
     </>
   );
 }
