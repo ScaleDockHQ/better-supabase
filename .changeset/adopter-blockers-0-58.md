@@ -1,5 +1,0 @@
----
-"better-supabase": patch
----
-
-A table loaded lazily (`gen.serverTables: "lazy"`) keeps its property on `db` when a block instance has the same name, as an eager table already did; the block stays under `db.$blocks`. `codemod owned-columns` reads the live database when it can connect and keeps an optional column that the database or the snapshot has, instead of reading the snapshot alone. A derived `sameTenant` entry sets `shared` when the referenced table's tenant column may be null, so global rows such as shared roles pass again; a not-null tenant column keeps the strict check. The `en` tax seeds no longer create the `STD`, `RED` and `ZERO` codes without rates, and a seed table with no rows renders no empty `if`. Doctor BS260 reports an old argument name only where `codemod naming` renames it, so a local variable named `workItemId` passes, and the codemod no longer treats a value such as `{ taskId: workItemId }` as shorthand. The 0.57 to 0.58 guide covers search watches without `columns` and the column renames in your own SQL functions.
