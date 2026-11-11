@@ -54,7 +54,7 @@
     "security-definer-functions": 99
   },
   "approvals": {
-    "security-definer-functions": 145
+    "security-definer-functions": 151
   },
   "assets": {
     "security-definer-functions": 164,
@@ -268,7 +268,7 @@
     "row-triggers": 6
   },
   "invoices": {
-    "security-definer-functions": 345,
+    "security-definer-functions": 351,
     "row-triggers": 6
   },
   "knowledge": {

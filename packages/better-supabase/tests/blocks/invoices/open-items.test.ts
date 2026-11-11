@@ -203,6 +203,36 @@ describe("invoices open items", () => {
     expect(row?.unallocatedAt).toBeDefined();
   });
 
+  it("reads where many bills stand in one call, keyed by id", async () => {
+    const t = transport({
+      purchase_invoice_approval_statuses: () => ({
+        i1: { status: "approved", required: [1], approved: [1], pending: [] },
+        i2: {
+          status: "pending",
+          required: [1],
+          approved: [],
+          pending: [{ level: 1, approverId: "u1" }],
+        },
+      }),
+    });
+
+    const statuses = await createInvoices({ transport: t })
+      .approvalStatuses(["i1", "i2", "i3"])
+      .orThrow();
+
+    expect(t.calls).toEqual([
+      [
+        "purchase_invoice_approval_statuses",
+        { invoice_ids: ["i1", "i2", "i3"] },
+      ],
+    ]);
+    expect(statuses.get("i1")?.status).toBe("approved");
+    expect(statuses.get("i2")?.pending).toEqual([
+      { level: 1, approverId: "u1" },
+    ]);
+    expect(statuses.has("i3")).toBe(false);
+  });
+
   it("sets approval levels and reads where a bill stands", async () => {
     const t = transport({
       set_invoice_approval_levels: () => [

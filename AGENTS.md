@@ -563,6 +563,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0677: Move server importers onto the core and shell block sets, and ask read set gates in one wave.
 - 0680: Tag function payload reads with the tables they read.
 - 0681: Check each conversation once and read messages by key.
+- 0682: Read invoice approvals and approval requests in batches.
 
 ## Pre-release pins
 

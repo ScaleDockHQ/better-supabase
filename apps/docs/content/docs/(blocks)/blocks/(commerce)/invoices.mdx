@@ -635,6 +635,20 @@ they are the approver of, and `approvalStatus(invoiceId)` reports `not_required`
 `pending` or `approved` with the levels still open. A bill that waits for
 approval is skipped by [payment batches](/docs/blocks/banking#payment-batches).
 
+A list of bills reads where each stands in one call:
+`approvalStatuses(invoiceIds)` (`purchase_invoice_approval_statuses(invoice_ids)`)
+returns a map from invoice id to the same approval `approvalStatus` returns. A
+bill the caller cannot read has no entry.
+
+```ts
+const statuses = await invoices
+  .approvalStatuses(bills.map((bill) => bill.id))
+  .orThrow();
+const waiting = bills.filter(
+  (bill) => statuses.get(bill.id)?.status === "pending",
+);
+```
+
 ### Repair stored totals
 
 An invoice issued before its header total followed the payment-term credit

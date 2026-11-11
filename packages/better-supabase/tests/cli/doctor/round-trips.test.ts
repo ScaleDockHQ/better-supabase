@@ -6,7 +6,11 @@ import { ROUND_TRIP_RULES } from "../../../src/cli/doctor/round-trips.ts";
 
 function check(
   sources: readonly TextFile[],
-): readonly { message: string; location?: { line: number } }[] {
+): readonly {
+  message: string;
+  target?: string;
+  location?: { line: number };
+}[] {
   const [rule] = ROUND_TRIP_RULES;
 
   // SAFETY: BS609 reads only `sources` and `doctor.parallelReads`.
@@ -46,6 +50,7 @@ describe("BS609", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]?.message).toContain("3 database reads");
     expect(findings[0]?.location?.line).toBe(2);
+    expect(findings[0]?.target).toBe("src/app/page.tsx#Page:Promise.all");
   });
 
   it("counts $rpc calls and block methods", () => {
