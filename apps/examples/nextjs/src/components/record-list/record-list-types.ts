@@ -34,8 +34,6 @@ export interface RecordListFacet {
   readonly values?: readonly string[];
   /** The label of one facet value. */
   readonly valueLabel: (value: string) => string;
-  /** The values to offer when the list sends no facet counts. */
-  readonly values?: readonly string[];
 }
 
 export interface RecordListSort {
