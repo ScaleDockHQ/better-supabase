@@ -1,6 +1,6 @@
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:5e6b4b9a132ccd7c702bab56fa5f506610f31dd47c2ed9d01cb58d108972097d
+-- @bsb-hash sha256:65691a3be8bdc9264481f5b68ca4cbe3d1bf1ba9b15747a37ccbd6f719410005
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -226,6 +226,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (evaluate_care_rules.subject_id)::uuid and s."tenant_id"::text = evaluate_care_rules.tenant::text)
@@ -379,6 +380,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (record_care_alerts.subject_id)::uuid and s."tenant_id"::text = record_care_alerts.tenant::text)
@@ -465,6 +467,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (care_decision_context.subject_id)::uuid and s."tenant_id"::text = care_decision_context.tenant::text)

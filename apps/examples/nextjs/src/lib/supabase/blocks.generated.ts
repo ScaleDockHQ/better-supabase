@@ -25,12 +25,14 @@ import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
 import type { CarePlansEvents } from "better-supabase/blocks/care-plans";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
+import type { CollectionsEvents } from "better-supabase/blocks/collections";
 import type { ConnectorsEvents } from "better-supabase/blocks/connectors";
 import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
 import type { DataLifecycleEvents } from "better-supabase/blocks/data-lifecycle";
 import type { DealsEvents } from "better-supabase/blocks/deals";
 import type { DocumentsEvents } from "better-supabase/blocks/documents";
 import type { DomainsEvents } from "better-supabase/blocks/domains";
+import type { ReviewsEvents } from "better-supabase/blocks/reviews";
 import type { LeaveEvents } from "better-supabase/blocks/leave";
 import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { AssetsEvents } from "better-supabase/blocks/assets";
@@ -63,12 +65,14 @@ import type { DamEvents } from "better-supabase/blocks/dam";
 import type { LimsEvents } from "better-supabase/blocks/lims";
 import type { AppraisalsEvents } from "better-supabase/blocks/appraisals";
 import type { WarehouseEvents } from "better-supabase/blocks/warehouse";
+import type { WarrantyEvents } from "better-supabase/blocks/warranty";
 import type { RfqsEvents } from "better-supabase/blocks/rfqs";
 import type { TillsEvents } from "better-supabase/blocks/tills";
 import type { PeriodsEvents } from "better-supabase/blocks/periods";
 import type { DeadlinesEvents } from "better-supabase/blocks/deadlines";
 import type { CommissionsEvents } from "better-supabase/blocks/commissions";
 import type { ReferralsEvents } from "better-supabase/blocks/referrals";
+import type { AgentCheckoutEvents } from "better-supabase/blocks/agent-checkout";
 import type { ClinicalDecisionSupportEvents } from "better-supabase/blocks/clinical-decision-support";
 import type { EPrescribingEvents } from "better-supabase/blocks/e-prescribing";
 import type { ManufacturingEvents } from "better-supabase/blocks/manufacturing";
@@ -172,6 +176,7 @@ import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/bl
 import { calendarBlock as calendarBlockInstance } from "better-supabase/blocks/calendar";
 import { carePlansBlock as carePlansBlockInstance } from "better-supabase/blocks/care-plans";
 import { catalogBlock as catalogBlockInstance } from "better-supabase/blocks/catalog";
+import { collectionsBlock as collectionsBlockInstance } from "better-supabase/blocks/collections";
 import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/comments";
 import { connectorsBlock as connectorsBlockInstance } from "better-supabase/blocks/connectors";
 import { customFieldsBlock as customFieldsBlockInstance } from "better-supabase/blocks/custom-fields";
@@ -179,6 +184,7 @@ import { dataLifecycleBlock as dataLifecycleBlockInstance } from "better-supabas
 import { dealsBlock as dealsBlockInstance } from "better-supabase/blocks/deals";
 import { documentsBlock as documentsBlockInstance } from "better-supabase/blocks/documents";
 import { domainsBlock as domainsBlockInstance } from "better-supabase/blocks/domains";
+import { reviewsBlock as reviewsBlockInstance } from "better-supabase/blocks/reviews";
 import { leaveBlock as leaveBlockInstance } from "better-supabase/blocks/leave";
 import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledger";
 import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
@@ -212,12 +218,14 @@ import { damBlock as damBlockInstance } from "better-supabase/blocks/dam";
 import { limsBlock as limsBlockInstance } from "better-supabase/blocks/lims";
 import { appraisalsBlock as appraisalsBlockInstance } from "better-supabase/blocks/appraisals";
 import { warehouseBlock as warehouseBlockInstance } from "better-supabase/blocks/warehouse";
+import { warrantyBlock as warrantyBlockInstance } from "better-supabase/blocks/warranty";
 import { rfqsBlock as rfqsBlockInstance } from "better-supabase/blocks/rfqs";
 import { tillsBlock as tillsBlockInstance } from "better-supabase/blocks/tills";
 import { periodsBlock as periodsBlockInstance } from "better-supabase/blocks/periods";
 import { deadlinesBlock as deadlinesBlockInstance } from "better-supabase/blocks/deadlines";
 import { commissionsBlock as commissionsBlockInstance } from "better-supabase/blocks/commissions";
 import { referralsBlock as referralsBlockInstance } from "better-supabase/blocks/referrals";
+import { agentCheckoutBlock as agentCheckoutBlockInstance } from "better-supabase/blocks/agent-checkout";
 import { clinicalDecisionSupportBlock as clinicalDecisionSupportBlockInstance } from "better-supabase/blocks/clinical-decision-support";
 import { ePrescribingBlock as ePrescribingBlockInstance } from "better-supabase/blocks/e-prescribing";
 import { manufacturingBlock as manufacturingBlockInstance } from "better-supabase/blocks/manufacturing";
@@ -357,6 +365,7 @@ export const blocks = {
   calendar: calendarBlockInstance,
   "care-plans": carePlansBlockInstance,
   catalog: catalogBlockInstance,
+  collections: collectionsBlockInstance,
   comments: commentsBlockInstance,
   connectors: connectorsBlockInstance,
   "custom-fields": customFieldsBlockInstance,
@@ -364,6 +373,7 @@ export const blocks = {
   deals: dealsBlockInstance,
   documents: documentsBlockInstance,
   domains: domainsBlockInstance,
+  reviews: reviewsBlockInstance,
   leave: leaveBlockInstance,
   ledger: ledgerBlockInstance,
   assets: assetsBlockInstance,
@@ -397,12 +407,14 @@ export const blocks = {
   lims: limsBlockInstance,
   appraisals: appraisalsBlockInstance,
   warehouse: warehouseBlockInstance,
+  warranty: warrantyBlockInstance,
   rfqs: rfqsBlockInstance,
   tills: tillsBlockInstance,
   periods: periodsBlockInstance,
   deadlines: deadlinesBlockInstance,
   commissions: commissionsBlockInstance,
   referrals: referralsBlockInstance,
+  "agent-checkout": agentCheckoutBlockInstance,
   "clinical-decision-support": clinicalDecisionSupportBlockInstance,
   "e-prescribing": ePrescribingBlockInstance,
   manufacturing: manufacturingBlockInstance,
@@ -513,7 +525,7 @@ export const appTableEventSchemas = {
 } as const;
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & WarrantyEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -554,6 +566,9 @@ export const blockEvents: Events<BlockEvents> = {
     "agent.published",
     "agent.uninstalled",
     "agent.updated",
+    "agent_mandate.consumed",
+    "agent_mandate.created",
+    "agent_mandate.revoked",
     "ai_chat.share_revoked",
     "ai_chat.shared",
     "ai_chat_message.completed",
@@ -663,6 +678,13 @@ export const blockEvents: Events<BlockEvents> = {
     "catalog.price_changed",
     "channel.created",
     "channel.updated",
+    "checkout_session.completed",
+    "checkout_session.created",
+    "checkout_session.updated",
+    "collection.archived",
+    "collection.created",
+    "collection.entry_added",
+    "collection.entry_removed",
     "commission.accrued",
     "commission.reversed",
     "commission_plan.created",
@@ -1155,6 +1177,11 @@ export const blockEvents: Events<BlockEvents> = {
     "reservation.released",
     "return.received",
     "return.requested",
+    "review.deleted",
+    "review.published",
+    "review.rejected",
+    "review.replied",
+    "review.submitted",
     "rfq.awarded",
     "rfq.cancelled",
     "rfq.closed",
@@ -1172,6 +1199,7 @@ export const blockEvents: Events<BlockEvents> = {
     "risk.updated",
     "risk_matrix.created",
     "risk_matrix.updated",
+    "saved_item.reminded",
     "saved_view.created",
     "saved_view.deleted",
     "saved_view.updated",
@@ -1286,6 +1314,10 @@ export const blockEvents: Events<BlockEvents> = {
     "version.restored",
     "waitlist_entry.approved",
     "waitlist_entry.rejected",
+    "warranty_claim.closed",
+    "warranty_claim.created",
+    "warranty_claim.decided",
+    "warranty_claim.submitted",
     "webhook_endpoint.delivered",
     "webhook_endpoint.disabled",
     "webhook_endpoint.failed",
@@ -1348,6 +1380,9 @@ export const blockEventSchemas = {
   "agent.published": true,
   "agent.uninstalled": true,
   "agent.updated": true,
+  "agent_mandate.consumed": true,
+  "agent_mandate.created": true,
+  "agent_mandate.revoked": true,
   "ai_chat.share_revoked": true,
   "ai_chat.shared": true,
   "ai_chat_message.completed": true,
@@ -1457,6 +1492,13 @@ export const blockEventSchemas = {
   "catalog.price_changed": true,
   "channel.created": true,
   "channel.updated": true,
+  "checkout_session.completed": true,
+  "checkout_session.created": true,
+  "checkout_session.updated": true,
+  "collection.archived": true,
+  "collection.created": true,
+  "collection.entry_added": true,
+  "collection.entry_removed": true,
   "commission.accrued": true,
   "commission.reversed": true,
   "commission_plan.created": true,
@@ -1949,6 +1991,11 @@ export const blockEventSchemas = {
   "reservation.released": true,
   "return.received": true,
   "return.requested": true,
+  "review.deleted": true,
+  "review.published": true,
+  "review.rejected": true,
+  "review.replied": true,
+  "review.submitted": true,
   "rfq.awarded": true,
   "rfq.cancelled": true,
   "rfq.closed": true,
@@ -1966,6 +2013,7 @@ export const blockEventSchemas = {
   "risk.updated": true,
   "risk_matrix.created": true,
   "risk_matrix.updated": true,
+  "saved_item.reminded": true,
   "saved_view.created": true,
   "saved_view.deleted": true,
   "saved_view.updated": true,
@@ -2080,6 +2128,10 @@ export const blockEventSchemas = {
   "version.restored": true,
   "waitlist_entry.approved": true,
   "waitlist_entry.rejected": true,
+  "warranty_claim.closed": true,
+  "warranty_claim.created": true,
+  "warranty_claim.decided": true,
+  "warranty_claim.submitted": true,
   "webhook_endpoint.delivered": true,
   "webhook_endpoint.disabled": true,
   "webhook_endpoint.failed": true,

@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:66b64f0a278e7fff0ba649f2e2bf98f35533bda75fe85890c19dd50d2ab8dc8f
+-- @bsb-hash sha256:5310db04ee2f6660816bd8f88d540d45e73cd57b465942ba4670128555d0476f
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,6 +85,17 @@ begin
   end if;
   if not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'saved_views.read'), false)) then
     raise exception 'not allowed to save views' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
+  end if;
+  if save_view.state ? 'collectionId' and (
+    jsonb_typeof(save_view.state -> 'collectionId') <> 'string'
+    or (save_view.state ->> 'collectionId') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    or not exists (
+      select 1 from "better_supabase"."subject_collections" c
+      where c."id" = (save_view.state ->> 'collectionId')::uuid
+        and c."tenant_id" = save_view.tenant
+        and (v_service or c."scope" <> 'user' or c."owner_id" = auth.uid())
+    )) then
+    raise exception 'the view''s collection is not found' using errcode = 'P0002', hint = 'SAVED_VIEW_COLLECTION_NOT_FOUND';
   end if;
   if save_view.scope = 'user' and auth.uid() is null then
     raise exception 'a personal view needs a signed-in user' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';

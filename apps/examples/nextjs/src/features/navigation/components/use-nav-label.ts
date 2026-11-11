@@ -249,6 +249,38 @@ export function useNavLabel(): (id: NavId) => string {
         return t("Requests for quotation");
       }
 
+      case "donations": {
+        return t("Donations");
+      }
+
+      case "warranty": {
+        return t("Warranty");
+      }
+
+      case "reviews": {
+        return t("Reviews");
+      }
+
+      case "collections": {
+        return t("Collections");
+      }
+
+      case "checkoutSessions": {
+        return t("Checkout sessions");
+      }
+
+      case "passes": {
+        return t("Passes");
+      }
+
+      case "leases": {
+        return t("Leases");
+      }
+
+      case "assets": {
+        return t("Asset register");
+      }
+
       case "tills": {
         return t("Tills");
       }

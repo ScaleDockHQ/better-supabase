@@ -272,6 +272,13 @@ export const catalogConfig = {
   },
 } as const satisfies GeneratedBlock;
 
+/** The `collections` instance's config slice. */
+export const collectionsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `comments` instance's config slice. */
 export const commentsConfig = {
   schema: "better_supabase",
@@ -323,6 +330,13 @@ export const documentsConfig = {
 
 /** The `domains` instance's config slice. */
 export const domainsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `reviews` instance's config slice. */
+export const reviewsConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},
@@ -563,6 +577,13 @@ export const warehouseConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `warranty` instance's config slice. */
+export const warrantyConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `rfqs` instance's config slice. */
 export const rfqsConfig = {
   schema: "better_supabase",
@@ -600,6 +621,13 @@ export const commissionsConfig = {
 
 /** The `referrals` instance's config slice. */
 export const referralsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `agent-checkout` instance's config slice. */
+export const agentCheckoutConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},

@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:cd75275148fe978124b2d8a82ecdb869120994ed6cda90f37a5366c49baccca0
+-- @bsb-hash sha256:0c74b0f1b20183633a516724bcdff20ab8bad045617243a6bdda808ddb91c925
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,7 +88,7 @@ begin
     end if;
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
-  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'work_item', 'employee', 'ledger_account', 'invoice', 'product', 'product_variant', 'rfq', 'till', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'case', 'inspection', 'inspection_program', 'inspection_finding', 'form', 'meeting', 'meeting_decision', 'maintenance_plan', 'dam_usage_right', 'lims_sample', 'tax_code', 'production_order', 'work_center', 'bank_account', 'care_plan', 'incident', 'content_entry', 'document', 'customer', 'drive_node', 'organization', 'application', 'change_request', 'project', 'task') then
+  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'work_item', 'employee', 'ledger_account', 'invoice', 'product', 'product_variant', 'rfq', 'till', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'warranty_claim', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'case', 'inspection', 'inspection_program', 'inspection_finding', 'form', 'meeting', 'meeting_decision', 'maintenance_plan', 'dam_usage_right', 'lims_sample', 'tax_code', 'production_order', 'work_center', 'bank_account', 'care_plan', 'incident', 'content_entry', 'document', 'customer', 'drive_node', 'organization', 'application', 'change_request', 'project', 'task') then
     raise exception 'subjectType must be a type in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
@@ -269,6 +269,7 @@ begin
     when 'expense_report' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.read'), false)
     when 'expense_line' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.read'), false)
     when 'donation_fund' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'donations.read'), false)
+    when 'warranty_claim' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'warranty.read'), false)
     when 'work_order' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.read'), false)
     when 'shipment' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'shipments.read'), false)
     when 'contract' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.read'), false)
@@ -357,6 +358,7 @@ as $$
     when 'expense_report' then coalesce(better_supabase.can('tenant', x."tenant_id", 'expenses.read'), false)
     when 'expense_line' then coalesce(better_supabase.can('tenant', x."tenant_id", 'expenses.read'), false)
     when 'donation_fund' then coalesce(better_supabase.can('tenant', x."tenant_id", 'donations.read'), false)
+    when 'warranty_claim' then coalesce(better_supabase.can('tenant', x."tenant_id", 'warranty.read'), false)
     when 'work_order' then coalesce(better_supabase.can('tenant', x."tenant_id", 'dispatch.read'), false)
     when 'shipment' then coalesce(better_supabase.can('tenant', x."tenant_id", 'shipments.read'), false)
     when 'contract' then coalesce(better_supabase.can('tenant', x."tenant_id", 'contracts.read'), false)
@@ -600,6 +602,13 @@ begin
   elsif v_row."subject_type" = 'donation_fund' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."donation_funds" s
+      where s."tenant_id" = v_row."tenant_id"
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
+  elsif v_row."subject_type" = 'warranty_claim' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "better_supabase"."warranty_claims" s
       where s."tenant_id" = v_row."tenant_id"
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001

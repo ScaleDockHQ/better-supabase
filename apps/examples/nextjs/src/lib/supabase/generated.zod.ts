@@ -1379,6 +1379,12 @@ export const tillInput: z.ZodType<{ name: string; currency: string; accountId?: 
   location: z.string().max(200).nullable().exactOptional(),
 }).meta({ title: "TillInput" });
 
+export const checkoutSessionInput: z.ZodType<{ cartId: string; protocol: "acp" | "ucp"; idempotencyKey: string }> = z.object({
+  cartId: z.string().min(1),
+  protocol: z.enum(["acp", "ucp"]),
+  idempotencyKey: z.string().min(1).max(255).meta({ description: "The agent's Idempotency-Key header." }),
+}).meta({ title: "CheckoutSessionInput" });
+
 export const careRuleInput: z.ZodType<{ id?: string; kind: "dose_range" | "duplicate_therapy" | "interaction"; medicationIds: string[]; minDose?: number | null; maxDose?: number | null; maxPerDay?: number | null; severity?: "info" | "warning" | "critical"; message?: string | null; active?: boolean }> = z.object({
   id: z.guid().meta({ description: "Set to change a rule; leave out to add one." }).exactOptional(),
   kind: z.enum(["dose_range", "duplicate_therapy", "interaction"]),

@@ -66,6 +66,14 @@ export type NavId =
   | "appraisals"
   | "warehouse"
   | "rfqs"
+  | "donations"
+  | "passes"
+  | "checkoutSessions"
+  | "collections"
+  | "reviews"
+  | "warranty"
+  | "leases"
+  | "assets"
   | "tills"
   | "shifts"
   | "finance"
@@ -380,6 +388,54 @@ export const navItems: readonly NavItem[] = [
   { id: "dam", href: "/dam", area: "operations", requires: "dam.read" },
   { id: "lims", href: "/lims", area: "operations", requires: "lims.read" },
   { id: "rfqs", href: "/rfqs", area: "operations", requires: "rfqs.read" },
+  {
+    id: "donations",
+    href: "/shop/donations",
+    area: "commerce",
+    requires: "donations.read",
+  },
+  {
+    id: "warranty",
+    href: "/shop/warranty",
+    area: "commerce",
+    requires: "warranty.read",
+  },
+  {
+    id: "reviews",
+    href: "/shop/reviews",
+    area: "commerce",
+    requires: "reviews.manage",
+  },
+  {
+    id: "collections",
+    href: "/shop/collections",
+    area: "commerce",
+    requires: "collections.read",
+  },
+  {
+    id: "checkoutSessions",
+    href: "/shop/checkout-sessions",
+    area: "commerce",
+    requires: "agent_checkout.read",
+  },
+  {
+    id: "passes",
+    href: "/shop/passes",
+    area: "commerce",
+    requires: "passes.read",
+  },
+  {
+    id: "leases",
+    href: "/property/leases",
+    area: "operations",
+    requires: "leases.read",
+  },
+  {
+    id: "assets",
+    href: "/assets",
+    area: "operations",
+    requires: "assets.read",
+  },
   { id: "tills", href: "/tills", area: "commerce", requires: "tills.read" },
   {
     id: "maintenance",

@@ -45,7 +45,8 @@ export function RecordListView<Row extends RowData & { readonly id: string }>({
   columns: RecordListColumns<Row>;
   facets: readonly RecordListFacet[];
   sorts: readonly RecordListSort[];
-  searchLabel: string;
+  /** Omit it for a list the block cannot search. */
+  searchLabel?: string;
   emptyIcon: React.ReactNode;
   emptyTitle: string;
   emptyDescription: string;
