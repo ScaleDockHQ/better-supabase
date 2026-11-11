@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { ResolveInput } from "../../../src/config/index.ts";
 
+import { BROADCAST_ONCE_SQL } from "../../../src/cli/broadcast-once.ts";
 import { migrationsDir, runSql } from "../../../src/cli/commands/sql.ts";
 import { readIfExists } from "../../../src/cli/core/io.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
@@ -410,6 +411,41 @@ export const thread = defineTopic("thread:{threadId}");
     ).rejects.toThrow(
       'realtime.triggers[0]: defineTopic(thread:{threadId}).trigger: "boardId" is not a placeholder of thread:{threadId}',
     );
+  });
+
+  it("writes broadcast_once() next to the dedupe triggers of realtime.triggers", async () => {
+    const realtime = resolve(
+      import.meta.dirname,
+      "../../../src/realtime/index.ts",
+    );
+
+    await writeFile(
+      join(root, "topics.ts"),
+      `import { defineTopic } from ${JSON.stringify(realtime)};
+export const changes = defineTopic("org:{organizationId}:changes");
+`,
+    );
+    const output = "supabase/schemas/905_topics.sql";
+
+    const database = {
+      realtime: {
+        policies: { from: ["topics.ts"], file: output },
+        triggers: [
+          {
+            topic: "org:{organizationId}:changes",
+            table: "public.audit_logs",
+            payload: { category: "category" },
+            dedupe: "transaction" as const,
+          },
+        ],
+      },
+    };
+
+    await sql(["sync"], { database });
+    const written = await readFile(join(root, output), "utf-8");
+
+    expect(written).toContain(BROADCAST_ONCE_SQL);
+    expect(written).toContain("perform better_supabase.broadcast_once(body,");
   });
 
   it("skips the topics whose receive policy a module writes", async () => {

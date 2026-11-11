@@ -684,6 +684,19 @@
                     "type": "string",
                     "description": "Schema for a generated function. Defaults to better_supabase, which the Data API does not expose."
                   },
+                  "dedupe": {
+                    "enum": ["transaction"],
+                    "type": "string",
+                    "description": "transaction sends each message once per transaction: a row whose topic, event and payload match one already sent in the same transaction is skipped, so a bulk write sends one message per key."
+                  },
+                  "dedupeKey": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "description": "The payload fields that tell two messages apart for dedupe, next to the topic and the event. Defaults to the whole payload."
+                  },
                   "when": {
                     "type": "object",
                     "properties": {

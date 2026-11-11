@@ -263,6 +263,17 @@ export interface TopicTriggerConfig {
   readonly topics?: readonly TopicTriggerTopicConfig[];
   readonly functionSchema?: string;
   /**
+   * `"transaction"` sends each message once per transaction: a row whose topic,
+   * event and payload match one already sent in the same transaction is
+   * skipped, so a bulk write sends one message per key.
+   */
+  readonly dedupe?: "transaction";
+  /**
+   * The payload fields that tell two messages apart for `dedupe`, next to the
+   * topic and the event. Defaults to the whole payload.
+   */
+  readonly dedupeKey?: readonly string[];
+  /**
    * `{ changed: ["status"] }` sends an UPDATE only when one of these columns
    * changed. Inserts and deletes always send.
    */

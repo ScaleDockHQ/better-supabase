@@ -338,6 +338,14 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Schema for a generated function. Defaults to better_supabase, which the Data API does not expose.",
   },
+  "database.realtime.triggers[].dedupe": {
+    description:
+      "transaction sends each message once per transaction: a row whose topic, event and payload match one already sent in the same transaction is skipped, so a bulk write sends one message per key.",
+  },
+  "database.realtime.triggers[].dedupeKey": {
+    description:
+      "The payload fields that tell two messages apart for dedupe, next to the topic and the event. Defaults to the whole payload.",
+  },
   "database.realtime.triggers[].when": {
     description:
       "Filters updates: with { changed: [columns] } an UPDATE sends only when one of those columns changed. Inserts and deletes always send.",
