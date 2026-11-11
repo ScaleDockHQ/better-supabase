@@ -1,6 +1,6 @@
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:20acd88c2c01ecc5a74347da7e8ab5f43498913d1d892b9d50b55c55cd213640
+-- @bsb-hash sha256:5cf3c852300687ac0a83df126c84bec805b2bbb4c8785d0d0b1e70b6fd751551
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -908,20 +908,6 @@ security definer
 set search_path = ''
 as $$
 begin
-  if p_locale = any (array['en']) then
-    insert into "better_supabase"."tax_codes" ("tenant_id", "code", "name", "type")
-    select p_tenant, 'STD', 'Standard VAT', 'sales'
-    where not exists (select 1 from "better_supabase"."tax_codes" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'STD');
-    insert into "better_supabase"."tax_codes" ("tenant_id", "code", "name", "type")
-    select p_tenant, 'RED', 'Reduced VAT', 'sales'
-    where not exists (select 1 from "better_supabase"."tax_codes" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'RED');
-    insert into "better_supabase"."tax_codes" ("tenant_id", "code", "name", "type")
-    select p_tenant, 'ZERO', 'Zero rate', 'zero'
-    where not exists (select 1 from "better_supabase"."tax_codes" x where x."tenant_id" = p_tenant and x."code" is not distinct from 'ZERO');
-  end if;
-  if p_locale = any (array['en']) then
-  
-  end if;
   if p_locale = any (array['nl']) then
     insert into "better_supabase"."tax_codes" ("tenant_id", "code", "name", "type")
     select p_tenant, 'NL21', 'BTW hoog 21%', 'sales'

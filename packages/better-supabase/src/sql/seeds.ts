@@ -212,7 +212,10 @@ security definer
 set search_path = ''
 as $$
 begin
-${tables.map((entry) => tableSql(entry)).join("\n")}
+${tables
+  .filter((entry) => entry.rows.length > 0)
+  .map((entry) => tableSql(entry))
+  .join("\n")}
 end;
 $$;
 ${serviceGrant(`${name}(${idType}, text, text)`)}
