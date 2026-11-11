@@ -1,5 +1,6 @@
 import { io } from "next/cache";
 
+import { getModels } from "../assistant-queries";
 import { durableAvailable } from "../assistant-server";
 import { AssistantChatLazy } from "./assistant-chat-lazy";
 
@@ -10,6 +11,7 @@ import { AssistantChatLazy } from "./assistant-chat-lazy";
  */
 export async function NewChat() {
   await io();
+  const models = await getModels();
 
   return (
     <AssistantChatLazy
@@ -17,6 +19,7 @@ export async function NewChat() {
       id={crypto.randomUUID()}
       messages={[]}
       durableAvailable={durableAvailable()}
+      models={models}
     />
   );
 }

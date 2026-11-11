@@ -4,23 +4,39 @@ import type { UIMessage } from "ai";
 import { toUIMessages } from "better-supabase/ai-sdk";
 import { tenantOf } from "better-supabase/next";
 
+import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
+
 import { getSession } from "@/features/user/user-queries";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { aiChat, aiRuns } from "./assistant-server";
 
+const CHAT_PAGE_SIZE = 25;
+
+const BRANCH_LOOKUPS = 25;
+
 export interface ChatRow {
   readonly id: string;
   readonly title: string;
+  readonly model: string | undefined;
+  readonly pinned: boolean;
+  readonly archived: boolean;
   /** ISO 8601. */
   readonly lastMessageAt: string;
 }
 
+export interface ChatPage {
+  readonly items: readonly ChatRow[];
+  readonly nextCursor: string | null;
+}
+
 /**
- * The caller's chats in the active organization, newest first. Not cached: a
- * chat's title and order change with every answer.
+ * One page of the caller's chats in the active organization, newest first. The
+ * block searches titles and message text and pages by cursor, so the list never
+ * filters in the browser. Not cached: a chat's title and order change with
+ * every answer.
  */
-export async function getChats(): Promise<readonly ChatRow[]> {
+export async function getChatPage(query: OpsListQuery): Promise<ChatPage> {
   const [session, { supabase }] = await Promise.all([
     getSession(),
     bsbCore.context(),
@@ -29,21 +45,99 @@ export async function getChats(): Promise<readonly ChatRow[]> {
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
-    return [];
+    return { items: [], nextCursor: null };
   }
 
   const page = await aiChat(supabase)
-    .chats.list({ organizationId, limit: 50 })
+    .chats.list({
+      organizationId,
+      limit: CHAT_PAGE_SIZE,
+      ...(query.q === "" ? {} : { search: query.q }),
+      ...(query.cursor === null ? {} : { cursor: query.cursor }),
+      ...(query.filter === "pinned" ? { pinned: true } : {}),
+      archived: query.filter === "archived",
+    })
     .orThrow();
 
-  return page.items.map((chat) => ({
-    id: chat.id,
-    title: chat.title,
-    lastMessageAt: chat.lastMessageAt.toString(),
+  return {
+    items: page.items.map((chat) => ({
+      id: chat.id,
+      title: chat.title,
+      model: chat.model,
+      pinned: chat.pinned,
+      archived: chat.archivedAt !== undefined,
+      lastMessageAt: chat.lastMessageAt.toString(),
+    })),
+    nextCursor: page.next ?? null,
+  };
+}
+
+export interface ModelOption {
+  readonly id: string;
+  readonly name: string;
+  readonly provider: string;
+}
+
+/**
+ * Plain AI Gateway `provider/model` strings, offered while the catalog is
+ * empty.
+ */
+const GATEWAY_MODELS: readonly ModelOption[] = [
+  { id: "openai/gpt-5-mini", name: "GPT-5 mini", provider: "openai" },
+  {
+    id: "anthropic/claude-sonnet-4.5",
+    name: "Claude Sonnet 4.5",
+    provider: "anthropic",
+  },
+  {
+    id: "google/gemini-2.5-flash",
+    name: "Gemini 2.5 Flash",
+    provider: "google",
+  },
+];
+
+/**
+ * The models the picker offers: the tenant's allowed catalog, or the gateway
+ * strings while no catalog is loaded (the block then allows every model).
+ */
+export async function getModels(): Promise<readonly ModelOption[]> {
+  const [session, { supabase }] = await Promise.all([
+    getSession(),
+    bsbCore.context(),
+  ]);
+
+  const organizationId = tenantOf(session) ?? null;
+
+  const allowed = await aiChat(supabase).models.allowed(organizationId);
+
+  if (!allowed.ok || allowed.data.length === 0) {
+    return GATEWAY_MODELS;
+  }
+
+  return allowed.data.map((model) => ({
+    id: model.id,
+    name: model.name,
+    provider: model.provider,
   }));
 }
 
+/**
+ * The alternatives of one message (an edit or a regeneration) and which one
+ * shows.
+ */
+export interface MessageBranch {
+  readonly messageId: string;
+  readonly siblingIds: readonly string[];
+  readonly index: number;
+}
+
 export interface StoredChatData {
+  readonly title: string;
+  readonly pinned: boolean;
+  readonly model: string | undefined;
+  /** The message the chat shows; it changes when the user picks a branch. */
+  readonly leafId: string | undefined;
+  readonly branches: readonly MessageBranch[];
   readonly messages: UIMessage[];
   /** An answer is still being written. */
   readonly streaming: boolean;
@@ -75,7 +169,38 @@ export async function getStoredChat(
     aiRuns(supabase).list({ chatId, limit: 1 }).orThrow(),
   ]);
 
+  // Only the user's turns branch from the UI (edit, regenerate), so a chat of
+  // fifty turns reads at most twenty-five sibling lists, in one wave.
+  const siblings = await Promise.all(
+    path
+      .filter((message) => message.role === "user")
+      .slice(-BRANCH_LOOKUPS)
+      .map(async (message) => ({
+        messageId: message.id,
+        siblings: await chats.messages
+          .siblings({ chatId, messageId: message.id })
+          .orThrow(),
+      })),
+  );
+
+  const branches = siblings.flatMap(({ messageId, siblings: list }) =>
+    list.length > 1
+      ? [
+          {
+            messageId,
+            siblingIds: list.map((sibling) => sibling.id),
+            index: list.findIndex((sibling) => sibling.id === messageId),
+          },
+        ]
+      : [],
+  );
+
   return {
+    title: chat.data.title,
+    pinned: chat.data.pinned,
+    model: chat.data.model,
+    leafId: chat.data.leafId,
+    branches,
     messages: toUIMessages(path),
     streaming: chat.data.activeStreamId !== undefined,
     durable: runs[0]?.engine === "workflow",

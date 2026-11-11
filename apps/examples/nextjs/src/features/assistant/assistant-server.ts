@@ -1,4 +1,4 @@
-import type { LanguageModel, ToolSet } from "ai";
+import type { ToolSet } from "ai";
 
 import "server-only";
 import type { AssistantContext } from "better-supabase/ai-sdk/chat";
@@ -7,8 +7,8 @@ import type { AiFiles, AiFileStorage } from "better-supabase/blocks/ai-files";
 import type { AiKeys } from "better-supabase/blocks/ai-keys";
 import type { RpcClient } from "better-supabase/blocks/organizations";
 
-import { isStepCount, streamText } from "ai";
-import { byokOptions } from "better-supabase/ai-sdk";
+import { gateway, isStepCount, streamText, wrapLanguageModel } from "ai";
+import { byokOptions, guardrailsMiddleware } from "better-supabase/ai-sdk";
 import { createAssistant } from "better-supabase/ai-sdk/chat";
 import { searchTool } from "better-supabase/ai-sdk/embeddings";
 import { aiFileDownload } from "better-supabase/ai-sdk/files";
@@ -23,10 +23,13 @@ import { postgresStreamStore } from "better-supabase/streams";
 import { after } from "next/server";
 
 import { env } from "@/env";
+import { guardrailsBlock } from "@/features/guardrails/guardrails-server";
 import { knowledge, memory } from "@/features/knowledge/knowledge-server";
+import { promptsBlock } from "@/features/prompts/prompts-server";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
+import { ASSISTANT_AGENT, ASSISTANT_PROMPT } from "./assistant-ops";
 import { codeSandbox, NO_CODE } from "./code-sandbox";
 import { demoModel } from "./demo-model";
 
@@ -44,8 +47,48 @@ const demoMode = (): boolean => !env.AI_GATEWAY_API_KEY;
  */
 export const durableAvailable = (): boolean => !demoMode();
 
-function languageModel(id: string): LanguageModel {
-  return demoMode() ? demoModel() : id;
+function languageModel(id: string) {
+  return demoMode() ? demoModel() : gateway(id);
+}
+
+/**
+ * The model behind the organization's guardrail policy for the assistant: the
+ * last user message is checked before the call and the answer after it. With no
+ * policy saved, both stages allow and log nothing.
+ */
+function guardedModel(
+  id: string,
+  organizationId: string | null,
+  chatId: string,
+) {
+  return wrapLanguageModel({
+    model: languageModel(id),
+    middleware: guardrailsMiddleware(guardrailsBlock(), {
+      agent: ASSISTANT_AGENT,
+      chatId,
+      ...(organizationId === null ? {} : { organizationId }),
+    }),
+  });
+}
+
+/**
+ * The `assistant.system` prompt of the organization at its production label, or
+ * the built-in instructions when none is saved. A template with variables is
+ * used as written, since a chat has no values to fill them.
+ */
+async function systemPrompt(organizationId: string | null): Promise<string> {
+  if (organizationId === null) {
+    return INSTRUCTIONS;
+  }
+
+  const prompt = await promptsBlock().get({
+    name: ASSISTANT_PROMPT,
+    organizationId,
+  });
+
+  return prompt.ok && prompt.data !== undefined
+    ? prompt.data.template
+    : INSTRUCTIONS;
 }
 
 /** The service-role transport for what only the server writes. */
@@ -89,6 +132,11 @@ function aiProviders(): AiKeys {
   return providersInstance;
 }
 
+const priorityOf = (settings: Readonly<Record<string, unknown>>): number =>
+  typeof settings["priority"] === "number"
+    ? settings["priority"]
+    : Number.MAX_SAFE_INTEGER;
+
 /**
  * Adds the organization's own keys (BYOK) to the gateway options, when it saved
  * any.
@@ -107,9 +155,27 @@ async function withTenantKeys<T extends { readonly gateway: object }>(
     return providerOptions;
   }
 
+  // The gateway tries providers in this order and moves on when one fails.
+  const order = keys.data
+    .toSorted((a, b) => priorityOf(a.settings) - priorityOf(b.settings))
+    .map((key) => key.provider)
+    .filter((provider, index, all) => all.indexOf(provider) === index);
+
   return {
     ...providerOptions,
-    gateway: { ...providerOptions.gateway, ...byokOptions(keys.data) },
+    gateway: {
+      ...providerOptions.gateway,
+      // `priority` is the app's own setting; the gateway only gets the rest.
+      ...byokOptions(
+        keys.data.map(
+          ({ settings: { priority: _priority, ...rest }, ...key }) => ({
+            ...key,
+            settings: rest,
+          }),
+        ),
+      ),
+      order,
+    },
   };
 }
 
@@ -174,11 +240,11 @@ export function assistant(): ReturnType<typeof createAssistant> {
               { userId: context.userId, signal: abortSignal },
             );
 
+      const base = await systemPrompt(context.organizationId);
+
       return streamText({
-        model: languageModel(model),
-        instructions: scope
-          ? await scope.instructions(INSTRUCTIONS)
-          : INSTRUCTIONS,
+        model: guardedModel(model, context.organizationId, chat.id),
+        instructions: scope ? await scope.instructions(base) : base,
         messages,
         abortSignal,
         providerOptions: await withTenantKeys(

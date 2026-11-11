@@ -11,7 +11,13 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
+import type { MessageBranch, ModelOption } from "../assistant-queries";
+
+import { switchChatBranch } from "../assistant-actions";
 import { ChatView } from "./chat-view";
+
+const NO_MODELS: readonly ModelOption[] = [];
+const NO_BRANCHES: readonly MessageBranch[] = [];
 
 export type ChatMode = "standard" | "durable" | "research";
 
@@ -19,24 +25,52 @@ interface PanelProps {
   readonly id: string;
   readonly messages: UIMessage[];
   readonly streaming: boolean;
+  readonly models: readonly ModelOption[];
+  readonly model: string | undefined;
+  readonly onModelChange: (model: string) => void;
+  readonly branches: readonly MessageBranch[];
 }
 
 /**
  * The answer streams from the request; a reload picks it up from the stream
  * store.
  */
-function StandardPanel({ id, messages }: PanelProps) {
+function StandardPanel({
+  id,
+  messages,
+  models,
+  model,
+  onModelChange,
+  branches,
+}: PanelProps) {
   const router = useRouter();
 
   const chat = useAssistant({
     id,
     messages,
+    ...(model === undefined ? {} : { model }),
     onFinish: () => {
       router.refresh();
     },
   });
 
-  return <ChatView id={id} chat={chat} />;
+  return (
+    <ChatView
+      id={id}
+      chat={chat}
+      models={models}
+      {...(model === undefined ? {} : { model })}
+      onModelChange={onModelChange}
+      branches={branches}
+      onSwitchBranch={(messageId) => {
+        void switchChatBranch({ chatId: id, messageId }).then(() => {
+          router.refresh();
+        });
+      }}
+      uploads
+      rating
+    />
+  );
 }
 
 /**
@@ -62,7 +96,7 @@ function DurablePanel({
     },
   });
 
-  return <ChatView id={id} chat={chat} />;
+  return <ChatView id={id} chat={chat} uploads rating />;
 }
 
 /**
@@ -75,12 +109,18 @@ export function AssistantChat({
   streaming = false,
   initialMode = "standard",
   durableAvailable,
+  models = NO_MODELS,
+  initialModel,
+  branches = NO_BRANCHES,
 }: {
   id: string;
   messages: UIMessage[];
   streaming?: boolean;
   initialMode?: ChatMode;
   durableAvailable: boolean;
+  models?: readonly ModelOption[];
+  initialModel?: string | undefined;
+  branches?: readonly MessageBranch[];
 }) {
   const t = useExtracted("assistant");
 
@@ -94,7 +134,19 @@ export function AssistantChat({
     { mode: "research", label: t("Research") },
   ];
 
-  const panel = { id, messages, streaming };
+  const [model, setModel] = useState<string | undefined>(
+    initialModel ?? models[0]?.id,
+  );
+
+  const panel = {
+    id,
+    messages,
+    streaming,
+    models,
+    model,
+    onModelChange: setModel,
+    branches,
+  };
 
   return (
     <div className="flex flex-col gap-3">

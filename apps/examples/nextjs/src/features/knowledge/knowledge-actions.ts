@@ -76,6 +76,8 @@ export interface SearchHit {
   readonly title: string;
   readonly content: string;
   readonly score: number;
+  /** The best score of the search, so the playground can draw a relative bar. */
+  readonly best: number;
 }
 
 /** Hybrid search over the documents the caller can read. */
@@ -83,19 +85,43 @@ export const searchKnowledge = bsbCore.action(
   {
     input: v.object({
       query: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
+      k: v.optional(
+        v.pipe(
+          v.string(),
+          v.transform(Number),
+          v.integer(),
+          v.minValue(1),
+          v.maxValue(20),
+        ),
+      ),
+      // An empty select posts "": every scope.
+      scope: v.optional(
+        v.picklist(["", "organization", "agent", "project", "chat", "user"]),
+      ),
+      // A checkbox posts nothing when it is off.
+      byScoreOnly: v.optional(v.string()),
     }),
     requireTenant: true,
     permission: "knowledge.write",
   },
-  ({ query }, { tenant, supabase }) =>
+  ({ query, k, scope, byScoreOnly }, { tenant, supabase }) =>
     knowledge(supabase)
-      .search({ organizationId: tenant, query, k: 5 })
-      .map((hits): readonly SearchHit[] =>
-        hits.map((hit) => ({
+      .search({
+        organizationId: tenant,
+        query,
+        k: k ?? 5,
+        ...(scope === undefined || scope === "" ? {} : { scopes: [{ scope }] }),
+        ...(byScoreOnly === undefined ? {} : { priorityOrder: false }),
+      })
+      .map((hits): readonly SearchHit[] => {
+        const best = hits.reduce((max, hit) => Math.max(max, hit.score), 0);
+
+        return hits.map((hit) => ({
           id: `${hit.documentId}#${String(hit.index)}`,
           title: hit.title,
           content: hit.content,
           score: hit.score,
-        })),
-      ),
+          best,
+        }));
+      }),
 );

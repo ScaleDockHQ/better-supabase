@@ -28,6 +28,7 @@ msgid "Requests that need a decision before the action runs."
 msgstr "Requests that need a decision before the action runs."
 
 #: src/app/[locale]/(app)/assistant/[id]/page.tsx
+#: src/features/assistant/components/chat-table.tsx
 msgctxt "assistant.Ug9lgd"
 msgid "All chats"
 msgstr "All chats"
@@ -42,6 +43,96 @@ msgctxt "assistant.03R8p4"
 msgid "Runs from ai_runs with their steps, and the tool calls waiting for your approval."
 msgstr "Runs from ai_runs with their steps, and the tool calls waiting for your approval."
 
+#: src/app/[locale]/(app)/assistant/agents/[id]/page.tsx
+msgctxt "agents.nCowEs"
+msgid "All agents"
+msgstr "All agents"
+
+#: src/app/[locale]/(app)/assistant/agents/approvals/page.tsx
+msgctxt "agents.UWKWva"
+msgid "Action approvals"
+msgstr "Action approvals"
+
+#: src/app/[locale]/(app)/assistant/agents/approvals/page.tsx
+msgctxt "agents.l7yhDK"
+msgid "Tool calls that wait for a decision. Select several and decide them together."
+msgstr "Tool calls that wait for a decision. Select several and decide them together."
+
+#: src/app/[locale]/(app)/assistant/agents/memory/page.tsx
+msgctxt "agents.dVx3yz"
+msgid "Memory"
+msgstr "Memory"
+
+#: src/app/[locale]/(app)/assistant/agents/memory/page.tsx
+msgctxt "agents.dMMCSF"
+msgid "What the assistant knows about the organization: core files it reads every answer and facts it saved."
+msgstr "What the assistant knows about the organization: core files it reads every answer and facts it saved."
+
+#: src/app/[locale]/(app)/assistant/agents/page.tsx
+msgctxt "agents.GBnvl1"
+msgid "Agents"
+msgstr "Agents"
+
+#: src/app/[locale]/(app)/assistant/agents/page.tsx
+msgctxt "agents.UAPyB9"
+msgid "Assistants with their own instructions, tools and knowledge. Start from a playbook, then publish one to the store."
+msgstr "Assistants with their own instructions, tools and knowledge. Start from a playbook, then publish one to the store."
+
+#: src/app/[locale]/(app)/assistant/agents/runs/[id]/page.tsx
+msgctxt "agents.lPyu8U"
+msgid "All runs"
+msgstr "All runs"
+
+#: src/app/[locale]/(app)/assistant/agents/runs/page.tsx
+msgctxt "agents.y-IX9R"
+msgid "Run queue"
+msgstr "Run queue"
+
+#: src/app/[locale]/(app)/assistant/agents/runs/page.tsx
+msgctxt "agents.8k0iD8"
+msgid "Every generation, grouped by state. Open a failed run to triage it."
+msgstr "Every generation, grouped by state. Open a failed run to triage it."
+
+#: src/app/[locale]/(app)/assistant/agents/tools/page.tsx
+msgctxt "agents.qCcDQ3"
+msgid "Tool access"
+msgstr "Tool access"
+
+#: src/app/[locale]/(app)/assistant/agents/tools/page.tsx
+msgctxt "agents.UBSvRc"
+msgid "What happens when the model calls a tool: run it, ask first or refuse. Rules apply to the whole organization."
+msgstr "What happens when the model calls a tool: run it, ask first or refuse. Rules apply to the whole organization."
+
+#: src/app/[locale]/(app)/assistant/evals/[name]/page.tsx
+msgctxt "evals.GtUOnK"
+msgid "All evals"
+msgstr "All evals"
+
+#: src/app/[locale]/(app)/assistant/evals/page.tsx
+msgctxt "evals.QWHsmz"
+msgid "Evals"
+msgstr "Evals"
+
+#: src/app/[locale]/(app)/assistant/evals/page.tsx
+msgctxt "evals.v87se9"
+msgid "A dataset per prompt, run against a version and a model. Answers users rate down in the assistant feed the dataset."
+msgstr "A dataset per prompt, run against a version and a model. Answers users rate down in the assistant feed the dataset."
+
+#: src/app/[locale]/(app)/assistant/guardrails/page.tsx
+msgctxt "guardrails.OIMUg3"
+msgid "Guardrails"
+msgstr "Guardrails"
+
+#: src/app/[locale]/(app)/assistant/guardrails/page.tsx
+msgctxt "guardrails.1M4KVT"
+msgid "What each agent may receive and say: injection checks, personal data, denied topics and a tool depth limit. Every check lands in the decision log."
+msgstr "What each agent may receive and say: injection checks, personal data, denied topics and a tool depth limit. Every check lands in the decision log."
+
+#: src/app/[locale]/(app)/assistant/guardrails/page.tsx
+msgctxt "guardrails.y9JQaH"
+msgid "Decision log"
+msgstr "Decision log"
+
 #: src/app/[locale]/(app)/assistant/page.tsx
 msgctxt "assistant.wSAvhu"
 msgid "Assistant"
@@ -52,6 +143,21 @@ msgctxt "assistant.p-0Iui"
 msgid "Chats on the ai-chat block. A reload resumes an answer that is still streaming."
 msgstr "Chats on the ai-chat block. A reload resumes an answer that is still streaming."
 
+#: src/app/[locale]/(app)/assistant/prompts/[name]/page.tsx
+msgctxt "prompts.wZkdNp"
+msgid "All prompts"
+msgstr "All prompts"
+
+#: src/app/[locale]/(app)/assistant/prompts/page.tsx
+msgctxt "prompts.p7buKP"
+msgid "Prompts"
+msgstr "Prompts"
+
+#: src/app/[locale]/(app)/assistant/prompts/page.tsx
+msgctxt "prompts.RQbAXR"
+msgid "Versioned instructions behind labels. The assistant reads assistant.system at its production label before every answer."
+msgstr "Versioned instructions behind labels. The assistant reads assistant.system at its production label before every answer."
+
 #: src/app/[locale]/(app)/assistant/tasks/page.tsx
 msgctxt "aiTasks.9iOYC0"
 msgid "AI tasks"
@@ -61,6 +167,26 @@ msgstr "AI tasks"
 msgctxt "aiTasks.6W7U7e"
 msgid "Prompts on the ai-schedules block that the assistant runs on a schedule."
 msgstr "Prompts on the ai-schedules block that the assistant runs on a schedule."
+
+#: src/app/[locale]/(app)/assistant/tour/page.tsx
+msgctxt "assistant.a3Nnla"
+msgid "Assistant tour"
+msgstr "Assistant tour"
+
+#: src/app/[locale]/(app)/assistant/tour/page.tsx
+msgctxt "assistant.txfQ7S"
+msgid "A scripted conversation with no model: reasoning, a tool trace, a cited source, an approval and clarifying questions."
+msgstr "A scripted conversation with no model: reasoning, a tool trace, a cited source, an approval and clarifying questions."
+
+#: src/app/[locale]/(app)/assistant/usage/page.tsx
+msgctxt "aiUsage.CT1awb"
+msgid "AI usage"
+msgstr "AI usage"
+
+#: src/app/[locale]/(app)/assistant/usage/page.tsx
+msgctxt "aiUsage.higslj"
+msgid "Tokens and spend of your runs, by day and by model, with the gateway's own cost."
+msgstr "Tokens and spend of your runs, by day and by model, with the gateway's own cost."
 
 #: src/app/[locale]/(app)/banking/page.tsx
 msgctxt "banking.wWUTla"
@@ -1245,6 +1371,21 @@ msgctxt "app.HetEY5"
 msgid "It moved, or it isn't available to your organization."
 msgstr "It moved, or it isn't available to your organization."
 
+#: src/components/ops-list/ops-list.tsx
+msgctxt "opsList.jZ0o74"
+msgid "Reset filters"
+msgstr "Reset filters"
+
+#: src/components/ops-list/ops-list.tsx
+msgctxt "opsList.A64Z-T"
+msgid "First page"
+msgstr "First page"
+
+#: src/components/ops-list/ops-list.tsx
+msgctxt "opsList.rBj9Ib"
+msgid "Next page"
+msgstr "Next page"
+
 #: src/components/record-detail/record-detail-tabs.tsx
 msgctxt "recordDetail.M56d6a"
 msgid "Tabs"
@@ -1735,6 +1876,616 @@ msgctxt "adminLists.h-T3T7"
 msgid "Oldest first"
 msgstr "Oldest first"
 
+#: src/features/agents/components/agent-detail.tsx
+msgctxt "agents.9uOFF3"
+msgid "Overview"
+msgstr "Overview"
+
+#: src/features/agents/components/agent-detail.tsx
+msgctxt "agents.8vrJvo"
+msgid "How the agent is used."
+msgstr "How the agent is used."
+
+#: src/features/agents/components/agent-detail.tsx
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.62oul2"
+msgid "Installs"
+msgstr "Installs"
+
+#: src/features/agents/components/agent-detail.tsx
+msgctxt "agents.ETRyBL"
+msgid "Rating"
+msgstr "Rating"
+
+#: src/features/agents/components/agent-detail.tsx
+msgctxt "agents.EJSVsO"
+msgid "Skills"
+msgstr "Skills"
+
+#: src/features/agents/components/agent-detail.tsx
+msgctxt "agents.2mMJRv"
+msgid "Connectors"
+msgstr "Connectors"
+
+#: src/features/agents/components/agent-detail.tsx
+msgctxt "agents.5OteMI"
+msgid "Knowledge"
+msgstr "Knowledge"
+
+#: src/features/agents/components/agent-editor.tsx
+msgctxt "agents.UVOFev"
+msgid "Agent saved"
+msgstr "Agent saved"
+
+#: src/features/agents/components/agent-editor.tsx
+msgctxt "agents.7OW8BT"
+msgid "Configuration"
+msgstr "Configuration"
+
+#: src/features/agents/components/agent-editor.tsx
+msgctxt "agents._pr7hM"
+msgid "The instructions and tools every run of this agent starts from."
+msgstr "The instructions and tools every run of this agent starts from."
+
+#: src/features/agents/components/agent-editor.tsx
+#: src/features/agents/components/agent-table.tsx
+#: src/features/agents/components/playbook-wizard.tsx
+msgctxt "agents.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/agents/components/agent-editor.tsx
+msgctxt "agents.Q8Qw5B"
+msgid "Description"
+msgstr "Description"
+
+#: src/features/agents/components/agent-editor.tsx
+#: src/features/agents/components/playbook-wizard.tsx
+msgctxt "agents.sV2v5L"
+msgid "Instructions"
+msgstr "Instructions"
+
+#: src/features/agents/components/agent-editor.tsx
+#: src/features/agents/components/agent-table.tsx
+#: src/features/agents/components/run-detail.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.rhSI1_"
+msgid "Model"
+msgstr "Model"
+
+#: src/features/agents/components/agent-editor.tsx
+msgctxt "agents.JDRs-g"
+msgid "An AI Gateway provider/model string. Empty uses the app default."
+msgstr "An AI Gateway provider/model string. Empty uses the app default."
+
+#: src/features/agents/components/agent-editor.tsx
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.nUT0Lv"
+msgid "Tools"
+msgstr "Tools"
+
+#: src/features/agents/components/agent-editor.tsx
+msgctxt "agents.AVAF3J"
+msgid "One tool name per line."
+msgstr "One tool name per line."
+
+#: src/features/agents/components/agent-editor.tsx
+msgctxt "agents.rHWCJL"
+msgid "Starters"
+msgstr "Starters"
+
+#: src/features/agents/components/agent-editor.tsx
+msgctxt "agents.94PzR5"
+msgid "Prompts the chat offers before the first message, one per line."
+msgstr "Prompts the chat offers before the first message, one per line."
+
+#: src/features/agents/components/agent-editor.tsx
+msgctxt "agents.Ndwys_"
+msgid "Save agent"
+msgstr "Save agent"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.0jRn7f"
+msgid "Only the owner"
+msgstr "Only the owner"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.zy2nb-"
+msgid "The organization"
+msgstr "The organization"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.2XDuH4"
+msgid "Everyone"
+msgstr "Everyone"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.XfKNCg"
+msgid "Sharing"
+msgstr "Sharing"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.rrAZxr"
+msgid "Publish the agent to the store, or install it for yourself."
+msgstr "Publish the agent to the store, or install it for yourself."
+
+#: src/features/agents/components/agent-publish.tsx
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.JAkIqb"
+msgid "Visibility"
+msgstr "Visibility"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.a8npXI"
+msgid "Uninstall"
+msgstr "Uninstall"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.ubmFc8"
+msgid "Install"
+msgstr "Install"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.FKlXAd"
+msgid "Delete agent"
+msgstr "Delete agent"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.V22724"
+msgid "Installed"
+msgstr "Installed"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.QGVI63"
+msgid "Agent"
+msgstr "Agent"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.xrk6zg"
+msgid "Updated"
+msgstr "Updated"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.rJ_NxJ"
+msgid "The store"
+msgstr "The store"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.0Vjf_N"
+msgid "My agents"
+msgstr "My agents"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.ie_Tbp"
+msgid "Recently updated"
+msgstr "Recently updated"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.hfK0iu"
+msgid "Most installed"
+msgstr "Most installed"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.tvKgdj"
+msgid "Search agents"
+msgstr "Search agents"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.451B6Z"
+msgid "No agents found"
+msgstr "No agents found"
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.qOCv2S"
+msgid "Start from a playbook, or change the filters."
+msgstr "Start from a playbook, or change the filters."
+
+#: src/features/agents/components/agent-table.tsx
+msgctxt "agents.gzp6xc"
+msgid "Change the filters to see more."
+msgstr "Change the filters to see more."
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.JwpFVh"
+msgid "Select {tool}"
+msgstr "Select {tool}"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.yXKG_b"
+msgid "Decided {count, number} approvals"
+msgstr "Decided {count, number} approvals"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.h6183G"
+msgid "Tool"
+msgstr "Tool"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.it6Lig"
+msgid "Input"
+msgstr "Input"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.WTrOy3"
+msgid "Chat"
+msgstr "Chat"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.zXv5ss"
+msgid "Asked"
+msgstr "Asked"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.9zgpNd"
+msgid "Bulk decision"
+msgstr "Bulk decision"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.bjxb4i"
+msgid "{count, number} selected"
+msgstr "{count, number} selected"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.QCGM2L"
+msgid "Approve selected"
+msgstr "Approve selected"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.9kFmmX"
+msgid "Deny selected"
+msgstr "Deny selected"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.J9Jqhr"
+msgid "Every tool"
+msgstr "Every tool"
+
+#: src/features/agents/components/approval-table.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.MeKajs"
+msgid "Newest first"
+msgstr "Newest first"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.JTGjif"
+msgid "Search by chat"
+msgstr "Search by chat"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.E32-Bb"
+msgid "Nothing to approve"
+msgstr "Nothing to approve"
+
+#: src/features/agents/components/approval-table.tsx
+msgctxt "agents.N0wyXP"
+msgid "Tool calls that need a decision show up here."
+msgstr "Tool calls that need a decision show up here."
+
+#: src/features/agents/components/cancel-run-button.tsx
+msgctxt "agents.PPIM6m"
+msgid "Stop requested"
+msgstr "Stop requested"
+
+#: src/features/agents/components/cancel-run-button.tsx
+msgctxt "agents.BZ2JYk"
+msgid "Stop run"
+msgstr "Stop run"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.PLLdyt"
+msgid "Memory saved"
+msgstr "Memory saved"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.K3r6DQ"
+msgid "Delete"
+msgstr "Delete"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.jvo0vs"
+msgid "Save"
+msgstr "Save"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.Qp1beM"
+msgid "Path"
+msgstr "Path"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.Jq3FDz"
+msgid "Content"
+msgstr "Content"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.m6Ml7h"
+msgid "Add memory file"
+msgstr "Add memory file"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.9DCje9"
+msgid "confidence {value, number}"
+msgstr "confidence {value, number}"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.R-7-vC"
+msgid "used {count, number} times"
+msgstr "used {count, number} times"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.MCCDle"
+msgid "Forget"
+msgstr "Forget"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.ZYW1UO"
+msgid "Core memory"
+msgstr "Core memory"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.WwV8d-"
+msgid "Files under /memories that the assistant reads on every answer."
+msgstr "Files under /memories that the assistant reads on every answer."
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.tgxAec"
+msgid "Remembered facts"
+msgstr "Remembered facts"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.A4qSmT"
+msgid "Facts the assistant saved while it talked to people."
+msgstr "Facts the assistant saved while it talked to people."
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.yCZgsD"
+msgid "Nothing remembered yet"
+msgstr "Nothing remembered yet"
+
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.SM5J5g"
+msgid "Facts show up here after the assistant saves one."
+msgstr "Facts show up here after the assistant saves one."
+
+#: src/features/agents/components/playbook-wizard.tsx
+msgctxt "agents.fHOUDN"
+msgid "Agent created"
+msgstr "Agent created"
+
+#: src/features/agents/components/playbook-wizard.tsx
+msgctxt "agents.KR79he"
+msgid "New agent"
+msgstr "New agent"
+
+#: src/features/agents/components/playbook-wizard.tsx
+msgctxt "agents.j2tOn5"
+msgid "Step 1 of 2: pick a playbook to start from."
+msgstr "Step 1 of 2: pick a playbook to start from."
+
+#: src/features/agents/components/playbook-wizard.tsx
+msgctxt "agents.uJfIqG"
+msgid "Step 2 of 2: name the agent and review its instructions."
+msgstr "Step 2 of 2: name the agent and review its instructions."
+
+#: src/features/agents/components/playbook-wizard.tsx
+msgctxt "agents.cyR7Kh"
+msgid "Back"
+msgstr "Back"
+
+#: src/features/agents/components/playbook-wizard.tsx
+msgctxt "agents.UrGI9K"
+msgid "Create agent"
+msgstr "Create agent"
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.ALBOZI"
+msgid "Run {id}"
+msgstr "Run {id}"
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.XrhIQ9"
+msgid "Open the chat"
+msgstr "Open the chat"
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.QCwVJo"
+msgid "What the run used."
+msgstr "What the run used."
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.4lafrr"
+msgid "Engine"
+msgstr "Engine"
+
+#: src/features/agents/components/run-detail.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.IuFETn"
+msgid "Duration"
+msgstr "Duration"
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.wbsq7O"
+msgid "Usage"
+msgstr "Usage"
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.3hqclU"
+msgid "The run failed"
+msgstr "The run failed"
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.huCHmk"
+msgid "Steps"
+msgstr "Steps"
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.OEuHXA"
+msgid "Each step a durable run recorded, in order."
+msgstr "Each step a durable run recorded, in order."
+
+#: src/features/agents/components/run-detail.tsx
+msgctxt "agents.2AbVGH"
+msgid "This run recorded no steps. Only durable runs do."
+msgstr "This run recorded no steps. Only durable runs do."
+
+#: src/features/agents/components/run-queue.tsx
+#: src/features/agents/components/run-state-badge.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.Cnm0QA"
+msgid "Queued"
+msgstr "Queued"
+
+#: src/features/agents/components/run-queue.tsx
+#: src/features/agents/components/run-state-badge.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.nDyaq_"
+msgid "Running"
+msgstr "Running"
+
+#: src/features/agents/components/run-queue.tsx
+#: src/features/agents/components/run-state-badge.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.vXCeIi"
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/agents/components/run-queue.tsx
+#: src/features/agents/components/run-state-badge.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.95stPq"
+msgid "Completed"
+msgstr "Completed"
+
+#: src/features/agents/components/run-queue.tsx
+msgctxt "agents.ORbxcC"
+msgid "Counts cover the newest {count, number} runs."
+msgstr "Counts cover the newest {count, number} runs."
+
+#: src/features/agents/components/run-state-badge.tsx
+msgctxt "agents.N728MF"
+msgid "Stopping"
+msgstr "Stopping"
+
+#: src/features/agents/components/run-state-badge.tsx
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.3wsVWF"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/features/agents/components/run-state-badge.tsx
+msgctxt "agents.djZCU5"
+msgid "Skipped"
+msgstr "Skipped"
+
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.TDUfVk"
+msgid "Started"
+msgstr "Started"
+
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.fBG_Ge"
+msgid "Cost"
+msgstr "Cost"
+
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.CaeZ3L"
+msgid "Every state"
+msgstr "Every state"
+
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.h-T3T7"
+msgid "Oldest first"
+msgstr "Oldest first"
+
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.O3qdds"
+msgid "Highest cost"
+msgstr "Highest cost"
+
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.DBdVEV"
+msgid "Search by model or id"
+msgstr "Search by model or id"
+
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.0SANjE"
+msgid "No runs found"
+msgstr "No runs found"
+
+#: src/features/agents/components/run-table.tsx
+msgctxt "agents.DqAAm0"
+msgid "Runs appear after the first answer. Change the filters to see more."
+msgstr "Runs appear after the first answer. Change the filters to see more."
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.hZ6RiX"
+msgid "Saved {count, number} rules"
+msgstr "Saved {count, number} rules"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.lKv8ex"
+msgid "Default"
+msgstr "Default"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.KiXNvz"
+msgid "Run"
+msgstr "Run"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.ZT0z9z"
+msgid "Ask"
+msgstr "Ask"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.htvX-Z"
+msgid "Deny"
+msgstr "Deny"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.3vzXZQ"
+msgid "Built in"
+msgstr "Built in"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.o9M-R7"
+msgid "Rule for {tool}"
+msgstr "Rule for {tool}"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.j7WSfa"
+msgid "Unsaved changes"
+msgstr "Unsaved changes"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.spC_i-"
+msgid "{count, number} unsaved changes"
+msgstr "{count, number} unsaved changes"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.nmpevl"
+msgid "Discard"
+msgstr "Discard"
+
+#: src/features/agents/components/tool-access-matrix.tsx
+msgctxt "agents.jKGgEy"
+msgid "Save rules"
+msgstr "Save rules"
+
+#: src/features/agents/components/tool-access.tsx
+msgctxt "agents.XdvfE9"
+msgid "The rules did not load"
+msgstr "The rules did not load"
+
 #: src/features/ai-providers/components/ai-provider-section.tsx
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders._3yfCs"
@@ -1867,6 +2618,41 @@ msgctxt "aiProviders.62nsdy"
 msgid "Retry"
 msgstr "Retry"
 
+#: src/features/ai-providers/components/provider-routing.tsx
+msgctxt "aiProviders.avjTjw"
+msgid "Routing saved"
+msgstr "Routing saved"
+
+#: src/features/ai-providers/components/provider-routing.tsx
+msgctxt "aiProviders.rXAq-E"
+msgid "Routing and failover"
+msgstr "Routing and failover"
+
+#: src/features/ai-providers/components/provider-routing.tsx
+msgctxt "aiProviders.W2Rm7v"
+msgid "The first enabled provider answers. When it fails, the gateway tries the next one."
+msgstr "The first enabled provider answers. When it fails, the gateway tries the next one."
+
+#: src/features/ai-providers/components/provider-routing.tsx
+msgctxt "aiProviders.-8dX3m"
+msgid "Use {provider}"
+msgstr "Use {provider}"
+
+#: src/features/ai-providers/components/provider-routing.tsx
+msgctxt "aiProviders.wmFdws"
+msgid "Move up"
+msgstr "Move up"
+
+#: src/features/ai-providers/components/provider-routing.tsx
+msgctxt "aiProviders.H_r5m6"
+msgid "Move down"
+msgstr "Move down"
+
+#: src/features/ai-providers/components/provider-routing.tsx
+msgctxt "aiProviders.U3a2mo"
+msgid "Save routing"
+msgstr "Save routing"
+
 #: src/features/ai-tasks/components/ai-task-queue.tsx
 msgctxt "aiTasks.XSxDou"
 msgid "Not run yet"
@@ -1971,6 +2757,93 @@ msgstr "The tasks didn't load"
 msgctxt "aiTasks.62nsdy"
 msgid "Retry"
 msgstr "Retry"
+
+#: src/features/ai-usage/components/clear-cache-button.tsx
+msgctxt "aiUsage.XmO-lv"
+msgid "Cleared {count, number} cached calls"
+msgstr "Cleared {count, number} cached calls"
+
+#: src/features/ai-usage/components/clear-cache-button.tsx
+msgctxt "aiUsage.L566W6"
+msgid "Clear the call cache"
+msgstr "Clear the call cache"
+
+#: src/features/ai-usage/components/model-spend-table.tsx
+msgctxt "aiUsage.rhSI1_"
+msgid "Model"
+msgstr "Model"
+
+#: src/features/ai-usage/components/model-spend-table.tsx
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.W1Qs5O"
+msgid "Runs"
+msgstr "Runs"
+
+#: src/features/ai-usage/components/model-spend-table.tsx
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.rpnhrR"
+msgid "Tokens in / out"
+msgstr "Tokens in / out"
+
+#: src/features/ai-usage/components/model-spend-table.tsx
+msgctxt "aiUsage.fBG_Ge"
+msgid "Cost"
+msgstr "Cost"
+
+#: src/features/ai-usage/components/model-spend-table.tsx
+msgctxt "aiUsage.r1gTFE"
+msgid "No spend yet"
+msgstr "No spend yet"
+
+#: src/features/ai-usage/components/model-spend-table.tsx
+msgctxt "aiUsage.S3Sghh"
+msgid "Runs appear here after the first answer."
+msgstr "Runs appear here after the first answer."
+
+#: src/features/ai-usage/components/spend-chart.tsx
+msgctxt "aiUsage.m4Br2Q"
+msgid "Cost (USD)"
+msgstr "Cost (USD)"
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.EKAX5z"
+msgid "Spend"
+msgstr "Spend"
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.UhXxBT"
+msgid "Cached input"
+msgstr "Cached input"
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.ZIgjbO"
+msgid "Failed runs"
+msgstr "Failed runs"
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.790BsN"
+msgid "Spend per day"
+msgstr "Spend per day"
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.Islqs0"
+msgid "The newest {count, number} runs."
+msgstr "The newest {count, number} runs."
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.Jj3oM9"
+msgid "Every run so far."
+msgstr "Every run so far."
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.fE5h2Q"
+msgid "Per model"
+msgstr "Per model"
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.8erBos"
+msgid "Cached input is the share of input tokens a provider served from its prompt cache. The call cache below keeps whole answers."
+msgstr "Cached input is the share of input tokens a provider served from its prompt cache. The call cache below keeps whole answers."
 
 #: src/features/announcements/components/announcement-banner.tsx
 msgctxt "announcements.TDaF6J"
@@ -2360,7 +3233,8 @@ msgid "Tool calls that need your approval show up here."
 msgstr "Tool calls that need your approval show up here."
 
 #: src/features/assistant/components/agent-activity.tsx
-#: src/features/assistant/components/chat-list.tsx
+#: src/features/assistant/components/chat-actions.tsx
+#: src/features/assistant/components/chat-table.tsx
 msgctxt "assistant.lfYALm"
 msgid "Untitled chat"
 msgstr "Untitled chat"
@@ -2397,6 +3271,71 @@ msgctxt "assistant.bV-Ymc"
 msgid "Default model"
 msgstr "Default model"
 
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.ABAQyo"
+msgid "Chats"
+msgstr "Chats"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.GBnvl1"
+msgid "Agents"
+msgstr "Agents"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.W1Qs5O"
+msgid "Runs"
+msgstr "Runs"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.nFa1Ms"
+msgid "Approvals"
+msgstr "Approvals"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.qCcDQ3"
+msgid "Tool access"
+msgstr "Tool access"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.dVx3yz"
+msgid "Memory"
+msgstr "Memory"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.p7buKP"
+msgid "Prompts"
+msgstr "Prompts"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.QWHsmz"
+msgid "Evals"
+msgstr "Evals"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.OIMUg3"
+msgid "Guardrails"
+msgstr "Guardrails"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.wbsq7O"
+msgid "Usage"
+msgstr "Usage"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.F42bEw"
+msgid "Schedules"
+msgstr "Schedules"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.47V97K"
+msgid "Tour"
+msgstr "Tour"
+
+#: src/features/assistant/components/ai-subnav.tsx
+msgctxt "assistant.ijQrZ0"
+msgid "AI"
+msgstr "AI"
+
 #: src/features/assistant/components/approval-buttons.tsx
 msgctxt "assistant.6XFO_C"
 msgid "Approved"
@@ -2408,13 +3347,13 @@ msgid "Denied"
 msgstr "Denied"
 
 #: src/features/assistant/components/approval-buttons.tsx
-#: src/features/assistant/components/chat-view.tsx
+#: src/features/assistant/components/chat-parts.tsx
 msgctxt "assistant.WCaf5C"
 msgid "Approve"
 msgstr "Approve"
 
 #: src/features/assistant/components/approval-buttons.tsx
-#: src/features/assistant/components/chat-view.tsx
+#: src/features/assistant/components/chat-parts.tsx
 msgctxt "assistant.htvX-Z"
 msgid "Deny"
 msgstr "Deny"
@@ -2434,50 +3373,191 @@ msgctxt "assistant.LGXxOm"
 msgid "Durable answers need AI_GATEWAY_API_KEY."
 msgstr "Durable answers need AI_GATEWAY_API_KEY."
 
-#: src/features/assistant/components/chat-list.tsx
-msgctxt "assistant.YfXudL"
-msgid "No chats yet"
-msgstr "No chats yet"
+#: src/features/assistant/components/assistant-tour-chat.tsx
+msgctxt "assistant.Acs6FI"
+msgid "Send the next scripted message"
+msgstr "Send the next scripted message"
 
-#: src/features/assistant/components/chat-list.tsx
-msgctxt "assistant.huX5LS"
-msgid "Your chats show up here after the first answer."
-msgstr "Your chats show up here after the first answer."
+#: src/features/assistant/components/assistant-tour-lazy.tsx
+msgctxt "assistant.ZtRZWf"
+msgid "Start the scripted tour"
+msgstr "Start the scripted tour"
 
-#: src/features/assistant/components/chat-view.tsx
+#: src/features/assistant/components/chat-actions.tsx
+msgctxt "assistant.opNVQC"
+msgid "Unpin"
+msgstr "Unpin"
+
+#: src/features/assistant/components/chat-actions.tsx
+msgctxt "assistant.puLNUJ"
+msgid "Pin"
+msgstr "Pin"
+
+#: src/features/assistant/components/chat-actions.tsx
+msgctxt "assistant.hrgo-E"
+msgid "Archive"
+msgstr "Archive"
+
+#: src/features/assistant/components/chat-parts.tsx
+msgctxt "assistant.AHQWDT"
+msgid "Thinking"
+msgstr "Thinking"
+
+#: src/features/assistant/components/chat-parts.tsx
 msgctxt "assistant.Aw3qRf"
 msgid "Reasoning"
 msgstr "Reasoning"
 
-#: src/features/assistant/components/chat-view.tsx
-msgctxt "assistant.fhwTpA"
-msgid "Sources"
-msgstr "Sources"
+#: src/features/assistant/components/chat-parts.tsx
+msgctxt "assistant.rW_AqJ"
+msgid "Answered {count, number} questions"
+msgstr "Answered {count, number} questions"
 
-#: src/features/assistant/components/chat-view.tsx
+#: src/features/assistant/components/chat-parts.tsx
+msgctxt "assistant.cyR7Kh"
+msgid "Back"
+msgstr "Back"
+
+#: src/features/assistant/components/chat-parts.tsx
+msgctxt "assistant.9-Ddtu"
+msgid "Next"
+msgstr "Next"
+
+#: src/features/assistant/components/chat-parts.tsx
+msgctxt "assistant.beMzxa"
+msgid "Send answers"
+msgstr "Send answers"
+
+#: src/features/assistant/components/chat-parts.tsx
 msgctxt "assistant._7Q2I5"
 msgid "{tool} needs your approval"
 msgstr "{tool} needs your approval"
 
-#: src/features/assistant/components/chat-view.tsx
+#: src/features/assistant/components/chat-parts.tsx
 msgctxt "assistant.bpMkWa"
 msgid "{tool} was denied"
 msgstr "{tool} was denied"
 
-#: src/features/assistant/components/chat-view.tsx
+#: src/features/assistant/components/chat-parts.tsx
 msgctxt "assistant.8zAQZ8"
 msgid "{tool} finished"
 msgstr "{tool} finished"
 
-#: src/features/assistant/components/chat-view.tsx
+#: src/features/assistant/components/chat-parts.tsx
 msgctxt "assistant.E_7uNY"
 msgid "{tool} failed"
 msgstr "{tool} failed"
 
-#: src/features/assistant/components/chat-view.tsx
+#: src/features/assistant/components/chat-parts.tsx
 msgctxt "assistant.aMB1-6"
 msgid "Running {tool}"
 msgstr "Running {tool}"
+
+#: src/features/assistant/components/chat-parts.tsx
+msgctxt "assistant.2WZVRu"
+msgid "{count, number} sources"
+msgstr "{count, number} sources"
+
+#: src/features/assistant/components/chat-parts.tsx
+msgctxt "assistant.fhwTpA"
+msgid "Sources"
+msgstr "Sources"
+
+#: src/features/assistant/components/chat-table.tsx
+msgctxt "assistant.WTrOy3"
+msgid "Chat"
+msgstr "Chat"
+
+#: src/features/assistant/components/chat-table.tsx
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.rhSI1_"
+msgid "Model"
+msgstr "Model"
+
+#: src/features/assistant/components/chat-table.tsx
+msgctxt "assistant.ls9fov"
+msgid "Last message"
+msgstr "Last message"
+
+#: src/features/assistant/components/chat-table.tsx
+msgctxt "assistant.fWZYP5"
+msgid "Pinned"
+msgstr "Pinned"
+
+#: src/features/assistant/components/chat-table.tsx
+msgctxt "assistant.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/assistant/components/chat-table.tsx
+msgctxt "assistant.fq86MK"
+msgid "Most recent"
+msgstr "Most recent"
+
+#: src/features/assistant/components/chat-table.tsx
+msgctxt "assistant.yF0QS1"
+msgid "Search chats"
+msgstr "Search chats"
+
+#: src/features/assistant/components/chat-table.tsx
+msgctxt "assistant.wpTj2-"
+msgid "No chats found"
+msgstr "No chats found"
+
+#: src/features/assistant/components/chat-table.tsx
+msgctxt "assistant.5PhziK"
+msgid "Start a chat above, or change the search."
+msgstr "Start a chat above, or change the search."
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.jRANBd"
+msgid "Edit message"
+msgstr "Edit message"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.c-067t"
+msgid "Save and run again"
+msgstr "Save and run again"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.nZObrE"
+msgid "Previous version"
+msgstr "Previous version"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.vfItgW"
+msgid "Next version"
+msgstr "Next version"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.9Kp4Zg"
+msgid "Copy answer"
+msgstr "Copy answer"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.aOJTVq"
+msgid "Good answer"
+msgstr "Good answer"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.BKE9NI"
+msgid "Bad answer"
+msgstr "Bad answer"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.6PgVSe"
+msgid "Regenerate"
+msgstr "Regenerate"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.hMzcSq"
+msgid "Messages"
+msgstr "Messages"
 
 #: src/features/assistant/components/chat-view.tsx
 msgctxt "assistant.ytL5Ck"
@@ -2488,16 +3568,6 @@ msgstr "The answer failed. Try again."
 msgctxt "assistant.w_8N9S"
 msgid "The file could not be attached."
 msgstr "The file could not be attached."
-
-#: src/features/assistant/components/chat-view.tsx
-msgctxt "assistant.Vlx13n"
-msgid "Attachments"
-msgstr "Attachments"
-
-#: src/features/assistant/components/chat-view.tsx
-msgctxt "assistant.T0e6Lh"
-msgid "Remove {name}"
-msgstr "Remove {name}"
 
 #: src/features/assistant/components/chat-view.tsx
 msgctxt "assistant.ydgifD"
@@ -2523,6 +3593,16 @@ msgstr "Stop"
 msgctxt "assistant.9WRlF4"
 msgid "Send"
 msgstr "Send"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.Vlx13n"
+msgid "Attachments"
+msgstr "Attachments"
+
+#: src/features/assistant/components/chat-view.tsx
+msgctxt "assistant.T0e6Lh"
+msgid "Remove {name}"
+msgstr "Remove {name}"
 
 #: src/features/audit/components/audit-entry-sheet.tsx
 msgctxt "audit.wR7xTu"
@@ -8497,6 +9577,222 @@ msgctxt "prescriptions.BYSae4"
 msgid "Read the e-prescribing guide"
 msgstr "Read the e-prescribing guide"
 
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.IRrIur"
+msgid "Added {count, number} items"
+msgstr "Added {count, number} items"
+
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.KfUtUk"
+msgid "Added {count, number} items from feedback"
+msgstr "Added {count, number} items from feedback"
+
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.eShzJM"
+msgid "Dataset"
+msgstr "Dataset"
+
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.Tw6Pz5"
+msgid "{count, number} items. One per line as input => expected."
+msgstr "{count, number} items. One per line as input => expected."
+
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.gl6dv3"
+msgid "No items yet"
+msgstr "No items yet"
+
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.o17LzV"
+msgid "Paste a few lines below, or import the answers users rated down."
+msgstr "Paste a few lines below, or import the answers users rated down."
+
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.S4Ysu6"
+msgid "No expected answer"
+msgstr "No expected answer"
+
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.zdztt9"
+msgid "Add items"
+msgstr "Add items"
+
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.PpBx3C"
+msgid "An item without => has no expected answer and always fails the exact match."
+msgstr "An item without => has no expected answer and always fails the exact match."
+
+#: src/features/evals/components/eval-items-card.tsx
+msgctxt "evals.4iCPOS"
+msgid "Import rated-down answers"
+msgstr "Import rated-down answers"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.3NHsqm"
+msgid "Passed"
+msgstr "Passed"
+
+#: src/features/evals/components/eval-results.tsx
+#: src/features/evals/components/eval-runs-card.tsx
+msgctxt "evals.vXCeIi"
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.it6Lig"
+msgid "Input"
+msgstr "Input"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.6srLb2"
+msgid "Expected"
+msgstr "Expected"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.fio5op"
+msgid "Output"
+msgstr "Output"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.ZpQ6us"
+msgid "Result"
+msgstr "Result"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.2n9biM"
+msgid "Latency"
+msgstr "Latency"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.yaMHMB"
+msgid "Results"
+msgstr "Results"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.lRa7Lu"
+msgid "The first run has nothing to compare with."
+msgstr "The first run has nothing to compare with."
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.lLpyM2"
+msgid "{delta} against the run before, with {regressions, number} regressions and {improvements, number} improvements."
+msgstr "{delta} against the run before, with {regressions, number} regressions and {improvements, number} improvements."
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.bjgjNV"
+msgid "Only failures"
+msgstr "Only failures"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.nD56u6"
+msgid "No failures"
+msgstr "No failures"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.--wSur"
+msgid "No results yet"
+msgstr "No results yet"
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.g-yBi6"
+msgid "Every item of this run passed."
+msgstr "Every item of this run passed."
+
+#: src/features/evals/components/eval-results.tsx
+msgctxt "evals.j_m-rA"
+msgid "Results appear as the run answers each item."
+msgstr "Results appear as the run answers each item."
+
+#: src/features/evals/components/eval-run-form.tsx
+msgctxt "evals.Caeh_O"
+msgid "Run started"
+msgstr "Run started"
+
+#: src/features/evals/components/eval-run-form.tsx
+msgctxt "evals.AoYKUe"
+msgid "Version {version, number}"
+msgstr "Version {version, number}"
+
+#: src/features/evals/components/eval-run-form.tsx
+msgctxt "evals.XgKAas"
+msgid "Prompt version"
+msgstr "Prompt version"
+
+#: src/features/evals/components/eval-run-form.tsx
+msgctxt "evals.dOo0Ro"
+msgid "No versions"
+msgstr "No versions"
+
+#: src/features/evals/components/eval-run-form.tsx
+msgctxt "evals.rhSI1_"
+msgid "Model"
+msgstr "Model"
+
+#: src/features/evals/components/eval-run-form.tsx
+msgctxt "evals.bbsQzz"
+msgid "Run {count, number} items"
+msgstr "Run {count, number} items"
+
+#: src/features/evals/components/eval-runs-card.tsx
+msgctxt "evals.W1Qs5O"
+msgid "Runs"
+msgstr "Runs"
+
+#: src/features/evals/components/eval-runs-card.tsx
+msgctxt "evals.oQKYeB"
+msgid "Pass rate per run, oldest first. Pick a run to read its results."
+msgstr "Pass rate per run, oldest first. Pick a run to read its results."
+
+#: src/features/evals/components/eval-runs-card.tsx
+msgctxt "evals.95stPq"
+msgid "Completed"
+msgstr "Completed"
+
+#: src/features/evals/components/eval-runs-card.tsx
+msgctxt "evals.3wsVWF"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/features/evals/components/eval-runs-card.tsx
+msgctxt "evals.nDyaq_"
+msgid "Running"
+msgstr "Running"
+
+#: src/features/evals/components/eval-subject-table.tsx
+msgctxt "evals.9kGwPo"
+msgid "Prompt under test"
+msgstr "Prompt under test"
+
+#: src/features/evals/components/eval-subject-table.tsx
+msgctxt "evals.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/evals/components/eval-subject-table.tsx
+msgctxt "evals.zm2TJu"
+msgid "Search prompts"
+msgstr "Search prompts"
+
+#: src/features/evals/components/eval-subject-table.tsx
+msgctxt "evals.96HHAr"
+msgid "No prompts found"
+msgstr "No prompts found"
+
+#: src/features/evals/components/eval-subject-table.tsx
+msgctxt "evals._a70yj"
+msgid "Change the search."
+msgstr "Change the search."
+
+#: src/features/evals/components/eval-workspace.tsx
+msgctxt "evals.YP0XGk"
+msgid "Run the dataset against a prompt version and compare the pass rate with earlier runs."
+msgstr "Run the dataset against a prompt version and compare the pass rate with earlier runs."
+
+#: src/features/evals/components/pass-rate-chart.tsx
+msgctxt "evals.8NFplr"
+msgid "Pass rate"
+msgstr "Pass rate"
+
 #: src/features/field/components/advance-work-order-button.tsx
 msgctxt "field.s7o6zU"
 msgid "Leave for the stop"
@@ -9341,6 +10637,226 @@ msgstr "{used} used, {over} over"
 msgctxt "funding.Mt4DNK"
 msgid "{used} used"
 msgstr "{used} used"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.McnLsx"
+msgid "When"
+msgstr "When"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.QGVI63"
+msgid "Agent"
+msgstr "Agent"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.uYAYib"
+msgid "Stage"
+msgstr "Stage"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.vYLLLG"
+msgid "Decision"
+msgstr "Decision"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.rpj2cV"
+msgid "Reasons"
+msgstr "Reasons"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.WTrOy3"
+msgid "Chat"
+msgstr "Chat"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.fAVAnj"
+msgid "Every decision"
+msgstr "Every decision"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.qUJTsT"
+msgid "Blocked"
+msgstr "Blocked"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.gU894f"
+msgid "Redacted"
+msgstr "Redacted"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.zvO43R"
+msgid "Allowed"
+msgstr "Allowed"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.MeKajs"
+msgid "Newest first"
+msgstr "Newest first"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.h-T3T7"
+msgid "Oldest first"
+msgstr "Oldest first"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.ae1j9b"
+msgid "Search by agent or reason"
+msgstr "Search by agent or reason"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.cg42d4"
+msgid "No decisions yet"
+msgstr "No decisions yet"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.heCqDN"
+msgid "A check logs a decision once a policy applies to a request."
+msgstr "A check logs a decision once a policy applies to a request."
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.7qSfZi"
+msgid "No checks run."
+msgstr "No checks run."
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.No_D0s"
+msgid "Injection: {action}"
+msgstr "Injection: {action}"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.tbNsxx"
+msgid "PII: {action}"
+msgstr "PII: {action}"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.dc5X1O"
+msgid "{count, number} denied topics"
+msgstr "{count, number} denied topics"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.Sfbs08"
+msgid "Tool depth {depth, number}"
+msgstr "Tool depth {depth, number}"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.JFhpwa"
+msgid "Policy saved"
+msgstr "Policy saved"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.OvzONl"
+msgid "Off"
+msgstr "Off"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.UvcAZ4"
+msgid "Edit policy"
+msgstr "Edit policy"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.B7zZMD"
+msgid "{agent} {stage} policy"
+msgstr "{agent} {stage} policy"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.ILZpAj"
+msgid "Step 1 of 2: choose the checks."
+msgstr "Step 1 of 2: choose the checks."
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.PJnCi9"
+msgid "Step 2 of 2: review and save. The policy applies to the next request."
+msgstr "Step 2 of 2: review and save. The policy applies to the next request."
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.aG-bLH"
+msgid "Prompt injection"
+msgstr "Prompt injection"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.aWoA8g"
+msgid "Personal data"
+msgstr "Personal data"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.xhbTUk"
+msgid "Denied topics"
+msgstr "Denied topics"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.3MgbSS"
+msgid "Separate topics with commas"
+msgstr "Separate topics with commas"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.bylgKh"
+msgid "Deepest tool chain"
+msgstr "Deepest tool chain"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.PfW4AI"
+msgid "No limit"
+msgstr "No limit"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.R-J5ox"
+msgid "Review"
+msgstr "Review"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.cyR7Kh"
+msgid "Back"
+msgstr "Back"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.hhx5d3"
+msgid "Save policy"
+msgstr "Save policy"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.it6Lig"
+msgid "Input"
+msgstr "Input"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.fio5op"
+msgid "Output"
+msgstr "Output"
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.hdIF5T"
+msgid "The policy saved for this agent."
+msgstr "The policy saved for this agent."
+
+#: src/features/guardrails/components/policy-card.tsx
+msgctxt "guardrails.DDkr_t"
+msgid "Inherited from {agent}."
+msgstr "Inherited from {agent}."
+
+#: src/features/guardrails/components/policy-tester.tsx
+msgctxt "guardrails.GmROg_"
+msgid "Try the assistant policy"
+msgstr "Try the assistant policy"
+
+#: src/features/guardrails/components/policy-tester.tsx
+msgctxt "guardrails.GsApHs"
+msgid "Checks the text at the input stage and logs the decision below."
+msgstr "Checks the text at the input stage and logs the decision below."
+
+#: src/features/guardrails/components/policy-tester.tsx
+msgctxt "guardrails.aA8bDw"
+msgid "Text"
+msgstr "Text"
+
+#: src/features/guardrails/components/policy-tester.tsx
+msgctxt "guardrails.RDZVQL"
+msgid "Check"
+msgstr "Check"
 
 #: src/features/imports/components/csv-import-wizard.tsx
 msgctxt "imports.HAlOn1"
@@ -10940,14 +12456,39 @@ msgid "Delete {title}"
 msgstr "Delete {title}"
 
 #: src/features/knowledge/components/search-form.tsx
+msgctxt "knowledge.k_lO4H"
+msgid "Every scope"
+msgstr "Every scope"
+
+#: src/features/knowledge/components/search-form.tsx
 msgctxt "knowledge.qj71j1"
 msgid "Query"
 msgstr "Query"
 
 #: src/features/knowledge/components/search-form.tsx
+msgctxt "knowledge.nso3Mj"
+msgid "Scope"
+msgstr "Scope"
+
+#: src/features/knowledge/components/search-form.tsx
+msgctxt "knowledge.i7T4Zm"
+msgid "Hits"
+msgstr "Hits"
+
+#: src/features/knowledge/components/search-form.tsx
+msgctxt "knowledge.4tk14C"
+msgid "Rank by score only"
+msgstr "Rank by score only"
+
+#: src/features/knowledge/components/search-form.tsx
 msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nothing matches yet. A new document is searchable once it is ready."
+
+#: src/features/knowledge/components/search-form.tsx
+msgctxt "knowledge.yzXrXW"
+msgid "Score relative to the best hit"
+msgstr "Score relative to the best hit"
 
 #: src/features/leave/components/leave-decision.tsx
 msgctxt "people.yPz9pN"
@@ -12722,6 +14263,36 @@ msgstr "Knowledge"
 msgctxt "navigation.HF49ER"
 msgid "Agent activity"
 msgstr "Agent activity"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.GBnvl1"
+msgid "Agents"
+msgstr "Agents"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.p7buKP"
+msgid "Prompts"
+msgstr "Prompts"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.QWHsmz"
+msgid "Evals"
+msgstr "Evals"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.OIMUg3"
+msgid "Guardrails"
+msgstr "Guardrails"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.CT1awb"
+msgid "AI usage"
+msgstr "AI usage"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
@@ -14936,6 +16507,142 @@ msgstr "Board"
 msgctxt "projects.Coy6SH"
 msgid "Calendar"
 msgstr "Calendar"
+
+#: src/features/prompts/components/prompt-detail.tsx
+msgctxt "prompts.yQY64M"
+msgid "Each save is a new version; a label decides which one is live."
+msgstr "Each save is a new version; a label decides which one is live."
+
+#: src/features/prompts/components/prompt-editor.tsx
+msgctxt "prompts.AZwfuB"
+msgid "Saved version {version, number}"
+msgstr "Saved version {version, number}"
+
+#: src/features/prompts/components/prompt-editor.tsx
+msgctxt "prompts.3JxaKs"
+msgid "Template"
+msgstr "Template"
+
+#: src/features/prompts/components/prompt-editor.tsx
+msgctxt "prompts.9fD634"
+msgid "Saving creates version {version, number}. Earlier versions never change."
+msgstr "Saving creates version {version, number}. Earlier versions never change."
+
+#: src/features/prompts/components/prompt-editor.tsx
+msgctxt "prompts.Pxlnt9"
+msgid "No variables. Put a name in double braces to add one."
+msgstr "No variables. Put a name in double braces to add one."
+
+#: src/features/prompts/components/prompt-editor.tsx
+msgctxt "prompts.TWWiBd"
+msgid "Variables:"
+msgstr "Variables:"
+
+#: src/features/prompts/components/prompt-editor.tsx
+msgctxt "prompts.fRd2Ag"
+msgid "Save version"
+msgstr "Save version"
+
+#: src/features/prompts/components/prompt-editor.tsx
+msgctxt "prompts.vhxb5p"
+msgid "Save and go live"
+msgstr "Save and go live"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.lhET2F"
+msgid "Built-in text"
+msgstr "Built-in text"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.ho8-mi"
+msgid "v{version, number} live"
+msgstr "v{version, number} live"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.iWKE8s"
+msgid "Prompt"
+msgstr "Prompt"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.1wkCq7"
+msgid "Live version"
+msgstr "Live version"
+
+#: src/features/prompts/components/prompt-table.tsx
+#: src/features/prompts/components/prompt-versions.tsx
+msgctxt "prompts.4SJxF5"
+msgid "Versions"
+msgstr "Versions"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.xrk6zg"
+msgid "Updated"
+msgstr "Updated"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.Wj5XQU"
+msgid "Every prompt"
+msgstr "Every prompt"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.IWclQb"
+msgid "Has a live version"
+msgstr "Has a live version"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.8UC74Z"
+msgid "No versions yet"
+msgstr "No versions yet"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.ie_Tbp"
+msgid "Recently updated"
+msgstr "Recently updated"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.zm2TJu"
+msgid "Search prompts"
+msgstr "Search prompts"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.96HHAr"
+msgid "No prompts found"
+msgstr "No prompts found"
+
+#: src/features/prompts/components/prompt-table.tsx
+msgctxt "prompts.FHYZWp"
+msgid "Change the search or the filter."
+msgstr "Change the search or the filter."
+
+#: src/features/prompts/components/prompt-versions.tsx
+msgctxt "prompts.KiVOxv"
+msgid "Label moved to version {version, number}"
+msgstr "Label moved to version {version, number}"
+
+#: src/features/prompts/components/prompt-versions.tsx
+msgctxt "prompts.lX1XF0"
+msgid "Promote a version, or roll back by moving the label to an older one."
+msgstr "Promote a version, or roll back by moving the label to an older one."
+
+#: src/features/prompts/components/prompt-versions.tsx
+msgctxt "prompts.7DcPO7"
+msgid "Nothing saved yet. The assistant uses its built-in text."
+msgstr "Nothing saved yet. The assistant uses its built-in text."
+
+#: src/features/prompts/components/prompt-versions.tsx
+msgctxt "prompts.IiSXnG"
+msgid "Make live"
+msgstr "Make live"
+
+#: src/features/prompts/components/prompt-versions.tsx
+msgctxt "prompts.uYAYib"
+msgid "Stage"
+msgstr "Stage"
 
 #: src/features/push/components/push-opt-in.tsx
 msgctxt "push.Awq32I"

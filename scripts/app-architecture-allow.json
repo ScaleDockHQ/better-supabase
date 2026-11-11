@@ -11,13 +11,15 @@
     "features/crm/components/contact-detail.tsx": "the activity timeline streams beside the loaded contact card",
     "features/customers/components/customer-detail.tsx": "each side section checks its own permission and streams on its own",
     "features/sales/components/deal-detail.tsx": "the activity timeline and the field history each stream beside the loaded deal card",
-    "features/projects/components/task-board-lazy.tsx": "the kanban code loads only for the board view, and a skeleton of the board's height holds the space"
+    "features/projects/components/task-board-lazy.tsx": "the kanban code loads only for the board view, and a skeleton of the board's height holds the space",
+    "features/assistant/components/assistant-tour-lazy.tsx": "the tour chat's code loads after a click, behind a skeleton of the chat's height",
+    "features/evals/components/pass-rate-chart-lazy.tsx": "the chart's code (recharts) loads after the first paint behind a skeleton of the same height",
+    "features/ai-usage/components/spend-chart-lazy.tsx": "the chart's code (recharts) loads after the first paint behind a skeleton of the same height"
   },
   "connection": {},
   "findings": [
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/appraisals/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/approvals/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/assistant/[id]/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/assistant/activity/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/assistant/tasks/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/banking/page.tsx",

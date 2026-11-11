@@ -29,6 +29,24 @@ export default defineConfig({
   ],
   overrides: [
     {
+      // The AI slices pass optional fields to block APIs under
+      // exactOptionalPropertyTypes (37 conditional spreads) and read untyped
+      // AI SDK parts, tool inputs and numeric jsonb columns at the edge
+      // (7 unknown parameters, 10 typeof checks, 3 unknown dictionaries and
+      // 3 unknown returns). Each reader narrows one value; a schema per
+      // part would be longer than the check.
+      files: [
+        "src/features/{assistant,agents,prompts,evals,guardrails,ai-usage,knowledge}/**/*.{ts,tsx}",
+      ],
+      rules: {
+        "anti-slop/no-conditional-empty-object-spread": "off",
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/no-unknown-returns": "off",
+        "anti-slop/no-runtime-typeof": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
+      },
+    },
+    {
       // Examples read env where they create the client, the way the
       // generated templates do, so they stay copyable.
       files: ["**/*.{ts,tsx}"],

@@ -337,6 +337,26 @@ export function useNavLabel(): (id: NavId) => string {
         return t("Agent activity");
       }
 
+      case "agents": {
+        return t("Agents");
+      }
+
+      case "prompts": {
+        return t("Prompts");
+      }
+
+      case "evals": {
+        return t("Evals");
+      }
+
+      case "guardrails": {
+        return t("Guardrails");
+      }
+
+      case "aiUsage": {
+        return t("AI usage");
+      }
+
       case "aiTasks": {
         return t("AI tasks");
       }
