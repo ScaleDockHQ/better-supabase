@@ -126,7 +126,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   goals: at("/appraisals"),
   hiring: at("/people/hiring"),
   employees: at("/people"),
-  collections: later("p8"),
+  collections: at("/shop/collections"),
   "signing-keys": at("/settings/signing-keys"),
   "security-events": at("/settings/security/events"),
   "oauth-server": at("/settings/oauth-apps"),
