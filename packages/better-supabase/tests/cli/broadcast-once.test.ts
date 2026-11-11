@@ -2,64 +2,69 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { PgliteConnection } from "../../src/lite/runtime.ts";
 
+import {
+  BROADCAST_ONCE_SQL,
+  dedupeTrigger,
+} from "../../src/cli/broadcast-once.ts";
 import { loadLite } from "../../src/lite/runtime.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
-import { DEDUPE_SETTING } from "../../src/realtime/topic-trigger.ts";
 
 const changes = defineTopic("org:{organizationId}:changes");
 
-const audit = (options: { readonly dedupeKey?: readonly string[] } = {}) =>
-  changes.trigger("public.audit_logs", {
-    events: ["insert"],
-    event: "changed",
-    payload: { actor_id: "actor_id", category: "category", source: "source" },
-    dedupe: "transaction",
+const options = {
+  events: ["insert"],
+  event: "changed",
+  payload: { actor_id: "actor_id", category: "category", source: "source" },
+  dedupe: "transaction",
+} as const;
+
+const audit = (dedupeKey?: readonly string[]): string =>
+  dedupeTrigger(changes.trigger("public.audit_logs", options), {
     ...options,
+    ...(dedupeKey && { dedupeKey }),
   });
 
-describe("realtime trigger dedupe SQL", () => {
-  it("checks a transaction-local hash before each send", () => {
-    const sql = audit();
-
-    expect(sql).toContain("  msg jsonb;\n  sent text;");
-    expect(sql).toContain(
-      "sent := md5(jsonb_build_array('org:' || (vals ->> 'organizationId') || ':changes', 'changed', msg)::text);",
+describe("dedupeTrigger", () => {
+  it("sends through broadcast_once() with the whole payload as the key", () => {
+    expect(audit()).toContain(
+      "    perform better_supabase.broadcast_once(body, 'changed', 'org:' || (vals ->> 'organizationId') || ':changes', true, null);",
     );
-    expect(sql).toContain(
-      `perform set_config('${DEDUPE_SETTING}', coalesce(current_setting('${DEDUPE_SETTING}', true), '') || sent || ' ', true);`,
-    );
-    expect(sql).toContain(
-      "perform realtime.send(msg, 'changed', 'org:' || (vals ->> 'organizationId') || ':changes', true);",
-    );
-    expect(sql).not.toContain("broadcast_topic(");
+    expect(audit()).not.toContain("realtime.send(");
   });
 
-  it("compares only the dedupeKey fields", () => {
-    expect(audit({ dedupeKey: ["category"] })).toContain(
-      "jsonb_build_array('org:' || (vals ->> 'organizationId') || ':changes', 'changed', jsonb_build_object('category', msg -> 'category'))",
+  it("passes the dedupeKey fields", () => {
+    expect(audit(["actor_id", "o'k"])).toContain(
+      ":changes', true, array['actor_id', 'o''k']);",
     );
   });
 
   it("leaves a trigger without dedupe as it was", () => {
-    const sql = changes.trigger("public.audit_logs", {
-      payload: { category: "category" },
-    });
+    const sql = changes.trigger("public.audit_logs", options);
 
-    expect(sql).not.toContain("sent");
-    expect(sql).toContain("perform realtime.send(body,");
+    expect(dedupeTrigger(sql, {})).toBe(sql);
   });
 
-  it("generates a function instead of calling broadcast_topic()", () => {
-    expect(
-      changes.trigger("public.audit_logs", { dedupe: "transaction" }),
-    ).toContain("create or replace function");
+  it("makes topic.trigger() generate a function instead of calling broadcast_topic()", () => {
+    // SAFETY: `upgrade` passes dedupe through from the config; trigger() doesn't type it.
+    const untyped = { dedupe: "transaction" } as object;
+
+    expect(changes.trigger("public.audit_logs", untyped)).toContain(
+      "create or replace function",
+    );
   });
 
-  it("refuses dedupeKey without dedupe, or with no fields", () => {
+  it("refuses dedupeKey without dedupe or fields, and SQL with no send", () => {
+    expect(() => dedupeTrigger("", { dedupeKey: ["category"] })).toThrow(
+      /dedupeKey needs dedupe/,
+    );
     expect(() =>
-      changes.trigger("public.audit_logs", { dedupeKey: ["category"] }),
+      dedupeTrigger("", { dedupe: "transaction", dedupeKey: [] }),
     ).toThrow(/dedupeKey needs dedupe/);
-    expect(() => audit({ dedupeKey: [] })).toThrow(/dedupeKey lists no fields/);
+    expect(() =>
+      dedupeTrigger(changes.trigger("public.audit_logs"), {
+        dedupe: "transaction",
+      }),
+    ).toThrow(/needs a generated broadcast function/);
   });
 });
 
@@ -116,7 +121,8 @@ describe(
         return null;
       end $f$;
       create trigger audit_tasks after update on public.tasks for each row execute function public.audit_tasks();
-      ${audit()}
+      ${BROADCAST_ONCE_SQL}
+        ${audit()}
     `);
     });
 
@@ -190,6 +196,19 @@ describe(
     `);
 
       expect(await count()).toEqual({ "org:a:changes": 1 });
+    });
+
+    it("compares only the key fields when they are given", async () => {
+      await run("delete from realtime.messages");
+      await run(`
+      begin;
+      select better_supabase.broadcast_once('{"a": 1, "id": 1}', 'e', 'keyed', true, array['a']);
+      select better_supabase.broadcast_once('{"a": 1, "id": 2}', 'e', 'keyed', true, array['a']);
+      select better_supabase.broadcast_once('{"a": 2, "id": 3}', 'e', 'keyed', true, array['a']);
+      commit;
+    `);
+
+      expect(await count()).toEqual({ keyed: 2 });
     });
   },
 );

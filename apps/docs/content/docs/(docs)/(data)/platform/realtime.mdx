@@ -315,30 +315,40 @@ still get the change.
 
 A bulk write fires a row trigger once per row, so updating 500 rows sends 500
 messages, and so does a table such as an audit log that another trigger fills
-row by row. `dedupe: "transaction"` sends each message once per transaction:
-the function hashes the topic, the event and the payload, keeps the hashes in
-a transaction-local setting, and skips a row whose hash it has already sent.
-A commit or rollback clears the setting, so nothing carries over to the next
-transaction or to another client on a pooled connection, and a rolled-back
-transaction sends nothing. It writes no rows and holds no locks.
+row by row. A trigger in `database.realtime.triggers`, or a `broadcast` entry
+of a topic, takes `dedupe: "transaction"` to send each message once per
+transaction. `upgrade` writes its function with
+`better_supabase.broadcast_once()` in place of `realtime.send()`, and writes
+`broadcast_once()` itself into the same file. It hashes the topic, the event
+and the payload, keeps the hashes in a transaction-local setting, and skips a
+message whose hash it has already sent. A commit or rollback clears the
+setting, so nothing carries over to the next transaction or to another client
+on a pooled connection, and a rolled-back transaction sends nothing. It writes
+no rows and holds no locks.
 
 `dedupeKey` names the payload fields that tell two messages apart, next to the
 topic and the event. Without it the whole payload counts, so leave out a
 field that differs per row, such as the default payload's `id`:
 
-```ts
-changesTopic.trigger("public.audit_logs", {
-  events: ["insert"],
-  event: "changed",
-  payload: { actor_id: "actor_id", category: "category", source: "source" },
-  dedupe: "transaction",
-});
+```ts title="better-supabase.config.ts"
+triggers: [
+  {
+    topic: "org:{organizationId}:changes",
+    table: "public.audit_logs",
+    events: ["insert"],
+    event: "changed",
+    payload: { actor_id: "actor_id", category: "category", source: "source" },
+    dedupe: "transaction",
+  },
+],
 ```
 
 Inserting 500 audit rows for one organization, actor and category in one
 transaction sends one message; a second actor or a second transaction sends
 another. A transaction that writes many thousands of distinct keys keeps a
 hash per key in the setting, so dedupe pays off when the keys repeat.
+`topic.trigger()` doesn't take `dedupe`, which keeps the SQL out of browser
+bundles; `upgrade` applies it.
 
 ### Deletes and cascades
 

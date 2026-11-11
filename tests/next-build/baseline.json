@@ -80,7 +80,7 @@
     "brotli": 364543
   },
   "/[locale]/(app)/chat/page": {
-    "raw": 1384916,
+    "raw": 1383985,
     "gzip": 438968,
     "brotli": 383513
   },
@@ -155,7 +155,7 @@
     "brotli": 382399
   },
   "/[locale]/(app)/documents/[id]/page": {
-    "raw": 1408926,
+    "raw": 1407995,
     "gzip": 441839,
     "brotli": 386335
   },
@@ -485,12 +485,12 @@
     "brotli": 375728
   },
   "/[locale]/(app)/shop/kitchen/board/page": {
-    "raw": 1348583,
+    "raw": 1347656,
     "gzip": 426865,
     "brotli": 373068
   },
   "/[locale]/(app)/shop/kitchen/page": {
-    "raw": 1287284,
+    "raw": 1286356,
     "gzip": 406605,
     "brotli": 355010
   },

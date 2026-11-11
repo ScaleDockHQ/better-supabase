@@ -37,15 +37,7 @@ interface TriggerFunctionSql {
    * trigger's `WHEN` clause; otherwise an UPDATE that fails it returns early.
    */
   readonly changed?: { readonly sql: string; readonly when: boolean };
-  /**
-   * Send each topic, event and payload once per transaction. `key` narrows the
-   * payload to these fields when comparing.
-   */
-  readonly dedupe?: { readonly key?: readonly string[] };
 }
-
-/** The transaction-local setting that holds the hashes of sent messages. */
-export const DEDUPE_SETTING: string = "better_supabase.broadcast_sent";
 
 /** The start of the warning a delete raises when a lookup finds no row. */
 export const LOOKUP_WARNING: string =
@@ -124,10 +116,7 @@ function payloadSql(payload: TriggerPayloadSql): string {
 /**
  * A function and row trigger that send one row change to each topic. A topic
  * with a null value is skipped; one with a value topics don't allow is skipped
- * with a warning, so the write still commits. With `dedupe`, a message whose
- * topic, event and key were already sent in this transaction is skipped: the
- * hashes live in a transaction-local setting, which a commit or rollback
- * clears.
+ * with a warning, so the write still commits.
  */
 export function triggerFunctionSql(input: TriggerFunctionSql): string {
   const fn = `${sqlIdent(input.functionSchema)}.${sqlIdent(input.functionName)}`;
@@ -154,17 +143,6 @@ export function triggerFunctionSql(input: TriggerFunctionSql): string {
         ]
       : [];
 
-  const key = input.dedupe?.key;
-
-  const dedupe =
-    input.dedupe === undefined
-      ? undefined
-      : key === undefined
-        ? "msg"
-        : `jsonb_build_object(${key.map((field) => `${sqlString(field)}, msg -> ${sqlString(field)}`).join(", ")})`;
-
-  const setting = sqlString(DEDUPE_SETTING);
-
   const sends = input.topics.flatMap((topic) => {
     const entries = Object.entries(topic.values);
 
@@ -175,8 +153,6 @@ export function triggerFunctionSql(input: TriggerFunctionSql): string {
             .map(([param, value]) => `${sqlString(param)}, (${value})::text`)
             .join(", ")})`;
 
-    const send = `perform realtime.send(${dedupe ? "msg" : payload}, ${input.event}, ${topicSql(topic.template)}, ${String(topic.private)});`;
-
     return [
       `  -- ${topic.template}`,
       `  vals := ${vals};`,
@@ -184,16 +160,7 @@ export function triggerFunctionSql(input: TriggerFunctionSql): string {
       "    where e.value is null or e.value !~ '^[\\w.@+=-]+$'",
       "    order by e.value is null desc limit 1;",
       "  if not found then",
-      ...(dedupe
-        ? [
-            `    msg := ${payload};`,
-            `    sent := md5(jsonb_build_array(${topicSql(topic.template)}, ${input.event}, ${dedupe})::text);`,
-            `    if strpos(coalesce(current_setting(${setting}, true), ''), sent) = 0 then`,
-            `      perform set_config(${setting}, coalesce(current_setting(${setting}, true), '') || sent || ' ', true);`,
-            `      ${send}`,
-            "    end if;",
-          ]
-        : [`    ${send}`]),
+      `    perform realtime.send(${payload}, ${input.event}, ${topicSql(topic.template)}, ${String(topic.private)});`,
       "  elsif bad.value is not null then",
       `    raise warning 'skipped the broadcast on %: topic value % of %.%.% contains characters topics do not allow', ${sqlString(topic.template)}, bad.value, tg_table_schema, tg_table_name, bad.key;`,
       "  end if;",
@@ -214,7 +181,6 @@ export function triggerFunctionSql(input: TriggerFunctionSql): string {
     "  vals jsonb;",
     "  bad record;",
     ...(input.payload.kind === "custom" ? ["  body jsonb;"] : []),
-    ...(dedupe ? ["  msg jsonb;", "  sent text;"] : []),
     ...declarations,
     "begin",
     "  if tg_when <> 'AFTER' then",
