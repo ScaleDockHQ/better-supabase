@@ -607,6 +607,21 @@ msgctxt "people.w4O5ud"
 msgid "Openings and their candidates by interview stage."
 msgstr "Openings and their candidates by interview stage."
 
+#: src/app/[locale]/(app)/people/leave/[id]/page.tsx
+msgctxt "people.RtbAu5"
+msgid "All leave"
+msgstr "All leave"
+
+#: src/app/[locale]/(app)/people/leave/page.tsx
+msgctxt "people.fnihsY"
+msgid "Leave"
+msgstr "Leave"
+
+#: src/app/[locale]/(app)/people/leave/page.tsx
+msgctxt "people.X6M2Jq"
+msgid "Time off by type, requests approved by a manager, and your balances."
+msgstr "Time off by type, requests approved by a manager, and your balances."
+
 #: src/app/[locale]/(app)/people/page.tsx
 msgctxt "people.Tpy00S"
 msgid "People"
@@ -9851,6 +9866,246 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nothing matches yet. A new document is searchable once it is ready."
 
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.yPz9pN"
+msgid "Leave approved"
+msgstr "Leave approved"
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.TuojOb"
+msgid "Leave rejected"
+msgstr "Leave rejected"
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.-WlnTr"
+msgid "Leave cancelled"
+msgstr "Leave cancelled"
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.WCaf5C"
+msgid "Approve"
+msgstr "Approve"
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.VzIOKf"
+msgid "Reject"
+msgstr "Reject"
+
+#: src/features/leave/components/leave-decision.tsx
+msgctxt "people.biq8aT"
+msgid "Cancel request"
+msgstr "Cancel request"
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.sM61xn"
+msgid "This leave request didn't load"
+msgstr "This leave request didn't load"
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.H5-NAX"
+msgid "Balance"
+msgstr "Balance"
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.TuODKn"
+msgid "This type isn't tracked against a balance."
+msgstr "This type isn't tracked against a balance."
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.UjLMLI"
+msgid "{available} {unit} available"
+msgstr "{available} {unit} available"
+
+#: src/features/leave/components/leave-detail.tsx
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.p1P-hQ"
+msgid "Request"
+msgstr "Request"
+
+#: src/features/leave/components/leave-detail.tsx
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people._0TOL5"
+msgid "Amount"
+msgstr "Amount"
+
+#: src/features/leave/components/leave-detail.tsx
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.qMePPG"
+msgid "Note"
+msgstr "Note"
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.scwekL"
+msgid "Ledger"
+msgstr "Ledger"
+
+#: src/features/leave/components/leave-detail.tsx
+msgctxt "people.Xypua0"
+msgid "Nothing is booked until the request is approved."
+msgstr "Nothing is booked until the request is approved."
+
+#: src/features/leave/components/leave-overview.tsx
+msgctxt "people.-eTI8w"
+msgid "Leave didn't load"
+msgstr "Leave didn't load"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.rCrCme"
+msgid "{amount} h"
+msgstr "{amount} h"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.VovTji"
+msgid "{amount} d"
+msgstr "{amount} d"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.o8KenS"
+msgid "Who"
+msgstr "Who"
+
+#: src/features/leave/components/leave-record-list.tsx
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.D6b0Au"
+msgid "Dates"
+msgstr "Dates"
+
+#: src/features/leave/components/leave-record-list.tsx
+#: src/features/people/components/employee-table.tsx
+msgctxt "people.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.zBHBco"
+msgid "Latest start"
+msgstr "Latest start"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.WP_0ih"
+msgid "Latest end"
+msgstr "Latest end"
+
+#: src/features/leave/components/leave-record-list.tsx
+#: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/employee-table.tsx
+msgctxt "people.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.169voX"
+msgid "Search leave"
+msgstr "Search leave"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people.EjRYCx"
+msgid "No leave found"
+msgstr "No leave found"
+
+#: src/features/leave/components/leave-record-list.tsx
+msgctxt "people._MTwuH"
+msgid "Request leave, or change the filters."
+msgstr "Request leave, or change the filters."
+
+#: src/features/leave/components/leave-status.tsx
+msgctxt "people.eKEL_g"
+msgid "Pending"
+msgstr "Pending"
+
+#: src/features/leave/components/leave-status.tsx
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/leave/components/leave-status.tsx
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.5qaD7s"
+msgid "Rejected"
+msgstr "Rejected"
+
+#: src/features/leave/components/leave-status.tsx
+msgctxt "people.3wsVWF"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.JnfIJA"
+msgid "Leave requested for {amount} days"
+msgstr "Leave requested for {amount} days"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.U7O43u"
+msgid "Whole days"
+msgstr "Whole days"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people._kzk_m"
+msgid "Morning"
+msgstr "Morning"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.mF-J9o"
+msgid "Afternoon"
+msgstr "Afternoon"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.0mCWLj"
+msgid "Request leave"
+msgstr "Request leave"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.AhMZc-"
+msgid "A manager approves the request. Working days are counted for you."
+msgstr "A manager approves the request. Working days are counted for you."
+
+#: src/features/leave/components/request-leave-dialog.tsx
+#: src/features/people/components/log-time-dialog.tsx
+msgctxt "people.dM-p3_"
+msgid "From"
+msgstr "From"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+#: src/features/people/components/log-time-dialog.tsx
+msgctxt "people.9j3hXO"
+msgid "To"
+msgstr "To"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.kgMIFw"
+msgid "Leave empty for one day."
+msgstr "Leave empty for one day."
+
+#: src/features/leave/components/request-leave-dialog.tsx
+msgctxt "people.pVQj2-"
+msgid "Part of the day"
+msgstr "Part of the day"
+
+#: src/features/leave/components/request-leave-dialog.tsx
+#: src/features/people/components/add-candidate-dialog.tsx
+#: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/create-opening-dialog.tsx
+#: src/features/people/components/log-time-dialog.tsx
+msgctxt "people.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/leave/components/set-up-leave-button.tsx
+msgctxt "people.qGpe0B"
+msgid "Leave types created"
+msgstr "Leave types created"
+
+#: src/features/leave/components/set-up-leave-button.tsx
+msgctxt "people.3N5ht9"
+msgid "Set up leave types"
+msgstr "Set up leave types"
+
 #: src/features/legal-entities/components/legal-entity-sections.tsx
 msgctxt "legal-entities.UybXB6"
 msgid "Records without a legal entity belong to the default one. Settings fall back from the entity to the organization."
@@ -12038,14 +12293,6 @@ msgstr "Candidates are customer records for now."
 
 #: src/features/people/components/add-candidate-dialog.tsx
 #: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/create-opening-dialog.tsx
-#: src/features/people/components/log-time-dialog.tsx
-msgctxt "people.47FYwb"
-msgid "Cancel"
-msgstr "Cancel"
-
-#: src/features/people/components/add-candidate-dialog.tsx
-#: src/features/people/components/add-employee-dialog.tsx
 msgctxt "people.2_2yg-"
 msgid "Add"
 msgstr "Add"
@@ -12069,12 +12316,6 @@ msgstr "Add employee"
 msgctxt "people.rlzij2"
 msgid "They start as preboarding until their start date."
 msgstr "They start as preboarding until their start date."
-
-#: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.HAlOn1"
-msgid "Name"
-msgstr "Name"
 
 #: src/features/people/components/add-employee-dialog.tsx
 msgctxt "people.HHRIuR"
@@ -12256,11 +12497,6 @@ msgid "Reports to"
 msgstr "Reports to"
 
 #: src/features/people/components/employee-table.tsx
-msgctxt "people.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/people/components/employee-table.tsx
 msgctxt "people.Ppx673"
 msgid "Reports"
 msgstr "Reports"
@@ -12353,16 +12589,6 @@ msgid "Day"
 msgstr "Day"
 
 #: src/features/people/components/log-time-dialog.tsx
-msgctxt "people.dM-p3_"
-msgid "From"
-msgstr "From"
-
-#: src/features/people/components/log-time-dialog.tsx
-msgctxt "people.9j3hXO"
-msgid "To"
-msgstr "To"
-
-#: src/features/people/components/log-time-dialog.tsx
 #: src/features/people/components/timesheet.tsx
 msgctxt "people.cwvEov"
 msgid "Billable"
@@ -12453,16 +12679,6 @@ msgstr "Open"
 msgctxt "people.raexxM"
 msgid "Submitted"
 msgstr "Submitted"
-
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.6XFO_C"
-msgid "Approved"
-msgstr "Approved"
-
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.5qaD7s"
-msgid "Rejected"
-msgstr "Rejected"
 
 #: src/features/people/components/timesheet.tsx
 msgctxt "people.wa4-aS"

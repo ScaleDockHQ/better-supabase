@@ -56,6 +56,12 @@ export const serviceConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `people` instance's config slice. */
+export const peopleConfig = {
+  schema: "better_supabase",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `recruiting` instance's config slice. */
 export const recruitingConfig = {
   schema: "better_supabase",
@@ -296,6 +302,13 @@ export const dealsConfig = {
 
 /** The `documents` instance's config slice. */
 export const documentsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `leave` instance's config slice. */
+export const leaveConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},

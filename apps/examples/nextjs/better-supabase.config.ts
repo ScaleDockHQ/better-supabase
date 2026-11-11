@@ -466,6 +466,9 @@ export default defineConfig({
     relations: {},
     employees: { names: { employee: { url: "/people" } } },
     hiring: {},
+    // Time off behind /people/leave: types, requests approved through the
+    // approvals block, and balances on the ledger.
+    leave: {},
     // Time is logged on companies and projects only.
     "time-entries": { options: { on: ["company", "project"] } },
     // Fixed deposit invoices and a discount on the invoice header.

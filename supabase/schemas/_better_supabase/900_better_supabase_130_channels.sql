@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:e9f44f33ea82bda1c1fa83167c436b3a38c92d15ea3d51e037b93a104d9f01db
+-- @bsb-hash sha256:c97a088cf909c241ebe59d0dece2c5bd01d07008cc7d20ec50ff89e1302e1d01
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,8 +87,8 @@ begin
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
-      when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)

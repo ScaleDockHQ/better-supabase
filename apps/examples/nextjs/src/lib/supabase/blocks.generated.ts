@@ -29,6 +29,7 @@ import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
 import type { DataLifecycleEvents } from "better-supabase/blocks/data-lifecycle";
 import type { DealsEvents } from "better-supabase/blocks/deals";
 import type { DocumentsEvents } from "better-supabase/blocks/documents";
+import type { LeaveEvents } from "better-supabase/blocks/leave";
 import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { AssetsEvents } from "better-supabase/blocks/assets";
 import type { ScoresEvents } from "better-supabase/blocks/scores";
@@ -136,6 +137,7 @@ import { financeBlock as financeBlockInstance } from "better-supabase/blocks/fin
 import { supportBlock as supportBlockInstance } from "better-supabase/blocks/support";
 import { projectsBlock as projectsBlockInstance } from "better-supabase/blocks/projects";
 import { serviceBlock as serviceBlockInstance } from "better-supabase/blocks/service";
+import { peopleBlock as peopleBlockInstance } from "better-supabase/blocks/people";
 import { recruitingBlock as recruitingBlockInstance } from "better-supabase/blocks/recruiting";
 import { schedulingBlock as schedulingBlockInstance } from "better-supabase/blocks/scheduling";
 import { learningBlock as learningBlockInstance } from "better-supabase/blocks/learning";
@@ -169,6 +171,7 @@ import { customFieldsBlock as customFieldsBlockInstance } from "better-supabase/
 import { dataLifecycleBlock as dataLifecycleBlockInstance } from "better-supabase/blocks/data-lifecycle";
 import { dealsBlock as dealsBlockInstance } from "better-supabase/blocks/deals";
 import { documentsBlock as documentsBlockInstance } from "better-supabase/blocks/documents";
+import { leaveBlock as leaveBlockInstance } from "better-supabase/blocks/leave";
 import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledger";
 import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
 import { scoresBlock as scoresBlockInstance } from "better-supabase/blocks/scores";
@@ -310,6 +313,7 @@ export const blocks = {
   support: supportBlockInstance,
   projects: projectsBlockInstance,
   service: serviceBlockInstance,
+  people: peopleBlockInstance,
   recruiting: recruitingBlockInstance,
   scheduling: schedulingBlockInstance,
   learning: learningBlockInstance,
@@ -343,6 +347,7 @@ export const blocks = {
   "data-lifecycle": dataLifecycleBlockInstance,
   deals: dealsBlockInstance,
   documents: documentsBlockInstance,
+  leave: leaveBlockInstance,
   ledger: ledgerBlockInstance,
   assets: assetsBlockInstance,
   scores: scoresBlockInstance,
@@ -485,7 +490,7 @@ export const appTableEventSchemas = {
 } as const;
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -893,6 +898,13 @@ export const blockEvents: Events<BlockEvents> = {
     "lease.paid",
     "lease.renewed",
     "lease.terminated",
+    "leave_balance.adjusted",
+    "leave_request.approved",
+    "leave_request.cancelled",
+    "leave_request.rejected",
+    "leave_request.requested",
+    "leave_request.split",
+    "leave_request.updated",
     "ledger_account.closed",
     "ledger_account.opened",
     "ledger_hold.captured",
@@ -1661,6 +1673,13 @@ export const blockEventSchemas = {
   "lease.paid": true,
   "lease.renewed": true,
   "lease.terminated": true,
+  "leave_balance.adjusted": true,
+  "leave_request.approved": true,
+  "leave_request.cancelled": true,
+  "leave_request.rejected": true,
+  "leave_request.requested": true,
+  "leave_request.split": true,
+  "leave_request.updated": true,
   "ledger_account.closed": true,
   "ledger_account.opened": true,
   "ledger_hold.captured": true,

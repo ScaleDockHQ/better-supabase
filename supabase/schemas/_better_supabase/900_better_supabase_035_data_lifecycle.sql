@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:81e14cb80c8f6967c2ce4ce376f3ced71cb9a3612aefaf88b9b2a66e1eeda67a
+-- @bsb-hash sha256:c18fcbbb44a1f372fb83797cb4bc9bd8802550abaec0bb225c5d7b1c13d1eee0
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -967,6 +967,7 @@ as $$
     ('user', 'better_supabase.moderation_notices', '"better_supabase"."moderation_notices"', 'notifier_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_flaggers', '"better_supabase"."moderation_flaggers"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_appeals', '"better_supabase"."moderation_appeals"', 'appellant_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.leave_requests', '"better_supabase"."leave_requests"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.assets', '"better_supabase"."assets"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.score_models', '"better_supabase"."score_models"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.score_model_versions', '"better_supabase"."score_model_versions"', 'saved_by', true, '{}'::text[], true),
@@ -1313,6 +1314,8 @@ as $$
     ('organization', 'better_supabase.moderation_notices', '"better_supabase"."moderation_notices"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_flaggers', '"better_supabase"."moderation_flaggers"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_appeals', '"better_supabase"."moderation_appeals"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.leave_types', '"better_supabase"."leave_types"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.leave_requests', '"better_supabase"."leave_requests"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.automations', '"better_supabase"."automations"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.automation_versions', '"better_supabase"."automation_versions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.automation_evaluations', '"better_supabase"."automation_evaluations"', 'tenant_id', true, '{}'::text[], true),
@@ -1810,17 +1813,17 @@ begin
       v_name := 'better_supabase.employees';
       v_reveal := 'employees_reveal';
       v_reveal_schema := 'better_supabase';
-    when 'invoice' then
-      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
-      from "better_supabase"."invoices" s where s."id" = (request_subject_export.subject_id)::uuid;
-      v_name := 'better_supabase.invoices';
-      v_reveal := 'invoices_reveal';
-      v_reveal_schema := 'better_supabase';
     when 'ledger_account' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
       from "better_supabase"."ledger_accounts" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.ledger_accounts';
       v_reveal := 'ledger_accounts_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'invoice' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."invoices" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.invoices';
+      v_reveal := 'invoices_reveal';
       v_reveal_schema := 'better_supabase';
     when 'product' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant

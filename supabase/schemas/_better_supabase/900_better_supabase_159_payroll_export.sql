@@ -1,6 +1,6 @@
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:ea2c2dafc58c9c917d147d17802271814bfe76f1386513483dbec00bcf7ba99d
+-- @bsb-hash sha256:c84900c0b942971b25c81081bd3925f8df536f1b369f7bf163a1888b49861177
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,6 +94,17 @@ begin
     and (x."started_at" at time zone 'UTC')::date between v_run."period_from" and v_run."period_to"
   group by x."user_id"
   having sum(extract(epoch from x."ended_at" - x."started_at")) > 0;
+  get diagnostics v_added = row_count;
+  v_count := v_count + v_added;
+  insert into "better_supabase"."payroll_lines" ("tenant_id", "run_id", "user_id", "employee_id", "kind", "code", "paid", "unit", "quantity", "source_count")
+  select v_run."tenant_id", v_run."id", q."user_id", null::uuid, 'leave', t."key", t."paid",
+    case when t."unit" = 'hours' then 'hours' else 'days' end, sum(q."amount"), count(*)
+  from "better_supabase"."leave_requests" q
+  join "better_supabase"."leave_types" t on t."id" = q."type_id"
+  where q."tenant_id" = v_run."tenant_id"
+    and q."approved_at" is not null and q."cancelled_at" is null
+    and q."starts_on" between v_run."period_from" and v_run."period_to"
+  group by q."user_id", t."key", t."paid", t."unit";
   get diagnostics v_added = row_count;
   v_count := v_count + v_added;
   update "better_supabase"."payroll_lines" x
