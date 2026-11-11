@@ -18,10 +18,10 @@ bytes only. Gzip and brotli stayed inside their slack. The library build, `pnpm 
 Both increases come from the list code 818 added on purpose, so the baselines move to the measured
 values and no guard changes.
 
-| Guard                               | Before  | After                  | Cause                                                              |
-| ----------------------------------- | ------- | ---------------------- | ------------------------------------------------------------------ |
-| First Load JS, customers page (raw) | 1349637 | 1350613 (+976)         | the customers list carries the facet, free sort and bucket options |
-| Server chunks, 155 routes (raw)     | varies  | +595 to +717 per route | the shared list code gained the same options                       |
+| Guard                               | Before  | After                    | Cause                                                              |
+| ----------------------------------- | ------- | ------------------------ | ------------------------------------------------------------------ |
+| First Load JS, customers page (raw) | 1349637 | 1350613 (+976)           | the customers list carries the facet, free sort and bucket options |
+| Server chunks, 155 routes (raw)     | varies  | +1024 to +1229 per route | the shared list code gained the same options                       |
 
 Every other baseline stays as it is.
 
