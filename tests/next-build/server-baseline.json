@@ -717,17 +717,17 @@
   "/api/chat/[id]/participants/route": {
     "raw": 1740565,
     "gzip": 527401,
-    "brotli": 456200
+    "brotli": 457411
   },
   "/api/chat/[id]/stop/route": {
     "raw": 1740043,
     "gzip": 527255,
-    "brotli": 456062
+    "brotli": 457284
   },
   "/api/chat/[id]/stream/route": {
     "raw": 1740066,
     "gzip": 527261,
-    "brotli": 456061
+    "brotli": 457276
   },
   "/api/chat/durable/[id]/stop/route": {
     "raw": 3346702,
@@ -747,7 +747,7 @@
   "/api/chat/route": {
     "raw": 1739991,
     "gzip": 527235,
-    "brotli": 456040
+    "brotli": 457263
   },
   "/api/customers/[id]/fhir/route": {
     "raw": 2329728,
