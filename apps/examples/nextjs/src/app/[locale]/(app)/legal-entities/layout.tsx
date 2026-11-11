@@ -4,7 +4,11 @@ import { NextIntlClientProvider, useMessages } from "next-intl";
 
 import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
 
-export default function LegalEntitiesLayout({ children }: { children: ReactNode }) {
+export default function LegalEntitiesLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const messages = useMessages();
 
   return (

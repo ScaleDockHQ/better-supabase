@@ -13,7 +13,8 @@ export default function BankingLayout({ children }: { children: ReactNode }) {
         ...APP_NAMESPACES,
         "finance",
         "recordDetail",
-        "recordList", "banking",
+        "recordList",
+        "banking",
       ])}
     >
       {children}
