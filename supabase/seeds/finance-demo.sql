@@ -137,3 +137,73 @@ begin
   end loop;
 end
 $seed$;
+
+-- Ledger, journal, recognition and funding rows for the finance pages.
+do $seed2$
+declare
+  t constant uuid := '00000000-0000-4000-8000-000000000001';
+  cash uuid := gen_random_uuid();
+  rev uuid := gen_random_uuid();
+  tx uuid;
+  g integer;
+  jr uuid := gen_random_uuid();
+  a_bank uuid := gen_random_uuid();
+  a_rev uuid := gen_random_uuid();
+  ent uuid;
+  per uuid := gen_random_uuid();
+  sched uuid;
+  prod uuid := gen_random_uuid();
+  award uuid;
+begin
+  insert into better_supabase.ledger_accounts (id, tenant_id, kind, code, name, unit, allow_negative)
+  values (cash, t, 'cash', 'demo-cash', 'Demo cash', 'EUR', true),
+         (rev, t, 'revenue', 'demo-revenue', 'Demo revenue', 'EUR', true);
+
+  for g in 1..6 loop
+    tx := gen_random_uuid();
+    insert into better_supabase.ledger_transactions (id, tenant_id, kind, reference_type, reference_id, memo, effective_at)
+    values (tx, t, 'payment', 'invoice', 'INV-' || lpad(g::text, 4, '0'), 'Payment received ' || g, now() - (g || ' days')::interval);
+    insert into better_supabase.ledger_entries (tenant_id, transaction_id, account_id, amount, unit, effective_at)
+    values (t, tx, cash, 100000 * g, 'EUR', now() - (g || ' days')::interval),
+           (t, tx, rev, -100000 * g, 'EUR', now() - (g || ' days')::interval);
+  end loop;
+
+  insert into better_supabase.accounting_accounts (id, tenant_id, code, name, type, normal_side, currency)
+  values (a_bank, t, '1100', 'Bank', 'asset', 'debit', 'EUR'),
+         (a_rev, t, '8000', 'Revenue', 'income', 'credit', 'EUR');
+  insert into better_supabase.accounting_journals (id, tenant_id, code, name, type, currency)
+  values (jr, t, 'GEN', 'General journal', 'general', 'EUR');
+  insert into better_supabase.accounting_periods (id, tenant_id, fiscal_year, number, starts_on, ends_on)
+  values (per, t, extract(year from now())::int, 1, date_trunc('year', now())::date, (date_trunc('year', now()) + interval '1 year - 1 day')::date);
+
+  for g in 1..4 loop
+    ent := gen_random_uuid();
+    insert into better_supabase.accounting_entries (id, tenant_id, journal_id, fiscal_year, sequence, entry_date, status, reference, memo)
+    values (ent, t, jr, extract(year from now())::int, g, current_date - g, 'draft', 'REF-' || g, 'Sales booking ' || g);
+    insert into better_supabase.accounting_entry_lines (tenant_id, entry_id, position, account_id, debit, credit, currency, amount_currency)
+    values (t, ent, 1, a_bank, 250000 * g, 0, 'EUR', 250000 * g),
+           (t, ent, 2, a_rev, 0, 250000 * g, 'EUR', -250000 * g);
+    update better_supabase.accounting_entries
+    set status = 'posted', number = 'GEN-' || lpad(g::text, 4, '0'), period_id = per, posted_at = now()
+    where id = ent;
+  end loop;
+
+  sched := gen_random_uuid();
+  insert into better_supabase.accounting_recognition_schedules (id, tenant_id, source_type, source_id, line_ref, amount, currency, starts_on, ends_on)
+  values (sched, t, 'invoice', 'INV-0001', '1', 1200000, 'EUR', current_date - 60, current_date + 300);
+  for g in 0..11 loop
+    insert into better_supabase.accounting_recognition_rows (schedule_id, tenant_id, due_on, amount, status)
+    values (sched, t, current_date - 60 + g * 30, 100000, case when g < 2 then 'posted' else 'pending' end);
+  end loop;
+
+  insert into better_supabase.funding_products (id, tenant_id, code, title, unit, rate, currency)
+  values (prod, t, 'CARE-H', 'Care hour', 'hour', 4500, 'EUR');
+  for g in 1..3 loop
+    award := gen_random_uuid();
+    insert into better_supabase.funding_awards (id, tenant_id, subject_type, subject_id, funder_id, product_id, units, period, starts_on, reference, status)
+    values (award, t, 'customer', (select id::text from public.customers where organization_id = t order by created_at offset (g - 1) % 2 limit 1), gen_random_uuid(), prod, 20 * g, 'month', current_date - 30, 'AWD-' || g, case when g = 3 then 'requested' else 'active' end);
+    insert into better_supabase.funding_deliveries (tenant_id, award_id, delivered_on, units, status)
+    values (t, award, current_date - 3, 2 * g, 'approved');
+  end loop;
+end
+$seed2$;

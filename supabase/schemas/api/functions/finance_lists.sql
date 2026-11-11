@@ -483,3 +483,17 @@ revoke all on function api.finance_list(text, uuid, text, jsonb, text, text, int
 grant execute on function api.finance_list(text, uuid, text, jsonb, text, text, integer) to authenticated;
 revoke all on function api.finance_detail(text, uuid, uuid) from public, anon;
 grant execute on function api.finance_detail(text, uuid, uuid) to authenticated;
+
+-- The recurring list reads the accounting block's recognition schedules, which
+-- the block keeps behind its own functions. These read policies let a caller
+-- with accounting.read list them; writes stay with the block's functions.
+grant select on better_supabase.accounting_recognition_schedules to authenticated;
+grant select on better_supabase.accounting_recognition_rows to authenticated;
+
+create policy finance_recognition_schedules_read on better_supabase.accounting_recognition_schedules
+  for select to authenticated
+  using (tenant_id in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create policy finance_recognition_rows_read on better_supabase.accounting_recognition_rows
+  for select to authenticated
+  using (tenant_id in (select better_supabase.tenant_ids_with('accounting.read')));
