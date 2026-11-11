@@ -1,4 +1,4 @@
-# 0676: Move server importers onto the core and shell block sets, and ask read set gates in one wave
+# 0677: Move server importers onto the core and shell block sets, and ask read set gates in one wave
 
 - Status: accepted
 - Date: 2026-11-11
