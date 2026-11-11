@@ -2442,7 +2442,7 @@
   },
   {
     "code": "IMPORT_DOCUMENT_CHANGED",
-    "message": "the source document changed after it was imported; an imported document is kept as imported, so void or credit it and import the correction as a new document"
+    "message": "a fulfilled or released stock allocation is kept as imported"
   },
   {
     "code": "IMPORT_FORBIDDEN",
@@ -2738,6 +2738,10 @@
     "message": "a lot-tracked variant receives stock into a lot"
   },
   {
+    "code": "INVENTORY_OVER_CANCEL",
+    "message": "a line would cancel more than it still owes"
+  },
+  {
     "code": "INVENTORY_OVER_RECEIPT",
     "message": "a line would receive more than was ordered"
   },
@@ -2748,6 +2752,14 @@
   {
     "code": "INVENTORY_PURCHASE_ORDER_NOT_FOUND",
     "message": "purchase order not found"
+  },
+  {
+    "code": "INVENTORY_PURCHASE_ORDER_NUMBER_INVALID",
+    "message": "a purchase order number is up to 50 characters"
+  },
+  {
+    "code": "INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN",
+    "message": "another purchase order has this number"
   },
   {
     "code": "INVENTORY_PURCHASE_ORDER_STATUS",
