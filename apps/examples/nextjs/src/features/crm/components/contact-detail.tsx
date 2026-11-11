@@ -3,6 +3,7 @@ import { getExtracted } from "next-intl/server";
 import { forbidden, notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { AfterNavigation } from "@/components/record-detail/after-navigation";
 import { Badge } from "@/components/reui/badge";
 import {
   Card,
@@ -20,6 +21,10 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ContactSalesPanel,
+  ContactSalesPanelSkeleton,
+} from "@/features/sales/components/contact-sales-panel";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
@@ -117,7 +122,16 @@ export async function ContactDetail({ id }: { id: string }) {
           </CardContent>
         </Card>
         <Suspense fallback={<ActivityTimelineSkeleton />}>
-          <ActivityTimeline subject={{ type: contact.kind, id: contact.id }} />
+          <AfterNavigation>
+            <ActivityTimeline
+              subject={{ type: contact.kind, id: contact.id }}
+            />
+          </AfterNavigation>
+        </Suspense>
+        <Suspense fallback={<ContactSalesPanelSkeleton />}>
+          <AfterNavigation>
+            <ContactSalesPanel type={contact.kind} id={contact.id} />
+          </AfterNavigation>
         </Suspense>
       </div>
       {contact.kind === "company" ? (

@@ -20,6 +20,16 @@ export type NavId =
   | "deals"
   | "sequences"
   | "quotes"
+  | "salesHome"
+  | "pipelines"
+  | "forecasts"
+  | "segments"
+  | "queues"
+  | "scoring"
+  | "contracts"
+  | "commissions"
+  | "referrals"
+  | "customerSuccess"
   | "shop"
   | "inventory"
   | "manufacturing"
@@ -173,6 +183,61 @@ export const navItems: readonly NavItem[] = [
     requires: "sequences.read",
   },
   { id: "quotes", href: "/crm/quotes", area: "sales", requires: "quotes.read" },
+  { id: "salesHome", href: "/crm", area: "sales", requires: "deals.read" },
+  {
+    id: "pipelines",
+    href: "/crm/pipelines",
+    area: "sales",
+    requires: "pipelines.read",
+  },
+  {
+    id: "forecasts",
+    href: "/crm/forecasts",
+    area: "sales",
+    requires: "forecasts.read",
+  },
+  {
+    id: "segments",
+    href: "/crm/segments",
+    area: "sales",
+    requires: "segments.read",
+  },
+  {
+    id: "queues",
+    href: "/crm/queues",
+    area: "sales",
+    requires: "assignment.read",
+  },
+  {
+    id: "scoring",
+    href: "/crm/scoring",
+    area: "sales",
+    requires: "scores.read",
+  },
+  {
+    id: "contracts",
+    href: "/crm/contracts",
+    area: "sales",
+    requires: "contracts.read",
+  },
+  {
+    id: "commissions",
+    href: "/crm/commissions",
+    area: "sales",
+    requires: "commissions.read",
+  },
+  {
+    id: "referrals",
+    href: "/crm/referrals",
+    area: "sales",
+    requires: "referrals.read",
+  },
+  {
+    id: "customerSuccess",
+    href: "/crm/success",
+    area: "sales",
+    requires: "scores.read",
+  },
   { id: "shop", href: "/shop", area: "commerce", requires: "catalog.read" },
   {
     id: "inventory",

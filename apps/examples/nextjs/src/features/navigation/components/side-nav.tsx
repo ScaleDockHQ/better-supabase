@@ -1,6 +1,10 @@
 import type { LucideIcon } from "lucide-react";
 
 import {
+  GiftIcon,
+  GitForkIcon,
+  ListOrderedIcon,
+  TargetIcon,
   BanknoteIcon,
   ActivityIcon,
   HeartPulseIcon,
@@ -112,6 +116,16 @@ const ICONS = {
   deals: KanbanIcon,
   sequences: SendIcon,
   quotes: FileTextIcon,
+  salesHome: LayoutDashboardIcon,
+  pipelines: GitForkIcon,
+  forecasts: CalendarClockIcon,
+  segments: UsersRoundIcon,
+  queues: ListOrderedIcon,
+  scoring: TargetIcon,
+  contracts: FileSignatureIcon,
+  commissions: HandCoinsIcon,
+  referrals: GiftIcon,
+  customerSuccess: HeartPulseIcon,
   shop: StoreIcon,
   inventory: BoxesIcon,
   manufacturing: FactoryIcon,

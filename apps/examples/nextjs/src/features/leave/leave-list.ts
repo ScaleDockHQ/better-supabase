@@ -1,4 +1,4 @@
-import type { BlockListSpec } from "@/lib/block-list";
+import type { BlockListSpec } from "@/lib/array-list";
 
 import { defineBlockList } from "@/lib/block-list";
 

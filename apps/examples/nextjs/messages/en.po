@@ -194,6 +194,32 @@ msgctxt "courses.VtDU2z"
 msgid "Take the courses your organization publishes."
 msgstr "Take the courses your organization publishes."
 
+#: src/app/[locale]/(app)/crm/commissions/page.tsx
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.Z_gXwm"
+msgid "Commissions"
+msgstr "Commissions"
+
+#: src/app/[locale]/(app)/crm/commissions/page.tsx
+msgctxt "sales.VyILsH"
+msgid "What your sellers earn on the deals they close."
+msgstr "What your sellers earn on the deals they close."
+
+#: src/app/[locale]/(app)/crm/commissions/page.tsx
+msgctxt "sales.rmR86i"
+msgid "Statements"
+msgstr "Statements"
+
+#: src/app/[locale]/(app)/crm/commissions/page.tsx
+msgctxt "sales.Q5CLtp"
+msgid "Plans"
+msgstr "Plans"
+
+#: src/app/[locale]/(app)/crm/commissions/statements/[id]/page.tsx
+msgctxt "sales.UjHNPw"
+msgid "All statements"
+msgstr "All statements"
+
 #: src/app/[locale]/(app)/crm/contacts/[id]/page.tsx
 #: src/features/crm/components/contact-detail.tsx
 msgctxt "crm.IUQwPp"
@@ -201,26 +227,112 @@ msgid "All contacts"
 msgstr "All contacts"
 
 #: src/app/[locale]/(app)/crm/contacts/page.tsx
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.4S241U"
+msgctxt "sales.4S241U"
 msgid "Contacts"
 msgstr "Contacts"
 
 #: src/app/[locale]/(app)/crm/contacts/page.tsx
-msgctxt "crm.p8A2D3"
+msgctxt "sales.p8A2D3"
 msgid "The companies you sell to and the people you talk to."
 msgstr "The companies you sell to and the people you talk to."
 
+#: src/app/[locale]/(app)/crm/contracts/[id]/page.tsx
+msgctxt "sales.YadF9Q"
+msgid "All contracts"
+msgstr "All contracts"
+
+#: src/app/[locale]/(app)/crm/contracts/page.tsx
+msgctxt "sales.ZwpbZp"
+msgid "Contracts"
+msgstr "Contracts"
+
+#: src/app/[locale]/(app)/crm/contracts/page.tsx
+msgctxt "sales.ZMF2Nq"
+msgid "Contracts from draft to signature, with renewal and notice dates."
+msgstr "Contracts from draft to signature, with renewal and notice dates."
+
+#: src/app/[locale]/(app)/crm/deals/[id]/page.tsx
+msgctxt "sales.PjrZ2h"
+msgid "All deals"
+msgstr "All deals"
+
 #: src/app/[locale]/(app)/crm/deals/page.tsx
-#: src/features/crm/components/deal-board.tsx
-msgctxt "crm.CQa3R9"
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.CQa3R9"
 msgid "Deals"
 msgstr "Deals"
 
 #: src/app/[locale]/(app)/crm/deals/page.tsx
-msgctxt "crm._sIyOI"
+msgctxt "sales._sIyOI"
 msgid "Your pipeline by stage, and how the targets are going."
 msgstr "Your pipeline by stage, and how the targets are going."
+
+#: src/app/[locale]/(app)/crm/deals/page.tsx
+msgctxt "sales.IeBejt"
+msgid "Table"
+msgstr "Table"
+
+#: src/app/[locale]/(app)/crm/deals/page.tsx
+msgctxt "sales.5hUPMv"
+msgid "Board"
+msgstr "Board"
+
+#: src/app/[locale]/(app)/crm/forecasts/[id]/page.tsx
+msgctxt "sales.1Gamq4"
+msgid "All forecasts"
+msgstr "All forecasts"
+
+#: src/app/[locale]/(app)/crm/forecasts/page.tsx
+msgctxt "sales.46D6WM"
+msgid "Forecasts"
+msgstr "Forecasts"
+
+#: src/app/[locale]/(app)/crm/forecasts/page.tsx
+msgctxt "sales.Ux8m57"
+msgid "Snapshots of the forecast call by period, so a review shows what changed."
+msgstr "Snapshots of the forecast call by period, so a review shows what changed."
+
+#: src/app/[locale]/(app)/crm/page.tsx
+msgctxt "sales.c8nvms"
+msgid "Sales"
+msgstr "Sales"
+
+#: src/app/[locale]/(app)/crm/page.tsx
+msgctxt "sales.SO5q_F"
+msgid "Your pipeline, forecast and closing deals at a glance."
+msgstr "Your pipeline, forecast and closing deals at a glance."
+
+#: src/app/[locale]/(app)/crm/pipelines/[id]/page.tsx
+msgctxt "sales.r9wefr"
+msgid "All pipelines"
+msgstr "All pipelines"
+
+#: src/app/[locale]/(app)/crm/pipelines/page.tsx
+msgctxt "sales._8-OHL"
+msgid "Pipelines"
+msgstr "Pipelines"
+
+#: src/app/[locale]/(app)/crm/pipelines/page.tsx
+msgctxt "sales.qceufZ"
+msgid "The stages a deal moves through, and how many deals sit in each."
+msgstr "The stages a deal moves through, and how many deals sit in each."
+
+#: src/app/[locale]/(app)/crm/queues/[id]/page.tsx
+msgctxt "sales.yHTjon"
+msgid "All queues"
+msgstr "All queues"
+
+#: src/app/[locale]/(app)/crm/queues/page.tsx
+msgctxt "sales.j-o-3z"
+msgid "Queues"
+msgstr "Queues"
+
+#: src/app/[locale]/(app)/crm/queues/page.tsx
+msgctxt "sales.wJ5zqP"
+msgid "Round robin and weighted queues that pick an owner for new records."
+msgstr "Round robin and weighted queues that pick an owner for new records."
 
 #: src/app/[locale]/(app)/crm/quotes/[id]/page.tsx
 msgctxt "crm.VwB_Bf"
@@ -238,6 +350,52 @@ msgctxt "crm.NeJIa3"
 msgid "Line items, discounts and totals, sent for acceptance."
 msgstr "Line items, discounts and totals, sent for acceptance."
 
+#: src/app/[locale]/(app)/crm/referrals/page.tsx
+msgctxt "sales.CrJOJJ"
+msgid "Referrals"
+msgstr "Referrals"
+
+#: src/app/[locale]/(app)/crm/referrals/page.tsx
+msgctxt "sales.Eue3nT"
+msgid "Referral codes your customers share, and what they bring in."
+msgstr "Referral codes your customers share, and what they bring in."
+
+#: src/app/[locale]/(app)/crm/referrals/page.tsx
+msgctxt "sales.7PhW5W"
+msgid "Codes"
+msgstr "Codes"
+
+#: src/app/[locale]/(app)/crm/scoring/[id]/page.tsx
+msgctxt "sales.o_2c4_"
+msgid "All models"
+msgstr "All models"
+
+#: src/app/[locale]/(app)/crm/scoring/page.tsx
+msgctxt "sales.VyUca4"
+msgid "Scoring"
+msgstr "Scoring"
+
+#: src/app/[locale]/(app)/crm/scoring/page.tsx
+msgctxt "sales.AgijrR"
+msgid "Score models that rank leads and accounts by the rules you set."
+msgstr "Score models that rank leads and accounts by the rules you set."
+
+#: src/app/[locale]/(app)/crm/segments/[id]/page.tsx
+msgctxt "sales.W6Y0y9"
+msgid "All segments"
+msgstr "All segments"
+
+#: src/app/[locale]/(app)/crm/segments/page.tsx
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.VF3DcR"
+msgid "Segments"
+msgstr "Segments"
+
+#: src/app/[locale]/(app)/crm/segments/page.tsx
+msgctxt "sales.r0f-xR"
+msgid "Saved filters over your companies, refreshed on a schedule."
+msgstr "Saved filters over your companies, refreshed on a schedule."
+
 #: src/app/[locale]/(app)/crm/sequences/page.tsx
 msgctxt "sequences.fqIG9Q"
 msgid "Sequences"
@@ -247,6 +405,16 @@ msgstr "Sequences"
 msgctxt "sequences.emb3EJ"
 msgid "Email, wait and task steps that run for each enrolled contact until they reply."
 msgstr "Email, wait and task steps that run for each enrolled contact until they reply."
+
+#: src/app/[locale]/(app)/crm/success/page.tsx
+msgctxt "sales.y9XCrb"
+msgid "Customer success"
+msgstr "Customer success"
+
+#: src/app/[locale]/(app)/crm/success/page.tsx
+msgctxt "sales.lHaUhi"
+msgid "Account health from your score models, with the lowest scores first."
+msgstr "Account health from your score models, with the lowest scores first."
 
 #: src/app/[locale]/(app)/customers/[id]/page.tsx
 msgctxt "customers.ljxw1z"
@@ -617,21 +785,6 @@ msgctxt "people.w4O5ud"
 msgid "Openings and their candidates by interview stage."
 msgstr "Openings and their candidates by interview stage."
 
-#: src/app/[locale]/(app)/people/leave/[id]/page.tsx
-msgctxt "people.RtbAu5"
-msgid "All leave"
-msgstr "All leave"
-
-#: src/app/[locale]/(app)/people/leave/page.tsx
-msgctxt "people.fnihsY"
-msgid "Leave"
-msgstr "Leave"
-
-#: src/app/[locale]/(app)/people/leave/page.tsx
-msgctxt "people.X6M2Jq"
-msgid "Time off by type, requests approved by a manager, and your balances."
-msgstr "Time off by type, requests approved by a manager, and your balances."
-
 #: src/app/[locale]/(app)/people/page.tsx
 msgctxt "people.Tpy00S"
 msgid "People"
@@ -707,11 +860,6 @@ msgstr "Requests for quotation"
 msgctxt "rfqs.yaZl1M"
 msgid "Requests sent to suppliers, their quotes and the award."
 msgstr "Requests sent to suppliers, their quotes and the award."
-
-#: src/app/[locale]/(app)/risks/[id]/page.tsx
-msgctxt "risks.bEf8AN"
-msgid "All risks"
-msgstr "All risks"
 
 #: src/app/[locale]/(app)/risks/page.tsx
 msgctxt "risks._s79W_"
@@ -1011,6 +1159,11 @@ msgctxt "app.HetEY5"
 msgid "It moved, or it isn't available to your organization."
 msgstr "It moved, or it isn't available to your organization."
 
+#: src/components/record-detail/record-detail-tabs.tsx
+msgctxt "recordDetail.M56d6a"
+msgid "Tabs"
+msgstr "Tabs"
+
 #: src/components/record-detail/record-section-error.tsx
 msgctxt "recordDetail.162kF7"
 msgid "Try again in a moment."
@@ -1020,6 +1173,33 @@ msgstr "Try again in a moment."
 msgctxt "recordDetail.62nsdy"
 msgid "Retry"
 msgstr "Retry"
+
+#: src/components/record-list/block-list-view.tsx
+msgctxt "recordList.zQvVDJ"
+msgid "All"
+msgstr "All"
+
+#: src/components/record-list/block-list-view.tsx
+#: src/components/record-list/record-list-view.tsx
+msgctxt "recordList.jZ0o74"
+msgid "Reset filters"
+msgstr "Reset filters"
+
+#: src/components/record-list/block-list-view.tsx
+msgctxt "recordList.kDE93l"
+msgid "Page {page} of {pages}, {total} rows"
+msgstr "Page {page} of {pages}, {total} rows"
+
+#: src/components/record-list/block-list-view.tsx
+msgctxt "recordList.k9hDFZ"
+msgid "Previous page"
+msgstr "Previous page"
+
+#: src/components/record-list/block-list-view.tsx
+#: src/components/record-list/record-list-view.tsx
+msgctxt "recordList.rBj9Ib"
+msgid "Next page"
+msgstr "Next page"
 
 #: src/components/record-list/record-list-facets.tsx
 msgctxt "recordList.4w8gkk"
@@ -1047,19 +1227,9 @@ msgid "Sort by"
 msgstr "Sort by"
 
 #: src/components/record-list/record-list-view.tsx
-msgctxt "recordList.jZ0o74"
-msgid "Reset filters"
-msgstr "Reset filters"
-
-#: src/components/record-list/record-list-view.tsx
 msgctxt "recordList.A64Z-T"
 msgid "First page"
 msgstr "First page"
-
-#: src/components/record-list/record-list-view.tsx
-msgctxt "recordList.rBj9Ib"
-msgid "Next page"
-msgstr "Next page"
 
 #: src/features/access-requests/components/access-request-controls.tsx
 msgctxt "accessRequests.d7eaHV"
@@ -5235,43 +5405,36 @@ msgid "The contact didn't load"
 msgstr "The contact didn't load"
 
 #: src/features/crm/components/contact-detail.tsx
-#: src/features/crm/components/contact-list.tsx
 msgctxt "crm.bhfSJZ"
 msgid "Lead"
 msgstr "Lead"
 
 #: src/features/crm/components/contact-detail.tsx
-#: src/features/crm/components/contact-list.tsx
 msgctxt "crm.TFfDPW"
 msgid "Prospect"
 msgstr "Prospect"
 
 #: src/features/crm/components/contact-detail.tsx
-#: src/features/crm/components/contact-list.tsx
 msgctxt "crm.hkENym"
 msgid "Customer"
 msgstr "Customer"
 
 #: src/features/crm/components/contact-detail.tsx
-#: src/features/crm/components/contact-list.tsx
 msgctxt "crm.mqNDy4"
 msgid "Churned"
 msgstr "Churned"
 
 #: src/features/crm/components/contact-detail.tsx
-#: src/features/crm/components/contact-list.tsx
 msgctxt "crm.smM7IV"
 msgid "Marketing qualified"
 msgstr "Marketing qualified"
 
 #: src/features/crm/components/contact-detail.tsx
-#: src/features/crm/components/contact-list.tsx
 msgctxt "crm.QEHSnd"
 msgid "Sales qualified"
 msgstr "Sales qualified"
 
 #: src/features/crm/components/contact-detail.tsx
-#: src/features/crm/components/contact-list.tsx
 msgctxt "crm.sHGUY0"
 msgid "Opportunity"
 msgstr "Opportunity"
@@ -5300,14 +5463,12 @@ msgid "Website"
 msgstr "Website"
 
 #: src/features/crm/components/contact-detail.tsx
-#: src/features/crm/components/contact-list.tsx
 #: src/features/crm/components/create-contact-dialog.tsx
 msgctxt "crm.9YazHG"
 msgid "Company"
 msgstr "Company"
 
 #: src/features/crm/components/contact-detail.tsx
-#: src/features/crm/components/contact-list.tsx
 #: src/features/crm/components/create-contact-dialog.tsx
 #: src/features/crm/components/link-person-form.tsx
 msgctxt "crm.1mnmBr"
@@ -5359,71 +5520,6 @@ msgctxt "crm.ehxBge"
 msgid "Link this person from a company's page."
 msgstr "Link this person from a company's page."
 
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.qQSmVj"
-msgid "The contacts didn't load"
-msgstr "The contacts didn't load"
-
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.nbX5yC"
-msgid "No contacts yet"
-msgstr "No contacts yet"
-
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.7cMBJi"
-msgid "Add the companies you sell to and the people you talk to."
-msgstr "Add the companies you sell to and the people you talk to."
-
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.6XFO_C"
-msgid "Approved"
-msgstr "Approved"
-
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.2s7KhN"
-msgid "Conditional"
-msgstr "Conditional"
-
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.qUJTsT"
-msgid "Blocked"
-msgstr "Blocked"
-
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.KkpdQS"
-msgid "{count, plural, one {# contact} other {# contacts}}"
-msgstr "{count, plural, one {# contact} other {# contacts}}"
-
-#: src/features/crm/components/contact-list.tsx
-#: src/features/crm/components/create-contact-dialog.tsx
-#: src/features/crm/components/create-deal-dialog.tsx
-#: src/features/crm/components/create-target-dialog.tsx
-msgctxt "crm.HAlOn1"
-msgid "Name"
-msgstr "Name"
-
-#: src/features/crm/components/contact-list.tsx
-#: src/features/crm/components/create-contact-dialog.tsx
-#: src/features/crm/components/log-activity-form.tsx
-msgctxt "crm.-U6ozc"
-msgid "Type"
-msgstr "Type"
-
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.MWM7ma"
-msgid "Email or domain"
-msgstr "Email or domain"
-
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.TGAGHp"
-msgid "Lifecycle"
-msgstr "Lifecycle"
-
-#: src/features/crm/components/contact-list.tsx
-msgctxt "crm.5Ya43Y"
-msgid "Supplier"
-msgstr "Supplier"
-
 #: src/features/crm/components/create-contact-dialog.tsx
 msgctxt "crm.ckQ_gN"
 msgid "{name} added"
@@ -5438,6 +5534,19 @@ msgstr "Add contact"
 msgctxt "crm.Kg9kVW"
 msgid "A company you sell to, or a person you talk to."
 msgstr "A company you sell to, or a person you talk to."
+
+#: src/features/crm/components/create-contact-dialog.tsx
+#: src/features/crm/components/log-activity-form.tsx
+msgctxt "crm.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/crm/components/create-contact-dialog.tsx
+#: src/features/crm/components/create-deal-dialog.tsx
+#: src/features/crm/components/create-target-dialog.tsx
+msgctxt "crm.HAlOn1"
+msgid "Name"
+msgstr "Name"
 
 #: src/features/crm/components/create-contact-dialog.tsx
 msgctxt "crm.LeHcvd"
@@ -5606,6 +5715,11 @@ msgstr "Try again in a moment."
 msgctxt "crm.62nsdy"
 msgid "Retry"
 msgstr "Retry"
+
+#: src/features/crm/components/deal-board.tsx
+msgctxt "crm.CQa3R9"
+msgid "Deals"
+msgstr "Deals"
 
 #: src/features/crm/components/deal-board.tsx
 msgctxt "crm.w3O5MP"
@@ -10554,245 +10668,10 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nothing matches yet. A new document is searchable once it is ready."
 
-#: src/features/leave/components/leave-decision.tsx
-msgctxt "people.yPz9pN"
-msgid "Leave approved"
-msgstr "Leave approved"
-
-#: src/features/leave/components/leave-decision.tsx
-msgctxt "people.TuojOb"
-msgid "Leave rejected"
-msgstr "Leave rejected"
-
-#: src/features/leave/components/leave-decision.tsx
-msgctxt "people.-WlnTr"
-msgid "Leave cancelled"
-msgstr "Leave cancelled"
-
-#: src/features/leave/components/leave-decision.tsx
-msgctxt "people.WCaf5C"
-msgid "Approve"
-msgstr "Approve"
-
-#: src/features/leave/components/leave-decision.tsx
-msgctxt "people.VzIOKf"
-msgid "Reject"
-msgstr "Reject"
-
-#: src/features/leave/components/leave-decision.tsx
-msgctxt "people.biq8aT"
-msgid "Cancel request"
-msgstr "Cancel request"
-
-#: src/features/leave/components/leave-detail.tsx
-msgctxt "people.sM61xn"
-msgid "This leave request didn't load"
-msgstr "This leave request didn't load"
-
-#: src/features/leave/components/leave-detail.tsx
-msgctxt "people.H5-NAX"
-msgid "Balance"
-msgstr "Balance"
-
-#: src/features/leave/components/leave-detail.tsx
-msgctxt "people.TuODKn"
-msgid "This type isn't tracked against a balance."
-msgstr "This type isn't tracked against a balance."
-
-#: src/features/leave/components/leave-detail.tsx
-msgctxt "people.UjLMLI"
-msgid "{available} {unit} available"
-msgstr "{available} {unit} available"
-
-#: src/features/leave/components/leave-detail.tsx
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.p1P-hQ"
-msgid "Request"
-msgstr "Request"
-
-#: src/features/leave/components/leave-detail.tsx
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people._0TOL5"
-msgid "Amount"
-msgstr "Amount"
-
-#: src/features/leave/components/leave-detail.tsx
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.qMePPG"
-msgid "Note"
-msgstr "Note"
-
-#: src/features/leave/components/leave-detail.tsx
-msgctxt "people.scwekL"
-msgid "Ledger"
-msgstr "Ledger"
-
-#: src/features/leave/components/leave-detail.tsx
-msgctxt "people.Xypua0"
-msgid "Nothing is booked until the request is approved."
-msgstr "Nothing is booked until the request is approved."
-
 #: src/features/leave/components/leave-overview.tsx
 msgctxt "people.-eTI8w"
 msgid "Leave didn't load"
 msgstr "Leave didn't load"
-
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people.rCrCme"
-msgid "{amount} h"
-msgstr "{amount} h"
-
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people.VovTji"
-msgid "{amount} d"
-msgstr "{amount} d"
-
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people.o8KenS"
-msgid "Who"
-msgstr "Who"
-
-#: src/features/leave/components/leave-record-list.tsx
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.-U6ozc"
-msgid "Type"
-msgstr "Type"
-
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people.D6b0Au"
-msgid "Dates"
-msgstr "Dates"
-
-#: src/features/leave/components/leave-record-list.tsx
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people.zBHBco"
-msgid "Latest start"
-msgstr "Latest start"
-
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people.WP_0ih"
-msgid "Latest end"
-msgstr "Latest end"
-
-#: src/features/leave/components/leave-record-list.tsx
-#: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/employee-table.tsx
-msgctxt "people.HAlOn1"
-msgid "Name"
-msgstr "Name"
-
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people.169voX"
-msgid "Search leave"
-msgstr "Search leave"
-
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people.EjRYCx"
-msgid "No leave found"
-msgstr "No leave found"
-
-#: src/features/leave/components/leave-record-list.tsx
-msgctxt "people._MTwuH"
-msgid "Request leave, or change the filters."
-msgstr "Request leave, or change the filters."
-
-#: src/features/leave/components/leave-status.tsx
-msgctxt "people.eKEL_g"
-msgid "Pending"
-msgstr "Pending"
-
-#: src/features/leave/components/leave-status.tsx
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.6XFO_C"
-msgid "Approved"
-msgstr "Approved"
-
-#: src/features/leave/components/leave-status.tsx
-#: src/features/people/components/timesheet.tsx
-msgctxt "people.5qaD7s"
-msgid "Rejected"
-msgstr "Rejected"
-
-#: src/features/leave/components/leave-status.tsx
-msgctxt "people.3wsVWF"
-msgid "Cancelled"
-msgstr "Cancelled"
-
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.JnfIJA"
-msgid "Leave requested for {amount} days"
-msgstr "Leave requested for {amount} days"
-
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.U7O43u"
-msgid "Whole days"
-msgstr "Whole days"
-
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people._kzk_m"
-msgid "Morning"
-msgstr "Morning"
-
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.mF-J9o"
-msgid "Afternoon"
-msgstr "Afternoon"
-
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.0mCWLj"
-msgid "Request leave"
-msgstr "Request leave"
-
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.AhMZc-"
-msgid "A manager approves the request. Working days are counted for you."
-msgstr "A manager approves the request. Working days are counted for you."
-
-#: src/features/leave/components/request-leave-dialog.tsx
-#: src/features/people/components/log-time-dialog.tsx
-msgctxt "people.dM-p3_"
-msgid "From"
-msgstr "From"
-
-#: src/features/leave/components/request-leave-dialog.tsx
-#: src/features/people/components/log-time-dialog.tsx
-msgctxt "people.9j3hXO"
-msgid "To"
-msgstr "To"
-
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.kgMIFw"
-msgid "Leave empty for one day."
-msgstr "Leave empty for one day."
-
-#: src/features/leave/components/request-leave-dialog.tsx
-msgctxt "people.pVQj2-"
-msgid "Part of the day"
-msgstr "Part of the day"
-
-#: src/features/leave/components/request-leave-dialog.tsx
-#: src/features/people/components/add-candidate-dialog.tsx
-#: src/features/people/components/add-employee-dialog.tsx
-#: src/features/people/components/create-opening-dialog.tsx
-#: src/features/people/components/log-time-dialog.tsx
-msgctxt "people.47FYwb"
-msgid "Cancel"
-msgstr "Cancel"
-
-#: src/features/leave/components/set-up-leave-button.tsx
-msgctxt "people.qGpe0B"
-msgid "Leave types created"
-msgstr "Leave types created"
-
-#: src/features/leave/components/set-up-leave-button.tsx
-msgctxt "people.3N5ht9"
-msgid "Set up leave types"
-msgstr "Set up leave types"
 
 #: src/features/legal-entities/components/legal-entity-sections.tsx
 msgctxt "legal-entities.UybXB6"
@@ -11932,6 +11811,66 @@ msgstr "Sequences"
 msgctxt "navigation.epJ5ty"
 msgid "Quotes"
 msgstr "Quotes"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation._jVf_D"
+msgid "Sales overview"
+msgstr "Sales overview"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation._8-OHL"
+msgid "Pipelines"
+msgstr "Pipelines"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.46D6WM"
+msgid "Forecasts"
+msgstr "Forecasts"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.VF3DcR"
+msgid "Segments"
+msgstr "Segments"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.j-o-3z"
+msgid "Queues"
+msgstr "Queues"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.VyUca4"
+msgid "Scoring"
+msgstr "Scoring"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.ZwpbZp"
+msgid "Contracts"
+msgstr "Contracts"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.Z_gXwm"
+msgid "Commissions"
+msgstr "Commissions"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.CrJOJJ"
+msgid "Referrals"
+msgstr "Referrals"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.y9XCrb"
+msgid "Customer success"
+msgstr "Customer success"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
@@ -13141,6 +13080,14 @@ msgstr "Candidates are customer records for now."
 
 #: src/features/people/components/add-candidate-dialog.tsx
 #: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/create-opening-dialog.tsx
+#: src/features/people/components/log-time-dialog.tsx
+msgctxt "people.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/people/components/add-candidate-dialog.tsx
+#: src/features/people/components/add-employee-dialog.tsx
 msgctxt "people.2_2yg-"
 msgid "Add"
 msgstr "Add"
@@ -13164,6 +13111,12 @@ msgstr "Add employee"
 msgctxt "people.rlzij2"
 msgid "They start as preboarding until their start date."
 msgstr "They start as preboarding until their start date."
+
+#: src/features/people/components/add-employee-dialog.tsx
+#: src/features/people/components/employee-table.tsx
+msgctxt "people.HAlOn1"
+msgid "Name"
+msgstr "Name"
 
 #: src/features/people/components/add-employee-dialog.tsx
 msgctxt "people.HHRIuR"
@@ -13345,6 +13298,11 @@ msgid "Reports to"
 msgstr "Reports to"
 
 #: src/features/people/components/employee-table.tsx
+msgctxt "people.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/people/components/employee-table.tsx
 msgctxt "people.Ppx673"
 msgid "Reports"
 msgstr "Reports"
@@ -13437,6 +13395,16 @@ msgid "Day"
 msgstr "Day"
 
 #: src/features/people/components/log-time-dialog.tsx
+msgctxt "people.dM-p3_"
+msgid "From"
+msgstr "From"
+
+#: src/features/people/components/log-time-dialog.tsx
+msgctxt "people.9j3hXO"
+msgid "To"
+msgstr "To"
+
+#: src/features/people/components/log-time-dialog.tsx
 #: src/features/people/components/timesheet.tsx
 msgctxt "people.cwvEov"
 msgid "Billable"
@@ -13527,6 +13495,16 @@ msgstr "Open"
 msgctxt "people.raexxM"
 msgid "Submitted"
 msgstr "Submitted"
+
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/people/components/timesheet.tsx
+msgctxt "people.5qaD7s"
+msgid "Rejected"
+msgstr "Rejected"
 
 #: src/features/people/components/timesheet.tsx
 msgctxt "people.wa4-aS"
@@ -14629,121 +14607,22 @@ msgctxt "rfqs.o9xrOU"
 msgid "Read the requests guide"
 msgstr "Read the requests guide"
 
-#: src/features/risks/components/risk-band-badge.tsx
-msgctxt "risks.3Q1Pj6"
-msgid "Not assessed"
-msgstr "Not assessed"
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.4_EFCP"
+msgid "The heatmap didn't load"
+msgstr "The heatmap didn't load"
 
-#: src/features/risks/components/risk-band-badge.tsx
-msgctxt "risks.fyIg53"
-msgid "{band} · {score, number}"
-msgstr "{band} · {score, number}"
-
-#: src/features/risks/components/risk-detail-error.tsx
-msgctxt "risks.Fb3hee"
-msgid "The risk didn't load"
-msgstr "The risk didn't load"
-
-#: src/features/risks/components/risk-detail-error.tsx
 #: src/features/risks/components/risk-heatmap.tsx
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.162kF7"
 msgid "Try again in a moment."
 msgstr "Try again in a moment."
 
-#: src/features/risks/components/risk-detail-error.tsx
 #: src/features/risks/components/risk-heatmap.tsx
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.62nsdy"
 msgid "Retry"
 msgstr "Retry"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.ETRyBL"
-msgid "Rating"
-msgstr "Rating"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.wlDLs5"
-msgid "Inherent"
-msgstr "Inherent"
-
-#: src/features/risks/components/risk-detail.tsx
-#: src/features/risks/components/risk-record-list.tsx
-msgctxt "risks.Efoqaa"
-msgid "Residual"
-msgstr "Residual"
-
-#: src/features/risks/components/risk-detail.tsx
-#: src/features/risks/components/risk-record-list.tsx
-msgctxt "risks.ep8Oy7"
-msgid "Next review"
-msgstr "Next review"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.SzG9JL"
-msgid "Treatment"
-msgstr "Treatment"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.YgyuGj"
-msgid "Mitigated by"
-msgstr "Mitigated by"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.mVCHM1"
-msgid "No controls linked yet."
-msgstr "No controls linked yet."
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.-rrJAW"
-msgid "Materialized as"
-msgstr "Materialized as"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.dxHwqQ"
-msgid "No cases linked."
-msgstr "No cases linked."
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.Q8Qw5B"
-msgid "Description"
-msgstr "Description"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.LGYdYn"
-msgid "Cause"
-msgstr "Cause"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.SDaxN-"
-msgid "Consequence"
-msgstr "Consequence"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.0dtPyZ"
-msgid "Assessments"
-msgstr "Assessments"
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks._iWYfY"
-msgid "Each assessment freezes the risk's version, newest first."
-msgstr "Each assessment freezes the risk's version, newest first."
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.MJht_-"
-msgid "Not assessed yet. Score the likelihood and impact before and after controls."
-msgstr "Not assessed yet. Score the likelihood and impact before and after controls."
-
-#: src/features/risks/components/risk-detail.tsx
-msgctxt "risks.M-Limx"
-msgid "then"
-msgstr "then"
-
-#: src/features/risks/components/risk-heatmap.tsx
-msgctxt "risks.4_EFCP"
-msgid "The heatmap didn't load"
-msgstr "The heatmap didn't load"
 
 #: src/features/risks/components/risk-heatmap.tsx
 msgctxt "risks.WEDRDw"
@@ -14800,40 +14679,70 @@ msgctxt "risks.BAeF44"
 msgid "{band}: {count, plural, one {# risk} other {# risks}}"
 msgstr "{band}: {count, plural, one {# risk} other {# risks}}"
 
-#: src/features/risks/components/risk-record-list.tsx
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.3Q1Pj6"
+msgid "Not assessed"
+msgstr "Not assessed"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.fyIg53"
+msgid "{band} · {score, number}"
+msgstr "{band} · {score, number}"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.7cv4Uf"
+msgid "Identified"
+msgstr "Identified"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.asYiRT"
+msgid "Assessed"
+msgstr "Assessed"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.n50oTI"
+msgid "Treating"
+msgstr "Treating"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.aFyFm0"
+msgid "Accepted"
+msgstr "Accepted"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.Fv1ZSz"
+msgid "Closed"
+msgstr "Closed"
+
+#: src/features/risks/components/risk-register.tsx
 msgctxt "risks.kFkPWB"
 msgid "Number"
 msgstr "Number"
 
-#: src/features/risks/components/risk-record-list.tsx
+#: src/features/risks/components/risk-register.tsx
 msgctxt "risks.v6rYjQ"
 msgid "Risk"
 msgstr "Risk"
 
-#: src/features/risks/components/risk-record-list.tsx
+#: src/features/risks/components/risk-register.tsx
 msgctxt "risks.ccXLVi"
 msgid "Category"
 msgstr "Category"
 
-#: src/features/risks/components/risk-record-list.tsx
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.Efoqaa"
+msgid "Residual"
+msgstr "Residual"
+
+#: src/features/risks/components/risk-register.tsx
 msgctxt "risks.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
-#: src/features/risks/components/risk-record-list.tsx
-msgctxt "risks.Bi2plb"
-msgid "Search risks"
-msgstr "Search risks"
-
-#: src/features/risks/components/risk-record-list.tsx
-msgctxt "risks.DLKKCh"
-msgid "No risks found"
-msgstr "No risks found"
-
-#: src/features/risks/components/risk-record-list.tsx
-msgctxt "risks.hGljWs"
-msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix, or change the filters."
-msgstr "Register a risk with its cause and consequence, then assess it against the organization's matrix, or change the filters."
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.ep8Oy7"
+msgid "Next review"
+msgstr "Next review"
 
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.mvPZOS"
@@ -14850,30 +14759,20 @@ msgctxt "risks.dJC62W"
 msgid "The risk register didn't load"
 msgstr "The risk register didn't load"
 
-#: src/features/risks/components/risk-status-badge.tsx
-msgctxt "risks.7cv4Uf"
-msgid "Identified"
-msgstr "Identified"
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.XwQph0"
+msgid "No risks yet"
+msgstr "No risks yet"
 
-#: src/features/risks/components/risk-status-badge.tsx
-msgctxt "risks.asYiRT"
-msgid "Assessed"
-msgstr "Assessed"
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.xjr51A"
+msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix."
+msgstr "Register a risk with its cause and consequence, then assess it against the organization's matrix."
 
-#: src/features/risks/components/risk-status-badge.tsx
-msgctxt "risks.n50oTI"
-msgid "Treating"
-msgstr "Treating"
-
-#: src/features/risks/components/risk-status-badge.tsx
-msgctxt "risks.aFyFm0"
-msgid "Accepted"
-msgstr "Accepted"
-
-#: src/features/risks/components/risk-status-badge.tsx
-msgctxt "risks.Fv1ZSz"
-msgid "Closed"
-msgstr "Closed"
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.ruQnUX"
+msgid "Read the risks guide"
+msgstr "Read the risks guide"
 
 #: src/features/roles/components/permission-matrix.tsx
 msgctxt "roles.JzR7p4"
@@ -15240,6 +15139,1880 @@ msgstr "On"
 msgctxt "rules.OvzONl"
 msgid "Off"
 msgstr "Off"
+
+#: src/features/sales/components/action-dialog.tsx
+msgctxt "sales.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/sales/components/block-overview.tsx
+msgctxt "sales.qnf-Ea"
+msgid "{count} in total"
+msgstr "{count} in total"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.nAt_Dl"
+msgid "The sales details didn't load"
+msgstr "The sales details didn't load"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.Hcfi6D"
+msgid "Scores"
+msgstr "Scores"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.kC9FPc"
+msgid "Where this record stands under each score model."
+msgstr "Where this record stands under each score model."
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.rhSI1_"
+msgid "Model"
+msgstr "Model"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.oLkLww"
+msgid "Score"
+msgstr "Score"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.7kGdAJ"
+msgid "Band"
+msgstr "Band"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.ew2z9y"
+msgid "Matched rules"
+msgstr "Matched rules"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.ERnpdU"
+msgid "Scored"
+msgstr "Scored"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.JrJ_if"
+msgid "Not scored yet"
+msgstr "Not scored yet"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.4Vv9-O"
+msgid "Score now"
+msgstr "Score now"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.OrwKQ-"
+msgid "Segment"
+msgstr "Segment"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.J7OslN"
+msgid "Entered"
+msgstr "Entered"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.oYU02F"
+msgid "In no segment"
+msgstr "In no segment"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.a25V50"
+msgid "Assignment history"
+msgstr "Assignment history"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.zINlao"
+msgid "Owner"
+msgstr "Owner"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.4YDNPC"
+msgid "Queue"
+msgstr "Queue"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.iZDRGO"
+msgid "Assigned"
+msgstr "Assigned"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.xnnBBr"
+msgid "Open queue"
+msgstr "Open queue"
+
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.k51VK7"
+msgid "Never assigned"
+msgstr "Never assigned"
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.dAGykb"
+msgid "The dashboard didn't load"
+msgstr "The dashboard didn't load"
+
+#: src/features/sales/components/crm-dashboard.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.Luum5s"
+msgid "No pipeline yet"
+msgstr "No pipeline yet"
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.zoD4L8"
+msgid "Create the sales pipeline on the deals page."
+msgstr "Create the sales pipeline on the deals page."
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.oRCMD5"
+msgid "Open deals"
+msgstr "Open deals"
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.NGFDsW"
+msgid "Open pipeline"
+msgstr "Open pipeline"
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.hyEJVC"
+msgid "Weighted forecast"
+msgstr "Weighted forecast"
+
+#: src/features/sales/components/crm-dashboard.tsx
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.J15Qzq"
+msgid "Won"
+msgstr "Won"
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.o0xxsJ"
+msgid "Deals per stage"
+msgstr "Deals per stage"
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.OwHh1v"
+msgid "{count} deals"
+msgstr "{count} deals"
+
+#: src/features/sales/components/crm-dashboard.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.Qwx_5i"
+msgid "Closing soonest"
+msgstr "Closing soonest"
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.3_phqf"
+msgid "Open deals by expected close date."
+msgstr "Open deals by expected close date."
+
+#: src/features/sales/components/crm-dashboard.tsx
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.GDrdGF"
+msgid "Deal"
+msgstr "Deal"
+
+#: src/features/sales/components/crm-dashboard.tsx
+#: src/features/sales/components/deal-detail.tsx
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.uYAYib"
+msgid "Stage"
+msgstr "Stage"
+
+#: src/features/sales/components/crm-dashboard.tsx
+#: src/features/sales/components/deal-detail.tsx
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales._0TOL5"
+msgid "Amount"
+msgstr "Amount"
+
+#: src/features/sales/components/crm-dashboard.tsx
+#: src/features/sales/components/deal-detail.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.5XH6JF"
+msgid "Expected close"
+msgstr "Expected close"
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.n66rHO"
+msgid "No open deals"
+msgstr "No open deals"
+
+#: src/features/sales/components/crm-dashboard.tsx
+msgctxt "sales.z4JXwE"
+msgid "Add a deal on the deals page."
+msgstr "Add a deal on the deals page."
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.3jRUHl"
+msgid "The segment didn't load"
+msgstr "The segment didn't load"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.EusFqY"
+msgid "Refresh now"
+msgstr "Refresh now"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.ik8msp"
+msgid "Segment refreshed"
+msgstr "Segment refreshed"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.K3r6DQ"
+msgid "Delete"
+msgstr "Delete"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.-DA8j-"
+msgid "Segment deleted"
+msgstr "Segment deleted"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.-a-2ug"
+msgid "Members"
+msgstr "Members"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.kAAlGL"
+msgid "Rules"
+msgstr "Rules"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.dPsEqa"
+msgid "Last refresh"
+msgstr "Last refresh"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.UlX71x"
+msgid "Newest members"
+msgstr "Newest members"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.zg3ITs"
+msgid "The records that matched at the last refresh."
+msgstr "The records that matched at the last refresh."
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.7Y6Yvq"
+msgid "Record"
+msgstr "Record"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.MWFE1B"
+msgid "No members yet"
+msgstr "No members yet"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.9edQPn"
+msgid "Refresh the segment to evaluate its rule."
+msgstr "Refresh the segment to evaluate its rule."
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.iIM8_4"
+msgid "The queue didn't load"
+msgstr "The queue didn't load"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.tHTw4s"
+msgid "Weighted"
+msgstr "Weighted"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.-lsBy-"
+msgid "Round robin"
+msgstr "Round robin"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.V52jNn"
+msgid "Enabled"
+msgstr "Enabled"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.C2iTEH"
+msgid "Paused"
+msgstr "Paused"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.e617MW"
+msgid "Pause queue"
+msgstr "Pause queue"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.xwaQNu"
+msgid "Enable queue"
+msgstr "Enable queue"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.NV_ZvH"
+msgid "Queue updated"
+msgstr "Queue updated"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.vMStwV"
+msgid "Assigns"
+msgstr "Assigns"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.7ZG8yo"
+msgid "The score model didn't load"
+msgstr "The score model didn't load"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.rFmVW2"
+msgid "Pause model"
+msgstr "Pause model"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.rqjGWG"
+msgid "Enable model"
+msgstr "Enable model"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.M6p9g0"
+msgid "Model updated"
+msgstr "Model updated"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.I3b4hn"
+msgid "Version"
+msgstr "Version"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.P2oRVz"
+msgid "Bands"
+msgstr "Bands"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.XTdAcD"
+msgid "Rule"
+msgstr "Rule"
+
+#: src/features/sales/components/crm-details.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.P0PLlQ"
+msgid "Points"
+msgstr "Points"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.ue2UOa"
+msgid "No rules"
+msgstr "No rules"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.eqRO1H"
+msgid "Top scores"
+msgstr "Top scores"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.5--Sao"
+msgid "The highest current scores under this model."
+msgstr "The highest current scores under this model."
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.TJjPR6"
+msgid "Nothing scored yet"
+msgstr "Nothing scored yet"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.oz7XAU"
+msgid "Open a company and score it, or let the lead model run on a schedule."
+msgstr "Open a company and score it, or let the lead model run on a schedule."
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.4SJxF5"
+msgid "Versions"
+msgstr "Versions"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.fsB_4p"
+msgid "Saved"
+msgstr "Saved"
+
+#: src/features/sales/components/crm-details.tsx
+msgctxt "sales.I-bxgG"
+msgid "No earlier versions"
+msgstr "No earlier versions"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.uHnMYi"
+msgid "New segment"
+msgstr "New segment"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.KpxXpW"
+msgid "A segment keeps the companies that match its rule and refreshes on a schedule."
+msgstr "A segment keeps the companies that match its rule and refreshes on a schedule."
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.UFLXv4"
+msgid "Create segment"
+msgstr "Create segment"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.hL0p74"
+msgid "Segment created"
+msgstr "Segment created"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.Q8Qw5B"
+msgid "Description"
+msgstr "Description"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.64O1wR"
+msgid "Lifecycle stage is"
+msgstr "Lifecycle stage is"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.AgxEdc"
+msgid "Records"
+msgstr "Records"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.3IInif"
+msgid "Companies"
+msgstr "Companies"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.Tpy00S"
+msgid "People"
+msgstr "People"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.j6exDL"
+msgid "Most members"
+msgstr "Most members"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.RQTMq0"
+msgid "Search segments"
+msgstr "Search segments"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.zUbR79"
+msgid "The segments didn't load"
+msgstr "The segments didn't load"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.J__rYM"
+msgid "No segments found"
+msgstr "No segments found"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.1J09n5"
+msgid "Save a filter over companies as a segment."
+msgstr "Save a filter over companies as a segment."
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.xX5zqq"
+msgid "New queue"
+msgstr "New queue"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.ALfATa"
+msgid "A queue picks an owner for each new record, in turn or by weight."
+msgstr "A queue picks an owner for each new record, in turn or by weight."
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.UpTX_m"
+msgid "Create queue"
+msgstr "Create queue"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.tUyszT"
+msgid "Queue created"
+msgstr "Queue created"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.zGHadw"
+msgid "Strategy"
+msgstr "Strategy"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.XPruqs"
+msgid "Order"
+msgstr "Order"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.XsiBoG"
+msgid "Most assigned"
+msgstr "Most assigned"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.knhwEe"
+msgid "Search queues"
+msgstr "Search queues"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.rlqjy8"
+msgid "The queues didn't load"
+msgstr "The queues didn't load"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.NQYqdF"
+msgid "No queues found"
+msgstr "No queues found"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.nm9ga9"
+msgid "Create a queue to route new records to your team."
+msgstr "Create a queue to route new records to your team."
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.tgSJSo"
+msgid "New score model"
+msgstr "New score model"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.hkmoze"
+msgid "A model gives points to the companies that match its rules."
+msgstr "A model gives points to the companies that match its rules."
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.664gr8"
+msgid "New model"
+msgstr "New model"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.eApduZ"
+msgid "Create model"
+msgstr "Create model"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.K0B2XC"
+msgid "Model created"
+msgstr "Model created"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.EcglP9"
+msgid "Key"
+msgstr "Key"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.q3Qycs"
+msgid "Points for lifecycle stage"
+msgstr "Points for lifecycle stage"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.HNBpJ4"
+msgid "Metrics"
+msgstr "Metrics"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.4mzlmb"
+msgid "Search models"
+msgstr "Search models"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.uSkmHD"
+msgid "The score models didn't load"
+msgstr "The score models didn't load"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.DbJD8E"
+msgid "No score models found"
+msgstr "No score models found"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.b1LUHU"
+msgid "Create a model to rank leads and accounts."
+msgstr "Create a model to rank leads and accounts."
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.R5aTmD"
+msgid "New contract"
+msgstr "New contract"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.TgqXxy"
+msgid "Create draft"
+msgstr "Create draft"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.OLzbaN"
+msgid "Contract drafted"
+msgstr "Contract drafted"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.GufXy5"
+msgid "Value"
+msgstr "Value"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.55hdQy"
+msgid "Currency"
+msgstr "Currency"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.9anxhq"
+msgid "Starts"
+msgstr "Starts"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.04xGLE"
+msgid "Ends"
+msgstr "Ends"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.myROEG"
+msgid "Renews automatically"
+msgstr "Renews automatically"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.oUWADl"
+msgid "No"
+msgstr "No"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.a5msuh"
+msgid "Yes"
+msgstr "Yes"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.plemGH"
+msgid "In review"
+msgstr "In review"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.vnWvSp"
+msgid "Out for signature"
+msgstr "Out for signature"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.RahCRH"
+msgid "Expired"
+msgstr "Expired"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.c8NRYr"
+msgid "Terminated"
+msgstr "Terminated"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.nV7Cv-"
+msgid "Contract"
+msgstr "Contract"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/revenue-details.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.u75FWG"
+msgid "Notice by"
+msgstr "Notice by"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.NRVEF5"
+msgid "Renewal"
+msgstr "Renewal"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.2zQt-3"
+msgid "Automatic"
+msgstr "Automatic"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.M59JhX"
+msgid "Manual"
+msgstr "Manual"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.BaGMvK"
+msgid "Ending soonest"
+msgstr "Ending soonest"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.TqvuYv"
+msgid "Notice deadline"
+msgstr "Notice deadline"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.F_iVjh"
+msgid "Search contracts"
+msgstr "Search contracts"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.lXkTYj"
+msgid "The contracts didn't load"
+msgstr "The contracts didn't load"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.lPPxJQ"
+msgid "No contracts found"
+msgstr "No contracts found"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.zhapHp"
+msgid "Draft a contract, or change the filters."
+msgstr "Draft a contract, or change the filters."
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.TwyMau"
+msgid "Account"
+msgstr "Account"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.7PT_-N"
+msgid "Lowest score first"
+msgstr "Lowest score first"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.HONk5s"
+msgid "Highest score first"
+msgstr "Highest score first"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.DgHeiI"
+msgid "Search accounts"
+msgstr "Search accounts"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.JizYb9"
+msgid "Account health didn't load"
+msgstr "Account health didn't load"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.sncc9z"
+msgid "No scored accounts yet"
+msgstr "No scored accounts yet"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.rAbvDe"
+msgid "Create a score model for companies and score them to see which accounts need attention."
+msgstr "Create a score model for companies and score them to see which accounts need attention."
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.bhfSJZ"
+msgid "Lead"
+msgstr "Lead"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.smM7IV"
+msgid "Marketing qualified"
+msgstr "Marketing qualified"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.QEHSnd"
+msgid "Sales qualified"
+msgstr "Sales qualified"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.sHGUY0"
+msgid "Opportunity"
+msgstr "Opportunity"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.hkENym"
+msgid "Customer"
+msgstr "Customer"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.mqNDy4"
+msgid "Churned"
+msgstr "Churned"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.TFfDPW"
+msgid "Prospect"
+msgstr "Prospect"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.2s7KhN"
+msgid "Conditional"
+msgstr "Conditional"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.qUJTsT"
+msgid "Blocked"
+msgstr "Blocked"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.9YazHG"
+msgid "Company"
+msgstr "Company"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.1mnmBr"
+msgid "Person"
+msgstr "Person"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.MWM7ma"
+msgid "Email or domain"
+msgstr "Email or domain"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.TGAGHp"
+msgid "Lifecycle"
+msgstr "Lifecycle"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.5Ya43Y"
+msgid "Supplier"
+msgstr "Supplier"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.D9pDXK"
+msgid "Search contacts"
+msgstr "Search contacts"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.qQSmVj"
+msgid "The contacts didn't load"
+msgstr "The contacts didn't load"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.JhY7bA"
+msgid "No contacts found"
+msgstr "No contacts found"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.7cMBJi"
+msgid "Add the companies you sell to and the people you talk to."
+msgstr "Add the companies you sell to and the people you talk to."
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.n92Sjh"
+msgid "The deal didn't load"
+msgstr "The deal didn't load"
+
+#: src/features/sales/components/deal-detail.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.yXcvAO"
+msgid "Probability"
+msgstr "Probability"
+
+#: src/features/sales/components/deal-detail.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.9UJJcV"
+msgid "Days in stage"
+msgstr "Days in stage"
+
+#: src/features/sales/components/deal-detail.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.d-qgix"
+msgid "Next step"
+msgstr "Next step"
+
+#: src/features/sales/components/deal-detail.tsx
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.4VbBEW"
+msgid "Pipeline"
+msgstr "Pipeline"
+
+#: src/features/sales/components/deal-detail.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.CgfTOy"
+msgid "Rotting"
+msgstr "Rotting"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.6MoPoI"
+msgid "Close date slipped"
+msgstr "Close date slipped"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.xPlG5d"
+msgid "No next step"
+msgstr "No next step"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.M0vCGv"
+msgid "Overdue"
+msgstr "Overdue"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.cs7tQX"
+msgid "Mark won"
+msgstr "Mark won"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.kpVNBf"
+msgid "Deal won"
+msgstr "Deal won"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.8v0bgP"
+msgid "Mark lost"
+msgstr "Mark lost"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales._ytBoP"
+msgid "Deal lost"
+msgstr "Deal lost"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.eppo9G"
+msgid "Reason (optional)"
+msgstr "Reason (optional)"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.8ujEro"
+msgid "Reopen"
+msgstr "Reopen"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.KNXUnD"
+msgid "Deal reopened"
+msgstr "Deal reopened"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.9uOFF3"
+msgid "Overview"
+msgstr "Overview"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.ZmlNQ3"
+msgid "Activity"
+msgstr "Activity"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.G-xPb7"
+msgid "Move the deal to another stage."
+msgstr "Move the deal to another stage."
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.sCpDxj"
+msgid "The deal is closed."
+msgstr "The deal is closed."
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.cnsH-C"
+msgid "Move to {stage}"
+msgstr "Move to {stage}"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.Cx5W6M"
+msgid "Deal moved"
+msgstr "Deal moved"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/sales/components/field-history-table.tsx
+msgctxt "sales.dgbZqk"
+msgid "The field history didn't load"
+msgstr "The field history didn't load"
+
+#: src/features/sales/components/field-history-table.tsx
+msgctxt "sales.nBL_yl"
+msgid "Field history"
+msgstr "Field history"
+
+#: src/features/sales/components/field-history-table.tsx
+msgctxt "sales.wPAj7B"
+msgid "Old and new values of the fields this record tracks."
+msgstr "Old and new values of the fields this record tracks."
+
+#: src/features/sales/components/field-history-table.tsx
+msgctxt "sales.AbvQFb"
+msgid "Field"
+msgstr "Field"
+
+#: src/features/sales/components/field-history-table.tsx
+msgctxt "sales.VWGEKN"
+msgid "Before"
+msgstr "Before"
+
+#: src/features/sales/components/field-history-table.tsx
+msgctxt "sales.4X-U8o"
+msgid "After"
+msgstr "After"
+
+#: src/features/sales/components/field-history-table.tsx
+msgctxt "sales.EfiKJF"
+msgid "Changed by"
+msgstr "Changed by"
+
+#: src/features/sales/components/field-history-table.tsx
+msgctxt "sales.McnLsx"
+msgid "When"
+msgstr "When"
+
+#: src/features/sales/components/field-history-table.tsx
+msgctxt "sales.DXv_3u"
+msgid "No changes recorded"
+msgstr "No changes recorded"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.yI__-R"
+msgid "The pipeline didn't load"
+msgstr "The pipeline didn't load"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.P1bU4o"
+msgid "{days} days"
+msgstr "{days} days"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.sf9bOp"
+msgid "Deals closed in the last 90 days."
+msgstr "Deals closed in the last 90 days."
+
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.lKv8ex"
+msgid "Default"
+msgstr "Default"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.FL6lKX"
+msgid "Lost"
+msgstr "Lost"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.frdDRv"
+msgid "Win rate"
+msgstr "Win rate"
+
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.uO5xca"
+msgid "Stages"
+msgstr "Stages"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.w-wqTo"
+msgid "Average time"
+msgstr "Average time"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.5EGMJu"
+msgid "No stages"
+msgstr "No stages"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.y56bn3"
+msgid "See the deals"
+msgstr "See the deals"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.ScTFyP"
+msgid "The forecast didn't load"
+msgstr "The forecast didn't load"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.pZ4gpM"
+msgid "Taken {date}"
+msgstr "Taken {date}"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.zTvKHJ"
+msgid "{percent}% of target"
+msgstr "{percent}% of target"
+
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.B2-PtL"
+msgid "Commit"
+msgstr "Commit"
+
+#: src/features/sales/components/pipeline-details.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.jK8pKw"
+msgid "Best case"
+msgstr "Best case"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.SICWYe"
+msgid "Omitted"
+msgstr "Omitted"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.lYztQ6"
+msgid "Closing later"
+msgstr "Closing later"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.2ZuuJP"
+msgid "Changes since the previous snapshot"
+msgstr "Changes since the previous snapshot"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.9nxufn"
+msgid "This is the first snapshot."
+msgstr "This is the first snapshot."
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.BY343C"
+msgid "Change"
+msgstr "Change"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.Jto3BZ"
+msgid "Nothing changed"
+msgstr "Nothing changed"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.bh7lLN"
+msgid "Deals in the snapshot"
+msgstr "Deals in the snapshot"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.ccXLVi"
+msgid "Category"
+msgstr "Category"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.iaHymw"
+msgid "Outcome"
+msgstr "Outcome"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.JeWUUO"
+msgid "Close date"
+msgstr "Close date"
+
+#: src/features/sales/components/pipeline-details.tsx
+msgctxt "sales.ZQ--Jp"
+msgid "No deals in this period"
+msgstr "No deals in this period"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.hlmkcL"
+msgid "Health"
+msgstr "Health"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.eEVxHv"
+msgid "On track"
+msgstr "On track"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.567XKl"
+msgid "Largest amount"
+msgstr "Largest amount"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.gr-SEI"
+msgid "Longest in stage"
+msgstr "Longest in stage"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.NUh7Jr"
+msgid "Search deals"
+msgstr "Search deals"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.B26HG9"
+msgid "The deals didn't load"
+msgstr "The deals didn't load"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.lLf6-U"
+msgid "No deals found"
+msgstr "No deals found"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.-Ou0el"
+msgid "Start with six stages, from qualified to closed won or lost."
+msgstr "Start with six stages, from qualified to closed won or lost."
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.ojL4W1"
+msgid "Add a deal, or change the filters."
+msgstr "Add a deal, or change the filters."
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.XjUXtc"
+msgid "Search pipelines"
+msgstr "Search pipelines"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.VuUIYZ"
+msgid "The pipelines didn't load"
+msgstr "The pipelines didn't load"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.jCNpEL"
+msgid "Period"
+msgstr "Period"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.rzbYbE"
+msgid "Target"
+msgstr "Target"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.zSKvKF"
+msgid "Attainment"
+msgstr "Attainment"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.D3yMXG"
+msgid "Snapshot taken"
+msgstr "Snapshot taken"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.MeKajs"
+msgid "Newest first"
+msgstr "Newest first"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.h-T3T7"
+msgid "Oldest first"
+msgstr "Oldest first"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.H9mMTC"
+msgid "Period start"
+msgstr "Period start"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.Spw9wt"
+msgid "Search by date"
+msgstr "Search by date"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.eYOyvu"
+msgid "The forecasts didn't load"
+msgstr "The forecasts didn't load"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.kE3KhL"
+msgid "No snapshots yet"
+msgstr "No snapshots yet"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.dRuQRH"
+msgid "A snapshot freezes the forecast of a period, so next week's review can show what changed."
+msgstr "A snapshot freezes the forecast of a period, so next week's review can show what changed."
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.M4yxqk"
+msgid "Snapshot the forecast"
+msgstr "Snapshot the forecast"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.0tQGxv"
+msgid "Freezes the deals of the period with their forecast category."
+msgstr "Freezes the deals of the period with their forecast category."
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.BTHWM4"
+msgid "Take snapshot"
+msgstr "Take snapshot"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.dM-p3_"
+msgid "From"
+msgstr "From"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.yPg8s6"
+msgid "Until"
+msgstr "Until"
+
+#: src/features/sales/components/pipeline-overviews.tsx
+msgctxt "sales.loQb9c"
+msgid "Target (optional)"
+msgstr "Target (optional)"
+
+#: src/features/sales/components/queue-members-editor.tsx
+msgctxt "sales.SmVt4s"
+msgid "Members saved"
+msgstr "Members saved"
+
+#: src/features/sales/components/queue-members-editor.tsx
+msgctxt "sales.4PIUZY"
+msgid "Nobody is in this queue yet."
+msgstr "Nobody is in this queue yet."
+
+#: src/features/sales/components/queue-members-editor.tsx
+msgctxt "sales.dNNwpN"
+msgid "Weight {weight}"
+msgstr "Weight {weight}"
+
+#: src/features/sales/components/queue-members-editor.tsx
+msgctxt "sales.wpIVoD"
+msgid "{count} assigned"
+msgstr "{count} assigned"
+
+#: src/features/sales/components/queue-members-editor.tsx
+msgctxt "sales.tFFMkF"
+msgid "Pause"
+msgstr "Pause"
+
+#: src/features/sales/components/queue-members-editor.tsx
+msgctxt "sales.3y9DGg"
+msgid "Resume"
+msgstr "Resume"
+
+#: src/features/sales/components/queue-members-editor.tsx
+msgctxt "sales.G_yZLu"
+msgid "Remove"
+msgstr "Remove"
+
+#: src/features/sales/components/queue-members-editor.tsx
+msgctxt "sales.7L86Z5"
+msgid "Member"
+msgstr "Member"
+
+#: src/features/sales/components/queue-members-editor.tsx
+msgctxt "sales.HFw-a8"
+msgid "Add member"
+msgstr "Add member"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.QeyQnz"
+msgid "The contract didn't load"
+msgstr "The contract didn't load"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.Dxnu5q"
+msgid "Submit for review"
+msgstr "Submit for review"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.amug88"
+msgid "Return to draft"
+msgstr "Return to draft"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.AcxDgz"
+msgid "Activate"
+msgstr "Activate"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.mE-3ig"
+msgid "Recall"
+msgstr "Recall"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.oA2uW_"
+msgid "Terminate"
+msgstr "Terminate"
+
+#: src/features/sales/components/revenue-details.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.387D39"
+msgid "Waived"
+msgstr "Waived"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.GMJ8rw"
+msgid "Contract updated"
+msgstr "Contract updated"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.eowhxR"
+msgid "Every {months} months"
+msgstr "Every {months} months"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.aazj-S"
+msgid "Renewed"
+msgstr "Renewed"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.qU0kLJ"
+msgid "Obligations"
+msgstr "Obligations"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.4E9bLk"
+msgid "What each party has to do, and by when."
+msgstr "What each party has to do, and by when."
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.d5Asc2"
+msgid "Obligation"
+msgstr "Obligation"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.g9pEhE"
+msgid "Due"
+msgstr "Due"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.tQpQon"
+msgid "Mark done"
+msgstr "Mark done"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.DnIbzn"
+msgid "Obligation updated"
+msgstr "Obligation updated"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.O26-jV"
+msgid "No obligations yet"
+msgstr "No obligations yet"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.NvyqgB"
+msgid "Add obligation"
+msgstr "Add obligation"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.2_2yg-"
+msgid "Add"
+msgstr "Add"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.xaTJ2Y"
+msgid "Obligation added"
+msgstr "Obligation added"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.KT1OFE"
+msgid "The statement didn't load"
+msgstr "The statement didn't load"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.J9w6-G"
+msgid "Finalize"
+msgstr "Finalize"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.C_7Y7y"
+msgid "Pay out"
+msgstr "Pay out"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.us0G2H"
+msgid "Statement finalized"
+msgstr "Statement finalized"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.zy8la3"
+msgid "Statement paid"
+msgstr "Statement paid"
+
+#: src/features/sales/components/revenue-details.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.MJ2jZQ"
+msgid "Total"
+msgstr "Total"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.T2ZVQY"
+msgid "Lines"
+msgstr "Lines"
+
+#: src/features/sales/components/revenue-details.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.u_vOPu"
+msgid "Paid"
+msgstr "Paid"
+
+#: src/features/sales/components/revenue-details.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.aH4De2"
+msgid "Source"
+msgstr "Source"
+
+#: src/features/sales/components/revenue-details.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.P7PLVj"
+msgid "Date"
+msgstr "Date"
+
+#: src/features/sales/components/revenue-details.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.3rGMFt"
+msgid "Sale"
+msgstr "Sale"
+
+#: src/features/sales/components/revenue-details.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.mznk9z"
+msgid "Commission"
+msgstr "Commission"
+
+#: src/features/sales/components/revenue-details.tsx
+msgctxt "sales.94xfWT"
+msgid "No commissions in this statement"
+msgstr "No commissions in this statement"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.b7IpLm"
+msgid "New commission plan"
+msgstr "New commission plan"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.l_lcA_"
+msgid "A flat plan pays a share of every sale a seller closes."
+msgstr "A flat plan pays a share of every sale a seller closes."
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.Gn2VdB"
+msgid "New plan"
+msgstr "New plan"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.CFPRDL"
+msgid "Create plan"
+msgstr "Create plan"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.v9nycX"
+msgid "Plan created"
+msgstr "Plan created"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.DdmMP1"
+msgid "Rate in percent"
+msgstr "Rate in percent"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.QyGms6"
+msgid "Build a statement"
+msgstr "Build a statement"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.mRxf24"
+msgid "Collects the seller's accrued commissions of the period."
+msgstr "Collects the seller's accrued commissions of the period."
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.IwlMZW"
+msgid "Build statement"
+msgstr "Build statement"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.t79xDi"
+msgid "Statement built"
+msgstr "Statement built"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.a_w_Q7"
+msgid "Seller"
+msgstr "Seller"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.NADbJl"
+msgid "The commissions didn't load"
+msgstr "The commissions didn't load"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.6fPnZJ"
+msgid "Accrued"
+msgstr "Accrued"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.sMOQOA"
+msgid "Reversed"
+msgstr "Reversed"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.V_zI_a"
+msgid "Finalized"
+msgstr "Finalized"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.fz0z4c"
+msgid "Plan"
+msgstr "Plan"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.e5x8FT"
+msgid "Kind"
+msgstr "Kind"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.y1Dzrb"
+msgid "Flat"
+msgstr "Flat"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.1rx3Nt"
+msgid "Tiered"
+msgstr "Tiered"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.c0b5XV"
+msgid "Rate"
+msgstr "Rate"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.Ft71sH"
+msgid "Tiers"
+msgstr "Tiers"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.kzefVV"
+msgid "Search plans"
+msgstr "Search plans"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.jCxF10"
+msgid "No plans found"
+msgstr "No plans found"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.dF2-Vw"
+msgid "Create a plan, then assign it to your sellers."
+msgstr "Create a plan, then assign it to your sellers."
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.YK65ec"
+msgid "Largest total"
+msgstr "Largest total"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.QNMLkW"
+msgid "Search statements"
+msgstr "Search statements"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.0QnWbN"
+msgid "No statements found"
+msgstr "No statements found"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.LyV0kE"
+msgid "Build a statement from a seller's accrued commissions."
+msgstr "Build a statement from a seller's accrued commissions."
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.XsRDqK"
+msgid "Largest commission"
+msgstr "Largest commission"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.3kqd0l"
+msgid "Search commissions"
+msgstr "Search commissions"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.Fn9eDV"
+msgid "No commissions found"
+msgstr "No commissions found"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.rli-C8"
+msgid "Commissions accrue when a seller's deal or invoice is won."
+msgstr "Commissions accrue when a seller's deal or invoice is won."
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.wDF-m7"
+msgid "New referral code"
+msgstr "New referral code"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.mCCRO9"
+msgid "Share the code; each qualified referral earns the reward."
+msgstr "Share the code; each qualified referral earns the reward."
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.KhrsOK"
+msgid "New code"
+msgstr "New code"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.7t4Jbq"
+msgid "Create code"
+msgstr "Create code"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.oQsdIX"
+msgid "Code created"
+msgstr "Code created"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.gqHsLd"
+msgid "Maximum uses (optional)"
+msgstr "Maximum uses (optional)"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.uXA7ci"
+msgid "Attributed"
+msgstr "Attributed"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.3YmFdd"
+msgid "Qualified"
+msgstr "Qualified"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.rDqK-N"
+msgid "Rewarded"
+msgstr "Rewarded"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.jHfCjd"
+msgid "Void"
+msgstr "Void"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.ZKqDt1"
+msgid "The referrals didn't load"
+msgstr "The referrals didn't load"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.Z5dM3R"
+msgid "Referrer"
+msgstr "Referrer"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.Vb-qQ4"
+msgid "Uses"
+msgstr "Uses"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.xhQMeQ"
+msgid "Expires"
+msgstr "Expires"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.6Tps09"
+msgid "Inactive"
+msgstr "Inactive"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.WQyg8j"
+msgid "Most used"
+msgstr "Most used"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.acWl5A"
+msgid "Search codes"
+msgstr "Search codes"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.DezqbZ"
+msgid "No referral codes found"
+msgstr "No referral codes found"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.ZS7OCg"
+msgid "Create a code to share with customers and partners."
+msgstr "Create a code to share with customers and partners."
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.l2m1DX"
+msgid "Referred"
+msgstr "Referred"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.ORGv1Q"
+msgid "Created"
+msgstr "Created"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.WIMpwu"
+msgid "Search referrals"
+msgstr "Search referrals"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.N4sRxX"
+msgid "No referrals found"
+msgstr "No referrals found"
+
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.Kraa93"
+msgid "Referrals appear when someone signs up with a code."
+msgstr "Referrals appear when someone signs up with a code."
 
 #: src/features/search/components/command-search-lazy.tsx
 #: src/features/search/components/command-search.tsx

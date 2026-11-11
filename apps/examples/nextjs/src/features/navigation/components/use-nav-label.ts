@@ -77,6 +77,46 @@ export function useNavLabel(): (id: NavId) => string {
         return t("Quotes");
       }
 
+      case "salesHome": {
+        return t("Sales overview");
+      }
+
+      case "pipelines": {
+        return t("Pipelines");
+      }
+
+      case "forecasts": {
+        return t("Forecasts");
+      }
+
+      case "segments": {
+        return t("Segments");
+      }
+
+      case "queues": {
+        return t("Queues");
+      }
+
+      case "scoring": {
+        return t("Scoring");
+      }
+
+      case "contracts": {
+        return t("Contracts");
+      }
+
+      case "commissions": {
+        return t("Commissions");
+      }
+
+      case "referrals": {
+        return t("Referrals");
+      }
+
+      case "customerSuccess": {
+        return t("Customer success");
+      }
+
       case "shop": {
         return t("Shop");
       }
