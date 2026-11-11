@@ -1,4 +1,4 @@
-import { defineBlockList } from "@/lib/block-list";
+import { defineBlockList } from "@/lib/block-status-list";
 
 export const GIFT_STATUSES = [
   "pending",

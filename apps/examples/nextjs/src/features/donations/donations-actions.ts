@@ -6,7 +6,7 @@ import { ok } from "better-supabase";
 import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
-import type { Mutable } from "@/lib/block-list";
+import type { Mutable } from "@/lib/block-status-list";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { refreshCaller } from "@/lib/refresh-caller";

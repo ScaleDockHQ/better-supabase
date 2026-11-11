@@ -27,7 +27,14 @@ export const issuePass = bsb.action(
       holderEmail: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(200))),
       kind: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(60))),
       usesAllowed: v.optional(
-        v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(1000)),
+        v.pipe(
+          v.string(),
+          v.trim(),
+          v.transform((value) => (value === "" ? undefined : Number(value))),
+          v.optional(
+            v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(1000)),
+          ),
+        ),
       ),
     }),
     requireTenant: true,
