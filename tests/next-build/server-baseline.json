@@ -15,7 +15,7 @@
     "brotli": 336806
   },
   "/.well-known/workflow/v1/flow/route": {
-    "raw": 5102956,
+    "raw": 5103522,
     "gzip": 1290633,
     "brotli": 1058497
   },
@@ -730,17 +730,17 @@
     "brotli": 457423
   },
   "/api/chat/durable/[id]/stop/route": {
-    "raw": 3347534,
+    "raw": 3348087,
     "gzip": 1015199,
     "brotli": 857651
   },
   "/api/chat/durable/[id]/stream/route": {
-    "raw": 3347668,
+    "raw": 3348221,
     "gzip": 1015261,
     "brotli": 857673
   },
   "/api/chat/durable/route": {
-    "raw": 3347631,
+    "raw": 3348184,
     "gzip": 1015254,
     "brotli": 857681
   },
