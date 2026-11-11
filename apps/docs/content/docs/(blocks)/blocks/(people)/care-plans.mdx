@@ -224,6 +224,7 @@ await db.carePlans
 | `publish(planId)`                       | the active plan                                            |
 | `archive(planId)`                       | the archived plan                                          |
 | `get(planId)`                           | the plan with its problems, goals, actions and evaluations |
+| `getMany(planIds)`                      | those plans in one read, in the order asked                |
 | `list(subjectType, subjectId, options)` | the client's plans, the newest version first               |
 | `evaluate(goalId, input)`               | the evaluation                                             |
 | `startAction(actionId)`                 | the action, started or still waiting for its approval      |

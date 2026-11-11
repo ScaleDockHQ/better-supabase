@@ -190,6 +190,14 @@ export interface Hiring<F extends object = Record<never, never>> {
     state?: ApplicationState | undefined;
   }): AsyncResult<Application[]>;
   /**
+   * The applications of many jobs in one read: the jobs in the order given,
+   * each in board order. `state` keeps one state.
+   */
+  applicationsForJobs(input: {
+    jobIds: readonly string[];
+    state?: ApplicationState | undefined;
+  }): AsyncResult<Application[]>;
+  /**
    * A job's applications grouped by stage, in board order. A stage's name and
    * order come from the pipelines block; this groups by `stageId` only.
    */
@@ -457,6 +465,10 @@ export function createHiring<
     applications: ({ jobId, state }) =>
       call("list_applications", { job: jobId, state: state ?? null }, (value) =>
         recordsOf(value, "applications").map(applicationOf),
+      ),
+    applicationsForJobs: ({ jobIds, state }) =>
+      call("list_applications_for_jobs", { jobs: jobIds, state }, (value) =>
+        recordsOf(value, "list_applications_for_jobs").map(applicationOf),
       ),
     pipeline: ({ jobId, state }) =>
       hooked.applications({ jobId, state }).map((applications) => {

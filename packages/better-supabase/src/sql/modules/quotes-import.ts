@@ -139,7 +139,9 @@ export function quoteImportFunctions(
 -- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,
 -- decidedAt?, decidedBy?, decisionNote?, company?, contact?, origin?,
 -- pricesIncludeTax?, attrs?, legalEntityId?, buyer?, lines, taxLines?,
--- totals? }. A quote that is already imported is kept as it is.
+-- totals? }. A quote that is already imported is kept as it is, unless
+-- item.data.update is 'apply': then its fields, lines, stored tax and totals
+-- are replaced, whatever status the quote is in.
 create or replace function ${fn("import_quote")}(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -156,6 +158,7 @@ declare
   v_warnings jsonb := '[]'::jsonb;
   v_computed jsonb;
   v_given jsonb;
+  v_same boolean;
 begin
   if import_quote.subject_id is not null then
     select * into v_row from ${t("quotes")} y where y.${q("id")} = import_quote.subject_id::uuid and y.${q("tenant")} = v_tenant;
@@ -166,17 +169,23 @@ begin
       return jsonb_build_object('subjectId', v_row.${q("id")}::text, 'updatedAt', v_row.${q("updatedAt")}, 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
     end if;
     v_id := v_row.${q("id")};
+    v_same := (select count(*) from ${quoteLines} l where l.${ql("parent")} = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb));
+    -- A quote that was sent or decided can't change its lines. The import
+    -- reopens it for the replacement, then the update below restores the
+    -- status it had, so a historical quote keeps its decided state.
+    if not v_same and jsonb_typeof(v_data -> 'lines') = 'array' then
+      update ${t("quotes")} y set ${q("status")} = ${ctx.cast("quotes", "status", "'draft'")} where y.${q("id")} = v_id;
+      perform ${fn("set_quote_lines")}(v_id, v_data -> 'lines');
+    end if;
     update ${t("quotes")} y set
       ${[...sets, ...quoteApply].join(",\n      ")}
     where y.${q("id")} = v_id;
-    if (select count(*) from ${quoteLines} l where l.${ql("parent")} = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+    if v_same then
       update ${quoteLines} l set
         ${ql("description")} = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l.${ql("description")})${quoteLineTax}
       from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
       where l.${ql("parent")} = v_id and l.${ql("position")} = e.n::integer;
-    elsif jsonb_typeof(v_data -> 'lines') = 'array' then
-      perform ${fn("set_quote_lines")}(v_id, v_data -> 'lines');
-    end if;
+    end if;${taxLines}${totals}
     select * into v_row from ${t("quotes")} y where y.${q("id")} = v_id;
     return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row.${q("updatedAt")}, 'warnings', v_warnings);
   end if;

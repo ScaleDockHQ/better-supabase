@@ -19,8 +19,10 @@ import {
 } from "../shared.ts";
 
 export const ORDER_STATUSES = [
+  "draft",
   "pending_payment",
   "confirmed",
+  "on_hold",
   "paid",
   "fulfilled",
   "completed",
@@ -271,6 +273,10 @@ export interface Order<F extends object = Record<never, never>> {
   readonly completedAt?: Temporal.Instant;
   readonly cancelledAt?: Temporal.Instant;
   readonly cancelReason: string | null;
+  /** When the order was put on hold; set while its status is `on_hold`. */
+  readonly heldAt?: Temporal.Instant;
+  /** Why the order is on hold. */
+  readonly holdReason: string | null;
   readonly lines: readonly OrderLine[];
   readonly payments: readonly OrderPayment[];
   readonly fulfillments: readonly Fulfillment[];
@@ -592,6 +598,8 @@ export function orderOf(value: unknown): Order {
     ...when("completedAt", row["completedAt"]),
     ...when("cancelledAt", row["cancelledAt"]),
     cancelReason: nullableText(row["cancelReason"]),
+    ...when("heldAt", row["heldAt"]),
+    holdReason: nullableText(row["holdReason"]),
     fields: rowFields(row["fields"]),
     lines: recordsOf(row["lines"], "orders").map((line) => ({
       id: textOf(line["id"]),

@@ -115,7 +115,7 @@ const { job, stages } = await db.hiring
 
 ## Lists and the pipeline
 
-`jobs({ organizationId, status })` returns the organization's jobs, newest first, and `status` keeps one of `draft`, `open` and `closed`. `applications({ jobId, state })` returns a job's applications in board order. `pipeline({ jobId, state })` groups them by stage in the same order; it groups by `stageId` only, so read stage names and order from the [pipelines](/docs/blocks/pipelines) block. Applications that have no stage yet come back in a group whose `stageId` is `undefined`.
+`jobs({ organizationId, status })` returns the organization's jobs, newest first, and `status` keeps one of `draft`, `open` and `closed`. `applications({ jobId, state })` returns a job's applications in board order. `applicationsForJobs({ jobIds, state })` returns the applications of many jobs in one call, with the jobs in the order you give and each job's applications in board order; use it for a board of every open job instead of one `applications` call per job. `pipeline({ jobId, state })` groups them by stage in the same order; it groups by `stageId` only, so read stage names and order from the [pipelines](/docs/blocks/pipelines) block. Applications that have no stage yet come back in a group whose `stageId` is `undefined`.
 
 `close({ organizationId, jobId })` saves the job with `status: "closed"`, which stamps `closedAt` and records `job_opening.closed`. Closing a closed job changes nothing.
 

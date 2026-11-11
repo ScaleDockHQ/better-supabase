@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:dae2734ca6d5b960ba8aa48fea0e70cc9334cb420b6322d46b41e0990e6ee907
+-- @bsb-hash sha256:c88ddf540c2a6d8d4a621e8fe0d742d80734635f37afe4c9f43aec08eb9e3e82
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,6 +162,7 @@ create table "better_supabase"."purchase_order_lines" (
   "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered" - "quantity_canceled"),
   "quantity_canceled" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check1 check ("quantity_canceled" >= 0 and "quantity_canceled" <= "quantity_ordered"),
   "tax_code" text,
+  "tax_rate_bps" integer constraint bsb_purchase_order_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "unit_cost" bigint not null constraint bsb_purchase_order_lines_unit_cost_check check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
@@ -171,6 +172,27 @@ revoke all on "better_supabase"."purchase_order_lines" from public, anon, authen
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
 create policy bsb_purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
+-- The tax of a purchase order per tax code and rate, rebuilt from its lines
+-- each time the draft is saved. Amounts are minor units of the order's currency.
+create table "better_supabase"."purchase_order_tax_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
+  "tax_code" text,
+  "tax_rate_bps" integer not null constraint bsb_purchase_order_tax_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "net" bigint not null constraint bsb_purchase_order_tax_lines_net_check check ("net" >= 0),
+  "tax" bigint not null constraint bsb_purchase_order_tax_lines_tax_check check ("tax" >= 0),
+  "gross" bigint not null constraint bsb_purchase_order_tax_lines_gross_check check ("gross" >= 0)
+);
+create index purchase_order_tax_lines_order_idx on "better_supabase"."purchase_order_tax_lines" ("purchase_order_id");
+alter table "better_supabase"."purchase_order_tax_lines" enable row level security;
+revoke all on "better_supabase"."purchase_order_tax_lines" from public, anon, authenticated;
+grant select on "better_supabase"."purchase_order_tax_lines" to authenticated;
+grant all on "better_supabase"."purchase_order_tax_lines" to service_role;
+create policy bsb_purchase_order_tax_lines_read on "better_supabase"."purchase_order_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -1485,6 +1507,120 @@ $$;
 revoke execute on function "better_supabase"."list_allocations"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_allocations"(uuid, text, text) to authenticated, service_role;
 
+-- The import target of the stock_allocation entity: item.data is { variantId or
+-- sku, locationId or location (a code), documentType, documentId, lineId?,
+-- quantity, allocated?, fulfilled?, status? (open, fulfilled or released) }.
+-- allocated is the part held for the document now and fulfilled the part that
+-- already shipped; both default to zero, and a fulfilled or released
+-- allocation holds nothing. An open allocation adds what it holds to the
+-- location's reserved stock, and nothing else moves: no movement, no event.
+-- Importing the same key again replaces an open allocation and keeps a
+-- fulfilled or released one as it is, with a warning.
+create or replace function "better_supabase"."import_stock_allocation"(run uuid, item jsonb, subject_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid := (import_stock_allocation.item ->> 'tenant')::uuid;
+  v_data jsonb := import_stock_allocation.item -> 'data';
+  v_variant uuid;
+  v_location uuid;
+  v_quantity numeric;
+  v_allocated numeric;
+  v_fulfilled numeric;
+  v_status text := coalesce(nullif(v_data ->> 'status', ''), 'open');
+  v_row record;
+  v_id uuid;
+  v_updated timestamptz;
+begin
+  begin
+    v_variant := nullif(v_data ->> 'variantId', '')::uuid;
+    v_location := nullif(v_data ->> 'locationId', '')::uuid;
+    v_quantity := (v_data ->> 'quantity')::numeric;
+    v_allocated := coalesce((v_data ->> 'allocated')::numeric, 0);
+    v_fulfilled := coalesce((v_data ->> 'fulfilled')::numeric, 0);
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'ids are uuids and quantity, allocated and fulfilled are numbers' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end;
+  if v_status not in ('open', 'fulfilled', 'released') then
+    raise exception 'status is open, fulfilled or released' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_quantity is null or v_quantity <= 0 or v_allocated < 0 or v_fulfilled < 0 or v_allocated + v_fulfilled > v_quantity then
+    raise exception 'quantity is above zero and allocated plus fulfilled isn''t more than the quantity' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if coalesce(v_data ->> 'documentType', '') !~ '^[a-z][a-z0-9_]{0,62}$' or length(coalesce(v_data ->> 'documentId', '')) not between 1 and 200 then
+    raise exception 'an allocation names its document type (lower case, with underscores) and its document id' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_variant is null then
+    select y."id" into v_variant from "better_supabase"."product_variants" y where y."tenant_id" = v_tenant and y."sku" = v_data ->> 'sku';
+  end if;
+  if v_variant is null or not exists (select 1 from "better_supabase"."product_variants" y where y."id" = v_variant and y."tenant_id" = v_tenant) then
+    raise exception 'the allocation''s variant isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_location is null then
+    select x."id" into v_location from "better_supabase"."inventory_locations" x where x."tenant_id" = v_tenant and x."code" = v_data ->> 'location';
+  elsif not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = v_location and x."tenant_id" = v_tenant) then
+    v_location := null;
+  end if;
+  if v_location is null then
+    raise exception 'the allocation''s location isn''t in this organization' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+  end if;
+  if v_status <> 'open' then
+    v_allocated := 0;
+  end if;
+  if v_status = 'fulfilled' then
+    v_fulfilled := v_quantity;
+  end if;
+  insert into "better_supabase"."stock_levels" ("tenant_id", "variant_id", "location_id")
+  values (v_tenant, v_variant, v_location)
+  on conflict ("variant_id", "location_id") do nothing;
+  if import_stock_allocation.subject_id is not null then
+    select x."id" as id, x."variant_id" as variant, x."location_id" as location, x."allocated" as allocated,
+      x."status" as status, x."updated_at" as updated_at
+    into v_row from "better_supabase"."stock_allocations" x
+    where x."id" = import_stock_allocation.subject_id::uuid and x."tenant_id" = v_tenant for update;
+    if v_row.id is null then
+      raise exception 'the stock allocation no longer exists' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    if v_row.status <> 'open' then
+      return jsonb_build_object('subjectId', v_row.id::text, 'updatedAt', v_row.updated_at, 'warnings', jsonb_build_array(jsonb_build_object(
+        'code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'a fulfilled or released stock allocation is kept as imported')));
+    end if;
+    update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" - v_row.allocated, 0), "updated_at" = now()
+    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
+    update "better_supabase"."stock_allocations" x set "variant_id" = v_variant, "location_id" = v_location, "document_type" = v_data ->> 'documentType',
+      "document_id" = v_data ->> 'documentId', "line_id" = nullif(v_data ->> 'lineId', ''), "quantity" = v_quantity,
+      "allocated" = v_allocated, "fulfilled" = v_fulfilled, "status" = v_status, "updated_at" = now()
+    where x."id" = v_row.id returning x."id", x."updated_at" into v_id, v_updated;
+  else
+    insert into "better_supabase"."stock_allocations" as x ("tenant_id", "variant_id", "location_id", "document_type", "document_id", "line_id",
+      "quantity", "allocated", "fulfilled", "status")
+    values (v_tenant, v_variant, v_location, v_data ->> 'documentType', v_data ->> 'documentId', nullif(v_data ->> 'lineId', ''),
+      v_quantity, v_allocated, v_fulfilled, v_status)
+    returning x."id", x."updated_at" into v_id, v_updated;
+  end if;
+  update "better_supabase"."stock_levels" x set "reserved" = x."reserved" + v_allocated, "updated_at" = now()
+  where x."variant_id" = v_variant and x."location_id" = v_location;
+  return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_updated);
+end;
+$$;
+revoke execute on function "better_supabase"."import_stock_allocation"(uuid, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."import_stock_allocation"(uuid, jsonb, text) to service_role;
+
+create or replace function "better_supabase"."stock_allocation_updated_at"(subject_id text)
+returns timestamptz
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select x."updated_at" from "better_supabase"."stock_allocations" x where x."id" = $1::uuid
+$$;
+revoke execute on function "better_supabase"."stock_allocation_updated_at"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."stock_allocation_updated_at"(text) to service_role;
+
 -- Where the location is: line1, line2, postalCode, city, region and country
 -- (a two-letter ISO 3166 code).
 alter table "better_supabase"."inventory_locations" add column "address" jsonb;
@@ -2600,9 +2736,11 @@ revoke execute on function "better_supabase"."cancel_transfer"(uuid) from public
 grant execute on function "better_supabase"."cancel_transfer"(uuid) to authenticated, service_role;
 
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
--- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].
+-- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
+-- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.subjects record, or are both null.
-create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
+
+create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2610,6 +2748,7 @@ set search_path = ''
 as $$
 declare
   v_id uuid := save_purchase_order.purchase_order;
+  v_number text := nullif(btrim(save_purchase_order.number), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2623,6 +2762,9 @@ begin
   if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
     raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
   end if;
+  if v_number is not null and length(v_number) > 50 then
+    raise exception 'a purchase order number is up to 50 characters' using errcode = '22023', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_INVALID';
+  end if;
   if save_purchase_order.currency is null or "better_supabase"."currency_minor_units"(save_purchase_order.currency) is null then
     raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
   end if;
@@ -2633,6 +2775,8 @@ begin
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
         or coalesce(e ->> 'unitCost', '') !~ '^[0-9]{1,18}$'
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
+        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
     or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
@@ -2644,9 +2788,9 @@ begin
     raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if v_id is null then
-    insert into "better_supabase"."purchase_orders" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "expected_at", "note")
+    insert into "better_supabase"."purchase_orders" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "expected_at", "note", "number")
     values (save_purchase_order.tenant, save_purchase_order.location, save_purchase_order.supplier_type, save_purchase_order.supplier_id,
-      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note)
+      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note, v_number)
     returning "id" into v_id;
   else
     perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."tenant_id" = save_purchase_order.tenant for update;
@@ -2655,23 +2799,64 @@ begin
     end if;
     update "better_supabase"."purchase_orders" x set "location_id" = save_purchase_order.location, "supplier_type" = save_purchase_order.supplier_type,
       "supplier_id" = save_purchase_order.supplier_id, "currency" = save_purchase_order.currency,
-      "expected_at" = save_purchase_order.expected_at, "note" = save_purchase_order.note, "updated_at" = now()
+      "expected_at" = save_purchase_order.expected_at, "note" = save_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
     where x."id" = v_id and x."status" = 'draft';
     if not found then
       raise exception 'only a draft purchase order can change' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_LOCKED';
     end if;
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
-  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
+  insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
+  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
   from jsonb_array_elements(save_purchase_order.lines) e;
-  return jsonb_build_object('id', v_id, 'status', 'draft');
+  delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
+  insert into "better_supabase"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
+  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  from (
+    select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
+      round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
+    from jsonb_array_elements(save_purchase_order.lines) e
+  ) g
+  where g.rate > 0
+  group by g.code, g.rate;
+  return jsonb_build_object('id', v_id, 'status', 'draft', 'number', (select x."number" from "better_supabase"."purchase_orders" x where x."id" = v_id));
+exception when unique_violation then
+  raise exception 'another purchase order has this number' using errcode = '23505', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN';
 end;
 $$;
-revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) from public, anon;
-grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
+grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
+
+-- The tax of a purchase order per code and rate, with the order's currency.
+-- Amounts are text in minor units.
+create or replace function "better_supabase"."purchase_order_tax_lines"(purchase_order uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+begin
+  select x."tenant_id" as tenant, x."currency" as currency into v_row
+  from "better_supabase"."purchase_orders" x where x."id" = purchase_order_tax_lines.purchase_order;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.read'), false)) then
+    raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
+  end if;
+  return jsonb_build_object('currency', v_row.currency::text, 'lines', coalesce((
+    select jsonb_agg(jsonb_build_object('taxCode', z."tax_code", 'taxRateBps', z."tax_rate_bps",
+      'net', z."net"::text, 'tax', z."tax"::text, 'gross', z."gross"::text) order by z."tax_rate_bps", z."tax_code")
+    from "better_supabase"."purchase_order_tax_lines" z where z."purchase_order_id" = purchase_order_tax_lines.purchase_order), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_order_tax_lines"(uuid) from public, anon;
+grant execute on function "better_supabase"."purchase_order_tax_lines"(uuid) to authenticated, service_role;
 
 -- Sends a draft purchase order: its quantities count as incoming at its location.
+-- An order without a number gets the next one: one more than the organization's
+-- highest all-digit number, under a transaction lock.
 create or replace function "better_supabase"."place_purchase_order"(purchase_order uuid)
 returns boolean
 language plpgsql
@@ -2680,6 +2865,7 @@ set search_path = ''
 as $$
 declare
   v_row record;
+  v_number text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2696,12 +2882,18 @@ begin
   if v_row.status <> 'draft' then
     raise exception 'the purchase order can''t do this in its current status' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_STATUS';
   end if;
+  select x."number" into v_number from "better_supabase"."purchase_orders" x where x."id" = place_purchase_order.purchase_order;
+  if v_number is null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row.tenant::text || ':inventory:purchase_order', 0));
+    select (coalesce(max(case when y."number" ~ '^[0-9]{1,15}$' then y."number"::bigint end), 0) + 1)::text into v_number
+    from "better_supabase"."purchase_orders" y where y."tenant_id" = v_row.tenant;
+  end if;
   insert into "better_supabase"."stock_levels" as x ("tenant_id", "variant_id", "location_id", "incoming")
   select v_row.tenant, y."variant_id", v_row.location, y."quantity_ordered"
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = place_purchase_order.purchase_order
   on conflict ("variant_id", "location_id") do update
     set "incoming" = x."incoming" + excluded."incoming", "updated_at" = now();
-  update "better_supabase"."purchase_orders" x set "status" = 'ordered', "placed_at" = now(), "updated_at" = now()
+  update "better_supabase"."purchase_orders" x set "status" = 'ordered', "placed_at" = now(), "number" = v_number, "updated_at" = now()
   where x."id" = place_purchase_order.purchase_order;
   null;
   return true;
@@ -2759,7 +2951,7 @@ begin
   values (v_row.tenant, receive_purchase_order.purchase_order, v_row.location)
   returning "id" into v_receipt;
   for v_line in
-    select y."id" as id, y."variant_id" as variant, y."quantity_ordered" as ordered,
+    select y."id" as id, y."variant_id" as variant, y."quantity_ordered" - y."quantity_canceled" as ordered,
       y."quantity_received" as received, (e ->> 'quantity')::numeric as quantity, y."unit_cost" as unit_cost,
       jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
@@ -2778,7 +2970,7 @@ begin
     insert into "better_supabase"."inventory_receipt_lines" ("tenant_id", "receipt_id", "purchase_order_line_id", "variant_id", "quantity", "unit_cost", "detail")
     values (v_row.tenant, v_receipt, v_line.id, v_line.variant, v_line.quantity, v_line.unit_cost, nullif(v_line.detail, '{}'::jsonb));
   end loop;
-  select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
+  select coalesce(sum(y."quantity_ordered" - y."quantity_canceled" - y."quantity_received"), 0) into v_backordered
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
   v_status := case when v_backordered = 0 then 'received' else 'partially_received' end;
   update "better_supabase"."purchase_orders" x set "status" = v_status, "updated_at" = now()
@@ -2790,6 +2982,80 @@ end;
 $$;
 revoke execute on function "better_supabase"."receive_purchase_order"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."receive_purchase_order"(uuid, jsonb) to authenticated, service_role;
+
+
+
+-- Gives up part of what is still owed on some lines of a placed order, for a
+-- supplier that can't deliver it all. lines: [{ "lineId": uuid, "quantity": n }];
+-- each quantity is at most what the line still owes. The units stop counting as
+-- incoming. An order with nothing left owed becomes received, or cancelled when
+-- nothing was received. Returns the new status and the quantity still on
+-- backorder.
+create or replace function "better_supabase"."cancel_purchase_order_quantity"(purchase_order uuid, lines jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+  v_line record;
+  v_backordered numeric;
+  v_received numeric;
+  v_status text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" as tenant, x."location_id" as location, x."status" as status,
+    x."supplier_type" as supplier_type, x."supplier_id" as supplier_id, x."currency" as currency
+  into v_row from "better_supabase"."purchase_orders" x where x."id" = cancel_purchase_order_quantity.purchase_order for update;
+  if not found then
+    raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.purchase'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_row.status not in ('ordered', 'partially_received') then
+    raise exception 'the purchase order can''t do this in its current status' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_STATUS';
+  end if;
+  if jsonb_typeof(cancel_purchase_order_quantity.lines) is distinct from 'array' or jsonb_array_length(cancel_purchase_order_quantity.lines) = 0
+    or exists (
+      select 1 from jsonb_array_elements(cancel_purchase_order_quantity.lines) e
+      where jsonb_typeof(e) <> 'object'
+        or coalesce(e ->> 'lineId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
+    )
+    or (select count(distinct e ->> 'lineId') from jsonb_array_elements(cancel_purchase_order_quantity.lines) e) <> jsonb_array_length(cancel_purchase_order_quantity.lines) then
+    raise exception 'lines must be a non-empty list with a unique lineId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
+  end if;
+  for v_line in
+    select y."id" as id, y."variant_id" as variant,
+      y."quantity_ordered" - y."quantity_canceled" - y."quantity_received" as owed, (e ->> 'quantity')::numeric as quantity
+    from jsonb_array_elements(cancel_purchase_order_quantity.lines) e
+    left join "better_supabase"."purchase_order_lines" y on y."id" = (e ->> 'lineId')::uuid and y."purchase_order_id" = cancel_purchase_order_quantity.purchase_order
+  loop
+    if v_line.id is null then
+      raise exception 'a line isn''t on this purchase order' using errcode = 'P0002', hint = 'INVENTORY_LINE_NOT_FOUND';
+    end if;
+    if v_line.quantity > v_line.owed then
+      raise exception 'a line would cancel more than it still owes' using errcode = '22023', hint = 'INVENTORY_OVER_CANCEL';
+    end if;
+    update "better_supabase"."purchase_order_lines" y set "quantity_canceled" = y."quantity_canceled" + v_line.quantity where y."id" = v_line.id;
+    update "better_supabase"."stock_levels" x set "incoming" = greatest(x."incoming" - v_line.quantity, 0), "updated_at" = now()
+    where x."variant_id" = v_line.variant and x."location_id" = v_row.location;
+  end loop;
+  select coalesce(sum(y."quantity_ordered" - y."quantity_canceled" - y."quantity_received"), 0), coalesce(sum(y."quantity_received"), 0)
+  into v_backordered, v_received from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = cancel_purchase_order_quantity.purchase_order;
+  v_status := case when v_backordered > 0 then v_row.status when v_received > 0 then 'received' else 'cancelled' end;
+  update "better_supabase"."purchase_orders" x set "status" = v_status, "updated_at" = now()
+  where x."id" = cancel_purchase_order_quantity.purchase_order;
+  null;
+  return jsonb_build_object('status', v_status, 'backordered', v_backordered);
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_purchase_order_quantity"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."cancel_purchase_order_quantity"(uuid, jsonb) to authenticated, service_role;
 
 -- Cancels a purchase order that isn't fully received; what's still on
 -- backorder stops counting as incoming.
@@ -2818,7 +3084,7 @@ begin
     raise exception 'the purchase order can''t do this in its current status' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_STATUS';
   end if;
   if v_row.status <> 'draft' then
-    update "better_supabase"."stock_levels" x set "incoming" = greatest(x."incoming" - (y."quantity_ordered" - y."quantity_received"), 0), "updated_at" = now()
+    update "better_supabase"."stock_levels" x set "incoming" = greatest(x."incoming" - (y."quantity_ordered" - y."quantity_canceled" - y."quantity_received"), 0), "updated_at" = now()
     from "better_supabase"."purchase_order_lines" y
     where y."purchase_order_id" = cancel_purchase_order.purchase_order
       and x."variant_id" = y."variant_id" and x."location_id" = v_row.location;
@@ -3302,6 +3568,22 @@ create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_lines
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_select on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')))
+  );
+create policy bsb_tenant_scope_insert on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_update on "better_supabase"."purchase_order_tax_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
+create policy bsb_tenant_scope_delete on "better_supabase"."purchase_order_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."purchase_requisitions" as restrictive

@@ -319,6 +319,69 @@ export const cancelOrder = bsb.action(
   },
 );
 
+/** Confirms a draft order and allocates its stock. */
+export const confirmDraftOrder = bsb.action(
+  {
+    input: v.object({ orderId: Id }),
+    requireTenant: true,
+    permission: "orders.manage",
+  },
+  async ({ orderId }, { supabase, auth }) => {
+    const confirmed = await shopOrders(supabase).confirmDraft({ orderId });
+
+    if (!confirmed.ok) {
+      return confirmed;
+    }
+
+    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
+
+    return ok(confirmed.data.status);
+  },
+);
+
+/** Puts an order on hold until someone releases it. */
+export const holdOrder = bsb.action(
+  {
+    input: v.object({ orderId: Id }),
+    requireTenant: true,
+    permission: "orders.manage",
+  },
+  async ({ orderId }, { supabase, auth }) => {
+    const held = await shopOrders(supabase).hold({
+      orderId,
+      reason: "Held from the shop",
+    });
+
+    if (!held.ok) {
+      return held;
+    }
+
+    await refreshCaller(auth, [SHOP_TAG]);
+
+    return ok(held.data.status);
+  },
+);
+
+/** Returns a held order to the status it was held from. */
+export const releaseOrderHold = bsb.action(
+  {
+    input: v.object({ orderId: Id }),
+    requireTenant: true,
+    permission: "orders.manage",
+  },
+  async ({ orderId }, { supabase, auth }) => {
+    const released = await shopOrders(supabase).releaseHold(orderId);
+
+    if (!released.ok) {
+      return released;
+    }
+
+    await refreshCaller(auth, [SHOP_TAG]);
+
+    return ok(released.data.status);
+  },
+);
+
 /** Creates a fulfillment for every unit not fulfilled yet. */
 export const fulfillOrder = bsb.action(
   {

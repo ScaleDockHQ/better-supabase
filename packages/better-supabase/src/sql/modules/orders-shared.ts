@@ -33,8 +33,10 @@ export const columns =
 
 /** Order status edges; a state machine on the status column replaces them. */
 const ORDER_STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
-  pending_payment: ["paid", "cancelled"],
-  confirmed: ["paid", "fulfilled", "cancelled"],
+  draft: ["confirmed", "cancelled"],
+  pending_payment: ["paid", "cancelled", "on_hold"],
+  confirmed: ["paid", "fulfilled", "cancelled", "on_hold"],
+  on_hold: ["pending_payment", "confirmed", "cancelled"],
   paid: ["fulfilled", "refunded"],
   fulfilled: ["paid", "completed", "refunded"],
   completed: ["refunded"],

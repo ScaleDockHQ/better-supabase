@@ -95,7 +95,7 @@ as $$
   select jsonb_build_object('columns', coalesce(jsonb_agg(col order by rank, col ->> 'status'), '[]'::jsonb))
   from (
     select
-      array_position(array['pending_payment', 'confirmed', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
+      array_position(array['draft', 'pending_payment', 'confirmed', 'on_hold', 'paid', 'fulfilled', 'completed', 'cancelled', 'refunded'], g.raw::text) as rank,
       jsonb_build_object(
         'status', g.label,
         'count', g.n,

@@ -25,7 +25,7 @@
     "security-definer-functions": 24
   },
   "ai-chat": {
-    "security-definer-functions": 380
+    "security-definer-functions": 386
   },
   "ai-evals": {
     "security-definer-functions": 72
@@ -95,7 +95,7 @@
     "row-triggers": 12
   },
   "care-plans": {
-    "security-definer-functions": 134,
+    "security-definer-functions": 140,
     "row-triggers": 1
   },
   "cases": {
@@ -261,7 +261,7 @@
     "row-triggers": 1
   },
   "inventory": {
-    "security-definer-functions": 307
+    "security-definer-functions": 331
   },
   "invitations": {
     "security-definer-functions": 72,
@@ -366,7 +366,7 @@
     "row-triggers": 1
   },
   "orders": {
-    "security-definer-functions": 223
+    "security-definer-functions": 241
   },
   "organizations": {
     "security-definer-functions": 109,
@@ -563,7 +563,7 @@
     "row-triggers": 24
   },
   "versions": {
-    "security-definer-functions": 49
+    "security-definer-functions": 55
   },
   "waitlist": {
     "security-definer-functions": 60
