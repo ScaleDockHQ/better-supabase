@@ -279,3 +279,45 @@ describe("rpc, copy and rollup tags (ADR 0661)", () => {
     ).toThrow(/to=/u);
   });
 });
+
+describe("buckets tag (ADR 0672)", () => {
+  const BUCKETS = {
+    name: "buckets",
+    args: { column: "occurred_at", filter: "kind,status" },
+  } as const;
+
+  it("renders the SQL the buckets pgTAP file applies", () => {
+    const pgtap = readFileSync(
+      new URL(
+        "../../../../supabase/tests/database/bsb_tags_buckets.test.sql",
+        import.meta.url,
+      ),
+      "utf-8",
+    );
+
+    expect(pgtap).toContain(
+      renderTagBlock("buckets", "public", "scale_events", BUCKETS),
+    );
+  });
+
+  it("needs a date column and a bounded bucket count", () => {
+    expect(() =>
+      renderTagBlock("buckets", "public", "scale_events", {
+        name: "buckets",
+        args: {},
+      }),
+    ).toThrow(/column=/u);
+    expect(() =>
+      renderTagBlock("buckets", "public", "scale_events", {
+        name: "buckets",
+        args: { column: "occurred_at", max: "9000" },
+      }),
+    ).toThrow(/1 to 5000/u);
+    expect(() =>
+      renderTagBlock("buckets", "public", "scale_events", {
+        name: "buckets",
+        args: { column: "occurred_at", filter: "kind;drop" },
+      }),
+    ).toThrow(/lower case identifier/u);
+  });
+});

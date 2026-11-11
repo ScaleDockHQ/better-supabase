@@ -1,9 +1,9 @@
 ---
 title: Tags that render SQL
-description: Turn on row access policies, a keyset list function, an idempotency index, an id lookup function, a stored rollup and a row copy function for your own tables with tags.
+description: Turn on row access policies, a keyset list function, an idempotency index, an id lookup function, a stored rollup, a row copy function and a date bucket count for your own tables with tags.
 ---
 
-Six `@bsb` tags in a table comment write SQL for you. `better-supabase table <name> enable <tag>`
+Seven `@bsb` tags in a table comment write SQL for you. `better-supabase table <name> enable <tag>`
 reads the tag's arguments from the comment and writes the statements into the table's own file, between
 `-- @bsb-tag <name> begin` and `-- @bsb-tag <name> end`. Running it again replaces the block, and
 `disable` removes it. Run `db diff` afterwards to write the migration.
@@ -154,3 +154,45 @@ comment on table public.tasks is
 ```ts
 const copy = await db.$rpc("copy_tasks", { source: taskId }).orThrow();
 ```
+
+## buckets
+
+`buckets` renders `<table>_date_buckets(unit, tz, from_at, to_at, equals)`, a `security invoker`
+function that counts rows per date bucket of one column, for the chart above a list. Row security
+decides the rows. `unit` is `hour`, `day`, `week`, `month`, `quarter` or `year`; any other value fails
+with `22023`. `tz` is the IANA time zone the buckets start in (default `UTC`), `from_at` and `to_at`
+bound the column (`to_at` is exclusive), and `equals` is a jsonb object of column name to a list of
+values, applied to the columns the tag's `filter` names.
+
+| Argument | Meaning                                                                |
+| -------- | ---------------------------------------------------------------------- |
+| `column` | Required. The `date`, `timestamp` or `timestamptz` column to group by. |
+| `filter` | Comma list of columns that `equals` may narrow by (compared as text).  |
+| `max`    | The most buckets one call returns, 1 to 5000. Default 1000.            |
+| `name`   | The function name. Default `<table>_date_buckets`.                     |
+
+```sql
+comment on table public.orders is
+  'Orders. @bsb buckets column=placed_at filter=status,channel';
+```
+
+The function returns `[{ "bucket": "2026-01-01T00:00:00+00:00", "count": 3 }]`. Call it through
+`listDateBuckets` from `better-supabase/list/buckets`, which also turns the facet values of a list
+query into `equals`:
+
+```ts
+import { listDateBuckets } from "better-supabase/list/buckets";
+
+const buckets = await listDateBuckets({
+  rpc: (args) => db.$rpc("orders_date_buckets", args),
+  unit: "week",
+  timeZone: "Europe/Amsterdam",
+  from: "2026-01-01",
+  list: { facets: orderList.facets, query },
+}).orThrow();
+// [{ start: "2026-01-04T23:00:00+00:00", count: 12 }, ...]
+```
+
+The search text and the filter tree of a list do not reach the function. A facet on a related table, or
+the `__unset__` value, makes `listDateBuckets` return an `invalid_request` error instead of a count that
+ignores it.

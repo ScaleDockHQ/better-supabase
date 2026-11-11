@@ -547,6 +547,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0664: Bank accounts take a holder and a primary flag.
 - 0648: Map the data of a bsb.action to another type with a third argument.
 - 0671: Page the import issue and diff lists by keyset.
+- 0672: Add relation facets, a free sort and date buckets to the list.
 - 0649: Observe the server's Supabase requests with a fetch wrapper.
 - 0652: Record the hot read baselines and join the inbox page's contacts in one pass.
 

@@ -338,6 +338,70 @@ const [state, setState] = useQueryStates(parsers);
 `customerList.parsers` exposes the same `{ parse, serialize }` pairs for
 other routers.
 
+## Filter on a related table
+
+A facet can name a column of a related table: `{ relation, column }` instead of a column name. The
+relation and the column are checked against the schema's types.
+
+```ts
+const customerList = defineListQuery(betterSupabase, "customers", {
+  facets: { status: "status", noteKind: { relation: "notes", column: "kind" } },
+  sorts: { newest: [{ createdAt: "desc" }, { id: "asc" }] },
+  defaultSort: "newest",
+});
+
+// ?noteKind=call,meeting: customers with at least one call or meeting note
+```
+
+A to-many relation matches rows with at least one related row in the values (`some`). A to-one relation
+matches rows whose related row has the value. The values follow the related column's enum. A relation
+facet filters but has no counts: with `facetCounts: true` its `facetCounts` entry is an empty object.
+`facets` lists it with `relation: { name, many }`.
+
+## Sort by several columns
+
+`freeSort` from `better-supabase/list/order` lets the caller pick up to three columns and a direction
+each, next to the named `sorts`. It lives in its own entry, so a list that does not use it does not
+carry its code.
+
+```ts
+import { freeSort } from "better-supabase/list/order";
+
+const customerList = defineListQuery(betterSupabase, "customers", {
+  sorts: { newest: [{ createdAt: "desc" }, { id: "asc" }] },
+  defaultSort: "newest",
+  freeSort: freeSort(betterSupabase, "customers", {
+    sortable: ["name", "status", "createdAt"],
+  }),
+});
+
+// ?order=status:desc,name   (direction defaults to asc)
+customerList.parse({ order: [{ column: "name", direction: "asc" }] });
+```
+
+`order` replaces `sort` while it is set and ends in the tiebreak column (the primary key, or `tiebreak`)
+so cursor pages stay stable. A column outside `sortable`, a repeated column, more than three columns
+and a direction other than `asc` or `desc` are issues at `["order"]`. `order` is also a URL parser
+(`list.parsers.order`, `list.nuqs`), an OpenAPI parameter and a JSON Schema property. Without `freeSort`
+the key is not reserved and `order` input is an issue.
+
+## Count rows per date bucket
+
+The [`buckets` tag](/docs/repository/rendered-tags#buckets) renders a function that counts rows per
+day, week, month, quarter or year, in a time zone. `listDateBuckets` from `better-supabase/list/buckets`
+calls it and narrows the count by the facet values of a list query. A grouped date count cannot be
+written with PostgREST aggregates, which is why it is a function.
+
+```ts
+import { listDateBuckets } from "better-supabase/list/buckets";
+
+const buckets = await listDateBuckets({
+  rpc: (args) => db.$rpc("customers_date_buckets", args),
+  unit: "month",
+  list: { facets: customerList.facets, query },
+}).orThrow();
+```
+
 ## OpenAPI, MCP and filter UIs
 
 The definition describes itself:
@@ -346,7 +410,7 @@ The definition describes itself:
   `style: form, explode: false` string arrays that list their enum values.
 - `customerList.jsonSchema`: JSON Schema for the typed input. Use it for MCP
   tool arguments or JSON APIs.
-- `customerList.facets`: `{ key, column, nullable, values? }` for rendering
+- `customerList.facets`: `{ key, column, nullable, values?, relation? }` for rendering
   filter menus.
 
 ## Download a list as CSV
