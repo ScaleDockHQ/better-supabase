@@ -23,6 +23,7 @@ what it checks.
 - `pnpm supabase:prune`: list the running stacks of branches merged into `main`, in this checkout and its worktrees; `--apply` stops them and keeps their data. macOS runs out of shared memory segments after about 30 running stacks.
 - `pnpm check:migration-order`: fails when the branch adds a migration that sorts before the newest one on `origin/main` (`MIGRATION_BASE` names another base).
 - `pnpm check:app-architecture`: fails when the Next.js example app breaks the feature-sliced RSC rules of ADR 0310 (a page imports a `*-queries` file or awaits `params`, a feature takes `params`, a file prefix differs from its folder, an async component has no `Skeleton`); `node scripts/check-app-architecture.ts --print` lists the findings for `scripts/app-architecture-allow.json`.
+- `pnpm check:example-coverage`: fails when a catalog block or preset has no entry in `apps/examples/nextjs/coverage/block-coverage.ts`, or when a listed route has no `page.tsx`; it prints how many blocks wait for their screen.
 - `pnpm check:naming`: fails when a renamed name returns or code breaks a rule of `packages/better-supabase/api/naming.json`; `node scripts/check-naming.ts --print` lists the current violations for the allowlist.
 - `pnpm test:scripts`: the tests of the repo scripts in `scripts/`.
 - `pnpm supabase:diff <name>`: a migration from the changes in `supabase/schemas` (pg-delta).

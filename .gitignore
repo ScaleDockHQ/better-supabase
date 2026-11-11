@@ -12,6 +12,8 @@ dist/
 
 # testing
 coverage/
+# The example's block coverage map is source, not a test report.
+!apps/examples/nextjs/coverage/
 # Vitest blob reports from a sharded run.
 .vitest/
 tmp/
