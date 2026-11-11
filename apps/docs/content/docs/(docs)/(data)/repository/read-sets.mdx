@@ -183,6 +183,21 @@ export const pipelineOverview = defineReadSet(
 );
 ```
 
+A function call carries no table list, because the database cannot tell which
+tables a function reads. Pass them as the second argument and `bsb.tags` and
+`bsb.cached({ readSet })` tag the cache entry with them, so a mutation of one
+of those tables revalidates the payload:
+
+```ts
+s.$fn.board_payload(
+  { pipelineId: p.pipelineId },
+  { tables: ["deals", "stages"] },
+);
+```
+
+`bsb.tags(spec)` accepts the same call outside a read set, alone or in a list
+next to table reads.
+
 `blocks.reads.ts` imports no block, and `defineReadSet` takes any app, with or
 without blocks. Build the set over the app without blocks (`app`) and the route
 that runs it bundles only the block set of its own server (ADR 0645).

@@ -21,7 +21,7 @@ import type { AuthzVersionCache } from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { ReadSet, ReadSetResult } from "../core/read-set.ts";
-import type { QuerySpec } from "../core/spec.ts";
+import type { FunctionSpec, QuerySpec } from "../core/spec.ts";
 import type { StatsRecorder } from "../core/stats.ts";
 import type { TagOptions } from "../core/tags.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
@@ -750,6 +750,8 @@ export interface BetterNext<
     target:
       | QuerySpec<Extract<keyof M, string>>
       | readonly QuerySpec<Extract<keyof M, string>>[]
+      | FunctionSpec
+      | readonly (QuerySpec<Extract<keyof M, string>> | FunctionSpec)[]
       | ReadSet,
     options?: TagOptions,
   ): void;
