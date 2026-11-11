@@ -648,12 +648,21 @@ export const ROUTES: readonly RouteEntry[] = [
     scale: false,
   },
   {
+    route: "/risks/[id]",
+    archetype: "detail",
+    url: null,
+    maxCalls: 12,
+    maxWaves: 3,
+    instant: true,
+    scale: false,
+  },
+  {
     route: "/risks",
     archetype: "overview",
     url: "/risks",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: true,
   },
   {

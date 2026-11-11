@@ -150,3 +150,38 @@ test("a customer search keeps the grid and writes the URL", async ({
   await expect(row).toBeVisible();
   await expect(page.getByTestId("record-list")).toBeVisible();
 });
+
+test("the risks overview paints its heading before the register", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/");
+  const link = await navLink(page, "Risks", "Quality");
+
+  await expect(link.first()).toBeVisible();
+
+  await instant(page, async () => {
+    await link.first().click();
+    await page.waitForURL((url) => url.pathname === "/risks");
+
+    await expect(page.getByRole("heading", { name: "Risks" })).toBeVisible();
+    await expect(page.getByTestId("record-list")).toHaveCount(0);
+  });
+
+  await expect(page.getByTestId("record-list")).toBeVisible();
+});
+
+test("a risk search writes the URL and keeps the register", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/risks");
+
+  const search = page.getByRole("searchbox", { name: "Search risks" });
+
+  await expect(page.getByTestId("record-list")).toBeVisible();
+  await search.fill("supplier");
+
+  await expect(page).toHaveURL(/[?&]q=supplier/);
+  await expect(page.getByTestId("record-list")).toBeVisible();
+});

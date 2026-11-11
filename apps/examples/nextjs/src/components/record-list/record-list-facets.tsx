@@ -107,6 +107,7 @@ export function RecordListFacets({
     const known = counts?.[facet.key] ?? {};
 
     const values = new Set([
+      ...(facet.values ?? []),
       ...Object.keys(known),
       ...(selected[facet.key] ?? []),
     ]);

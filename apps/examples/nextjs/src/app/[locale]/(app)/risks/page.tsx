@@ -12,6 +12,13 @@ import {
 } from "@/features/risks/components/risk-register-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
+// A prefetch of this page stays static; the rows render on navigation.
+export const ensureStatic = "prefetch";
+
+// Next.js validates in development that a navigation here paints without
+// waiting on uncached work; tests/loading-sequences.spec.ts checks it in a build.
+export const instant = true;
+
 export default function RisksPage() {
   const t = useExtracted("risks");
 

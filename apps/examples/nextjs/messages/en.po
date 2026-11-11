@@ -683,6 +683,11 @@ msgctxt "rfqs.yaZl1M"
 msgid "Requests sent to suppliers, their quotes and the award."
 msgstr "Requests sent to suppliers, their quotes and the award."
 
+#: src/app/[locale]/(app)/risks/[id]/page.tsx
+msgctxt "risks.bEf8AN"
+msgid "All risks"
+msgstr "All risks"
+
 #: src/app/[locale]/(app)/risks/page.tsx
 msgctxt "risks._s79W_"
 msgid "Risks"
@@ -13560,22 +13565,121 @@ msgctxt "rfqs.o9xrOU"
 msgid "Read the requests guide"
 msgstr "Read the requests guide"
 
-#: src/features/risks/components/risk-heatmap.tsx
-msgctxt "risks.4_EFCP"
-msgid "The heatmap didn't load"
-msgstr "The heatmap didn't load"
+#: src/features/risks/components/risk-band-badge.tsx
+msgctxt "risks.3Q1Pj6"
+msgid "Not assessed"
+msgstr "Not assessed"
 
+#: src/features/risks/components/risk-band-badge.tsx
+msgctxt "risks.fyIg53"
+msgid "{band} · {score, number}"
+msgstr "{band} · {score, number}"
+
+#: src/features/risks/components/risk-detail-error.tsx
+msgctxt "risks.Fb3hee"
+msgid "The risk didn't load"
+msgstr "The risk didn't load"
+
+#: src/features/risks/components/risk-detail-error.tsx
 #: src/features/risks/components/risk-heatmap.tsx
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.162kF7"
 msgid "Try again in a moment."
 msgstr "Try again in a moment."
 
+#: src/features/risks/components/risk-detail-error.tsx
 #: src/features/risks/components/risk-heatmap.tsx
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.62nsdy"
 msgid "Retry"
 msgstr "Retry"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.ETRyBL"
+msgid "Rating"
+msgstr "Rating"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.wlDLs5"
+msgid "Inherent"
+msgstr "Inherent"
+
+#: src/features/risks/components/risk-detail.tsx
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.Efoqaa"
+msgid "Residual"
+msgstr "Residual"
+
+#: src/features/risks/components/risk-detail.tsx
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.ep8Oy7"
+msgid "Next review"
+msgstr "Next review"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.SzG9JL"
+msgid "Treatment"
+msgstr "Treatment"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.YgyuGj"
+msgid "Mitigated by"
+msgstr "Mitigated by"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.mVCHM1"
+msgid "No controls linked yet."
+msgstr "No controls linked yet."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.-rrJAW"
+msgid "Materialized as"
+msgstr "Materialized as"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.dxHwqQ"
+msgid "No cases linked."
+msgstr "No cases linked."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.Q8Qw5B"
+msgid "Description"
+msgstr "Description"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.LGYdYn"
+msgid "Cause"
+msgstr "Cause"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.SDaxN-"
+msgid "Consequence"
+msgstr "Consequence"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.0dtPyZ"
+msgid "Assessments"
+msgstr "Assessments"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks._iWYfY"
+msgid "Each assessment freezes the risk's version, newest first."
+msgstr "Each assessment freezes the risk's version, newest first."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.MJht_-"
+msgid "Not assessed yet. Score the likelihood and impact before and after controls."
+msgstr "Not assessed yet. Score the likelihood and impact before and after controls."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.M-Limx"
+msgid "then"
+msgstr "then"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.4_EFCP"
+msgid "The heatmap didn't load"
+msgstr "The heatmap didn't load"
 
 #: src/features/risks/components/risk-heatmap.tsx
 msgctxt "risks.WEDRDw"
@@ -13632,70 +13736,40 @@ msgctxt "risks.BAeF44"
 msgid "{band}: {count, plural, one {# risk} other {# risks}}"
 msgstr "{band}: {count, plural, one {# risk} other {# risks}}"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.3Q1Pj6"
-msgid "Not assessed"
-msgstr "Not assessed"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.fyIg53"
-msgid "{band} · {score, number}"
-msgstr "{band} · {score, number}"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.7cv4Uf"
-msgid "Identified"
-msgstr "Identified"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.asYiRT"
-msgid "Assessed"
-msgstr "Assessed"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.n50oTI"
-msgid "Treating"
-msgstr "Treating"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.aFyFm0"
-msgid "Accepted"
-msgstr "Accepted"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.Fv1ZSz"
-msgid "Closed"
-msgstr "Closed"
-
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.kFkPWB"
 msgid "Number"
 msgstr "Number"
 
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.v6rYjQ"
 msgid "Risk"
 msgstr "Risk"
 
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.ccXLVi"
 msgid "Category"
 msgstr "Category"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.Efoqaa"
-msgid "Residual"
-msgstr "Residual"
-
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.ep8Oy7"
-msgid "Next review"
-msgstr "Next review"
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.Bi2plb"
+msgid "Search risks"
+msgstr "Search risks"
+
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.DLKKCh"
+msgid "No risks found"
+msgstr "No risks found"
+
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.hGljWs"
+msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix, or change the filters."
+msgstr "Register a risk with its cause and consequence, then assess it against the organization's matrix, or change the filters."
 
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.mvPZOS"
@@ -13712,20 +13786,30 @@ msgctxt "risks.dJC62W"
 msgid "The risk register didn't load"
 msgstr "The risk register didn't load"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.XwQph0"
-msgid "No risks yet"
-msgstr "No risks yet"
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.7cv4Uf"
+msgid "Identified"
+msgstr "Identified"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.xjr51A"
-msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix."
-msgstr "Register a risk with its cause and consequence, then assess it against the organization's matrix."
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.asYiRT"
+msgid "Assessed"
+msgstr "Assessed"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.ruQnUX"
-msgid "Read the risks guide"
-msgstr "Read the risks guide"
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.n50oTI"
+msgid "Treating"
+msgstr "Treating"
+
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.aFyFm0"
+msgid "Accepted"
+msgstr "Accepted"
+
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.Fv1ZSz"
+msgid "Closed"
+msgstr "Closed"
 
 #: src/features/roles/components/permission-matrix.tsx
 msgctxt "roles.JzR7p4"

@@ -683,6 +683,11 @@ msgctxt "rfqs.yaZl1M"
 msgid "Requests sent to suppliers, their quotes and the award."
 msgstr "Aanvragen bij leveranciers, hun offertes en de toewijzing."
 
+#: src/app/[locale]/(app)/risks/[id]/page.tsx
+msgctxt "risks.bEf8AN"
+msgid "All risks"
+msgstr "Alle risico's"
+
 #: src/app/[locale]/(app)/risks/page.tsx
 msgctxt "risks._s79W_"
 msgid "Risks"
@@ -13560,22 +13565,121 @@ msgctxt "rfqs.o9xrOU"
 msgid "Read the requests guide"
 msgstr "Lees de gids over aanvragen"
 
-#: src/features/risks/components/risk-heatmap.tsx
-msgctxt "risks.4_EFCP"
-msgid "The heatmap didn't load"
-msgstr "De heatmap is niet geladen"
+#: src/features/risks/components/risk-band-badge.tsx
+msgctxt "risks.3Q1Pj6"
+msgid "Not assessed"
+msgstr "Niet beoordeeld"
 
+#: src/features/risks/components/risk-band-badge.tsx
+msgctxt "risks.fyIg53"
+msgid "{band} · {score, number}"
+msgstr "{band} · {score, number}"
+
+#: src/features/risks/components/risk-detail-error.tsx
+msgctxt "risks.Fb3hee"
+msgid "The risk didn't load"
+msgstr "Het risico is niet geladen"
+
+#: src/features/risks/components/risk-detail-error.tsx
 #: src/features/risks/components/risk-heatmap.tsx
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.162kF7"
 msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
+#: src/features/risks/components/risk-detail-error.tsx
 #: src/features/risks/components/risk-heatmap.tsx
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.ETRyBL"
+msgid "Rating"
+msgstr "Beoordeling"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.wlDLs5"
+msgid "Inherent"
+msgstr "Inherent"
+
+#: src/features/risks/components/risk-detail.tsx
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.Efoqaa"
+msgid "Residual"
+msgstr "Restrisico"
+
+#: src/features/risks/components/risk-detail.tsx
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.ep8Oy7"
+msgid "Next review"
+msgstr "Volgende review"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.SzG9JL"
+msgid "Treatment"
+msgstr "Behandeling"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.YgyuGj"
+msgid "Mitigated by"
+msgstr "Beperkt door"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.mVCHM1"
+msgid "No controls linked yet."
+msgstr "Nog geen beheersmaatregelen gekoppeld."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.-rrJAW"
+msgid "Materialized as"
+msgstr "Opgetreden als"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.dxHwqQ"
+msgid "No cases linked."
+msgstr "Geen dossiers gekoppeld."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.Q8Qw5B"
+msgid "Description"
+msgstr "Omschrijving"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.LGYdYn"
+msgid "Cause"
+msgstr "Oorzaak"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.SDaxN-"
+msgid "Consequence"
+msgstr "Gevolg"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.0dtPyZ"
+msgid "Assessments"
+msgstr "Beoordelingen"
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks._iWYfY"
+msgid "Each assessment freezes the risk's version, newest first."
+msgstr "Elke beoordeling legt de versie van het risico vast, nieuwste eerst."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.MJht_-"
+msgid "Not assessed yet. Score the likelihood and impact before and after controls."
+msgstr "Nog niet beoordeeld. Scoor kans en impact voor en na beheersmaatregelen."
+
+#: src/features/risks/components/risk-detail.tsx
+msgctxt "risks.M-Limx"
+msgid "then"
+msgstr "daarna"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.4_EFCP"
+msgid "The heatmap didn't load"
+msgstr "De heatmap is niet geladen"
 
 #: src/features/risks/components/risk-heatmap.tsx
 msgctxt "risks.WEDRDw"
@@ -13632,70 +13736,40 @@ msgctxt "risks.BAeF44"
 msgid "{band}: {count, plural, one {# risk} other {# risks}}"
 msgstr "{band}: {count, plural, one {# risico} other {# risico's}}"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.3Q1Pj6"
-msgid "Not assessed"
-msgstr "Niet beoordeeld"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.fyIg53"
-msgid "{band} · {score, number}"
-msgstr "{band} · {score, number}"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.7cv4Uf"
-msgid "Identified"
-msgstr "Geïdentificeerd"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.asYiRT"
-msgid "Assessed"
-msgstr "Beoordeeld"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.n50oTI"
-msgid "Treating"
-msgstr "In behandeling"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.aFyFm0"
-msgid "Accepted"
-msgstr "Geaccepteerd"
-
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.Fv1ZSz"
-msgid "Closed"
-msgstr "Gesloten"
-
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.kFkPWB"
 msgid "Number"
 msgstr "Nummer"
 
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.v6rYjQ"
 msgid "Risk"
 msgstr "Risico"
 
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.ccXLVi"
 msgid "Category"
 msgstr "Categorie"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.Efoqaa"
-msgid "Residual"
-msgstr "Restrisico"
-
-#: src/features/risks/components/risk-register.tsx
+#: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.ep8Oy7"
-msgid "Next review"
-msgstr "Volgende review"
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.Bi2plb"
+msgid "Search risks"
+msgstr "Zoek risico's"
+
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.DLKKCh"
+msgid "No risks found"
+msgstr "Geen risico's gevonden"
+
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.hGljWs"
+msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix, or change the filters."
+msgstr "Registreer een risico met oorzaak en gevolg en beoordeel het aan de hand van de matrix van de organisatie, of pas de filters aan."
 
 #: src/features/risks/components/risk-register.tsx
 msgctxt "risks.mvPZOS"
@@ -13712,20 +13786,30 @@ msgctxt "risks.dJC62W"
 msgid "The risk register didn't load"
 msgstr "Het risicoregister is niet geladen"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.XwQph0"
-msgid "No risks yet"
-msgstr "Nog geen risico's"
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.7cv4Uf"
+msgid "Identified"
+msgstr "Geïdentificeerd"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.xjr51A"
-msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix."
-msgstr "Registreer een risico met oorzaak en gevolg en beoordeel het daarna op de matrix van de organisatie."
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.asYiRT"
+msgid "Assessed"
+msgstr "Beoordeeld"
 
-#: src/features/risks/components/risk-register.tsx
-msgctxt "risks.ruQnUX"
-msgid "Read the risks guide"
-msgstr "Lees de gids over risico's"
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.n50oTI"
+msgid "Treating"
+msgstr "In behandeling"
+
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.aFyFm0"
+msgid "Accepted"
+msgstr "Geaccepteerd"
+
+#: src/features/risks/components/risk-status-badge.tsx
+msgctxt "risks.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
 
 #: src/features/roles/components/permission-matrix.tsx
 msgctxt "roles.JzR7p4"

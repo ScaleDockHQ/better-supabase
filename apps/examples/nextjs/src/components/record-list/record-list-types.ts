@@ -27,6 +27,11 @@ export interface RecordListFacet {
   /** The facet key of the list query. */
   readonly key: string;
   readonly label: string;
+  /**
+   * The values to offer when the list returns no facet counts (a fixed set,
+   * such as a status enum). Counted values are added to these.
+   */
+  readonly values?: readonly string[];
   /** The label of one facet value. */
   readonly valueLabel: (value: string) => string;
 }
