@@ -78,7 +78,6 @@
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/projects/[id]/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/qualifications/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/rfqs/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/risks/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/rules/[rule]/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/rules/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/settings/access-requests/page.tsx",

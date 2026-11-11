@@ -21,16 +21,8 @@ export const QUALITY_RECIPES: readonly RecipeSource[] = [
     description:
       "The organization's risks in a data grid with their residual band, status and next review date, the highest residual score first.",
     web: {
-      file: `${RISKS}/risk-register.tsx`,
-      components: [
-        "alert",
-        "badge",
-        "button",
-        "empty",
-        "skeleton",
-        "@reui/data-grid",
-        "@reui/frame",
-      ],
+      file: `${RISKS}/risk-record-list.tsx`,
+      components: ["badge", "@reui/data-grid"],
       glue: [],
     },
   },

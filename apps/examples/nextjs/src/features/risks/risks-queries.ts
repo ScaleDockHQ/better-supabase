@@ -1,10 +1,23 @@
 import "server-only";
-import type { RiskStatus } from "better-supabase/blocks/risks";
+import type { RiskPageOptions, RiskStatus } from "better-supabase/blocks/risks";
 
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
+import * as v from "valibot";
+
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
 
 import { bsb } from "@/lib/supabase/server";
+
+import type { BandTone, RiskRow } from "./risk-rows";
+
+import { riskList } from "./risk-list";
+import { tonesOf, toRiskRows } from "./risk-rows";
+
+export type { BandTone, RiskRow };
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -27,50 +40,90 @@ async function settle<T>(load: () => Promise<T | null>): Promise<Loaded<T>> {
   }
 }
 
-/** The tone a band's Badge takes, from its position in the matrix. */
-export type BandTone = "low" | "medium" | "high" | "critical";
+const PAGE_SIZE = 50;
 
-/** A risk as the register shows it, serializable. */
-export interface RiskRow {
-  readonly id: string;
-  readonly number: string;
-  readonly title: string;
-  readonly category: string;
-  readonly status: RiskStatus;
-  /** The residual band's label, or null before the first assessment. */
-  readonly band: string | null;
-  readonly tone: BandTone | null;
-  readonly score: number | null;
-  readonly nextReviewOn: string | null;
+type PageDraft = { -readonly [K in keyof RiskPageOptions]: RiskPageOptions[K] };
+
+type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
+
+const STATUSES: readonly string[] = [
+  "identified",
+  "assessed",
+  "treating",
+  "accepted",
+  "closed",
+] satisfies readonly RiskStatus[];
+
+function isRiskStatus(value: string | undefined): value is RiskStatus {
+  return value !== undefined && STATUSES.includes(value);
+}
+
+/** The first value of a facet: the block's page filters take one per key. */
+function one(values: readonly string[] | undefined): string | undefined {
+  return values?.[0];
 }
 
 /**
- * Maps the bands of a matrix onto the four tones by score: the lowest band is
- * `low`, the highest `critical`, the ones between `medium` and `high`.
+ * One keyset page of risks for a list query, with the matrices that name the
+ * bands. The cursor travels in the URL as JSON.
  */
-function tonesOf(
-  bands: readonly { readonly key: string; readonly min: number }[],
-): ReadonlyMap<string, BandTone> {
-  const last = bands.length - 1;
+export async function readRiskPage(
+  db: Db,
+  query: RecordListUrlQuery,
+): Promise<RecordListPage<RiskRow>> {
+  const status = one(query.facets["status"]);
 
-  return new Map(
-    bands
-      .toSorted((a, b) => a.min - b.min)
-      .map((band, index): readonly [string, BandTone] => {
-        if (index === 0) {
-          return [band.key, "low"];
-        }
+  const options: PageDraft = { limit: PAGE_SIZE };
 
-        if (index === last) {
-          return [band.key, "critical"];
-        }
+  const category = one(query.facets["category"]);
+  const band = one(query.facets["band"]);
+  const after = query.after === undefined ? undefined : cursorOf(query.after);
 
-        return [band.key, (index - 1) * 2 < last - 1 ? "medium" : "high"];
-      }),
-  );
+  if (query.q !== undefined) {
+    options.search = query.q;
+  }
+
+  if (isRiskStatus(status)) {
+    options.status = status;
+  }
+
+  if (category !== undefined) {
+    options.category = category;
+  }
+
+  if (band !== undefined) {
+    options.band = band;
+  }
+
+  if (after !== undefined) {
+    options.after = after;
+  }
+
+  const [page, matrices] = await Promise.all([
+    db.risks.page(options).orThrow(),
+    db.risks.matrices().orThrow(),
+  ]);
+
+  return {
+    items: toRiskRows(page.items, matrices),
+    nextCursor:
+      page.nextCursor === null ? null : JSON.stringify(page.nextCursor),
+  };
 }
 
-async function loadRegister(): Promise<readonly RiskRow[] | null> {
+const cursorSchema = v.array(v.string());
+
+function cursorOf(value: string): readonly string[] | undefined {
+  try {
+    const parsed = v.safeParse(cursorSchema, JSON.parse(value));
+
+    return parsed.success ? parsed.output : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function loadRegister(): Promise<RecordListPage<RiskRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
 
@@ -78,41 +131,14 @@ async function loadRegister(): Promise<readonly RiskRow[] | null> {
     return null;
   }
 
-  const [risks, matrices] = await Promise.all([
-    db.risks.list({ limit: 200 }).orThrow(),
-    db.risks.matrices().orThrow(),
-  ]);
-
-  const bands = new Map(
-    matrices.map((matrix) => [
-      matrix.id,
-      {
-        labels: new Map(matrix.bands.map((band) => [band.key, band.label])),
-        tones: tonesOf(matrix.bands),
-      },
-    ]),
-  );
-
-  return risks.map((risk) => {
-    const matrix = bands.get(risk.matrixId);
-    const band = risk.residual?.band;
-
-    return {
-      id: risk.id,
-      number: risk.number,
-      title: risk.title,
-      category: risk.category,
-      status: risk.status,
-      band: band === undefined ? null : (matrix?.labels.get(band) ?? band),
-      tone: band === undefined ? null : (matrix?.tones.get(band) ?? null),
-      score: risk.residual?.score ?? null,
-      nextReviewOn: risk.nextReviewOn?.toString() ?? null,
-    };
-  });
+  return readRiskPage(db, riskList.defaults);
 }
 
-/** The organization's risks, the highest residual score first. */
-export function getRiskRegister(): Promise<Loaded<readonly RiskRow[]>> {
+/**
+ * The first page of the organization's risks, the highest residual score first.
+ * Filtered and later pages go through `/api/risks/list`.
+ */
+export function getRiskRegister(): Promise<Loaded<RecordListPage<RiskRow>>> {
   return settle(loadRegister);
 }
 
@@ -188,4 +214,123 @@ async function loadHeatmap(): Promise<HeatmapData | null> {
 /** The open risks per cell of the default matrix, by residual rating. */
 export function getRiskHeatmap(): Promise<Loaded<HeatmapData>> {
   return settle(loadHeatmap);
+}
+
+/** One rating, as the detail page shows it. */
+export interface RiskRatingView {
+  readonly likelihood: number;
+  readonly impact: number;
+  readonly score: number;
+  readonly band: string;
+  readonly tone: BandTone | null;
+}
+
+/** A risk with its matrix names, assessments and links, serializable. */
+export interface RiskDetailData {
+  readonly row: RiskRow;
+  readonly description: string | null;
+  readonly cause: string | null;
+  readonly consequence: string | null;
+  readonly treatment: string | null;
+  readonly reviewIntervalMonths: number | null;
+  readonly matrixName: string;
+  readonly inherent: RiskRatingView | null;
+  readonly residual: RiskRatingView | null;
+  readonly assessments: readonly {
+    readonly id: string;
+    readonly assessedAt: string;
+    readonly rationale: string | null;
+    readonly inherent: RiskRatingView;
+    readonly residual: RiskRatingView;
+  }[];
+  readonly barriers: readonly RiskLinkView[];
+  readonly cases: readonly RiskLinkView[];
+}
+
+export interface RiskLinkView {
+  readonly linkId: string;
+  readonly type: string;
+  readonly id: string;
+  readonly title: string | null;
+}
+
+async function loadRisk(id: string): Promise<RiskDetailData | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const call = db.risks.get(id);
+  const found = await call;
+
+  if (!found.ok && found.error.hint === "RISK_NOT_FOUND") {
+    return null;
+  }
+
+  const risk = found.ok ? found.data : await call.orThrow();
+
+  const labels = new Map(
+    risk.matrix.bands.map((band) => [band.key, band.label]),
+  );
+
+  const tones = tonesOf(risk.matrix.bands);
+
+  const view = (rating: {
+    readonly likelihood: number;
+    readonly impact: number;
+    readonly score: number;
+    readonly band: string;
+  }): RiskRatingView => ({
+    likelihood: rating.likelihood,
+    impact: rating.impact,
+    score: rating.score,
+    band: labels.get(rating.band) ?? rating.band,
+    tone: tones.get(rating.band) ?? null,
+  });
+
+  const [row] = toRiskRows([risk], [risk.matrix]);
+
+  if (row === undefined) {
+    return null;
+  }
+
+  const link = (item: {
+    readonly linkId: string;
+    readonly type: string;
+    readonly id: string;
+    readonly title?: string;
+  }): RiskLinkView => ({
+    linkId: item.linkId,
+    type: item.type,
+    id: item.id,
+    title: item.title ?? null,
+  });
+
+  return {
+    row,
+    description: risk.description ?? null,
+    cause: risk.cause ?? null,
+    consequence: risk.consequence ?? null,
+    treatment: risk.treatment ?? null,
+    reviewIntervalMonths: risk.reviewIntervalMonths ?? null,
+    matrixName: risk.matrix.name,
+    inherent: risk.inherent ? view(risk.inherent) : null,
+    residual: risk.residual ? view(risk.residual) : null,
+    assessments: risk.assessments.map((assessment) => ({
+      id: assessment.id,
+      assessedAt: assessment.assessedAt.toString(),
+      rationale: assessment.rationale ?? null,
+      inherent: view(assessment.inherent),
+      residual: view(assessment.residual),
+    })),
+    barriers: risk.barriers.map(link),
+    cases: risk.cases.map(link),
+  };
+}
+
+/** One risk with its assessments and links; `null` when it is gone or hidden. */
+export function getRisk(id: string): Promise<Loaded<RiskDetailData>> {
+  return settle(() => loadRisk(id));
 }
