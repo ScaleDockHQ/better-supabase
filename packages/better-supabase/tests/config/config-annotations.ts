@@ -205,6 +205,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "OAuth scope to the permission keys it grants a delegated token.",
   },
+  "auth.authorization.delegation.interactiveOnly": {
+    description:
+      "Permission keys no API key, OAuth client or agent gets, whatever its scopes; merged with blocks.permissions.interactiveOnly.",
+  },
   "database.vectorSearch": {
     description:
       "Embedding columns keyed by `table` or `schema.table`. The `vector-search` SQL module writes `search_<table>(query, k)` for each.",
@@ -560,6 +564,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "$defs.permissionsBlock.scopes": {
     description:
       "OAuth scope to the permission keys it grants a delegated token; merged over authorization.delegation.scopes.",
+  },
+  "$defs.permissionsBlock.interactiveOnly": {
+    description:
+      "Permission keys only a user's own session gets, added to the built-in interactive-only operations.",
   },
   "$defs.environment": {
     description:

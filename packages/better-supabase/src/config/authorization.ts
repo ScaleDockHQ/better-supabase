@@ -529,6 +529,12 @@ export interface AuthorizationProvider<Key extends string = string> {
      * the app). `blocks.permissions.scopes` is merged over it.
      */
     readonly scopes?: Readonly<Record<string, readonly string[]>>;
+    /**
+     * Permission keys no delegated token or API key gets, whatever its scopes:
+     * only a signed-in user's own session holds them. Merged with
+     * `blocks.permissions.interactiveOnly`.
+     */
+    readonly interactiveOnly?: readonly string[];
   };
   /**
    * Which wildcard grants `permission_matches` honours: `all` (the default)

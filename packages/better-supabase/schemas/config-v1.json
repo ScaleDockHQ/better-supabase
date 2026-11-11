@@ -1465,6 +1465,13 @@
                     }
                   },
                   "description": "OAuth scope to the permission keys it grants a delegated token."
+                },
+                "interactiveOnly": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Permission keys no API key, OAuth client or agent gets, whatever its scopes; merged with blocks.permissions.interactiveOnly."
                 }
               },
               "additionalProperties": false
@@ -4082,6 +4089,13 @@
             }
           },
           "description": "OAuth scope to the permission keys it grants a delegated token; merged over authorization.delegation.scopes."
+        },
+        "interactiveOnly": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Permission keys only a user's own session gets, added to the built-in interactive-only operations."
         },
         "disabled": {
           "type": "object",

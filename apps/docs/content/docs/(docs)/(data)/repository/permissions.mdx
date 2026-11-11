@@ -675,6 +675,45 @@ not narrowed by the caller's token, and the service role is never narrowed.
 `token_scope_allows(scope)` in the `created-by` module stays available for a
 policy that checks the literal scope.
 
+### Interactive-only permissions
+
+Some actions only a user's own session may take, whatever a token's scopes
+say. `cap_allows` refuses their keys to an API key (an `api_key` claim), an
+OAuth client (`client_id`) and any `act` chain (an agent, a delegation, a
+support or impersonation session). `better_supabase.interactive_session()`
+tells the two apart. These operations are interactive-only, under the keys
+your renames and the provider's `operations` give them:
+
+| Operation                         | Default key                       |
+| --------------------------------- | --------------------------------- |
+| `organizations.transferOwnership` | `organization.transfer_ownership` |
+| `organizations.delete`            | `organization.delete`             |
+| `data-lifecycle.delete`           | `organization.delete`             |
+| `impersonation.start`             | `impersonation.start`             |
+| `invitations.invitePlatform`      | `platform.invite`                 |
+| `sso.manage`                      | `sso.manage`                      |
+
+`can_assign` also refuses the organization owner role
+(`blocks.organizations.options.ownerRole`) outside a user's own session, so
+no API key, OAuth client or agent makes, demotes, removes or suspends an
+owner. `create_api_key` refuses an interactive-only key as a scope with
+`API_KEY_FORBIDDEN`, and a key that already carries one gets nothing from it.
+
+Add keys with `blocks.permissions.interactiveOnly`, or from a provider with
+`authorization.delegation.interactiveOnly`; the two are merged with the
+built-in list.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  permissions: {
+    interactiveOnly: ["billing.manage"],
+  },
+},
+```
+
+A machine credential your app mints itself must carry one of the three
+claims, or the access functions treat it as the user's own session.
+
 A provider that maps scopes at runtime (per client, or from RFC 9396
 `authorization_details`) sets the `delegation.permissions` hook on its
 [authorization hooks](/docs/extending/authorization-providers#runtime-hooks).

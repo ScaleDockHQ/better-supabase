@@ -360,6 +360,15 @@ export interface AccessBlockConfig<
    */
   readonly scopes?: Readonly<Record<string, readonly string[]>>;
   /**
+   * Permission keys only a signed-in user gets: the access functions refuse
+   * them to an API key (`api_key`), an OAuth client (`client_id`) and an `act`
+   * chain, whatever its scopes, and `create_api_key` refuses them as scopes.
+   * Added to the keys of the built-in interactive-only operations (ownership
+   * transfer, organization deletion, impersonation, platform invitations, SSO)
+   * and `authorization.delegation.interactiveOnly`.
+   */
+  readonly interactiveOnly?: readonly string[];
+  /**
    * What disables a tenant or a user. A string is a column that disables when
    * set, as `schema.table.column`, keyed by the table's `id` (tenant) or the
    * column named in `userKey` (user). An object is an active row: only a row

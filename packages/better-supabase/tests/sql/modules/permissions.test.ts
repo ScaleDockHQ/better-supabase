@@ -505,9 +505,54 @@ describe("access module", () => {
     ).toThrow(/\{nope\} is not available/);
   });
 
+  it("refuses interactive-only keys and the owner role outside a user's own session", () => {
+    const sql = renderBlocks(["memberships", "permissions", "organizations"], {
+      modules: {
+        permissions: { interactiveOnly: ["billing.manage"] },
+        organizations: { permissions: { transferOwnership: "org.handover" } },
+      },
+      delegationInteractiveOnly: ["exports.run"],
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    const keys = sql.slice(
+      sql.indexOf("function better_supabase.interactive_only("),
+      sql.indexOf("function better_supabase.interactive_only_role("),
+    );
+
+    expect(keys).toContain(
+      "array['billing.manage', 'exports.run', 'org.handover', 'organization.delete']",
+    );
+    expect(keys).not.toContain("organization.transfer_ownership");
+    expect(sql).toContain("select coalesce(role = 'owner', false)");
+    expect(sql).toContain(
+      "when better_supabase.interactive_only(cap_allows.permission)\n      and not better_supabase.interactive_session() then false",
+    );
+    expect(sql).toContain(
+      "or ((better_supabase.interactive_session() or not better_supabase.interactive_only_role(can_assign.role)) and better_supabase.can_assign_as(",
+    );
+    expect(
+      access({
+        model: "custom",
+        functions: {
+          can: "a()",
+          tenantIdsWith: "b()",
+          isPlatform: "c()",
+          canAssign: "d()",
+        },
+      }),
+    ).toContain(
+      "or ((better_supabase.interactive_session() or not better_supabase.interactive_only_role(can_assign.role)) and coalesce((d()), false))\n$$",
+    );
+    expect(access({})).toContain(
+      "function better_supabase.interactive_only(permission text)\nreturns boolean\nlanguage sql\nimmutable\nset search_path = ''\nas $$\n  select false",
+    );
+  });
+
   it("leaves role assignment to the service role without an assignment rule", () => {
     expect(provider({}, CALLER_ONLY)).toMatch(
-      /or coalesce\(\(false\), false\)/,
+      /and coalesce\(\(false\), false\)\)/,
     );
 
     const withTenant = renderBlocks(["memberships", "permissions"], {

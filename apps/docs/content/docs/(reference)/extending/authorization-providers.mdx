@@ -476,7 +476,9 @@ names.
 `delegation.scopes` maps an OAuth scope to the permission keys a delegated
 token (an OAuth client or an agent) may use. The access functions narrow
 every check to those keys, and `blocks.permissions.scopes` is merged over it.
-See [Access](/docs/repository/permissions#delegated-tokens).
+`delegation.interactiveOnly` lists the keys no delegated token or API key
+gets, whatever its scopes; a provider leaves them out of its scopes too. See
+[Access](/docs/repository/permissions#delegated-tokens).
 
 ```ts
 delegation: {
