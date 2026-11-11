@@ -1,10 +1,10 @@
--- One batch of the scale seed: notification events {{from}} to {{to}} in the Acme
+-- One batch of the scale seed: notification events {{from}} to {{to}} of {{total}} in the Acme
 -- organization, each with a recipient. 20% go to admin@acme.test, the rest to
 -- the other members, and about 3% are unread.
 with e as (
   insert into better_supabase.notification_events (id, tenant_id, type, summary, created_at)
   select gen_random_uuid(), '00000000-0000-4000-8000-000000000001', 'scale.type_' || (g % 8),
-         'Scale notification ' || g, now() - (g::numeric / 1000000 * interval '60 days')
+         'Scale notification ' || g, now() - (g::numeric / {{total}} * interval '60 days')
   from generate_series({{from}}, {{to}}) g
   returning id, tenant_id, created_at
 )

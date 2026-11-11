@@ -1,4 +1,4 @@
--- One batch of the scale seed: audit events numbered {{from}} to {{to}}. About 80%
+-- One batch of the scale seed: audit events numbered {{from}} to {{to}} of {{total}}. About 80%
 -- belong to the Acme organization, spread over 24 months, with the members of the
 -- organization as actors and about 40 event types.
 insert into better_supabase.audit_events (
@@ -14,7 +14,7 @@ select
   'authenticated',
   case when g % 5 = 0 then '00000000-0000-4000-8000-000000000002'::uuid
        else '00000000-0000-4000-8000-000000000001'::uuid end,
-  now() - (g::numeric / 5000000 * interval '730 days'),
+  now() - (g::numeric / {{total}} * interval '730 days'),
   'scale.event_' || (g % 40), 'data', case when g % 50 = 0 then 'failure' else 'success' end,
   'app', 'task', 'user', 'Member ' || (g % 3), 'Acme', 'Task ' || (g % 1000),
   'Member ' || (g % 3) || ' changed task ' || (g % 1000)
