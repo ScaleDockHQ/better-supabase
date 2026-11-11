@@ -5,7 +5,7 @@ import { toUIMessages } from "better-supabase/ai-sdk";
 import { tenantOf } from "better-supabase/next";
 
 import { getSession } from "@/features/user/user-queries";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { aiChat, aiRuns } from "./assistant-server";
 
@@ -23,7 +23,7 @@ export interface ChatRow {
 export async function getChats(): Promise<readonly ChatRow[]> {
   const [session, { supabase }] = await Promise.all([
     getSession(),
-    bsb.context(),
+    bsbCore.context(),
   ]);
 
   const organizationId = tenantOf(session);
@@ -58,7 +58,7 @@ export interface StoredChatData {
 export async function getStoredChat(
   chatId: string,
 ): Promise<StoredChatData | undefined> {
-  const { supabase } = await bsb.context();
+  const { supabase } = await bsbCore.context();
   const chats = aiChat(supabase);
   const chat = await chats.chats.get(chatId);
 
@@ -112,7 +112,7 @@ export async function getActivity(): Promise<{
   readonly runs: readonly ActivityRun[];
   readonly approvals: readonly ActivityApproval[];
 }> {
-  const { supabase } = await bsb.context();
+  const { supabase } = await bsbCore.context();
   const runs = aiRuns(supabase);
 
   const [recent, pending] = await Promise.all([

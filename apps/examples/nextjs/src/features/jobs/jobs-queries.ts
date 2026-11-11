@@ -6,7 +6,7 @@ import * as v from "valibot";
 import { postgres } from "@/features/developer/postgres";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell } from "@/lib/supabase/server-shell";
 
 import { JOBS_TAG } from "./jobs-cache";
 import { JOBS_PERMISSION, QUEUE_NAME } from "./jobs-server";
@@ -78,7 +78,7 @@ function queueRuns(queue: string, param: string): string {
 export async function loadJobRuns(): Promise<readonly JobRunRow[] | null> {
   "use cache: private";
 
-  const request = await bsb.cached();
+  const request = await bsbShell.cached();
   cacheTag(JOBS_TAG);
   const { session } = request;
   const permissions = await readPermissions(request);

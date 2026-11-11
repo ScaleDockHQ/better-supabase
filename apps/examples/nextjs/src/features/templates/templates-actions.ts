@@ -7,7 +7,7 @@ import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { TEMPLATES_TAG } from "./templates-cache";
 import {
@@ -19,7 +19,7 @@ import {
 const Name = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
 
 /** Saves a customer template and publishes its first version. */
-export const createTemplate = bsb.action(
+export const createTemplate = bsbCore.action(
   {
     input: v.object({ name: Name, ...CustomerTemplateBody.entries }),
     requireTenant: true,
@@ -60,7 +60,7 @@ export const createTemplate = bsb.action(
 );
 
 /** Creates a customer from the template's newest published version. */
-export const applyTemplate = bsb.action(
+export const applyTemplate = bsbCore.action(
   {
     input: v.object({ templateId: v.pipe(v.string(), v.uuid()), name: Name }),
     requireTenant: true,

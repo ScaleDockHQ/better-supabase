@@ -2,7 +2,7 @@ import type { Bootstrap } from "better-supabase/next";
 
 import "server-only";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { IslandScope } from "./islands-cache";
 
@@ -39,18 +39,18 @@ export interface Islands {
 
 /**
  * Every island calls this. The `bootstrap_islands` call runs once per request:
- * React's `cache()` inside `bsb.bootstrap` dedupes it, and the token verifies
- * once because the session memo keys on its hash.
+ * React's `cache()` inside `bsbCore.bootstrap` dedupes it, and the token
+ * verifies once because the session memo keys on its hash.
  */
 async function getIslands(): Promise<Islands> {
   "use cache: private";
 
-  const boot = await bsb.bootstrap<IslandCounts>({
+  const boot = await bsbCore.bootstrap<IslandCounts>({
     rpc: "islands",
     tables: ISLAND_TABLES,
   });
 
-  const access = await bsb.getAccess(boot);
+  const access = await bsbCore.getAccess(boot);
 
   return islandsFrom(boot, await access.can("customers.write"));
 }
@@ -60,17 +60,17 @@ async function getIslands(): Promise<Islands> {
  * every server instance behind `cacheHandlers.remote`. The token never keys
  * it.
  */
-const getRemoteIslands = bsb.remote(async (key): Promise<Islands> => {
+const getRemoteIslands = bsbCore.remote(async (key): Promise<Islands> => {
   "use cache: remote";
 
-  const boot = await bsb.bootstrap<IslandCounts>({
+  const boot = await bsbCore.bootstrap<IslandCounts>({
     rpc: "islands",
     scope: "remote",
     key,
     tables: ISLAND_TABLES,
   });
 
-  const access = await bsb.getAccess(boot, { key });
+  const access = await bsbCore.getAccess(boot, { key });
 
   return islandsFrom(boot, await access.can("customers.write"));
 });

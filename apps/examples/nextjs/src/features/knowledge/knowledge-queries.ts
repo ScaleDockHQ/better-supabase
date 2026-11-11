@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 
 import { getSession } from "@/features/user/user-queries";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { knowledge } from "./knowledge-server";
 
@@ -22,7 +22,7 @@ export interface DocumentRow {
 export async function getDocuments(): Promise<readonly DocumentRow[]> {
   const [session, { supabase }] = await Promise.all([
     getSession(),
-    bsb.context(),
+    bsbCore.context(),
   ]);
 
   const organizationId = tenantOf(session);

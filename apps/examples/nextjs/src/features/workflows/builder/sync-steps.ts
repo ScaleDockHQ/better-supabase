@@ -3,7 +3,7 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/workflow-editor";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { stepLibrary } from "./step-library";
 
@@ -14,7 +14,7 @@ import { stepLibrary } from "./step-library";
  */
 export async function syncStepLibrary(): Promise<void> {
   const builder = createWorkflowEditor({
-    transport: rpcTransport(bsb.admin().$client, { schema: "api" }),
+    transport: rpcTransport(bsbCore.admin().$client, { schema: "api" }),
     schema: "api",
     steps: stepLibrary,
   });

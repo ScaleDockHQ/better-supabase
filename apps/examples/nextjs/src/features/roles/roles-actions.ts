@@ -8,7 +8,7 @@ import type { PermissionKey } from "@/lib/supabase/blocks.generated";
 
 import { organizationSnapshotTag } from "@/features/user/user-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 const Key = v.pipe(
   v.string(),
@@ -24,7 +24,7 @@ const Key = v.pipe(
  * role and the key in SQL. Every member's permission snapshot in the
  * organization expires, since their role's keys changed.
  */
-export const setPermissionOverride = bsb.action(
+export const setPermissionOverride = bsbCore.action(
   {
     input: v.object({
       roleId: v.pipe(v.string(), v.minLength(1)),

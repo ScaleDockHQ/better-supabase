@@ -7,7 +7,7 @@ import { tenantOf } from "better-supabase/next";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { aiTasks } from "./ai-tasks-server";
 
@@ -42,7 +42,7 @@ export type AiTasksRead =
 export async function getAiTasks(): Promise<AiTasksRead> {
   const [session, { supabase }, permissions] = await Promise.all([
     getSession(),
-    bsb.context(),
+    bsbCore.context(),
     getPermissions(),
   ]);
 

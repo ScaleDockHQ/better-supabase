@@ -1,7 +1,7 @@
 import { liveRelayTopic, realtimeRelay } from "better-supabase/server";
 
 import { postgres } from "../../../features/developer/postgres";
-import { bsb } from "../../../lib/supabase/server";
+import { bsbCore } from "../../../lib/supabase/server-core";
 
 let relay: ReturnType<typeof realtimeRelay> | undefined;
 
@@ -16,7 +16,10 @@ function relayRoute(): ReturnType<typeof realtimeRelay> | undefined {
     return undefined;
   }
 
-  relay ??= realtimeRelay(bsb, { topics: [liveRelayTopic], postgres: pool });
+  relay ??= realtimeRelay(bsbCore, {
+    topics: [liveRelayTopic],
+    postgres: pool,
+  });
 
   return relay;
 }

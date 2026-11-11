@@ -10,7 +10,7 @@ import type { PermissionSet } from "@/features/user/user-permissions";
 
 import { organizationSnapshotTag } from "@/features/user/user-cache";
 import { Role } from "@/lib/claims";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 export type { CatalogRole } from "better-supabase/blocks/permissions";
 
@@ -21,7 +21,7 @@ export type { CatalogRole } from "better-supabase/blocks/permissions";
  */
 export async function getRoles(): Promise<readonly CatalogRole[] | null> {
   "use cache: private";
-  const { db, session } = await bsb.cached();
+  const { db, session } = await bsbCore.cached();
   const tenant = tenantOf(session);
 
   if (tenant === undefined) {

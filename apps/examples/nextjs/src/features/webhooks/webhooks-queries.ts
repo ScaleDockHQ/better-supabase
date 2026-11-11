@@ -4,7 +4,7 @@ import { cacheTag } from "next/cache";
 import * as v from "valibot";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { WebhookDeliveryRow, WebhookEndpointRow } from "./webhook-types";
 
@@ -46,7 +46,7 @@ export interface WebhooksOverview {
  */
 export async function loadWebhooks(): Promise<WebhooksOverview | null> {
   "use cache: private";
-  const { session } = await bsb.cached();
+  const { session } = await bsbCore.cached();
   cacheTag(WEBHOOKS_TAG);
   const tenant = tenantOf(session);
 

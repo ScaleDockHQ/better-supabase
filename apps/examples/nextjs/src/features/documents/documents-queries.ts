@@ -7,7 +7,7 @@ import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell } from "@/lib/supabase/server-shell";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -35,7 +35,7 @@ export type Loaded<T> =
 /** A failed read throws, so it is never cached and Retry reads again. */
 async function loadDocuments(): Promise<readonly DocumentSummary[] | null> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+  const { session, db } = await bsbShell.cached();
   cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
 
   if (!tenantOf(session)) {
@@ -78,7 +78,7 @@ async function loadTarget(
 ): Promise<DocumentTarget | "not-found" | null> {
   "use cache: private";
 
-  const request = await bsb.cached();
+  const request = await bsbShell.cached();
   cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
   const { session, db } = request;
   const permissions = await readPermissions(request);

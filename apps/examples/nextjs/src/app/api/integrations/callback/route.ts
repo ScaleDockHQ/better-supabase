@@ -2,7 +2,7 @@ import {
   connectCredentials,
   integrationOf,
 } from "../../../../features/integrations/integrations-server";
-import { bsb } from "../../../../lib/supabase/server";
+import { bsbCore } from "../../../../lib/supabase/server-core";
 
 const SETTINGS_PATH = "/settings/integrations";
 
@@ -12,7 +12,7 @@ const SETTINGS_PATH = "/settings/integrations";
  * skipping the cache, and sends the user back to the settings tab with the
  * outcome in the query.
  */
-export const GET = bsb.route(async (request, { session }) => {
+export const GET = bsbCore.route(async (request, { session }) => {
   const url = new URL(request.url);
   const id = url.searchParams.get("integration") ?? "";
   const integration = integrationOf(id);
