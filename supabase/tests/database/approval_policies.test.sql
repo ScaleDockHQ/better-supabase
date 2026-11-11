@@ -4,7 +4,7 @@
 -- (…0002) (supabase/seed.sql). The fixture's floors: customer.refund asks
 -- for nothing, customer.export is confirm mode with the manager as approver.
 begin;
-select plan(30);
+select plan(31);
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, anon, service_role;
@@ -251,6 +251,12 @@ select is(
   api.get_approval((select id from ids where name = 'export')) ->> 'mode',
   'confirm',
   'the export request is in confirm mode'
+);
+select is(
+  (select jsonb_agg(r ->> 'id') from jsonb_array_elements(api.get_approvals(array[
+    (select id from ids where name = 'export'), gen_random_uuid(), (select id from ids where name = 'refund')])) r),
+  jsonb_build_array((select id::text from ids where name = 'export'), (select id::text from ids where name = 'refund')),
+  'the batch read returns readable requests in the order asked and skips a missing one'
 );
 select is(
   api.decide_approval((select id from ids where name = 'export'), 'approved') ->> 'status',

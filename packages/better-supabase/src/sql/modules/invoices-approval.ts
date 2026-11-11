@@ -325,6 +325,25 @@ end;
 $$;
 ${userGrant(`${fn("purchase_invoice_approval_status")}(uuid)`)}
 
+-- The approval of many purchase invoices in one read, keyed by invoice id. An
+-- invoice the caller cannot read has no key.
+create or replace function ${fn("purchase_invoice_approval_statuses")}(invoice_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_object_agg(x.${i("id")}, ${fn("invoice_approval_state")}(x.${i("id")})), '{}'::jsonb)
+    from ${t("invoices")} x
+    where x.${i("id")} = any (purchase_invoice_approval_statuses.invoice_ids) and ${h.can("x", n.read)}
+  );
+end;
+$$;
+${userGrant(`${fn("purchase_invoice_approval_statuses")}(uuid[])`)}
+
 -- Approves a purchase bill at every pending level the caller is the approver
 -- of; the service role approves the lowest pending level for its approver.
 -- Needs invoices.approve and an open bill. Returns the bill with its approval.
@@ -402,6 +421,11 @@ export function approvalContract(
     {
       name: "purchase_invoice_approval_status",
       args: ["uuid"],
+      returns: "jsonb",
+    },
+    {
+      name: "purchase_invoice_approval_statuses",
+      args: ["uuid[]"],
       returns: "jsonb",
     },
     {

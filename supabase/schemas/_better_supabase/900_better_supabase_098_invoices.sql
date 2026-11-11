@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:921b912d6d8b0699ef3ff6846b31ae2f58a0593b9fd1c3a44a9e4c807b75595b
+-- @bsb-hash sha256:1432051017a70687f88c6db1e45f65dbdc87b24449218904f9c47ef6ef41e3a6
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2801,6 +2801,26 @@ $$;
 revoke execute on function "better_supabase"."purchase_invoice_approval_status"(uuid) from public, anon;
 grant execute on function "better_supabase"."purchase_invoice_approval_status"(uuid) to authenticated, service_role;
 
+-- The approval of many purchase invoices in one read, keyed by invoice id. An
+-- invoice the caller cannot read has no key.
+create or replace function "better_supabase"."purchase_invoice_approval_statuses"(invoice_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_object_agg(x."id", "better_supabase"."invoice_approval_state"(x."id")), '{}'::jsonb)
+    from "better_supabase"."invoices" x
+    where x."id" = any (purchase_invoice_approval_statuses.invoice_ids) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_invoice_approval_statuses"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."purchase_invoice_approval_statuses"(uuid[]) to authenticated, service_role;
+
 -- Approves a purchase bill at every pending level the caller is the approver
 -- of; the service role approves the lowest pending level for its approver.
 -- Needs invoices.approve and an open bill. Returns the bill with its approval.
@@ -5524,6 +5544,16 @@ set search_path = ''
 as $$ select "better_supabase"."purchase_invoice_approval_status"($1) $$;
 revoke execute on function "api"."purchase_invoice_approval_status"(uuid) from public, anon;
 grant execute on function "api"."purchase_invoice_approval_status"(uuid) to authenticated, service_role;
+
+create or replace function "api"."purchase_invoice_approval_statuses"(invoice_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."purchase_invoice_approval_statuses"($1) $$;
+revoke execute on function "api"."purchase_invoice_approval_statuses"(uuid[]) from public, anon;
+grant execute on function "api"."purchase_invoice_approval_statuses"(uuid[]) to authenticated, service_role;
 
 create or replace function "api"."approve_purchase_invoice"(invoice uuid, comment text default null)
 returns jsonb
