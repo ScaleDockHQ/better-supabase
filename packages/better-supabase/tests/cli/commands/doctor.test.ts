@@ -477,6 +477,56 @@ describe("doctor command", () => {
     expect(stale.code).toBe(1);
   });
 
+  it("reads a snapshot from the CLI's cache file", async () => {
+    await write("cache.json", JSON.stringify({ key: "k", snapshot: fixture }));
+
+    const result = await doctor([
+      "--snapshot",
+      "cache.json",
+      "--only",
+      "BS100",
+      "--json",
+    ]);
+
+    expect(findings(result)).toEqual([
+      expect.objectContaining({ code: "BS100", severity: "info" }),
+    ]);
+  });
+
+  it("runs the source checks without a database", async () => {
+    const open = fakeConnect({
+      query: () => Promise.reject(new Error("connection refused")),
+    });
+
+    await write(
+      "src/a.ts",
+      "export const load = (db: Db, ids: string[]) =>\n  Promise.all(ids.map((id) => db.notes.get(id)));\n",
+    );
+
+    const result = await doctor(["--only", "BS634,BS635", "--json"], {
+      connect: open.connect,
+      dbUrl: "postgresql://u:pw@h/db",
+    });
+
+    expect(findings(result)).toEqual([
+      expect.objectContaining({ code: "BS634", severity: "warning" }),
+      expect.objectContaining({
+        code: "BS635",
+        severity: "info",
+        message: expect.stringContaining(
+          "Ran without the schema (connection refused)",
+        ),
+      }),
+    ]);
+
+    await expect(
+      doctor(["--only", "BS634,BS208", "--json"], {
+        connect: open.connect,
+        dbUrl: "postgresql://u:pw@h/db",
+      }),
+    ).rejects.toThrow("connection refused");
+  });
+
   it("scans doctor.sources, skipping node_modules", async () => {
     const snapshot = await parseSnapshot({
       ...fixture,

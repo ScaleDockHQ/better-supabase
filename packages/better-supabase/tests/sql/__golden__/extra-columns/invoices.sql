@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b8a668d918f92e8e70ed4a47ee0097d39dc54d37e061e1551c86e0722258a09c
+-- @bsb-hash sha256:68f30d610398fffd7fbecf9ea0cd32feb0a91c64008731b3000b525d545fa917
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2231,6 +2231,26 @@ end;
 $$;
 revoke execute on function "better_supabase"."purchase_invoice_approval_status"(uuid) from public, anon;
 grant execute on function "better_supabase"."purchase_invoice_approval_status"(uuid) to authenticated, service_role;
+
+-- The approval of many purchase invoices in one read, keyed by invoice id. An
+-- invoice the caller cannot read has no key.
+create or replace function "better_supabase"."purchase_invoice_approval_statuses"(invoice_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_object_agg(x."id", "better_supabase"."invoice_approval_state"(x."id")), '{}'::jsonb)
+    from "better_supabase"."invoices" x
+    where x."id" = any (purchase_invoice_approval_statuses.invoice_ids) and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."purchase_invoice_approval_statuses"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."purchase_invoice_approval_statuses"(uuid[]) to authenticated, service_role;
 
 -- Approves a purchase bill at every pending level the caller is the approver
 -- of; the service role approves the lowest pending level for its approver.

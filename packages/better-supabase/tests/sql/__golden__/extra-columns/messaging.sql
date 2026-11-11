@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:f4ff903a02cd745c74d60f4778589b043fba37ac45c2d0bed2a24512addb2d27
+-- @bsb-hash sha256:d209789e06db22017229f3ac0310bec8fa36795e7bdc8229c1da560091c57d5d
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -273,8 +273,39 @@ create trigger "bsb_messaging_message_written" after insert or update of "sent_a
 
 
 
+-- The messages of ids the caller may read, as their owner: each distinct
+-- conversation of ids is checked once, so a read never weighs every
+-- conversation the caller can see. A sent message shows to the
+-- conversation's readers, an unsent one to its author.
+create or replace function "better_supabase"."messaging_message_rows"(ids uuid[])
+returns setof "better_supabase"."messages"
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m.* from "better_supabase"."messages" m
+  where m."id" = any (messaging_message_rows.ids)
+    and m."conversation_id" = any (array(
+      select c."id" from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct v."conversation_id" from "better_supabase"."messages" v where v."id" = any (messaging_message_rows.ids)))
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    and case c."access"
+      when 'tenant' then true
+      when 'members' then "better_supabase"."is_conversation_member"(c."id")
+      when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
+      else false
+    end))
+    ))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((m."sent_at" is not null or m."author_id" = (select auth.uid()))))
+$$;
+revoke execute on function "better_supabase"."messaging_message_rows"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."messaging_message_rows"(uuid[]) to authenticated, service_role;
+
 -- The messages of ids the caller may read, oldest first, each with its
--- author, files and reactions when those modules are installed.
+-- author, files and reactions when those modules are installed. The rows
+-- come from messaging_message_rows, and the conversations they belong to
+-- are read once more under the caller's policies.
 create or replace function "better_supabase"."messaging_messages_json"(ids uuid[])
 returns jsonb
 language sql
@@ -282,14 +313,41 @@ stable
 security invoker
 set search_path = ''
 as $$
-  with page_rows as (
-    select m.* from "better_supabase"."messages" m where m."id" = any (messaging_messages_json.ids)
+  with checked as materialized (
+    select m.* from "better_supabase"."messaging_message_rows"(messaging_messages_json.ids) m
+  ),
+  page_rows as (
+    select k.* from checked k
+    where k."conversation_id" = any (array(
+      select c."id" from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct v."conversation_id" from checked v))
+    ))
   )
   select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note"))) order by coalesce(x."sent_at", x."scheduled_at", x."created_at"), x."id"), '[]'::jsonb)
   from page_rows x
 $$;
 revoke execute on function "better_supabase"."messaging_messages_json"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."messaging_messages_json"(uuid[]) to authenticated, service_role;
+
+-- messaging_messages_json without any access check, for a security definer
+-- function that has already checked the caller reads every conversation of
+-- ids. Never grant it to anon or authenticated: it returns any message,
+-- sent or not, with its files and reactions.
+create or replace function "better_supabase"."messaging_messages_json_unchecked"(ids uuid[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with page_rows as (
+    select m.* from "better_supabase"."messages" m where m."id" = any (messaging_messages_json_unchecked.ids)
+  )
+  select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note"))) order by coalesce(x."sent_at", x."scheduled_at", x."created_at"), x."id"), '[]'::jsonb)
+  from page_rows x
+$$;
+revoke execute on function "better_supabase"."messaging_messages_json_unchecked"(uuid[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."messaging_messages_json_unchecked"(uuid[]) to service_role;
 
 -- Runs once a message is sent (now or when its schedule comes due): the
 -- event, the notifications and the after hook.
@@ -882,11 +940,7 @@ as $$
   select case when not coalesce("better_supabase"."can_subject"(list_record_mentions.subject_type, list_record_mentions.subject_id, 'read'), false)
     then '[]'::jsonb
     else coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'message', "better_supabase"."messaging_messages_json"(array[p.message]) -> 0,
-        'conversation', jsonb_build_object('id', c."id", 'kind', c."kind", 'title', c."title", 'subject_type', c."subject_type", 'subject_id', c."subject_id")
-      ) order by p.created_at desc, p.message desc)
-      from (
+      with p as materialized (
         select x."message_id" as message, x."conversation_id" as conversation, x."created_at" as created_at
         from "better_supabase"."message_record_mentions" x
         where x."subject_type" = list_record_mentions.subject_type and x."subject_id" = list_record_mentions.subject_id
@@ -894,8 +948,17 @@ as $$
             or (x."created_at", x."message_id") < (list_record_mentions.before, coalesce(list_record_mentions.before_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
         order by x."created_at" desc, x."message_id" desc
         limit least(greatest(coalesce(list_record_mentions.max_rows, 20), 1), 100)
-      ) p
+      ),
+      j as materialized (
+        select e.row from jsonb_array_elements("better_supabase"."messaging_messages_json"(array(select p.message from p))) e(row)
+      )
+      select jsonb_agg(jsonb_build_object(
+        'message', j.row,
+        'conversation', jsonb_build_object('id', c."id", 'kind', c."kind", 'title', c."title", 'subject_type', c."subject_type", 'subject_id', c."subject_id")
+      ) order by p.created_at desc, p.message desc)
+      from p
       join "better_supabase"."conversations" c on c."id" = p.conversation
+      left join j on (j.row ->> 'id')::uuid = p.message
     ), '[]'::jsonb)
   end
 $$;

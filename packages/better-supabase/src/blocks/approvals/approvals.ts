@@ -414,6 +414,14 @@ export interface Approvals<F extends object = Record<never, never>> {
   /** The requester or a manager closes a pending request. */
   cancel(id: string): AsyncResult<ApprovalRequest & F>;
   get(id: string): AsyncResult<ApprovalRequestDetail & F>;
+  /**
+   * Many requests with their decisions and items in one read, in the order
+   * requested. A request that is missing or that the caller cannot read has no
+   * entry.
+   */
+  getMany(
+    ids: readonly string[],
+  ): AsyncResult<readonly (ApprovalRequestDetail & F)[]>;
   /** Newest first. */
   list(
     options?: ApprovalListOptions,
@@ -879,19 +887,22 @@ export function createApprovals<
     });
   };
 
+  const detailOf = (
+    row: Readonly<Record<string, unknown>>,
+    fn: string,
+  ): ApprovalRequestDetail => ({
+    ...requestOf(row, fn),
+    canDecide: row["canDecide"] === true,
+    items: itemsFrom(row["items"], fn),
+    decisions: recordsOf(row["decisions"] ?? [], fn).map(decisionOf),
+  });
+
   const getRequest = (id: string): AsyncResult<ApprovalRequestDetail & F> =>
     call("get_approval", { request_id: id }, (value) => value).andThen(
       (value) => {
         const row = recordOf(value, "get_approval");
 
-        return withFields(fields, row, {
-          ...requestOf(row, "get_approval"),
-          canDecide: row["canDecide"] === true,
-          items: itemsFrom(row["items"], "get_approval"),
-          decisions: recordsOf(row["decisions"] ?? [], "get_approval").map(
-            decisionOf,
-          ),
-        });
+        return withFields(fields, row, detailOf(row, "get_approval"));
       },
     );
 
@@ -1031,6 +1042,12 @@ export function createApprovals<
       ),
     cancel: (id) => one("cancel_approval", { request_id: id }),
     get: getRequest,
+    getMany: (ids) =>
+      call("get_approvals", { request_ids: ids }, (value) =>
+        recordsOf(value, "get_approvals").map(
+          (row) => [row, detailOf(row, "get_approvals")] as const,
+        ),
+      ).andThen((rows) => allWithFields(fields, rows)),
     list: (list = {}) =>
       tenantOr(list.tenantless).andThen((organizationId) =>
         call(

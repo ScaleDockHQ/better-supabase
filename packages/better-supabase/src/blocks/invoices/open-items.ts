@@ -273,6 +273,13 @@ export interface InvoiceOpenItems<I> {
   /** Where a purchase invoice stands in approval. */
   approvalStatus(invoiceId: string): AsyncResult<InvoiceApproval>;
   /**
+   * Where many purchase invoices stand in approval, in one read, keyed by
+   * invoice id. An invoice the caller cannot read has no entry.
+   */
+  approvalStatuses(
+    invoiceIds: readonly string[],
+  ): AsyncResult<ReadonlyMap<string, InvoiceApproval>>;
+  /**
    * Approves the levels the signed-in user is the approver of. Needs
    * `invoices.approve`. Payment batches skip bills until every level is done.
    */
@@ -607,6 +614,17 @@ export function invoiceOpenItems<I>(
         "purchase_invoice_approval_status",
         { invoice: invoiceId },
         approvalOf,
+      ),
+    approvalStatuses: (invoiceIds) =>
+      call(
+        "purchase_invoice_approval_statuses",
+        { invoice_ids: invoiceIds },
+        (value) =>
+          new Map(
+            Object.entries(
+              recordOf(value, "purchase_invoice_approval_statuses"),
+            ).map(([id, approval]) => [id, approvalOf(approval)]),
+          ),
       ),
     approvePurchaseInvoice: ({ invoiceId, ...options }) =>
       invoice("approve_purchase_invoice", {

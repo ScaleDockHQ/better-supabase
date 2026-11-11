@@ -373,6 +373,18 @@ import { wakeOnApproval } from "better-supabase/workflow-sdk";
 for (const event of events) await wakeOnApproval(event);
 ```
 
+## Read many requests at once
+
+`getMany(ids)` (`get_approvals(request_ids)`) returns the requests with their decisions and items in one call, in the order you ask, with the same shape as `get`. A sweep that escalated or expired twenty requests notifies about them after one read, instead of calling `get` once per request. A request that is missing or that the caller cannot read has no entry, so the result can be shorter than the list.
+
+```ts
+const requests = await approvals.getMany(escalatedIds).orThrow();
+
+for (const request of requests) {
+  await notifyEscalated(request);
+}
+```
+
 ## Expiry and reminders
 
 Schedule both functions with pg_cron or the [jobs](/docs/blocks/queue) drain. `remind_approvals(after)` asks the current step's approvers again for requests pending longer than `after` (default one day), once per `after`.

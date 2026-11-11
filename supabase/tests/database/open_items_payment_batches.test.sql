@@ -6,7 +6,7 @@
 -- and matching the bank debit to it allocates the payments and closes the items.
 -- Run with `supabase test db`.
 begin;
-select plan(29);
+select plan(30);
 
 select set_config(
   'request.jwt.claims',
@@ -204,6 +204,14 @@ select is(
     better_supabase.purchase_invoice_approval_status((select id from ids where name = 'BILL-2')) ->> 'status')),
   '["pending", "not_required"]'::jsonb,
   'a bill over the level is pending, one under it needs nothing'
+);
+select is(
+  (select better_supabase.purchase_invoice_approval_statuses(array[
+    (select id from ids where name = 'BILL-1'), (select id from ids where name = 'BILL-2'), gen_random_uuid()])),
+  jsonb_build_object(
+    (select id::text from ids where name = 'BILL-1'), better_supabase.purchase_invoice_approval_status((select id from ids where name = 'BILL-1')),
+    (select id::text from ids where name = 'BILL-2'), better_supabase.purchase_invoice_approval_status((select id from ids where name = 'BILL-2'))),
+  'the batch read answers each readable bill as the single read does, keyed by id'
 );
 
 insert into ids values ('journal', (select id from better_supabase.accounting_journals

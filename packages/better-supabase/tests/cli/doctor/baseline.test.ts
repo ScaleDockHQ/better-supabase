@@ -137,3 +137,32 @@ describe("updatedBaseline", () => {
     ]);
   });
 });
+
+describe("line targets from before the stable keys", () => {
+  const located: Finding = {
+    ...finding("BS634", "src/a.ts#load:db.tasks.get", "warning"),
+    location: { file: "src/a.ts", line: 12 },
+  };
+
+  const old = [{ code: "BS634", target: "src/a.ts:12", reason: "a job" }];
+
+  it("accepts a finding whose old file:line target an entry lists", () => {
+    const result = applyBaseline(
+      [located],
+      old,
+      new Set(["BS634"]),
+      offline,
+      "doctor-baseline.json",
+    );
+
+    expect(result).toEqual({ findings: [], accepted: 1, stale: [] });
+  });
+
+  it("moves the entry to the new target with its reason on update", () => {
+    expect(
+      updatedBaseline([located], old, new Set(["BS634"]), offline),
+    ).toEqual([
+      { code: "BS634", target: "src/a.ts#load:db.tasks.get", reason: "a job" },
+    ]);
+  });
+});

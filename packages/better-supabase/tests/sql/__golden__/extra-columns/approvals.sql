@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:cf53278704113f6e17e92d59f2f2fdb52c79ed2d4e8fcaff5e517bf3c53cfb44
+-- @bsb-hash sha256:d82cb858b25e6fad450c607e4268f01c1c8aa6c14d007879f5e7d308c9126bdb
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1150,6 +1150,39 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_approval"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_approval"(uuid) to authenticated, service_role;
+
+-- Many requests with their decisions and items in one read, in the order
+-- requested. A request that is missing or that the caller cannot read is left
+-- out instead of failing the batch.
+create or replace function "better_supabase"."get_approvals"(request_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'status', r."status", 'step', r."step", 'steps', r."policy" -> 'steps', 'requestedBy', r."requested_by", 'reason', r."reason", 'payload', r."payload", 'expiresAt', r."expires_at", 'decidedAt', r."decided_at", 'mode', coalesce(r."policy" ->> 'mode', 'authorize'), 'fingerprint', r."fingerprint", 'consumedAt', r."consumed_at", 'createdAt', r."created_at", 'fields', jsonb_build_object('app_note', r."app_note")) || jsonb_build_object(
+      'canDecide', "better_supabase"."approval_eligible"(r."id"),
+      'decisions', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
+        from "better_supabase"."approval_decisions" x where x."request_id" = r."id"
+      ), '[]'::jsonb),
+      'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = r."id"
+    ), '[]'::jsonb)
+    ) order by array_position(get_approvals.request_ids, r."id")), '[]'::jsonb)
+    from "better_supabase"."approval_requests" r
+    where r."id" = any (get_approvals.request_ids)
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."requested_by" = auth.uid(), false) or "better_supabase"."approval_eligible"(r."id")
+        or (coalesce(better_supabase.can('tenant', r."tenant_id", 'approvals.read'), false) and (true)))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_approvals"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_approvals"(uuid[]) to authenticated, service_role;
 
 -- assigned: only requests whose current step the caller can decide.
 create or replace function "better_supabase"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)

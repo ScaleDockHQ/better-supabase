@@ -1,5 +1,21 @@
 # better-supabase
 
+## 0.60.0
+
+### Minor Changes
+
+- [#837](https://github.com/ScaleDockHQ/better-supabase/pull/837) [`e1e3597`](https://github.com/ScaleDockHQ/better-supabase/commit/e1e35975e8ade61b8ec84fcea26d8afa6434e8a0) Thanks [@mick340](https://github.com/mick340)! - Two batch reads for approval sweeps and bill lists. `invoices.approvalStatuses(invoiceIds)` (`purchase_invoice_approval_statuses(invoice_ids uuid[])`) returns where each purchase invoice stands in approval as a map keyed by invoice id, and `approvals.getMany(ids)` (`get_approvals(request_ids uuid[])`) returns requests with their decisions and items in the order asked. Both skip an id the caller cannot read instead of failing the batch.
+
+- [#832](https://github.com/ScaleDockHQ/better-supabase/pull/832) [`8d82a5f`](https://github.com/ScaleDockHQ/better-supabase/commit/8d82a5f4fb39e70ec095e1b847695ec101f2b082) Thanks [@martijn00](https://github.com/martijn00)! - `s.$fn.<name>(args, { tables })` declares the tables a SQL function reads, so `bsb.tags` and `bsb.cached({ readSet })` tag a cached function payload with them and a mutation of one of those tables revalidates it. `bsb.tags` also takes a function call alone or in a list. The `FunctionSpec` and `FunctionSpecOptions` types are exported.
+
+### Patch Changes
+
+- [#836](https://github.com/ScaleDockHQ/better-supabase/pull/836) [`e993cfe`](https://github.com/ScaleDockHQ/better-supabase/commit/e993cfed17acc2921ce329a82af676650a74fed3) Thanks [@mick340](https://github.com/mick340)! - `list_comments`, `comment_counts` and `messaging_messages_json` check each conversation once and read its messages by key, so a read no longer weighs every conversation the caller can see across tenants. What each caller sees stays the same. `list_comments_unchecked` and `messaging_messages_json_unchecked` return the same rows without a check, for an app's own `security definer` function after its own check; they are granted to `service_role` only.
+
+- [#837](https://github.com/ScaleDockHQ/better-supabase/pull/837) [`1c73452`](https://github.com/ScaleDockHQ/better-supabase/commit/1c73452fd2b076e7ce51faa2be18c1189e990bca) Thanks [@mick340](https://github.com/mick340)! - Doctor's N+1 checks report fewer false positives and catch more real ones. BS634 skips a loop that calls a write such as `decideRequest` or `services.agenda.assignTask`, or a side effect such as `notifyAgendaUpdated(...)`, `publish...`, `send...` or `enqueue...`. For a search term or a JSON value it suggests one read with an `OR` of the conditions or an RPC that takes an array, and says when no batched form applies, instead of an `in` filter. It now also reads the callback of a per-item helper such as `mapInChunks(ids, 20, async (id) => ...)`, a `chunk.map(...)` inside a chunk callback, and services passed as typed parameters (`customers: CustomersService`). BS635 names a nested include for two tables that both reference a third (`include: { task: { include: { invoiceTasks: true } } }`), and reports a dependent read that shares a `Promise.all` wave with other reads of the same rows as info, since an include saves a request there, not a wait.
+  
+  BS609, BS634 and BS635 targets name the file, the enclosing function and the callee (`src/lib/tasks.ts#loadTask:db.quoteTasks.list`, `[#2](https://github.com/ScaleDockHQ/better-supabase/issues/2)` for a second call), so baseline entries survive edits elsewhere in the file. Entries with the old `file:line` target still match, and `doctor --update-baseline` rewrites them with their reasons. `doctor --snapshot` reads the CLI's cached snapshot file (`{ key, snapshot }`), and `doctor --only BS609,BS634,BS635` runs without a database or snapshot, with an info finding that no include could be named.
+
 ## 0.59.0
 
 ### Minor Changes

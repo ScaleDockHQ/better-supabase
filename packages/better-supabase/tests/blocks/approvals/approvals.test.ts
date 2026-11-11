@@ -209,6 +209,31 @@ describe("approvals client", () => {
     ]);
   });
 
+  it("reads many requests with their decisions in one call", async () => {
+    const fake = transport({
+      get_approvals: () => [
+        { ...REQUEST, id: "r2", canDecide: false, decisions: [] },
+        { ...REQUEST, canDecide: true, decisions: [], items: [] },
+      ],
+    });
+
+    const approvals = createApprovals({
+      transport: fake,
+      schema: "app",
+      tenant: () => "o",
+    });
+
+    const read = await approvals.getMany(["r2", "r1", "gone"]).orThrow();
+
+    expect(read.map((request) => [request.id, request.canDecide])).toEqual([
+      ["r2", false],
+      ["r1", true],
+    ]);
+    expect(fake.calls).toEqual([
+      ["get_approvals", { request_ids: ["r2", "r1", "gone"] }],
+    ]);
+  });
+
   it("reads a request with its decisions, lists and checks", async () => {
     const fake = transport({
       get_approval: () => ({

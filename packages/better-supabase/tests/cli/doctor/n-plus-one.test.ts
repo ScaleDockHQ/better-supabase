@@ -25,12 +25,34 @@ const relationships = [
     referenced_relation: "customers",
     referenced_columns: ["id", "organization_id"],
   },
+  ...[
+    ["quote_tasks", "task_id", "public", "tasks"],
+    ["invoice_tasks", "task_id", "public", "tasks"],
+    ["quote_tasks", "organization_id", "public", "organizations"],
+    ["invoice_tasks", "organization_id", "public", "organizations"],
+    ["members", "user_id", "auth", "users"],
+    ["profiles", "id", "auth", "users"],
+  ].map(([relation, column, schema, referenced]) => ({
+    foreign_key_name: `${relation!}_${column!}_fkey`,
+    schema: "public",
+    relation: relation!,
+    columns: [column!],
+    is_one_to_one: false,
+    referenced_schema: schema!,
+    referenced_relation: referenced!,
+    referenced_columns: ["id"],
+  })),
 ];
 
 function check(
   code: "BS634" | "BS635",
   text: string,
-): readonly { message: string; location?: { line: number } }[] {
+): readonly {
+  message: string;
+  target?: string;
+  severity?: string;
+  location?: { line: number };
+}[] {
   const rule = N_PLUS_ONE_RULES.find((candidate) => candidate.code === code);
   const sources: TextFile[] = [{ path: "src/lib/data.ts", text }];
 
@@ -308,5 +330,223 @@ describe("BS635", () => {
         ),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("BS634 writes and side effects", () => {
+  it("skips a loop that decides through a service or notifies per item", () => {
+    expect(
+      check(
+        "BS634",
+        lines(
+          "export async function decide(ctx: Ctx, ids: string[], rows: Row[]) {",
+          "  const timeOff = createTimeOffService(ctx);",
+          "  const services = createFeatureServices(ctx);",
+          "  for (const id of ids) {",
+          "    await timeOff.decideRequest(id);",
+          "    await timeOff.getRequest(id);",
+          "  }",
+          "  await Promise.all(",
+          "    rows.map(async (row) => {",
+          "      const item = await services.agenda.getAgendaItem(row.id);",
+          "      await notifyAgendaUpdated({ item });",
+          "    }),",
+          "  );",
+          "  for (const id of ids) {",
+          "    const request = await services.getRequest(id);",
+          "    await events.publish(request);",
+          "  }",
+          "  for (const row of rows) {",
+          "    await services.getRequest(row.id);",
+          "    await services.agenda.assignTask(row.id);",
+          "  }",
+          "}",
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("still reports a read loop beside a side effect outside it", () => {
+    const findings = check(
+      "BS634",
+      lines(
+        "export async function load(ctx: Ctx, ids: string[]) {",
+        "  const services = createFeatureServices(ctx);",
+        "  const rows = await Promise.all(ids.map((id) => services.getRequest(id)));",
+        "  await notifyLoaded(rows);",
+        "}",
+      ),
+    );
+
+    expect(findings.map((finding) => finding.location?.line)).toEqual([3]);
+  });
+});
+
+describe("BS634 hints", () => {
+  it("names an OR or an array RPC for a search term or a JSON value", () => {
+    const findings = check(
+      "BS634",
+      lines(
+        "export async function search(db: Db, terms: string[], ids: string[], products: ProductsService) {",
+        "  await Promise.all(terms.map((needle) =>",
+        "    db.products.list({ where: { OR: [{ name: { contains: needle } }] } }),",
+        "  ));",
+        "  await Promise.all(ids.map((endpointId) =>",
+        "    db.workflows.list({ where: { graph: { contains: { nodes: [{ config: { endpointId } }] } } } }),",
+        "  ));",
+        "  await Promise.all(terms.map((keyword) => products.listProducts({ q: keyword })));",
+        '  await Promise.all(terms.map((term) => supabase.from("notes").select("id").ilike("body", term)));',
+        "  await Promise.all(ids.map((id) => db.notes.list({ where: { customerId: id } })));",
+        "}",
+      ),
+    );
+
+    expect(findings.map((finding) => finding.location?.line)).toEqual([
+      3, 6, 8, 9, 10,
+    ]);
+    expect(findings[0]?.message).toContain(
+      "`needle` is a search term, and an `in` filter only matches whole values.",
+    );
+    expect(findings[1]?.message).toContain(
+      "matches `endpointId` inside a JSON column with `contains`",
+    );
+    expect(findings[2]?.message).toContain("`keyword` is a search term");
+    expect(findings[3]?.message).toContain("`term` is a search term");
+    expect(findings[4]?.message).toContain("with an `in` filter");
+  });
+});
+
+describe("BS634 per-item callbacks of helpers", () => {
+  it("finds a read per item in a chunk helper or a per-item helper callback", () => {
+    const findings = check(
+      "BS634",
+      lines(
+        "export async function labels(customers: CustomersService, ids: string[]) {",
+        "  await mapInChunks(ids, 20, async (customerId) => {",
+        "    await customers.getCustomer(customerId);",
+        "  });",
+        "  await mapInChunks(ids, async (chunk) =>",
+        "    Promise.all(chunk.map((id) => customers.getCustomer(id))),",
+        "  );",
+        "}",
+      ),
+    );
+
+    expect(findings.map((finding) => finding.location?.line)).toEqual([3, 6]);
+    expect(findings[1]?.message).toContain("once per item of `chunk`");
+  });
+
+  it("stays quiet for whole chunks and for helpers that aren't loops", () => {
+    expect(
+      check(
+        "BS634",
+        lines(
+          "export async function labels(customers: CustomersService, ids: string[]) {",
+          "  await mapInChunks(ids, 20, async (chunk) => customers.listByIds(chunk));",
+          "  for (const ids of chunks) await customers.listByIds(ids);",
+          "  const byId = new Map(ids.map((id) => [id, id]));",
+          "  await withRetry(ids, () => customers.getCustomer(ids[0]));",
+          "  await limit((id) => customers.getCustomer(id));",
+          "}",
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("target keys", () => {
+  it("names the function and the callee, numbered per function", () => {
+    const findings = check(
+      "BS634",
+      lines(
+        "export const reorder = tenantAction(schema, async (input) => {",
+        "  await Promise.all(input.ids.map((id) => db.tasks.get(id)));",
+        "  await Promise.all(input.ids.map((id) => db.tasks.get(id)));",
+        "});",
+        "export async function load(db: Db, ids: string[]): Promise<{ rows: Row[] }> {",
+        "  return { rows: await Promise.all(ids.map((id) => db.tasks.get(id))) };",
+        "}",
+        "const service = {",
+        "  async read(ids: string[]) {",
+        "    for (const id of ids) await db.notes.get(id);",
+        "  },",
+        "};",
+        "for (const id of ids) await db.notes.get(id);",
+      ),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "src/lib/data.ts#reorder:db.tasks.get",
+      "src/lib/data.ts#reorder:db.tasks.get#2",
+      "src/lib/data.ts#load:db.tasks.get",
+      "src/lib/data.ts#read:db.notes.get",
+      "src/lib/data.ts#<module>:db.notes.get",
+    ]);
+  });
+
+  it("keeps a target when lines are added above it", () => {
+    const body = [
+      "export async function load(db: Db, ids: string[]) {",
+      "  return Promise.all(ids.map((id) => db.tasks.get(id)));",
+      "}",
+    ];
+
+    const [before] = check("BS634", lines(...body));
+    const [after] = check("BS634", lines("import a from 'a';", "", ...body));
+
+    expect(after?.target).toBe(before?.target);
+    expect(after?.location?.line).toBe(4);
+  });
+});
+
+describe("BS635 waves and chains", () => {
+  it("lowers a dependent read in a Promise.all of reads on the same rows to info", () => {
+    const findings = check(
+      "BS635",
+      lines(
+        "export async function load(db: Db, id: string) {",
+        "  const order = await db.orders.get(id);",
+        "  const [customer, lines] = await Promise.all([",
+        "    db.customers.list({ where: { id: order.customerId } }),",
+        "    db.orderLines.list({ where: { orderId: order.id } }),",
+        "  ]);",
+        "  const [other] = await Promise.all([",
+        "    db.customers.list({ where: { id: order.customerId } }),",
+        "    fetchOther(),",
+        "  ]);",
+        "}",
+      ),
+    );
+
+    expect(
+      findings.map((finding) => [finding.location?.line, finding.severity]),
+    ).toEqual([
+      [4, "info"],
+      [8, undefined],
+    ]);
+    expect(findings[0]?.message).toContain(
+      "An include saves a request, not a wait",
+    );
+  });
+
+  it("names a nested include through a table both reference", () => {
+    const findings = check(
+      "BS635",
+      lines(
+        "export async function load(db: Db, quoteId: string) {",
+        "  const links = await db.quoteTasks.list({ where: { quoteId } });",
+        "  const taskIds = links.map((row) => row.taskId);",
+        "  await db.invoiceTasks.list({ where: { organizationId, taskId: { in: taskIds } } });",
+        "  const members = await db.members.list();",
+        "  await db.profiles.list({ where: { id: { in: members.map((m) => m.userId) } } });",
+        "  await db.invoiceTasks.list({ where: { organizationId: links[0].organizationId } });",
+        "}",
+      ),
+    );
+
+    expect(findings.map((finding) => finding.location?.line)).toEqual([4]);
+    expect(findings[0]?.message).toContain(
+      "include: { task: { include: { invoiceTasks: true } } }",
+    );
   });
 });

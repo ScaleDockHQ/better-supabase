@@ -54,7 +54,7 @@
     "security-definer-functions": 99
   },
   "approvals": {
-    "security-definer-functions": 145
+    "security-definer-functions": 151
   },
   "assets": {
     "security-definer-functions": 164,
@@ -115,7 +115,7 @@
     "security-definer-functions": 78
   },
   "comments": {
-    "security-definer-functions": 7
+    "security-definer-functions": 25
   },
   "commissions": {
     "security-definer-functions": 108
@@ -268,7 +268,7 @@
     "row-triggers": 6
   },
   "invoices": {
-    "security-definer-functions": 345,
+    "security-definer-functions": 351,
     "row-triggers": 6
   },
   "knowledge": {
@@ -332,7 +332,7 @@
     "security-definer-functions": 120
   },
   "messaging": {
-    "security-definer-functions": 117,
+    "security-definer-functions": 129,
     "row-triggers": 14
   },
   "metrics": {

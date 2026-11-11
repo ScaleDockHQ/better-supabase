@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:a80d2fad3bf51b67dd568e37cc4251d324b592358942f08321e8a72ae234bc03
+-- @bsb-hash sha256:454404fcb8e62a2fbc9612717c4633f0923810d671ef99d3e1310719d4ce9115
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1146,6 +1146,39 @@ $$;
 revoke execute on function "better_supabase"."get_approval"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_approval"(uuid) to authenticated, service_role;
 
+-- Many requests with their decisions and items in one read, in the order
+-- requested. A request that is missing or that the caller cannot read is left
+-- out instead of failing the batch.
+create or replace function "better_supabase"."get_approvals"(request_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'status', r."status", 'step', r."step", 'steps', r."policy" -> 'steps', 'requestedBy', r."requested_by", 'reason', r."reason", 'payload', r."payload", 'expiresAt', r."expires_at", 'decidedAt', r."decided_at", 'mode', coalesce(r."policy" ->> 'mode', 'authorize'), 'fingerprint', r."fingerprint", 'consumedAt', r."consumed_at", 'createdAt', r."created_at") || jsonb_build_object(
+      'canDecide', "better_supabase"."approval_eligible"(r."id"),
+      'decisions', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
+        from "better_supabase"."approval_decisions" x where x."request_id" = r."id"
+      ), '[]'::jsonb),
+      'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = r."id"
+    ), '[]'::jsonb)
+    ) order by array_position(get_approvals.request_ids, r."id")), '[]'::jsonb)
+    from "better_supabase"."approval_requests" r
+    where r."id" = any (get_approvals.request_ids)
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."requested_by" = auth.uid(), false) or "better_supabase"."approval_eligible"(r."id")
+        or (coalesce(better_supabase.can('tenant', r."tenant_id", 'approvals.read'), false) and (true)))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_approvals"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_approvals"(uuid[]) to authenticated, service_role;
+
 -- assigned: only requests whose current step the caller can decide.
 create or replace function "better_supabase"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
@@ -1415,7 +1448,7 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:f01d1388fc71f6c86d7799719c511b8e81d26ea2cb4b661bf739597a03508c86
+-- @bsb-hash sha256:ac7416ec220faad76c3da479adc28e300a65072789d79912da237cf15ba0dfca
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2869,6 +2902,39 @@ $$;
 revoke execute on function "better_supabase"."get_approval"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_approval"(uuid) to authenticated, service_role;
 
+-- Many requests with their decisions and items in one read, in the order
+-- requested. A request that is missing or that the caller cannot read is left
+-- out instead of failing the batch.
+create or replace function "better_supabase"."get_approvals"(request_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'status', r."status", 'step', r."step", 'steps', r."policy" -> 'steps', 'requestedBy', r."requested_by", 'reason', r."reason", 'payload', r."payload", 'expiresAt', r."expires_at", 'decidedAt', r."decided_at", 'mode', coalesce(r."policy" ->> 'mode', 'authorize'), 'fingerprint', r."fingerprint", 'consumedAt', r."consumed_at", 'createdAt', r."created_at") || jsonb_build_object(
+      'canDecide', "better_supabase"."approval_eligible"(r."id"),
+      'decisions', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
+        from "better_supabase"."approval_decisions" x where x."request_id" = r."id"
+      ), '[]'::jsonb),
+      'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = r."id"
+    ), '[]'::jsonb)
+    ) order by array_position(get_approvals.request_ids, r."id")), '[]'::jsonb)
+    from "better_supabase"."approval_requests" r
+    where r."id" = any (get_approvals.request_ids)
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."requested_by" = auth.uid(), false) or "better_supabase"."approval_eligible"(r."id")
+        or (coalesce(better_supabase.can('tenant', r."tenant_id", 'approvals.read'), false) and (not r."subject_type" in ('support_request', 'ai_tool_approval') and (r."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'warranty_claim', 'appraisal') or (case when r."subject_type" = 'drive_node' then coalesce(case when r."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((r."subject_id")::uuid, 'viewer') end, false) else true end)))))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_approvals"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_approvals"(uuid[]) to authenticated, service_role;
+
 -- assigned: only requests whose current step the caller can decide.
 create or replace function "better_supabase"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
@@ -3150,7 +3216,7 @@ rollback;
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:1e78031749532c921e8c2db38b1910c224d9f0cf42d48332a9456a67f9f8613f
+-- @bsb-hash sha256:4e32975fefc66fc3eb4d70998b52648039747a9482aece8f62e1e867c6302d4d
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4300,6 +4366,39 @@ $$;
 revoke execute on function "app_private"."get_approval"(uuid) from public, anon;
 grant execute on function "app_private"."get_approval"(uuid) to authenticated, service_role;
 
+-- Many requests with their decisions and items in one read, in the order
+-- requested. A request that is missing or that the caller cannot read is left
+-- out instead of failing the batch.
+create or replace function "app_private"."get_approvals"(request_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'status', r."status", 'step', r."step", 'steps', r."policy" -> 'steps', 'requestedBy', r."requested_by", 'reason', r."reason", 'payload', r."payload", 'expiresAt', r."expires_at", 'decidedAt', r."decided_at", 'mode', coalesce(r."policy" ->> 'mode', 'authorize'), 'fingerprint', r."fingerprint", 'consumedAt', r."consumed_at", 'createdAt', r."created_at") || jsonb_build_object(
+      'canDecide', "app_private"."approval_eligible"(r."id"),
+      'decisions', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
+        from "app_private"."approval_decisions" x where x."request_id" = r."id"
+      ), '[]'::jsonb),
+      'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "app_private"."approval_items" x where x."request_id" = r."id"
+    ), '[]'::jsonb)
+    ) order by array_position(get_approvals.request_ids, r."id")), '[]'::jsonb)
+    from "app_private"."approval_requests" r
+    where r."id" = any (get_approvals.request_ids)
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."requested_by" = auth.uid(), false) or "app_private"."approval_eligible"(r."id")
+        or (coalesce(better_supabase.can('tenant', r."tenant_id", 'approvals.read'), false) and (true)))
+  );
+end;
+$$;
+revoke execute on function "app_private"."get_approvals"(uuid[]) from public, anon;
+grant execute on function "app_private"."get_approvals"(uuid[]) to authenticated, service_role;
+
 -- assigned: only requests whose current step the caller can decide.
 create or replace function "app_private"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
@@ -4569,7 +4668,7 @@ rollback;
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:1aefe3949627147cf896bc3e878f6d684e6e6c6289169110fac28e03197cbf38
+-- @bsb-hash sha256:467d130c5a33ad1826a2e4ee4a4da8e41829604431f3a371c535acb3383ce4f9
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5714,6 +5813,39 @@ $$;
 revoke execute on function "better_supabase"."get_approval"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_approval"(uuid) to authenticated, service_role;
 
+-- Many requests with their decisions and items in one read, in the order
+-- requested. A request that is missing or that the caller cannot read is left
+-- out instead of failing the batch.
+create or replace function "better_supabase"."get_approvals"(request_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'status', r."status", 'step', r."step", 'steps', r."policy" -> 'steps', 'requestedBy', r."requested_by", 'reason', r."reason", 'payload', r."payload", 'expiresAt', r."expires_at", 'decidedAt', r."decided_at", 'mode', coalesce(r."policy" ->> 'mode', 'authorize'), 'fingerprint', r."fingerprint", 'consumedAt', r."consumed_at", 'createdAt', r."created_at") || jsonb_build_object(
+      'canDecide', "better_supabase"."approval_eligible"(r."id"),
+      'decisions', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
+        from "better_supabase"."approval_decisions" x where x."request_id" = r."id"
+      ), '[]'::jsonb),
+      'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = r."id"
+    ), '[]'::jsonb)
+    ) order by array_position(get_approvals.request_ids, r."id")), '[]'::jsonb)
+    from "better_supabase"."approval_requests" r
+    where r."id" = any (get_approvals.request_ids)
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."requested_by" = auth.uid(), false) or "better_supabase"."approval_eligible"(r."id")
+        or (coalesce(better_supabase.can('tenant', r."tenant_id", 'approvals.read'), false) and (true)))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_approvals"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_approvals"(uuid[]) to authenticated, service_role;
+
 -- assigned: only requests whose current step the caller can decide.
 create or replace function "better_supabase"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
@@ -6070,6 +6202,16 @@ as $$ select "better_supabase"."get_approval"($1) $$;
 revoke execute on function "api"."get_approval"(uuid) from public, anon;
 grant execute on function "api"."get_approval"(uuid) to authenticated, service_role;
 
+create or replace function "api"."get_approvals"(request_ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_approvals"($1) $$;
+revoke execute on function "api"."get_approvals"(uuid[]) from public, anon;
+grant execute on function "api"."get_approvals"(uuid[]) to authenticated, service_role;
+
 create or replace function "api"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
 language sql
@@ -6175,7 +6317,7 @@ rollback;
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:60dfedd9e235e5f1e42a95030c4e9da53d10f3c6a82dc79f3c7367af0540512b
+-- @bsb-hash sha256:7767af766bd1e991a8afe42145017ebfc7a1faa55585471063dcbb21e20d3684
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7312,6 +7454,39 @@ $$;
 revoke execute on function "better_supabase"."get_approval"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_approval"(uuid) to authenticated, service_role;
 
+-- Many requests with their decisions and items in one read, in the order
+-- requested. A request that is missing or that the caller cannot read is left
+-- out instead of failing the batch.
+create or replace function "better_supabase"."get_approvals"(request_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'status', r."status", 'step', r."step", 'steps', r."policy" -> 'steps', 'requestedBy', r."requested_by", 'reason', r."reason", 'payload', r."payload", 'expiresAt', r."expires_at", 'decidedAt', r."decided_at", 'mode', coalesce(r."policy" ->> 'mode', 'authorize'), 'fingerprint', r."fingerprint", 'consumedAt', r."consumed_at", 'createdAt', r."created_at") || jsonb_build_object(
+      'canDecide', "better_supabase"."approval_eligible"(r."id"),
+      'decisions', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
+        from "better_supabase"."approval_decisions" x where x."request_id" = r."id"
+      ), '[]'::jsonb),
+      'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = r."id"
+    ), '[]'::jsonb)
+    ) order by array_position(get_approvals.request_ids, r."id")), '[]'::jsonb)
+    from "better_supabase"."approval_requests" r
+    where r."id" = any (get_approvals.request_ids)
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."requested_by" = auth.uid(), false) or "better_supabase"."approval_eligible"(r."id")
+        or (coalesce(better_supabase.can('tenant', r."tenant_id", 'approvals.read'), false) and (true)))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_approvals"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_approvals"(uuid[]) to authenticated, service_role;
+
 -- assigned: only requests whose current step the caller can decide.
 create or replace function "better_supabase"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb
@@ -7581,7 +7756,7 @@ rollback;
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:53c31d44a0af662e1744879dcb75c5737ddbca83eabcd73e8920494989568e8e
+-- @bsb-hash sha256:ba7656db85194bc3f52d276725e4bf6745b267ddc9ed8152adedf7ceba920e07
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8725,6 +8900,39 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_approval"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_approval"(uuid) to authenticated, service_role;
+
+-- Many requests with their decisions and items in one read, in the order
+-- requested. A request that is missing or that the caller cannot read is left
+-- out instead of failing the batch.
+create or replace function "better_supabase"."get_approvals"(request_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'status', r."status", 'step', r."step", 'steps', r."policy" -> 'steps', 'requestedBy', r."requested_by", 'reason', r."reason", 'payload', r."payload", 'expiresAt', r."expires_at", 'decidedAt', r."decided_at", 'mode', coalesce(r."policy" ->> 'mode', 'authorize'), 'fingerprint', r."fingerprint", 'consumedAt', r."consumed_at", 'createdAt', r."created_at") || jsonb_build_object(
+      'canDecide', "better_supabase"."approval_eligible"(r."id"),
+      'decisions', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'step', x."step", 'approver', x."approver", 'decision', x."decision", 'delegateTo', x."delegate_to", 'comment', x."comment", 'createdAt', x."created_at") order by x."created_at", x."id")
+        from "better_supabase"."approval_decisions" x where x."request_id" = r."id"
+      ), '[]'::jsonb),
+      'items', coalesce((
+      select jsonb_agg(jsonb_build_object('id', x."id", 'key', x."key", 'label', x."label", 'payload', x."payload", 'permission', x."permission", 'dependsOn', to_jsonb(x."depends_on"), 'status', x."status", 'createdType', x."created_type", 'createdId', x."created_id", 'decidedBy', x."decided_by", 'decidedAt', x."decided_at", 'createdAt', x."created_at") order by x."created_at", x."key")
+      from "better_supabase"."approval_items" x where x."request_id" = r."id"
+    ), '[]'::jsonb)
+    ) order by array_position(get_approvals.request_ids, r."id")), '[]'::jsonb)
+    from "better_supabase"."approval_requests" r
+    where r."id" = any (get_approvals.request_ids)
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."requested_by" = auth.uid(), false) or "better_supabase"."approval_eligible"(r."id")
+        or (coalesce(better_supabase.can('tenant', r."org_id", 'approvals.read'), false) and (true)))
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_approvals"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."get_approvals"(uuid[]) to authenticated, service_role;
 
 -- assigned: only requests whose current step the caller can decide.
 create or replace function "better_supabase"."list_approvals"(tenant uuid, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)

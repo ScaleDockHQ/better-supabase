@@ -139,6 +139,8 @@ export const MESSAGING: BlockSqlDefinition = {
     "is_conversation_member",
     "conversation_topic_allowed",
     "messaging_messages_json",
+    "messaging_message_rows",
+    "messaging_messages_json_unchecked",
     "message_authors",
     "parse_mentions",
     "index_record_mentions",

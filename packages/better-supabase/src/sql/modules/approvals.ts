@@ -1127,6 +1127,35 @@ end;
 $$;
 ${userGrant(`${fn("get_approval")}(uuid)`)}
 
+-- Many requests with their decisions and items in one read, in the order
+-- requested. A request that is missing or that the caller cannot read is left
+-- out instead of failing the batch.
+create or replace function ${fn("get_approvals")}(request_ids uuid[])
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_agg(${json("r")} || jsonb_build_object(
+      'canDecide', ${fn("approval_eligible")}(r.${c("id")}),
+      'decisions', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x.${d("id")}, 'step', x.${d("step")}, 'approver', x.${d("approver")}, 'decision', x.${d("decision")}, 'delegateTo', ${or("decisions", "x", "delegateTo")}, 'comment', ${or("decisions", "x", "comment")}, 'createdAt', x.${d("createdAt")}) order by x.${d("createdAt")}, x.${d("id")})
+        from ${decisions} x where x.${d("request")} = r.${c("id")}
+      ), '[]'::jsonb),
+      'items', ${itemsOf(ctx, `r.${c("id")}`)}
+    ) order by array_position(get_approvals.request_ids, r.${c("id")})), '[]'::jsonb)
+    from ${requests} r
+    where r.${c("id")} = any (get_approvals.request_ids)
+      and (${SERVICE_CALLER} or coalesce(r.${c("requestedBy")} = auth.uid(), false) or ${fn("approval_eligible")}(r.${c("id")})
+        or (${ctx.can("tenant", `r.${c("tenant")}`, read)} and ${readable("r")}))
+  );
+end;
+$$;
+${userGrant(`${fn("get_approvals")}(uuid[])`)}
+
 -- assigned: only requests whose current step the caller can decide.
 create or replace function ${fn("list_approvals")}(tenant ${ctx.idType}, status text default 'pending', assigned boolean default false, subject_type text default null, subject_id text default null, page_size integer default 50, before timestamptz default null)
 returns jsonb

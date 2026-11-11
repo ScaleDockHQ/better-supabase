@@ -40,13 +40,14 @@ import {
 } from "../doctor/inputs.ts";
 import { LIVE_CODES, openLive } from "../doctor/live-source.ts";
 import { locate } from "../doctor/locate.ts";
+import { NO_SNAPSHOT, SOURCE_ONLY_CODES } from "../doctor/n-plus-one.ts";
 import { NEXT_CONFIG_FILES, VERCEL_FILES } from "../doctor/next-cache.ts";
 import {
   explainClaims,
   FLAG_FORMATS,
   reportFormat,
 } from "../doctor/options.ts";
-import { RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
+import { DOCS_URL, RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
 import { loadLocalStackCheck } from "../doctor/stacks.ts";
 import { PROCESS_ENV } from "../env.ts";
@@ -401,6 +402,12 @@ export async function runDoctor(
             : { database: options.database }),
         };
 
+  // Source-only checks run without a database: the schema only names includes.
+  const sourceOnly =
+    rules.length > 0 && rules.every((rule) => SOURCE_ONLY_CODES.has(rule.code));
+
+  let noSnapshot: string | undefined;
+
   const vercel = VERCEL_FILES.some((path) =>
     existsSync(resolve(config.root, path)),
   );
@@ -419,7 +426,18 @@ export async function runDoctor(
     nextConfig,
     install,
   ] = await Promise.all([
-    options.snapshot ?? loadSnapshot(config, env, source, pg, opened.open),
+    options.snapshot ??
+      loadSnapshot(config, env, source, pg, opened.open).catch(
+        (cause: unknown) => {
+          if (!sourceOnly) {
+            throw cause;
+          }
+
+          noSnapshot = errorText(cause);
+
+          return NO_SNAPSHOT;
+        },
+      ),
     Promise.all(ENV_FILES.map((path) => readText(config.root, path))).then(
       (files) => files.filter((file): file is TextFile => file !== undefined),
     ),
@@ -519,6 +537,20 @@ export async function runDoctor(
 
   try {
     ran = await runRules(context, rules);
+
+    const schemaRule =
+      rules.find((rule) => rule.code === "BS635") ??
+      rules.find((rule) => rule.code === "BS634");
+
+    if (noSnapshot !== undefined && schemaRule !== undefined) {
+      ran.push({
+        code: schemaRule.code,
+        severity: "info",
+        title: schemaRule.title,
+        help: `${DOCS_URL}#${schemaRule.code.toLowerCase()}`,
+        message: `Ran without the schema (${noSnapshot}), so the findings name no include and BS635 finds no waterfall. Pass --snapshot, or set $DATABASE_URL, to use the foreign keys.`,
+      });
+    }
 
     if (args.yes === true) {
       const count = ran.filter((finding) => finding.fix !== undefined).length;
