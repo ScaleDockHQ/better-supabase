@@ -1,6 +1,6 @@
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:ceaae422894d02576dc75b7201a6c52e3a50cb66a98f615def61bfd1a0cba168
+-- @bsb-hash sha256:897ec25631da4b9288990e03d3eb569f4891466b83c2ee0bdfeef0b338084724
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1027,6 +1027,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."rfq_quote_lines" as 
 create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_rfq_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."rfqs"
+  for each row execute function "better_supabase"."search_index_row"('rfq', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfqs deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq","event_prefix":"rfq"}');

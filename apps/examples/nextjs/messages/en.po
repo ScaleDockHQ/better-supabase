@@ -1105,7 +1105,6 @@ msgstr "Conditions on customer fields, tested in the database when a customer is
 #: src/app/[locale]/(app)/search/page.tsx
 #: src/features/search/components/command-center.tsx
 #: src/features/search/components/command-search-trigger.tsx
-#: src/features/search/components/command-search.tsx
 msgctxt "search.xmcVZ0"
 msgid "Search"
 msgstr "Search"
@@ -21048,13 +21047,11 @@ msgid "Retry"
 msgstr "Retry"
 
 #: src/features/search/components/command-center.tsx
-#: src/features/search/components/command-search.tsx
 msgctxt "search.SMrXWc"
 msgid "Favorites"
 msgstr "Favorites"
 
 #: src/features/search/components/command-center.tsx
-#: src/features/search/components/command-search.tsx
 msgctxt "search.iXpep1"
 msgid "Recent"
 msgstr "Recent"
@@ -21108,37 +21105,6 @@ msgstr "to open"
 msgctxt "search.cP4XVq"
 msgid "to close"
 msgstr "to close"
-
-#: src/features/search/components/command-search.tsx
-#: src/features/search/use-subject-type-label.tsx
-msgctxt "search.TkYZBT"
-msgid "Customers"
-msgstr "Customers"
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.sOh6hT"
-msgid "Find a customer by name, even with a typo."
-msgstr "Find a customer by name, even with a typo."
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.bVjFta"
-msgid "Search customers"
-msgstr "Search customers"
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.mUocSC"
-msgid "Search failed. Try again."
-msgstr "Search failed. Try again."
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.aiy3-p"
-msgid "Type to search."
-msgstr "Type to search."
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.wLCEuv"
-msgid "No matches."
-msgstr "No matches."
 
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.V52jNn"
@@ -21459,6 +21425,11 @@ msgstr "Content"
 msgctxt "search.vBlT6y"
 msgid "Documents"
 msgstr "Documents"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.TkYZBT"
+msgid "Customers"
+msgstr "Customers"
 
 #: src/features/search/use-subject-type-label.tsx
 msgctxt "search.lRdUjp"

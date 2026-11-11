@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:def860475fc845ac3e53ffdbad4c9407d8c3aa89f2e9531cd88b8aa46762ab2a
+-- @bsb-hash sha256:eef78e0ee4cbc777c1a346199466534f7e5f119f049d23b3e0fd1bbaa97e76df
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1451,6 +1451,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."bookings" as restric
 create policy bsb_tenant_scope_delete on "better_supabase"."bookings" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_booking_index"
+  after insert or delete or update of "id", "tenant_id", "customer_name" on "better_supabase"."bookings"
+  for each row execute function "better_supabase"."search_index_row"('booking', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.bookings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"booking","event_prefix":"booking"}');

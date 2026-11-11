@@ -1105,7 +1105,6 @@ msgstr "Voorwaarden op klantvelden, getest in de database wanneer een klant word
 #: src/app/[locale]/(app)/search/page.tsx
 #: src/features/search/components/command-center.tsx
 #: src/features/search/components/command-search-trigger.tsx
-#: src/features/search/components/command-search.tsx
 msgctxt "search.xmcVZ0"
 msgid "Search"
 msgstr "Zoeken"
@@ -19093,7 +19092,6 @@ msgid "Records join the search index when they are saved; change the filters to 
 msgstr ""
 
 #: src/features/search/components/command-search-lazy.tsx
-#: src/features/search/components/command-search.tsx
 msgctxt "search.xmcVZ0"
 msgid "Search"
 msgstr "Zoeken"
@@ -21123,13 +21121,11 @@ msgid "Retry"
 msgstr "Opnieuw proberen"
 
 #: src/features/search/components/command-center.tsx
-#: src/features/search/components/command-search.tsx
 msgctxt "search.SMrXWc"
 msgid "Favorites"
 msgstr "Favorieten"
 
 #: src/features/search/components/command-center.tsx
-#: src/features/search/components/command-search.tsx
 msgctxt "search.iXpep1"
 msgid "Recent"
 msgstr "Recent"
@@ -21184,36 +21180,7 @@ msgctxt "search.cP4XVq"
 msgid "to close"
 msgstr "om te sluiten"
 
-#: src/features/search/components/command-search.tsx
-#: src/features/search/use-subject-type-label.tsx
-msgctxt "search.TkYZBT"
-msgid "Customers"
-msgstr "Klanten"
 
-#: src/features/search/components/command-search.tsx
-msgctxt "search.sOh6hT"
-msgid "Find a customer by name, even with a typo."
-msgstr "Zoek een klant op naam, ook met een typfout."
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.bVjFta"
-msgid "Search customers"
-msgstr "Klanten zoeken"
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.mUocSC"
-msgid "Search failed. Try again."
-msgstr "Zoeken mislukt. Probeer het opnieuw."
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.aiy3-p"
-msgid "Type to search."
-msgstr "Typ om te zoeken."
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.wLCEuv"
-msgid "No matches."
-msgstr "Geen resultaten."
 
 #: src/features/search/components/organization-commands.tsx
 msgctxt "search.0lmKIf"
@@ -21469,6 +21436,11 @@ msgstr "Content"
 msgctxt "search.vBlT6y"
 msgid "Documents"
 msgstr "Documenten"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.TkYZBT"
+msgid "Customers"
+msgstr "Klanten"
 
 #: src/features/search/use-subject-type-label.tsx
 msgctxt "search.lRdUjp"

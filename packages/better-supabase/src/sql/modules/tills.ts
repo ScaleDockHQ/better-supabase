@@ -67,7 +67,11 @@ const NAMES: BlockSqlNames = {
       table: "tills",
       singular: "till",
       primary: true,
-      subject: { title: "name", permissions: { read: "read", write: "write" } },
+      subject: {
+        title: "name",
+        permissions: { read: "read", write: "write" },
+        search: { title: "name", body: [] },
+      },
     },
     till_session: { table: "sessions", singular: "till_session" },
     till_movement: { table: "movements", singular: "till_movement" },
