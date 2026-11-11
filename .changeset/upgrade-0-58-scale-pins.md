@@ -1,5 +1,0 @@
----
-"better-supabase": minor
----
-
-`codemod naming` pins a state-machine history `actor` and columns reached through `config.instances`, and exits `config_invalid` when the config does not load or a block context refuses it, instead of skipping the column renames and exiting 0. `codemod owned-columns` skips a column that is the target of a pending pin, and declares an optional column only when the snapshot already has it. `codemod extra-columns` exits `config_invalid` when a block context throws. Argument renames stay inside `{`, `blockConfig["..."]` is renamed, and `renameSqlColumns` touches a block column only when it is qualified, listed, or set, including `audit` ignore and redact lists. A partial unique index whose `where` is `<column> is not null` counts as the full key. An expression unique index does not drop a block key. `same_tenant` refuses a referenced row with no tenant unless the entry sets `shared: true`. Doctor BS625 and BS626 report a pinned column added again and an old name left in SQL.
