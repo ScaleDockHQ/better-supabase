@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:9d33f3bf94e174bd9c052d7fb16383d81df9d159f005d414dc9df522fbe05a4e
+-- @bsb-hash sha256:bf47e6687fb74c4bb6de78338e34122b9dfd6e405de5449e86691ebbc842eb20
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -962,11 +962,15 @@ as $$
     ('user', 'better_supabase.quotes', '"better_supabase"."quotes"', 'owner_id', true, '{}'::text[], true),
     ('user', 'better_supabase.employees', '"better_supabase"."employees"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.employee_private_details', '"better_supabase"."employee_private_details"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'owner_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.collection_favorites', '"better_supabase"."collection_favorites"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.saved_items', '"better_supabase"."saved_items"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_reports', '"better_supabase"."moderation_reports"', 'reporter_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_bans', '"better_supabase"."moderation_bans"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_notices', '"better_supabase"."moderation_notices"', 'notifier_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_flaggers', '"better_supabase"."moderation_flaggers"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_appeals', '"better_supabase"."moderation_appeals"', 'appellant_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.reviews', '"better_supabase"."reviews"', 'author_id', true, '{}'::text[], true),
     ('user', 'better_supabase.leave_requests', '"better_supabase"."leave_requests"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.assets', '"better_supabase"."assets"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.score_models', '"better_supabase"."score_models"', 'created_by', true, '{}'::text[], true),
@@ -1013,6 +1017,7 @@ as $$
     ('user', 'better_supabase.payroll_lines', '"better_supabase"."payroll_lines"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.maintenance_meter_readings', '"better_supabase"."maintenance_meter_readings"', 'read_by', true, '{}'::text[], true),
     ('user', 'better_supabase.maintenance_calibrations', '"better_supabase"."maintenance_calibrations"', 'performed_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.warranty_claims', '"better_supabase"."warranty_claims"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.dam_usage_rights', '"better_supabase"."dam_usage_rights"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.lims_samples', '"better_supabase"."lims_samples"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.lims_results', '"better_supabase"."lims_results"', 'tested_by', true, '{}'::text[], true),
@@ -1037,6 +1042,8 @@ as $$
     ('user', 'better_supabase.referral_codes', '"better_supabase"."referral_codes"', 'referrer_id', true, '{}'::text[], true),
     ('user', 'better_supabase.referrals', '"better_supabase"."referrals"', 'referrer_id', true, '{}'::text[], true),
     ('user', 'better_supabase.prescriptions', '"better_supabase"."prescriptions"', 'prescriber_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.checkout_sessions', '"better_supabase"."checkout_sessions"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.agent_mandates', '"better_supabase"."agent_mandates"', 'created_by', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'tenant_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'public.memberships', '"public"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'tenant_id', true, array['token_hash']::text[], true),
@@ -1307,6 +1314,10 @@ as $$
     ('organization', 'better_supabase.employees', '"better_supabase"."employees"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.employee_private_details', '"better_supabase"."employee_private_details"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.employee_contracts', '"better_supabase"."employee_contracts"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.subject_collection_entries', '"better_supabase"."subject_collection_entries"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.collection_favorites', '"better_supabase"."collection_favorites"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.saved_items', '"better_supabase"."saved_items"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.hostnames', '"better_supabase"."hostnames"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_items', '"better_supabase"."moderation_items"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_reports', '"better_supabase"."moderation_reports"', 'tenant_id', true, '{}'::text[], true),
@@ -1316,6 +1327,8 @@ as $$
     ('organization', 'better_supabase.moderation_notices', '"better_supabase"."moderation_notices"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_flaggers', '"better_supabase"."moderation_flaggers"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_appeals', '"better_supabase"."moderation_appeals"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.reviews', '"better_supabase"."reviews"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.review_stats', '"better_supabase"."review_stats"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.leave_types', '"better_supabase"."leave_types"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.leave_requests', '"better_supabase"."leave_requests"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.automations', '"better_supabase"."automations"', 'tenant_id', true, '{}'::text[], true),
@@ -1487,6 +1500,7 @@ as $$
     ('organization', 'better_supabase.maintenance_meters', '"better_supabase"."maintenance_meters"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.maintenance_meter_readings', '"better_supabase"."maintenance_meter_readings"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.maintenance_calibrations', '"better_supabase"."maintenance_calibrations"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.warranty_claims', '"better_supabase"."warranty_claims"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.dam_usage_rights', '"better_supabase"."dam_usage_rights"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.dam_renditions', '"better_supabase"."dam_renditions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.document_templates', '"better_supabase"."document_templates"', 'tenant_id', true, '{}'::text[], true),
@@ -1530,6 +1544,8 @@ as $$
     ('organization', 'better_supabase.referral_codes', '"better_supabase"."referral_codes"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.referrals', '"better_supabase"."referrals"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.prescriptions', '"better_supabase"."prescriptions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.checkout_sessions', '"better_supabase"."checkout_sessions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.agent_mandates', '"better_supabase"."agent_mandates"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.prompt_versions', '"better_supabase"."prompt_versions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.prompt_labels', '"better_supabase"."prompt_labels"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.eval_datasets', '"better_supabase"."eval_datasets"', 'tenant_id', true, '{}'::text[], true),
@@ -1912,6 +1928,12 @@ begin
       from "better_supabase"."donation_funds" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.donation_funds';
       v_reveal := 'donation_funds_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'warranty_claim' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."warranty_claims" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.warranty_claims';
+      v_reveal := 'warranty_claims_reveal';
       v_reveal_schema := 'better_supabase';
     when 'work_order' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
@@ -2318,6 +2340,21 @@ begin
     v_parts := v_parts || jsonb_build_object('better_supabase.sla_clocks', v_rows);
   end if;
   select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."subject_collection_entries" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.subject_collection_entries', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."collection_favorites" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.collection_favorites', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."saved_items" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.saved_items', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
   from "better_supabase"."moderation_items" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.moderation_items', v_rows);
@@ -2326,6 +2363,16 @@ begin
   from "better_supabase"."moderation_notices" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.moderation_notices', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."reviews" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.reviews', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."review_stats" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.review_stats', v_rows);
   end if;
   select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
   from "better_supabase"."automation_evaluations" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
