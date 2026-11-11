@@ -22,6 +22,20 @@ export const stepLibrary: readonly WorkflowStepInfo[] = [
     },
   },
   {
+    name: "text.format",
+    title: "Format text",
+    description:
+      "Builds text from fields of earlier nodes, such as {{results.summarize.words}} words.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", maxLength: 2000, "x-multiline": true },
+      },
+      required: ["text"],
+    },
+    outputSchema: { type: "object", properties: { text: { type: "string" } } },
+  },
+  {
     name: "slack.post",
     title: "Post to Slack",
     description: "Posts a message with a Slack bot token from a credential.",

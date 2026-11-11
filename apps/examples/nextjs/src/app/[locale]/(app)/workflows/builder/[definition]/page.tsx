@@ -3,11 +3,13 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
-import {
-  BuilderEditor,
-  BuilderEditorSkeleton,
-} from "@/features/workflows/builder/components/builder-editor";
+import { BuilderEditor } from "@/features/workflows/builder/components/builder-editor";
+import { BuilderEditorSkeleton } from "@/features/workflows/builder/components/builder-editor-skeleton";
 import { Link } from "@/i18n/navigation";
+
+// A navigation here shows the back link and the editor frame at once; the
+// canvas loads when the editor opens.
+export const instant = true;
 
 /** The back link is the static shell; the canvas loads with the definition. */
 export default function WorkflowDefinitionPage({
@@ -18,7 +20,7 @@ export default function WorkflowDefinitionPage({
   return (
     <>
       <Link
-        href="/workflows/builder"
+        href="/workflows"
         className={buttonVariants({
           variant: "ghost",
           size: "sm",

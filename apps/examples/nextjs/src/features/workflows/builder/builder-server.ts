@@ -15,7 +15,8 @@ import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { graphSteps, requestGraphApproval } from "./graph-steps";
-import { graphExecutor } from "./graph-workflow";
+import { allNodeSteps, graphExecutor } from "./graph-workflow";
+import { nodeKinds } from "./node-kinds";
 import { stepLibrary } from "./step-library";
 
 /** The API schema `gen` wrote for the workflow-editor block. */
@@ -23,6 +24,8 @@ const API_SCHEMA = blockConfig["workflow-editor"].api;
 
 const start = graphStarter({
   steps: graphSteps,
+  nodeKinds,
+  nodes: allNodeSteps,
   executor: graphExecutor,
   executorRunsTests: true,
   approval: requestGraphApproval,
@@ -41,7 +44,8 @@ export function builderFor(supabase: RpcClient) {
     service,
     schema: API_SCHEMA,
     steps: stepLibrary,
-    compile: compileGraph,
+    nodes: nodeKinds,
+    compile: (graph) => compileGraph(graph, { nodes: nodeKinds }),
     start,
     credentials: vaultCredentials({ transport: service, schema: API_SCHEMA }),
   });

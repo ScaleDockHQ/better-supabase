@@ -79,7 +79,7 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
             <TableRow key={run.id}>
               <TableCell>
                 <Link
-                  href={`/workflows/${run.id}`}
+                  href={`/workflows/runs/${run.id}`}
                   prefetch
                   className="font-medium"
                 >

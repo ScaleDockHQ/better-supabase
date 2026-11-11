@@ -122,7 +122,6 @@ const config: KnipConfig = {
       ignoreDependencies: [
         ...browserExample.ignoreDependencies,
         "@shadcn/helpers",
-        "cmdk",
         "react-day-picker",
         "recharts",
         "shiki",
@@ -140,6 +139,8 @@ const config: KnipConfig = {
         // The docs recipes read these files; the pages use the server-rendered versions.
         "src/features/audit/components/audit-log-table.tsx",
         "src/features/notifications/components/notification-list.tsx",
+        "src/features/workflows/builder/components/workflow-canvas.tsx",
+        "src/features/workflows/components/workflow-runs.tsx",
         // The usage billing action is the example the usage docs link to.
         "src/features/billing/billing-actions.ts",
       ],

@@ -171,7 +171,7 @@ const ICONS = {
   funding: HandCoinsIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
-  workflowBuilder: WaypointsIcon,
+  workflowRuns: WaypointsIcon,
   inbox: InboxIcon,
   chat: MessagesSquareIcon,
   assistant: BotIcon,
