@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:028a0206f0d778f2fbcf90c605474e3217491a62ac0eb39a237826f536fa63a2
+-- @bsb-hash sha256:346a5b06cdf27255aeed7d90935e0b0ac93fa417f9b1216bf15be25df89f3150
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -342,8 +342,9 @@ begin
 end;
 $$;
 
--- One row per meter: the quota resolved once, the window once per distinct
--- period, and the counters summed in one grouped join. The catalog is read once.
+-- One row per meter: the tenant's plans and entitlements read once, the quota
+-- resolved once, the window once per distinct period, and the counters summed
+-- in one grouped join. The catalog is read once.
 create or replace function "better_supabase"."usage_overview"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -356,12 +357,15 @@ begin
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
-    with meters as (
-      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
-      union
-      select q."meter" from "better_supabase"."usage_quotas" q
+    with scoped as materialized (
+      select q.* from "better_supabase"."usage_quotas" q
       where q."tenant_id" = usage_overview.tenant
         or (q."tenant_id" is null and (q."plan" = '*'))
+    ),
+    meters as (
+      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
+      union
+      select q."meter" from scoped q
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
       where c."tenant_id" = usage_overview.tenant
@@ -371,10 +375,8 @@ begin
         q."meter" as meter,
         q."limit" as quota_limit,
         q."period" as period
-      from "better_supabase"."usage_quotas" q
+      from scoped q
       join meters m on m.meter = q."meter"
-      where q."tenant_id" = usage_overview.tenant
-        or (q."tenant_id" is null and (q."plan" = '*'))
       order by q."meter", (q."tenant_id" is not null) desc, q."limit" desc nulls first
     ),
     chosen as (
@@ -836,7 +838,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:6c7921319b5dd59cdf601d5bea6d4b1bdc09e334c97489e0f591ff6acd3455ac
+-- @bsb-hash sha256:fa961ba78911d8c9e28967e02ce1b8b2fc6334b6bca244344e935afa42847e46
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1198,8 +1200,9 @@ begin
 end;
 $$;
 
--- One row per meter: the quota resolved once, the window once per distinct
--- period, and the counters summed in one grouped join. The catalog is read once.
+-- One row per meter: the tenant's plans and entitlements read once, the quota
+-- resolved once, the window once per distinct period, and the counters summed
+-- in one grouped join. The catalog is read once.
 create or replace function "better_supabase"."usage_overview"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -1212,12 +1215,15 @@ begin
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
-    with meters as (
+    with scoped as materialized (
+      select q.* from "better_supabase"."usage_quotas" q
+      where q."tenant_id" = usage_overview.tenant
+        or (q."tenant_id" is null and (q."plan" = '*' or q."plan" = any ((select better_supabase.tenant_entitlements(usage_overview.tenant))::text[])))
+    ),
+    meters as (
       select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
       union
-      select q."meter" from "better_supabase"."usage_quotas" q
-      where q."tenant_id" = usage_overview.tenant
-        or (q."tenant_id" is null and (q."plan" = '*' or q."plan" = any (better_supabase.tenant_entitlements(usage_overview.tenant))))
+      select q."meter" from scoped q
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
       where c."tenant_id" = usage_overview.tenant
@@ -1227,10 +1233,8 @@ begin
         q."meter" as meter,
         q."limit" as quota_limit,
         q."period" as period
-      from "better_supabase"."usage_quotas" q
+      from scoped q
       join meters m on m.meter = q."meter"
-      where q."tenant_id" = usage_overview.tenant
-        or (q."tenant_id" is null and (q."plan" = '*' or q."plan" = any (better_supabase.tenant_entitlements(usage_overview.tenant))))
       order by q."meter", (q."tenant_id" is not null) desc, q."limit" desc nulls first
     ),
     chosen as (
@@ -1868,7 +1872,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:73848c48685a1bfacad42d6905c36377ea4ad6282bb9fa432bfd5e43271002e1
+-- @bsb-hash sha256:6b8fafdc247f99b4485c0de26609094cc63c4750457dc82294e10dd4ba4c97b6
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2214,8 +2218,9 @@ begin
 end;
 $$;
 
--- One row per meter: the quota resolved once, the window once per distinct
--- period, and the counters summed in one grouped join. The catalog is read once.
+-- One row per meter: the tenant's plans and entitlements read once, the quota
+-- resolved once, the window once per distinct period, and the counters summed
+-- in one grouped join. The catalog is read once.
 create or replace function "app_private"."usage_overview"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -2228,12 +2233,15 @@ begin
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
-    with meters as (
-      select jsonb_object_keys("app_private"."usage_meters"()) as meter
-      union
-      select q."meter" from "app_private"."usage_quotas" q
+    with scoped as materialized (
+      select q.* from "app_private"."usage_quotas" q
       where q."tenant_id" = usage_overview.tenant
         or (q."tenant_id" is null and (q."plan" = '*'))
+    ),
+    meters as (
+      select jsonb_object_keys("app_private"."usage_meters"()) as meter
+      union
+      select q."meter" from scoped q
       union
       select distinct c."meter" from "app_private"."usage_counters" c
       where c."tenant_id" = usage_overview.tenant
@@ -2243,10 +2251,8 @@ begin
         q."meter" as meter,
         q."limit" as quota_limit,
         q."period" as period
-      from "app_private"."usage_quotas" q
+      from scoped q
       join meters m on m.meter = q."meter"
-      where q."tenant_id" = usage_overview.tenant
-        or (q."tenant_id" is null and (q."plan" = '*'))
       order by q."meter", (q."tenant_id" is not null) desc, q."limit" desc nulls first
     ),
     chosen as (
@@ -2708,7 +2714,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:886196b95bc3f5cf62ae8290c9368b1448759ebb8b663e84a3c9eb98975270b5
+-- @bsb-hash sha256:ed055eff8d29b227f3da9cfc0150a461f6244bf4bdf6856325916e6f512f7f02
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3049,8 +3055,9 @@ begin
 end;
 $$;
 
--- One row per meter: the quota resolved once, the window once per distinct
--- period, and the counters summed in one grouped join. The catalog is read once.
+-- One row per meter: the tenant's plans and entitlements read once, the quota
+-- resolved once, the window once per distinct period, and the counters summed
+-- in one grouped join. The catalog is read once.
 create or replace function "better_supabase"."usage_overview"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -3063,12 +3070,15 @@ begin
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
-    with meters as (
-      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
-      union
-      select q."meter" from "better_supabase"."usage_quotas" q
+    with scoped as materialized (
+      select q.* from "better_supabase"."usage_quotas" q
       where q."tenant_id" = usage_overview.tenant
         or (q."tenant_id" is null and (q."plan" = '*'))
+    ),
+    meters as (
+      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
+      union
+      select q."meter" from scoped q
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
       where c."tenant_id" = usage_overview.tenant
@@ -3078,10 +3088,8 @@ begin
         q."meter" as meter,
         q."limit" as quota_limit,
         q."period" as period
-      from "better_supabase"."usage_quotas" q
+      from scoped q
       join meters m on m.meter = q."meter"
-      where q."tenant_id" = usage_overview.tenant
-        or (q."tenant_id" is null and (q."plan" = '*'))
       order by q."meter", (q."tenant_id" is not null) desc, q."limit" desc nulls first
     ),
     chosen as (
@@ -3739,7 +3747,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:c7e955f5ad95fc855e881a80f9844b2d478eb212094e6fc062a115c2b8eb53c0
+-- @bsb-hash sha256:cff597bf548dc35c088cf0f3e44c334c9bfa09d972d5880613613f01f1e832f1
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4069,8 +4077,9 @@ begin
 end;
 $$;
 
--- One row per meter: the quota resolved once, the window once per distinct
--- period, and the counters summed in one grouped join. The catalog is read once.
+-- One row per meter: the tenant's plans and entitlements read once, the quota
+-- resolved once, the window once per distinct period, and the counters summed
+-- in one grouped join. The catalog is read once.
 create or replace function "better_supabase"."usage_overview"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -4083,12 +4092,15 @@ begin
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
-    with meters as (
-      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
-      union
-      select q."meter" from "better_supabase"."usage_quotas" q
+    with scoped as materialized (
+      select q.* from "better_supabase"."usage_quotas" q
       where q."tenant_id" = usage_overview.tenant
         or (q."tenant_id" is null and (q."plan" = '*'))
+    ),
+    meters as (
+      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
+      union
+      select q."meter" from scoped q
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
       where c."tenant_id" = usage_overview.tenant
@@ -4098,10 +4110,8 @@ begin
         q."meter" as meter,
         q."limit" as quota_limit,
         q."period"::text as period
-      from "better_supabase"."usage_quotas" q
+      from scoped q
       join meters m on m.meter = q."meter"
-      where q."tenant_id" = usage_overview.tenant
-        or (q."tenant_id" is null and (q."plan" = '*'))
       order by q."meter", (q."tenant_id" is not null) desc, q."limit" desc nulls first
     ),
     chosen as (
@@ -4563,7 +4573,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:f79685ba9986494b0810c2eff063e4c73a8b5341092c4e0cfeb852413cbe4d93
+-- @bsb-hash sha256:4a42cc99bf80b53f7f68adb1e72198e4b09f81fd09b0f237f9e6f6b24db0c52d
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4904,8 +4914,9 @@ begin
 end;
 $$;
 
--- One row per meter: the quota resolved once, the window once per distinct
--- period, and the counters summed in one grouped join. The catalog is read once.
+-- One row per meter: the tenant's plans and entitlements read once, the quota
+-- resolved once, the window once per distinct period, and the counters summed
+-- in one grouped join. The catalog is read once.
 create or replace function "better_supabase"."usage_overview"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -4918,12 +4929,15 @@ begin
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
-    with meters as (
-      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
-      union
-      select q."meter" from "better_supabase"."usage_quotas" q
+    with scoped as materialized (
+      select q.* from "better_supabase"."usage_quotas" q
       where q."org_id" = usage_overview.tenant
         or (q."org_id" is null and (q."plan" = '*'))
+    ),
+    meters as (
+      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
+      union
+      select q."meter" from scoped q
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
       where c."org_id" = usage_overview.tenant
@@ -4933,10 +4947,8 @@ begin
         q."meter" as meter,
         q."limit" as quota_limit,
         q."period" as period
-      from "better_supabase"."usage_quotas" q
+      from scoped q
       join meters m on m.meter = q."meter"
-      where q."org_id" = usage_overview.tenant
-        or (q."org_id" is null and (q."plan" = '*'))
       order by q."meter", (q."org_id" is not null) desc, q."limit" desc nulls first
     ),
     chosen as (
