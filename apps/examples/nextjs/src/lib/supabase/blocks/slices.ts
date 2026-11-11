@@ -155,8 +155,22 @@ export const aiChatConfig = {
   },
 } as const satisfies GeneratedBlock;
 
+/** The `ai-evals` instance's config slice. */
+export const aiEvalsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `ai-files` instance's config slice. */
 export const aiFilesConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `ai-guardrails` instance's config slice. */
+export const aiGuardrailsConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},
@@ -783,6 +797,13 @@ export const invoicesConfig = {
 
 /** The `idempotency` instance's config slice. */
 export const idempotencyConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `prompts` instance's config slice. */
+export const promptsConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},

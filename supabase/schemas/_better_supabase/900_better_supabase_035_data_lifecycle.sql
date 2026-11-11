@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:5422f75a08b9994b5e468b19e98d162fe5ab6cb200384c0e2d415e6400373bed
+-- @bsb-hash sha256:9d33f3bf94e174bd9c052d7fb16383d81df9d159f005d414dc9df522fbe05a4e
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1530,6 +1530,12 @@ as $$
     ('organization', 'better_supabase.referral_codes', '"better_supabase"."referral_codes"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.referrals', '"better_supabase"."referrals"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.prescriptions', '"better_supabase"."prescriptions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.prompt_versions', '"better_supabase"."prompt_versions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.prompt_labels', '"better_supabase"."prompt_labels"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.eval_datasets', '"better_supabase"."eval_datasets"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.eval_runs', '"better_supabase"."eval_runs"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.guardrail_policies', '"better_supabase"."guardrail_policies"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.guardrail_decisions', '"better_supabase"."guardrail_decisions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.option_sets', '"better_supabase"."option_sets"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.option_set_items', '"better_supabase"."option_set_items"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)

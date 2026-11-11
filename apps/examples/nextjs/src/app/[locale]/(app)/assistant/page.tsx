@@ -3,6 +3,7 @@ import type { JsonRenderSpec } from "better-supabase/json-render";
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { loadOpsList } from "@/components/ops-list/ops-list-params";
 import { PageHeader } from "@/components/page-header";
 import {
   ChatList,
@@ -26,10 +27,15 @@ const SAMPLE_SPEC: JsonRenderSpec = {
   },
 };
 
+// The list reads the URL's search and filter, so its rows render on navigation.
+export const ensureStatic = "prefetch";
+
 // The heading and the sample card paint before the chats stream in.
 export const instant = true;
 
-export default function AssistantPage() {
+export default function AssistantPage({
+  searchParams,
+}: PageProps<"/[locale]/assistant">) {
   const t = useExtracted("assistant");
 
   return (
@@ -47,7 +53,7 @@ export default function AssistantPage() {
         </Suspense>
       </div>
       <Suspense fallback={<ChatListSkeleton />}>
-        <ChatList />
+        <ChatList query={loadOpsList(searchParams)} />
       </Suspense>
     </>
   );

@@ -82,3 +82,59 @@ export const removeProviderKey = bsbCore.action(
     return ok(removed.data);
   },
 );
+
+/**
+ * Saves the order the gateway tries the organization's providers in, and which
+ * keys take part. The first enabled provider answers; the gateway moves to the
+ * next when it fails (the `order` gateway option).
+ */
+export const setProviderRouting = bsbCore.action(
+  {
+    input: v.object({
+      keys: v.pipe(
+        v.array(
+          v.object({ id: v.pipe(v.string(), v.uuid()), enabled: v.boolean() }),
+        ),
+        v.minLength(1),
+        v.maxLength(50),
+      ),
+    }),
+    requireTenant: true,
+    permission: "ai_keys.manage",
+  },
+  async ({ keys }, { tenant, supabase }) => {
+    const providers = aiProviders(supabase);
+    const current = await providers.keys.list(tenant, { limit: 100 });
+
+    if (!current.ok) {
+      return current;
+    }
+
+    for (const [priority, entry] of keys.entries()) {
+      const key = current.data.find((candidate) => candidate.id === entry.id);
+
+      if (key === undefined) {
+        continue;
+      }
+
+      const saved = await providers.keys.upsert({
+        organizationId: tenant,
+        key: {
+          provider: key.provider,
+          name: key.name,
+          credentialRef: key.credentialRef,
+          settings: { ...key.settings, priority },
+          enabled: entry.enabled,
+        },
+      });
+
+      if (!saved.ok) {
+        return saved;
+      }
+    }
+
+    refresh();
+
+    return ok(keys.length);
+  },
+);

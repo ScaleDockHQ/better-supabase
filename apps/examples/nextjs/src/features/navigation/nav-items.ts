@@ -85,6 +85,11 @@ export type NavId =
   | "assistant"
   | "knowledge"
   | "agentActivity"
+  | "agents"
+  | "prompts"
+  | "evals"
+  | "guardrails"
+  | "aiUsage"
   | "aiTasks"
   | "beta"
   | "islands"
@@ -476,6 +481,36 @@ export const navItems: readonly NavItem[] = [
     href: "/assistant/activity",
     area: "ai",
     requires: "ai_chat.create",
+  },
+  {
+    id: "agents",
+    href: "/assistant/agents",
+    area: "ai",
+    requires: "agents.read",
+  },
+  {
+    id: "prompts",
+    href: "/assistant/prompts",
+    area: "ai",
+    requires: "ai_chat.manage",
+  },
+  {
+    id: "evals",
+    href: "/assistant/evals",
+    area: "ai",
+    requires: "ai_chat.manage",
+  },
+  {
+    id: "guardrails",
+    href: "/assistant/guardrails",
+    area: "ai",
+    requires: "ai_chat.manage",
+  },
+  {
+    id: "aiUsage",
+    href: "/assistant/usage",
+    area: "ai",
+    requires: "ai_chat.read",
   },
   {
     id: "aiTasks",

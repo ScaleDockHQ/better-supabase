@@ -8,17 +8,36 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPermissions } from "@/features/user/permission-snapshot";
+import { can } from "@/features/user/user-permissions";
 
 import { getProviderKeys } from "../ai-providers-queries";
 import { AiProviderSettings } from "./ai-provider-settings";
+import { ProviderRouting } from "./provider-routing";
 
 const SKELETON_ROWS = ["first", "second"];
 
 /** Render inside `<Suspense>`; the fallback is `AiProviderSettingsSkeleton`. */
 export async function AiProviderSection() {
-  const read = await getProviderKeys();
+  const [read, permissions] = await Promise.all([
+    getProviderKeys(),
+    getPermissions(),
+  ]);
 
-  return <AiProviderSettings read={read} />;
+  return (
+    <div className="flex flex-col gap-6">
+      <AiProviderSettings read={read} />
+      {read.ok ? (
+        <ProviderRouting
+          key={read.keys
+            .map((key) => `${key.id}:${key.priority}:${key.enabled}`)
+            .join(",")}
+          keys={read.keys}
+          canManage={can(permissions, "ai_keys.manage")}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 export function AiProviderSectionSkeleton() {

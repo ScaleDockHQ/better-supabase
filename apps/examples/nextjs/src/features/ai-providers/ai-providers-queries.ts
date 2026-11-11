@@ -10,7 +10,10 @@ import { bsbCore } from "@/lib/supabase/server-core";
 import { aiProviders } from "./ai-providers-server";
 
 /** `settings` is free-form JSON; the app only reads its `model`. */
-const KeySettings = v.object({ model: v.optional(v.string()) });
+const KeySettings = v.object({
+  model: v.optional(v.string()),
+  priority: v.optional(v.number()),
+});
 
 export interface ProviderKeyRow {
   readonly id: string;
@@ -19,6 +22,8 @@ export interface ProviderKeyRow {
   readonly name: string;
   /** `settings.model`, the model the app calls with this key. */
   readonly model: string | undefined;
+  /** Lower tries first; keys without one come after the ranked ones. */
+  readonly priority: number | undefined;
   readonly enabled: boolean;
   /** ISO 8601. */
   readonly updatedAt: string;
@@ -60,6 +65,7 @@ export async function getProviderKeys(): Promise<ProviderKeysRead> {
         provider: key.provider,
         name: key.name,
         model: settings.success ? settings.output.model : undefined,
+        priority: settings.success ? settings.output.priority : undefined,
         enabled: key.enabled,
         updatedAt: key.updatedAt.toString(),
       };

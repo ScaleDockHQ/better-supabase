@@ -309,6 +309,12 @@ export default defineConfig({
     // (`ai-keys`), and `ai-cache` keeps repeated model calls.
     "ai-cache": {},
     "ai-keys": {},
+    // /assistant/prompts keeps versioned prompt templates behind labels,
+    // /assistant/evals runs datasets against a prompt version, and
+    // /assistant/guardrails holds the per-agent policies and decision log.
+    prompts: {},
+    "ai-evals": {},
+    "ai-guardrails": {},
     // The blocks behind the remaining UI recipes (`/recipes`), one page or
     // card each in the app.
     // Ending a session on /settings/sessions cuts its access at once: every
