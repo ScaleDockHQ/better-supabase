@@ -213,8 +213,18 @@ export async function parseSnapshot(
   data: unknown,
   label: string = "snapshot",
 ): Promise<Snapshot> {
+  // The CLI's introspection cache stores `{ key, snapshot }`; read the snapshot.
+  const unwrapped =
+    typeof data === "object" &&
+    data !== null &&
+    !("version" in data) &&
+    "key" in data &&
+    "snapshot" in data
+      ? data.snapshot
+      : data;
+
   // SAFETY: every field is checked below before the document is returned as a Snapshot.
-  const doc = data as Partial<Snapshot> | null;
+  const doc = unwrapped as Partial<Snapshot> | null;
 
   if (!doc || typeof doc !== "object" || doc.version !== 2) {
     throw new CliError(

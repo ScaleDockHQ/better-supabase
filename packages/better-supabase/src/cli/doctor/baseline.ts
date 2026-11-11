@@ -27,6 +27,34 @@ const targetOf = (finding: Pick<Finding, "target" | "title">): string =>
 const keyOf = (code: string, target: string): string =>
   `${code}\u0000${target}`;
 
+/**
+ * The `file:line` target BS634 and BS635 wrote before their targets named the
+ * function and the callee; an entry with it still matches the finding.
+ */
+const legacyKeyOf = (finding: Finding): string | undefined =>
+  finding.location === undefined
+    ? undefined
+    : keyOf(
+        finding.code,
+        `${finding.location.file}:${String(finding.location.line)}`,
+      );
+
+/** The listed key that accepts `finding`: its target, or its old line target. */
+function listedKey(
+  finding: Finding,
+  listed: ReadonlySet<string>,
+): string | undefined {
+  const key = keyOf(finding.code, targetOf(finding));
+
+  if (listed.has(key)) {
+    return key;
+  }
+
+  const legacy = legacyKeyOf(finding);
+
+  return legacy !== undefined && listed.has(legacy) ? legacy : undefined;
+}
+
 const text = (value: unknown): value is string => typeof value === "string";
 
 /**
@@ -118,12 +146,12 @@ export function applyBaseline(
   const kept: Finding[] = [];
 
   for (const finding of findings) {
-    const key = keyOf(finding.code, targetOf(finding));
+    const key = listedKey(finding, listed);
 
-    if (listed.has(key)) {
-      matched.add(key);
-    } else {
+    if (key === undefined) {
       kept.push(finding);
+    } else {
+      matched.add(key);
     }
   }
 
@@ -174,6 +202,7 @@ export function updatedBaseline(
   }
 
   const next = new Map<string, BaselineEntry>();
+  const known = new Set(reasons.keys());
 
   for (const finding of findings) {
     if (finding.severity === "info") {
@@ -182,11 +211,15 @@ export function updatedBaseline(
 
     const target = targetOf(finding);
     const key = keyOf(finding.code, target);
+    const listed = listedKey(finding, known);
 
     next.set(key, {
       code: finding.code,
       target,
-      reason: reasons.get(key) ?? byCode.get(finding.code) ?? "",
+      reason:
+        (listed === undefined ? undefined : reasons.get(listed)) ??
+        byCode.get(finding.code) ??
+        "",
     });
   }
 

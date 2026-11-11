@@ -1,5 +1,7 @@
 import type { FindingInput, Rule } from "./rules.ts";
 
+import { codeOnly, functionsIn, targetKeys } from "./source-scan.ts";
+
 export const PROMISE_ALL: RegExp = /\bPromise\.all\s*\(\s*\[/g;
 
 /**
@@ -43,6 +45,8 @@ function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
   const findings: FindingInput[] = [];
 
   for (const file of context.sources) {
+    const waves: { start: number; callee: string; reads: number }[] = [];
+
     for (const match of file.text.matchAll(PROMISE_ALL)) {
       const open = match.index + match[0].length;
       const entries = arrayEntries(file.text, open);
@@ -56,11 +60,25 @@ function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
         continue;
       }
 
-      const line = file.text.slice(0, match.index).split("\n").length;
+      waves.push({
+        start: match.index,
+        callee: "Promise.all",
+        reads: reads.length,
+      });
+    }
+
+    if (waves.length === 0) {
+      continue;
+    }
+
+    const keys = targetKeys(file.path, functionsIn(codeOnly(file.text)), waves);
+
+    for (const wave of waves) {
+      const line = file.text.slice(0, wave.start).split("\n").length;
 
       findings.push({
-        message: `${file.path} awaits ${reads.length} database reads in one Promise.all. They run in parallel, but each is its own request. Load them in one call with a read set: defineReadSet(db, "name", { ... }) and db.$many(readSet, params) (or bsb.bootstrap for a page's first load).`,
-        target: `${file.path}:${match.index}`,
+        message: `${file.path} awaits ${wave.reads} database reads in one Promise.all. They run in parallel, but each is its own request. Load them in one call with a read set: defineReadSet(db, "name", { ... }) and db.$many(readSet, params) (or bsb.bootstrap for a page's first load).`,
+        target: keys.get(wave.start)!,
         location: { file: file.path, line },
       });
     }
