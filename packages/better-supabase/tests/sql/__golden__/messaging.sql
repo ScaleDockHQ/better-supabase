@@ -1614,7 +1614,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:dc16c0c836604c7a9ce87b1ce59f7976adcd2a5b9ad8f7c84b4fd772f87bc297
+-- @bsb-hash sha256:e640889e9b4c759a8ab70038e0b7c0a5ffa17a1ed3bd04a38c76d22f5eab3c65
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1903,7 +1903,7 @@ as $$
   from "better_supabase"."messages" y
   join "better_supabase"."profiles" pr on pr."id" = y."author_id"
   where y."id" = any ($1)
-    and exists (select 1 from "better_supabase"."conversations" c where c."id" = y."conversation_id" and (case when c."kind" = 'inbox'
+    and y."conversation_id" = any (array(select c."id" from "better_supabase"."conversations" c where c."id" = any (array(select distinct v."conversation_id" from "better_supabase"."messages" v where v."id" = any ($1))) and (case when c."kind" = 'inbox'
     then "better_supabase"."inbox_conversation_allowed"(c."id"::text)
     else (coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
     and case c."access"
@@ -1912,7 +1912,7 @@ as $$
       when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
       else false
     end)
-    or (c."kind" = 'subject' and ((c."tenant_id")::text, (c."subject_type")::text, (c."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end))
+    or (c."kind" = 'subject' and ((c."tenant_id")::text, (c."subject_type")::text, (c."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end)))
 $$;
 revoke execute on function "better_supabase"."message_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."message_authors"(uuid[]) to authenticated, service_role;

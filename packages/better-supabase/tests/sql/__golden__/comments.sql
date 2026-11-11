@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:a4c21ec5ba2172cfdf3345ba2db61b901bcc788c552bdc8f9baea74208c8a6dd
+-- @bsb-hash sha256:3c1b3eafe0fb1bfc1c427c365d3679e49eefe652f5da5eff84dbc66f307d2903
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -86,14 +86,26 @@ set search_path = ''
 as $$
 begin
   return (
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c."id" as id, c."subject_type" as subject_type, c."subject_id" as subject_id
+      from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct (e.row ->> 'conversation_id')::uuid from e))
+    ),
+    t as materialized (
+      select t."message_id" as message, t."task_id" as task from "better_supabase"."comment_tasks" t
+      where t."message_id" = any (comments_json.ids)
+    )
     select coalesce(jsonb_agg(e.row || jsonb_build_object(
-      'subject_type', c."subject_type",
-      'subject_id', c."subject_id",
-      'task_id', t."task_id"
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
     ) order by e.n), '[]'::jsonb)
-    from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality e(row, n)
-    join "better_supabase"."conversations" c on c."id" = (e.row ->> 'conversation_id')::uuid
-    left join "better_supabase"."comment_tasks" t on t."message_id" = (e.row ->> 'id')::uuid
+    from e
+    join c on c.id = (e.row ->> 'conversation_id')::uuid
+    left join t on t.message = (e.row ->> 'id')::uuid
   );
 end;
 $$;
@@ -372,7 +384,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:4a5bba54ccec7a2cc764fbc817fc51d1e23fe9c102f958c329d28dd4e86c1f6e
+-- @bsb-hash sha256:5e1af42bb75132059589d6e3c8cf736541c236a42289bf99c518809e303187b7
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -457,14 +469,26 @@ set search_path = ''
 as $$
 begin
   return (
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c."id" as id, c."subject_type" as subject_type, c."subject_id" as subject_id
+      from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct (e.row ->> 'conversation_id')::uuid from e))
+    ),
+    t as materialized (
+      select t."message_id" as message, t."task_id" as task from "better_supabase"."comment_tasks" t
+      where t."message_id" = any (comments_json.ids)
+    )
     select coalesce(jsonb_agg(e.row || jsonb_build_object(
-      'subject_type', c."subject_type",
-      'subject_id', c."subject_id",
-      'task_id', t."task_id"
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
     ) order by e.n), '[]'::jsonb)
-    from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality e(row, n)
-    join "better_supabase"."conversations" c on c."id" = (e.row ->> 'conversation_id')::uuid
-    left join "better_supabase"."comment_tasks" t on t."message_id" = (e.row ->> 'id')::uuid
+    from e
+    join c on c.id = (e.row ->> 'conversation_id')::uuid
+    left join t on t.message = (e.row ->> 'id')::uuid
   );
 end;
 $$;
@@ -863,7 +887,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:c0e78eef1a65e052b008ab1b82f7aee9e5c21ece4d51b47db3e66698c55ac5ea
+-- @bsb-hash sha256:61dc5f07c03fe62552f8dd432d272afa34dcb9b47256fed09938d44bf8b8453b
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -953,14 +977,26 @@ set search_path = ''
 as $$
 begin
   return (
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c."id" as id, c."subject_type" as subject_type, c."subject_id" as subject_id
+      from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct (e.row ->> 'conversation_id')::uuid from e))
+    ),
+    t as materialized (
+      select t."message_id" as message, t."task_id" as task from "app_private"."comment_tasks" t
+      where t."message_id" = any (comments_json.ids)
+    )
     select coalesce(jsonb_agg(e.row || jsonb_build_object(
-      'subject_type', c."subject_type",
-      'subject_id', c."subject_id",
-      'task_id', t."task_id"
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
     ) order by e.n), '[]'::jsonb)
-    from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality e(row, n)
-    join "better_supabase"."conversations" c on c."id" = (e.row ->> 'conversation_id')::uuid
-    left join "app_private"."comment_tasks" t on t."message_id" = (e.row ->> 'id')::uuid
+    from e
+    join c on c.id = (e.row ->> 'conversation_id')::uuid
+    left join t on t.message = (e.row ->> 'id')::uuid
   );
 end;
 $$;
@@ -1239,7 +1275,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:1b584daeb8c51cbc72edc8e2c340d6ee6fe97504d12ee8c3417cb1b5e54d36a8
+-- @bsb-hash sha256:8d699185f64ea41536e6fdd0b6d35cee24e8f7c23550eb5c7c4aefffa2b082c3
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1324,14 +1360,26 @@ set search_path = ''
 as $$
 begin
   return (
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c."id" as id, c."subject_type" as subject_type, c."subject_id" as subject_id
+      from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct (e.row ->> 'conversation_id')::uuid from e))
+    ),
+    t as materialized (
+      select t."message_id" as message, t."task_id" as task from "better_supabase"."comment_tasks" t
+      where t."message_id" = any (comments_json.ids)
+    )
     select coalesce(jsonb_agg(e.row || jsonb_build_object(
-      'subject_type', c."subject_type",
-      'subject_id', c."subject_id",
-      'task_id', t."task_id"
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
     ) order by e.n), '[]'::jsonb)
-    from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality e(row, n)
-    join "better_supabase"."conversations" c on c."id" = (e.row ->> 'conversation_id')::uuid
-    left join "better_supabase"."comment_tasks" t on t."message_id" = (e.row ->> 'id')::uuid
+    from e
+    join c on c.id = (e.row ->> 'conversation_id')::uuid
+    left join t on t.message = (e.row ->> 'id')::uuid
   );
 end;
 $$;
@@ -1685,7 +1733,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:6b73386f1b14d93f2434a8558a593011a256a7bc008d89c59c19a959f51f35f9
+-- @bsb-hash sha256:0d07ad0fe975e3c8513520959537131398deced2553f73e8890e70d5fec48685
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1769,14 +1817,26 @@ set search_path = ''
 as $$
 begin
   return (
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c."id" as id, c."subject_type" as subject_type, c."subject_id" as subject_id
+      from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct (e.row ->> 'conversation_id')::uuid from e))
+    ),
+    t as materialized (
+      select t."message_id" as message, t."task_id" as task from "better_supabase"."comment_tasks" t
+      where t."message_id" = any (comments_json.ids)
+    )
     select coalesce(jsonb_agg(e.row || jsonb_build_object(
-      'subject_type', c."subject_type",
-      'subject_id', c."subject_id",
-      'task_id', t."task_id"
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
     ) order by e.n), '[]'::jsonb)
-    from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality e(row, n)
-    join "better_supabase"."conversations" c on c."id" = (e.row ->> 'conversation_id')::uuid
-    left join "better_supabase"."comment_tasks" t on t."message_id" = (e.row ->> 'id')::uuid
+    from e
+    join c on c.id = (e.row ->> 'conversation_id')::uuid
+    left join t on t.message = (e.row ->> 'id')::uuid
   );
 end;
 $$;
@@ -2055,7 +2115,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:43c4e951ca62b89c3e4ac3d360b393ad0fe1424fd7c613e3dd61249e2998bb45
+-- @bsb-hash sha256:010c2badd80b97b0c7effac3fa4fdf5d120b1a9105f21e47d692ec22776947ae
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2140,14 +2200,26 @@ set search_path = ''
 as $$
 begin
   return (
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c."id" as id, c."subject_type" as subject_type, c."subject_id" as subject_id
+      from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct (e.row ->> 'conversation_id')::uuid from e))
+    ),
+    t as materialized (
+      select t."message_id" as message, t."task_id" as task from "better_supabase"."comment_tasks" t
+      where t."message_id" = any (comments_json.ids)
+    )
     select coalesce(jsonb_agg(e.row || jsonb_build_object(
-      'subject_type', c."subject_type",
-      'subject_id', c."subject_id",
-      'task_id', t."task_id"
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
     ) order by e.n), '[]'::jsonb)
-    from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality e(row, n)
-    join "better_supabase"."conversations" c on c."id" = (e.row ->> 'conversation_id')::uuid
-    left join "better_supabase"."comment_tasks" t on t."message_id" = (e.row ->> 'id')::uuid
+    from e
+    join c on c.id = (e.row ->> 'conversation_id')::uuid
+    left join t on t.message = (e.row ->> 'id')::uuid
   );
 end;
 $$;
