@@ -132,7 +132,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   "oauth-server": at("/settings/oauth-apps"),
   domains: at("/settings/domains"),
   moderation: later("p10"),
-  reviews: later("p8"),
+  reviews: at("/shop/reviews"),
   leave: at("/people/leave"),
   automations: at("/rules"),
   "vercel-marketplace": later("p5"),

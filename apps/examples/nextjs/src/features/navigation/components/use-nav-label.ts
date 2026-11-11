@@ -257,6 +257,10 @@ export function useNavLabel(): (id: NavId) => string {
         return t("Warranty");
       }
 
+      case "reviews": {
+        return t("Reviews");
+      }
+
       case "passes": {
         return t("Passes");
       }
