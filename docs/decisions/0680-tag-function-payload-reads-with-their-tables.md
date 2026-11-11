@@ -42,3 +42,10 @@ Left on purpose:
 
 An app that tags a function payload names its tables once, next to the call. A wrong list gives a
 stale or an over-invalidated entry, the same as `bsb.tag`.
+
+## Baseline
+
+The function spec options raise the raw server baseline of 19 routes by 20 to 800 bytes (about 530
+for most), measured in the CI guard output of the pull request. The guard compares each route to its
+baseline plus 512 bytes of slack; the numbers in `tests/next-build/server-baseline.json` are the
+measured values for the flagged routes.
