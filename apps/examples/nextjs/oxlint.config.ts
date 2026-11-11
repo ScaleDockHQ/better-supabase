@@ -18,6 +18,7 @@ export default defineConfig({
     // Copied from the shadcn and ReUI registries by `shadcn add`.
     "src/components/ui/**",
     "src/components/reui/**",
+    "src/lib/highlighter.tsx",
     "src/hooks/use-mobile.ts",
     // Copied from the better-supabase registry; packages/registry lints the
     // items and its tests keep these copies identical.
