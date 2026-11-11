@@ -532,6 +532,19 @@ describe("access module", () => {
     expect(sql).toContain(
       "or ((better_supabase.interactive_session() or not better_supabase.interactive_only_role(can_assign.role)) and better_supabase.can_assign_as(",
     );
+    expect(
+      access({
+        model: "custom",
+        functions: {
+          can: "a()",
+          tenantIdsWith: "b()",
+          isPlatform: "c()",
+          canAssign: "d()",
+        },
+      }),
+    ).toContain(
+      "or ((better_supabase.interactive_session() or not better_supabase.interactive_only_role(can_assign.role)) and coalesce((d()), false))\n$$",
+    );
     expect(access({})).toContain(
       "function better_supabase.interactive_only(permission text)\nreturns boolean\nlanguage sql\nimmutable\nset search_path = ''\nas $$\n  select false",
     );

@@ -901,7 +901,7 @@ as $$
       role: "can_assign.role",
       roles: "array[can_assign.role]::text[]",
     },
-  )}), false)
+  )}), false))
 $$;
 
 create or replace function better_supabase.permission_claims(user_id uuid)

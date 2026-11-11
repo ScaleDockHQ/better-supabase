@@ -352,6 +352,12 @@ permission key, such as `organization.transfer_ownership`, as a scope with
 `API_KEY_FORBIDDEN`. The access functions never grant one to a key, so a key
 created before this check gets nothing from it.
 
+An API key, OAuth client or agent (a JWT with `api_key`, `client_id` or
+`act`) that may create keys only gives a new or rotated key the scopes it
+holds itself: the key's own scopes (or any under `*`), or the permission keys
+its OAuth scopes map to. Anything broader fails with `API_KEY_FORBIDDEN`. A
+signed-in user's own session is not limited this way.
+
 ## With an authorization provider
 
 Queries for a key run with the `api_key` claim. A provider's SQL functions
