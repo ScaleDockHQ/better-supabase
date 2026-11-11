@@ -5,7 +5,7 @@ import { RecordDetailFrame } from "@/components/record-detail/record-detail-fram
 import { Badge } from "@/components/reui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { getJobRunDetail } from "../jobs-runs-queries";
+import { getJobRunDetail } from "../jobs-run-reads";
 import { RetryJobButton } from "./job-run-controls";
 
 /** Render inside `<Suspense>`; the fallback is `JobRunDetailSkeleton`. */

@@ -307,6 +307,38 @@ export async function getNavLabel(): Promise<(id: NavId) => string> {
         return t("Payables");
       }
 
+      case "invoices": {
+        return t("Invoices");
+      }
+
+      case "expenses": {
+        return t("Expenses");
+      }
+
+      case "ledger": {
+        return t("Ledger");
+      }
+
+      case "accountingBooks": {
+        return t("Books");
+      }
+
+      case "billableTime": {
+        return t("Billable time");
+      }
+
+      case "recurring": {
+        return t("Recurring charges");
+      }
+
+      case "tax": {
+        return t("Tax");
+      }
+
+      case "periods": {
+        return t("Periods");
+      }
+
       case "care": {
         return t("Clients");
       }
