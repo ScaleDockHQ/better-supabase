@@ -202,7 +202,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   housekeeping: at("/settings/jobs", "/settings/jobs/runs"),
   seeds: none("Seed data declared by modules; the rows show on every seeded page."),
   "e-prescribing": at("/prescriptions"),
-  "agent-checkout": later("p8"),
+  "agent-checkout": at("/shop/checkout-sessions"),
   advisories: later("p10"),
   prompts: at("/assistant/prompts", "/assistant/prompts/[name]"),
   "ai-evals": at("/assistant/evals", "/assistant/evals/[name]"),

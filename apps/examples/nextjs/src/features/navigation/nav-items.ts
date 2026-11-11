@@ -68,6 +68,7 @@ export type NavId =
   | "rfqs"
   | "donations"
   | "passes"
+  | "checkoutSessions"
   | "collections"
   | "reviews"
   | "warranty"
@@ -410,6 +411,12 @@ export const navItems: readonly NavItem[] = [
     href: "/shop/collections",
     area: "commerce",
     requires: "collections.read",
+  },
+  {
+    id: "checkoutSessions",
+    href: "/shop/checkout-sessions",
+    area: "commerce",
+    requires: "agent_checkout.read",
   },
   {
     id: "passes",
