@@ -27122,62 +27122,46 @@ The organization's risks in a data grid with their residual band, status and nex
 Web, with shadcn components:
 
 ```bash
-npx shadcn add alert badge button empty skeleton @reui/data-grid @reui/frame
+npx shadcn add badge @reui/data-grid
 ```
 
-```tsx title="apps/examples/nextjs/src/features/risks/components/risk-register.tsx"
+```tsx title="apps/examples/nextjs/src/features/risks/components/risk-record-list.tsx"
 "use client";
 
-import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import type { RiskStatus } from "better-supabase/blocks/risks";
+import type { CellContext } from "@tanstack/react-table";
 
-import { useTable } from "@tanstack/react-table";
-import { ShieldAlertIcon, TriangleAlertIcon } from "lucide-react";
+import { ShieldAlertIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 
+import type { RecordListColumns } from "@/components/record-list/record-list-grid";
+import type { RecordListPage } from "@/components/record-list/record-list-types";
 import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/reui/alert";
-import { Badge } from "@/components/reui/badge";
-import {
-  DataGrid,
-  DataGridContainer,
-} from "@/components/reui/data-grid/data-grid";
-import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
-import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
-import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
-import {
-  Frame,
-  FrameDescription,
-  FrameHeader,
-  FramePanel,
-  FrameTitle,
-} from "@/components/reui/frame";
-import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { RecordListView } from "@/components/record-list/record-list-view";
+import { Link } from "@/i18n/navigation";
 
-import type { BandTone, Loaded, RiskRow } from "../risks-queries";
+import type { RiskRow } from "../risk-rows";
 
-const TONE_VARIANT = {
-  low: "success-light",
-  medium: "warning-light",
-  high: "destructive-light",
-  critical: "destructive",
-} as const satisfies Record<BandTone, string>;
+import { useRiskListState } from "../use-risk-list-state";
+import { RiskBandBadge } from "./risk-band-badge";
+import { RiskStatusBadge, useRiskStatusLabel } from "./risk-status-badge";
+
+const STATUSES = ["identified", "assessed", "treating", "accepted", "closed"];
+const BANDS = ["low", "medium", "high", "critical"];
+
+const CATEGORIES = [
+  "quality",
+  "safety",
+  "environment",
+  "security",
+  "compliance",
+  "operational",
+  "financial",
+  "strategic",
+];
+
+const capitalized = (value: string): string =>
+  value.charAt(0).toUpperCase() + value.slice(1);
 
 type RiskCell = CellContext<ReadOnlyGridFeatures, RiskRow>;
 
@@ -27190,53 +27174,23 @@ function NumberCell({ row }: RiskCell) {
 }
 
 function TitleCell({ row }: RiskCell) {
-  return <span className="font-medium">{row.original.title}</span>;
-}
-
-function BandCell({ row }: RiskCell) {
-  const t = useExtracted("risks");
-  const { band, tone, score } = row.original;
-
-  return band === null || tone === null ? (
-    <span className="text-muted-foreground">{t("Not assessed")}</span>
-  ) : (
-    <Badge variant={TONE_VARIANT[tone]}>
-      {t("{band} · {score, number}", { band, score: score ?? 0 })}
-    </Badge>
+  return (
+    <Link
+      href={`/risks/${row.original.id}`}
+      prefetch
+      className="font-medium hover:underline"
+    >
+      {row.original.title}
+    </Link>
   );
 }
 
+function BandCell({ row }: RiskCell) {
+  return <RiskBandBadge {...row.original} />;
+}
+
 function StatusCell({ row }: RiskCell) {
-  const t = useExtracted("risks");
-  const status: RiskStatus = row.original.status;
-
-  switch (status) {
-    case "identified": {
-      return <Badge variant="secondary">{t("Identified")}</Badge>;
-    }
-
-    case "assessed": {
-      return <Badge variant="info-light">{t("Assessed")}</Badge>;
-    }
-
-    case "treating": {
-      return <Badge variant="warning-light">{t("Treating")}</Badge>;
-    }
-
-    case "accepted": {
-      return <Badge variant="success-light">{t("Accepted")}</Badge>;
-    }
-
-    case "closed": {
-      return <Badge variant="secondary">{t("Closed")}</Badge>;
-    }
-
-    default: {
-      const unknown: never = status;
-
-      return unknown;
-    }
-  }
+  return <RiskStatusBadge status={row.original.status} />;
 }
 
 function ReviewCell({ row }: RiskCell) {
@@ -27255,12 +27209,24 @@ function ReviewCell({ row }: RiskCell) {
   );
 }
 
-function RiskGrid({ risks }: { risks: readonly RiskRow[] }) {
+/**
+ * The risk register on the list kit: the URL holds the search, the status,
+ * category and band filters and the keyset cursor; the list route serves every
+ * state but the default first page, which the server renders. The block orders
+ * by residual score, so there is no sort control.
+ */
+export function RiskRecordList({
+  initial,
+}: {
+  initial: RecordListPage<RiskRow>;
+}) {
   const t = useExtracted("risks");
+  const statusLabel = useRiskStatusLabel();
+  const list = useRiskListState();
 
-  const columns: ColumnDef<ReadOnlyGridFeatures, RiskRow>[] = [
+  const columns: RecordListColumns<RiskRow> = [
     { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 100 },
-    { accessorKey: "title", header: t("Risk"), cell: TitleCell, size: 260 },
+    { accessorKey: "title", header: t("Risk"), cell: TitleCell, size: 280 },
     { accessorKey: "category", header: t("Category"), size: 140 },
     { accessorKey: "band", header: t("Residual"), cell: BandCell, size: 150 },
     { accessorKey: "status", header: t("Status"), cell: StatusCell, size: 120 },
@@ -27272,100 +27238,40 @@ function RiskGrid({ risks }: { risks: readonly RiskRow[] }) {
     },
   ];
 
-  const table = useTable({
-    features: readOnlyGridFeatures,
-    columns,
-    data: [...risks],
-    getRowId: (row) => row.id,
-  });
-
   return (
-    <DataGrid
-      table={table}
-      recordCount={risks.length}
-      tableLayout={{ dense: true }}
-    >
-      <DataGridContainer>
-        <DataGridScrollArea>
-          <DataGridTable />
-        </DataGridScrollArea>
-      </DataGridContainer>
-    </DataGrid>
-  );
-}
-
-/**
- * The organization's risk register: each risk with its residual band and the
- * date of its next review, the highest residual score first.
- */
-export function RiskRegister({ state }: { state: Loaded<readonly RiskRow[]> }) {
-  const t = useExtracted("risks");
-  const router = useRouter();
-  const [retrying, startRetry] = useTransition();
-
-  if (state.kind === "no-organization") {
-    return null;
-  }
-
-  return (
-    <Frame spacing="sm" data-recipe="risk-register">
-      <FrameHeader className="gap-0.5">
-        <FrameTitle>{t("Risk register")}</FrameTitle>
-        <FrameDescription>
-          {t(
-            "Every identified risk with its residual rating after controls. A review moves the next review date ahead by the risk's interval.",
-          )}
-        </FrameDescription>
-      </FrameHeader>
-      <FramePanel>
-        {state.kind === "error" ? (
-          <Alert variant="destructive">
-            <TriangleAlertIcon />
-            <AlertTitle>{t("The risk register didn't load")}</AlertTitle>
-            <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
-            <AlertAction>
-              <Button
-                size="sm"
-                variant="outline"
-                type="button"
-                disabled={retrying}
-                onClick={() => {
-                  startRetry(() => {
-                    router.refresh();
-                  });
-                }}
-              >
-                {t("Retry")}
-              </Button>
-            </AlertAction>
-          </Alert>
-        ) : state.data.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <ShieldAlertIcon />
-              </EmptyMedia>
-              <EmptyTitle>{t("No risks yet")}</EmptyTitle>
-              <EmptyDescription>
-                {t(
-                  "Register a risk with its cause and consequence, then assess it against the organization's matrix.",
-                )}
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <a
-                className="text-sm underline underline-offset-4"
-                href="https://bettersupabase.com/docs/blocks/risks"
-              >
-                {t("Read the risks guide")}
-              </a>
-            </EmptyContent>
-          </Empty>
-        ) : (
-          <RiskGrid risks={state.data} />
-        )}
-      </FramePanel>
-    </Frame>
+    <RecordListView
+      list={list}
+      endpoint="/api/risks/list"
+      initial={initial}
+      columns={columns}
+      facets={[
+        {
+          key: "status",
+          label: t("Status"),
+          values: STATUSES,
+          valueLabel: statusLabel,
+        },
+        {
+          key: "category",
+          label: t("Category"),
+          values: CATEGORIES,
+          valueLabel: capitalized,
+        },
+        {
+          key: "band",
+          label: t("Residual"),
+          values: BANDS,
+          valueLabel: capitalized,
+        },
+      ]}
+      sorts={[]}
+      searchLabel={t("Search risks")}
+      emptyIcon={<ShieldAlertIcon />}
+      emptyTitle={t("No risks found")}
+      emptyDescription={t(
+        "Register a risk with its cause and consequence, then assess it against the organization's matrix, or change the filters.",
+      )}
+    />
   );
 }
 ```
