@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:e6e5b1ca864cff28702ae2166c2c8a0a8438669e9a5afa74e711f06552e36646
+-- @bsb-hash sha256:ac18d213b4373f4708a6e0620502d60aa61d31a5a982605c33306277fe9794f5
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1192,7 +1192,7 @@ begin
       v_reveal := 'customers_reveal';
       v_reveal_schema := 'centrakit';
     else
-      raise exception 'subject_type is not a record type in config.subjects' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
+      raise exception 'subject_type is not a record type in config.recordTypes' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
   end case;
   if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'data_lifecycle.export'), false))) then
     raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';

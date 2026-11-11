@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:c08caecc1d5392bded9877741c822696aec35b931a7e13e3a932f53688dfbc06
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:13ce605d5f1bdf905599b547e03811181003679f07681add9fe99ab5c5d61196
+-- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -91,7 +91,7 @@ $$;
 revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
 grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
--- The app's subject registry (config.subjects, ADR 0020). Each function runs
+-- The app's subject registry (config.recordTypes, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
 create or replace function "better_supabase"."subject_types"()
 returns text[]
@@ -175,7 +175,7 @@ revoke execute on function "better_supabase"."subject_titles"(jsonb) from public
 grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
--- key in config.subjects.<type>.permissions, holds that key in the
+-- key in config.recordTypes.<type>.permissions, holds that key in the
 -- subject's tenant (or on the record, through the subject's scope), and the
 -- action's check function, when it names one, returns true for the row.
 create or replace function "better_supabase"."can_subject"(subject_type text, subject_id text, action text)
@@ -238,7 +238,7 @@ grant execute on function "better_supabase"."record_summary"(text, text, text[],
 
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
--- action's key in config.subjects.<type>.permissions, so an action without
+-- action's key in config.recordTypes.<type>.permissions, so an action without
 -- a key is false and a share-link grant never counts. A provider that
 -- can't answer for others (no idsWithFor) gives false.
 create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
@@ -689,8 +689,8 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:7f7a5dd1db7aa827468672ead024ba52f5b49e7cd3887fec7ee74cf7e0911f35
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:ff731376d6f1e662c6a111a342b5cd7de0e38d20145c598fc60d5eb20214b18a
+-- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -779,7 +779,7 @@ $$;
 revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
 grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
--- The app's subject registry (config.subjects, ADR 0020). Each function runs
+-- The app's subject registry (config.recordTypes, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
 create or replace function "better_supabase"."subject_types"()
 returns text[]
@@ -863,7 +863,7 @@ revoke execute on function "better_supabase"."subject_titles"(jsonb) from public
 grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
--- key in config.subjects.<type>.permissions, holds that key in the
+-- key in config.recordTypes.<type>.permissions, holds that key in the
 -- subject's tenant (or on the record, through the subject's scope), and the
 -- action's check function, when it names one, returns true for the row.
 create or replace function "better_supabase"."can_subject"(subject_type text, subject_id text, action text)
@@ -954,7 +954,7 @@ grant execute on function "better_supabase"."record_summary"(text, text, text[],
 
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
--- action's key in config.subjects.<type>.permissions, so an action without
+-- action's key in config.recordTypes.<type>.permissions, so an action without
 -- a key is false and a share-link grant never counts. A provider that
 -- can't answer for others (no idsWithFor) gives false.
 create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
@@ -1534,8 +1534,8 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:91f6e5dca54b6109ec4f27756728c6995d9ae80d7ffc25510d6d8d05571a36f1
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:c83090ab15f44c55a5f72642b735b4e2bba05d577bcb629b5d0e4952772108d7
+-- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1629,7 +1629,7 @@ $$;
 revoke execute on function "app_private"."has_subject_role"(text, text, text[]) from public, anon;
 grant execute on function "app_private"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
--- The app's subject registry (config.subjects, ADR 0020). Each function runs
+-- The app's subject registry (config.recordTypes, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
 create or replace function "app_private"."subject_types"()
 returns text[]
@@ -1713,7 +1713,7 @@ revoke execute on function "app_private"."subject_titles"(jsonb) from public, an
 grant execute on function "app_private"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
--- key in config.subjects.<type>.permissions, holds that key in the
+-- key in config.recordTypes.<type>.permissions, holds that key in the
 -- subject's tenant (or on the record, through the subject's scope), and the
 -- action's check function, when it names one, returns true for the row.
 create or replace function "app_private"."can_subject"(subject_type text, subject_id text, action text)
@@ -1776,7 +1776,7 @@ grant execute on function "app_private"."record_summary"(text, text, text[], tim
 
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
--- action's key in config.subjects.<type>.permissions, so an action without
+-- action's key in config.recordTypes.<type>.permissions, so an action without
 -- a key is false and a share-link grant never counts. A provider that
 -- can't answer for others (no idsWithFor) gives false.
 create or replace function "app_private"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
@@ -2227,8 +2227,8 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:f502435c9aa2710c14e4f209b780cbc9fded9217a40753eb6bee1a5c3f354ebc
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:4838ec8499d598ffb96ddd3d4b70637ca157c7d262c68516217b7f79b62a0701
+-- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2317,7 +2317,7 @@ $$;
 revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
 grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
--- The app's subject registry (config.subjects, ADR 0020). Each function runs
+-- The app's subject registry (config.recordTypes, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
 create or replace function "better_supabase"."subject_types"()
 returns text[]
@@ -2401,7 +2401,7 @@ revoke execute on function "better_supabase"."subject_titles"(jsonb) from public
 grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
--- key in config.subjects.<type>.permissions, holds that key in the
+-- key in config.recordTypes.<type>.permissions, holds that key in the
 -- subject's tenant (or on the record, through the subject's scope), and the
 -- action's check function, when it names one, returns true for the row.
 create or replace function "better_supabase"."can_subject"(subject_type text, subject_id text, action text)
@@ -2464,7 +2464,7 @@ grant execute on function "better_supabase"."record_summary"(text, text, text[],
 
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
--- action's key in config.subjects.<type>.permissions, so an action without
+-- action's key in config.recordTypes.<type>.permissions, so an action without
 -- a key is false and a share-link grant never counts. A provider that
 -- can't answer for others (no idsWithFor) gives false.
 create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
@@ -3067,8 +3067,8 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:05960cf473a93b33d92adf9b15958197f6cea57c3ecb15b99e3a5b2639bbc59d
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:391cdadac5ee72ffb706c23d3f803aec800662feded18ec58a01a87f6ba1e219
+-- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3154,7 +3154,7 @@ $$;
 revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
 grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
--- The app's subject registry (config.subjects, ADR 0020). Each function runs
+-- The app's subject registry (config.recordTypes, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
 create or replace function "better_supabase"."subject_types"()
 returns text[]
@@ -3238,7 +3238,7 @@ revoke execute on function "better_supabase"."subject_titles"(jsonb) from public
 grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
--- key in config.subjects.<type>.permissions, holds that key in the
+-- key in config.recordTypes.<type>.permissions, holds that key in the
 -- subject's tenant (or on the record, through the subject's scope), and the
 -- action's check function, when it names one, returns true for the row.
 create or replace function "better_supabase"."can_subject"(subject_type text, subject_id text, action text)
@@ -3301,7 +3301,7 @@ grant execute on function "better_supabase"."record_summary"(text, text, text[],
 
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
--- action's key in config.subjects.<type>.permissions, so an action without
+-- action's key in config.recordTypes.<type>.permissions, so an action without
 -- a key is false and a share-link grant never counts. A provider that
 -- can't answer for others (no idsWithFor) gives false.
 create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
@@ -3752,8 +3752,8 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:e5da6be79d5e72c78c547ef5fff76d46e9320071fc18b63f9d0c0304afec6a9b
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:5c4b47110f7075588306af9a345b6db8855341026c62f6ab01fe7593ba8c0936
+-- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3842,7 +3842,7 @@ $$;
 revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
 grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
--- The app's subject registry (config.subjects, ADR 0020). Each function runs
+-- The app's subject registry (config.recordTypes, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
 create or replace function "better_supabase"."subject_types"()
 returns text[]
@@ -3926,7 +3926,7 @@ revoke execute on function "better_supabase"."subject_titles"(jsonb) from public
 grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
 
 -- True when the caller can see the subject row and, for an action with a
--- key in config.subjects.<type>.permissions, holds that key in the
+-- key in config.recordTypes.<type>.permissions, holds that key in the
 -- subject's tenant (or on the record, through the subject's scope), and the
 -- action's check function, when it names one, returns true for the row.
 create or replace function "better_supabase"."can_subject"(subject_type text, subject_id text, action text)
@@ -3989,7 +3989,7 @@ grant execute on function "better_supabase"."record_summary"(text, text, text[],
 
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
--- action's key in config.subjects.<type>.permissions, so an action without
+-- action's key in config.recordTypes.<type>.permissions, so an action without
 -- a key is false and a share-link grant never counts. A provider that
 -- can't answer for others (no idsWithFor) gives false.
 create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)

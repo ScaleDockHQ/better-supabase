@@ -332,7 +332,7 @@ function entity(
 
   if ((table === undefined) !== (column === undefined)) {
     throw new TypeError(
-      `${where}.column needs a table: set table, or add a subject named "${name}" in config.subjects`,
+      `${where}.column needs a table: set table, or add a subject named "${name}" in config.recordTypes`,
     );
   }
 

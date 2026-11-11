@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:3e9ef2f9bd0a0a6109bd17822aeaacfd7a6c12ab09d411192eb331ab474cb694
+-- @bsb-hash sha256:8acec9f84ae47bbd60daae914900901b1ae73f69bcc48a6f3605412eccda5f82
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,7 +39,7 @@ create policy bsb_funding_products_read on "better_supabase"."funding_products"
 create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the award is for, a type in config.subjects.
+  -- The record the award is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   -- The contacts company or person that pays, holding the funder role.
@@ -1097,7 +1097,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:ecfb275970f6c5bf24c901a3a140058d388da3f53258bf271628884d579780ce
+-- @bsb-hash sha256:822e9a1414137a9643d9714d89846fd3bb90d6b49abafbceddbd9b01eee7feb1
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1135,7 +1135,7 @@ create policy bsb_funding_products_read on "better_supabase"."funding_products"
 create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the award is for, a type in config.subjects.
+  -- The record the award is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   -- The contacts company or person that pays, holding the funder role.
@@ -2462,7 +2462,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:95ccb6790fc6f5b539f4d775b189f6856e04fb6184961eac258f190c535d1c47
+-- @bsb-hash sha256:874f2f1fe85ad35f4f0a78b6af3e6975ca959a9f8b87656855a78df5e49161dc
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2505,7 +2505,7 @@ create policy bsb_funding_products_read on "app_private"."funding_products"
 create table "app_private"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the award is for, a type in config.subjects.
+  -- The record the award is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   -- The contacts company or person that pays, holding the funder role.
@@ -3563,7 +3563,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:5021836acdd50a7b6a1f0456cebbf98fcfc6af0d54d902ba2a697e7912d945f0
+-- @bsb-hash sha256:6e9238fac880e5aa7d5afd7c29dde9cae53ccfc1d80ed21d2930c95c18d977d5
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3601,7 +3601,7 @@ create policy bsb_funding_products_read on "better_supabase"."funding_products"
 create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the award is for, a type in config.subjects.
+  -- The record the award is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   -- The contacts company or person that pays, holding the funder role.
@@ -5867,7 +5867,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:40c8a7f5bce7cb1047a6fb59cebc37e478af999c3dcb3c9f0a7005075c9740e5
+-- @bsb-hash sha256:124140c69c473efe423f637765ccf66273bec9cc319e1ff09a5e1cd2a465a485
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5905,7 +5905,7 @@ create policy bsb_funding_products_read on "better_supabase"."funding_products"
 create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  -- The record the award is for, a type in config.subjects.
+  -- The record the award is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   -- The contacts company or person that pays, holding the funder role.

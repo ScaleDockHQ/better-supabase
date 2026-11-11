@@ -57,3 +57,35 @@ export function providerRowCheck(
     return `(case when ${user} = auth.uid() then ${own} when ${user} is not null then ${other} else false end)`;
   };
 }
+
+/**
+ * The provider's rows for a set of candidates: `ids` is one `text[]`
+ * expression.
+ */
+export type RowSet = (ids: string) => string;
+
+/**
+ * `providerRowCheck` for a set reader: one `rowsWith` call answers every
+ * candidate id of a statement (ADR 0434), where the check calls it once per
+ * row. It runs as the caller, so only `authorization.functions.rowsWith`
+ * applies.
+ */
+export function providerRowSet(
+  ctx: BlockSqlContext,
+  where: string,
+  rows: string,
+  key: string,
+): RowSet {
+  const rowsWith = ctx.providerRowsWith;
+
+  if (rowsWith === undefined) {
+    throw new TypeError(
+      `${where}.rows needs blocks.permissions.model "provider" and an authorization provider with functions.rowsWith`,
+    );
+  }
+
+  const permission = sqlString(key);
+
+  return (ids) =>
+    `select r.id::text from ${fillTemplate("authorization.functions.rowsWith", rowsWith, { resource: rows, permission, ids })} as r(id)`;
+}

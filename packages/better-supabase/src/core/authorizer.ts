@@ -256,6 +256,13 @@ export interface AuthorizerRuntime<
 export interface AuthzSubjectSeed {
   readonly userId: string;
   readonly version: number;
+  /**
+   * The tenant `subject` is restricted to (the provider's `subjectForTenant`),
+   * or `null` when it covers every tenant of the user. An authorizer that
+   * caches a seed by user and version must also key it by this tenant, or
+   * ignore a seed for another tenant than the one it checks.
+   */
+  readonly tenant: string | null;
   readonly subject: unknown;
 }
 

@@ -104,8 +104,8 @@ export interface AcknowledgementContribution {
   /** The column that holds the current version's id (a `versions` row). */
   readonly versionColumn: string;
   /**
-   * The record's table, for when neither `on` nor `config.subjects` names the
-   * type: `{ table, idType?, tenant?, permission? }` as in `on.<type>`.
+   * The record's table, for when neither `on` nor `config.recordTypes` names
+   * the type: `{ table, idType?, tenant?, permission? }` as in `on.<type>`.
    */
   readonly record?: {
     readonly table: string;

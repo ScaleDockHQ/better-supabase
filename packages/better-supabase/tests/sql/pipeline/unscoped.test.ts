@@ -61,6 +61,13 @@ describe("the unscoped file", () => {
     expect(module).not.toContain("create event trigger");
   });
 
+  it("declares event triggers without a drop statement", () => {
+    const file = unscoped(["audit", "rls-guard"]);
+
+    expect(file?.contents).toContain("create event trigger");
+    expect(file?.contents).not.toMatch(/^drop /mu);
+  });
+
   it("writes no file without such a statement", () => {
     expect(unscoped(["tags"])).toBeUndefined();
   });

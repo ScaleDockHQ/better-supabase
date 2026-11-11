@@ -40,7 +40,7 @@ version needs the service role.
 ### Subject access
 
 A deadline is as readable as its subject. The block reads the record types
-from `blocks.deadlines.on`, or from [`config.subjects`](/docs/blocks/subjects)
+from `blocks.deadlines.on`, or from [`config.recordTypes`](/docs/blocks/subjects)
 when `on` is unset, the same way `attachments` and `documents` do. With
 subjects, the read policy, `list`, `compute`, `recompute` and `satisfy` also
 need the subject row to exist in the tenant and the subject's read permission:

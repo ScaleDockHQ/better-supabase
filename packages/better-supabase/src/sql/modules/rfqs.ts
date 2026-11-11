@@ -251,7 +251,7 @@ ${lockTable(sql.lines, { read: true })}
 ${readPolicy("lines", l("tenant"))}
 
 -- A supplier invited to quote. supplier_type and supplier_id name a contacts
--- party (or another config.subjects record without the contacts block).
+-- party (or another config.recordTypes record without the contacts block).
 create table if not exists ${sql.suppliers} (
   ${s("id")} uuid primary key default gen_random_uuid(),
   ${s("tenant")} ${ctx.idType} not null,

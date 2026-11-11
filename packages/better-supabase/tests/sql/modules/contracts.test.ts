@@ -49,7 +49,7 @@ describe("contracts module", () => {
     expect(overApp).not.toMatch(/signature_request_id" uuid references/);
   });
 
-  it("checks counterparties against config.subjects and follows their merges", () => {
+  it("checks counterparties against config.recordTypes and follows their merges", () => {
     const sql = sqlOf({ subjects: { customer: { table: "customers" } } });
 
     expect(sql).toContain(

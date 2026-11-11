@@ -231,6 +231,7 @@ export function renderResult(
 
   const shown = envelope(result.code, {
     ...(result.data === undefined ? {} : { data: result.data }),
+    ...(warnings.length > 0 ? { warnings } : {}),
     next,
   });
 

@@ -308,7 +308,7 @@ export interface ProposeOptions {
   readonly from?: readonly string[];
   /** The config's blocks, so the proposal is checked next to them. */
   readonly blocks?: AnyBlocksConfig;
-  /** `config.subjects`, which a block's `on` entries inherit from. */
+  /** `config.recordTypes`, which a block's `on` entries inherit from. */
   readonly subjects?: SubjectsConfig;
   readonly accessProvider?: BlockSqlLayout["accessProvider"];
   /**

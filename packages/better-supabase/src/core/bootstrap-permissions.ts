@@ -61,9 +61,7 @@ function bitsetKeys(
   let bytes: Uint8Array;
 
   try {
-    // Postgres encode() inserts a newline every 76 characters. Count those
-    // toward the padding and the bitset fails closed past 456 keys.
-    bytes = fromBase64(encoded.replaceAll(/\s+/g, ""));
+    bytes = fromBase64(encoded);
   } catch {
     return undefined;
   }

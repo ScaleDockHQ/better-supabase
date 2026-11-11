@@ -361,8 +361,8 @@ const subjectsArg = (
 
 /**
  * The activities block: calls, emails, meetings, notes and tasks on any record
- * registered in `config.subjects`, for a record's activity panel, a "next step"
- * and a member's task list.
+ * registered in `config.recordTypes`, for a record's activity panel, a "next
+ * step" and a member's task list.
  */
 export function createActivities<
   S extends StandardSchemaV1 | undefined = undefined,

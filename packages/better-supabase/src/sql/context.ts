@@ -125,8 +125,9 @@ export interface BlockSqlTableLifecycle {
 }
 
 /**
- * What makes an entity a `config.subjects` entry when the block is installed.
- * Columns are the table's logical columns; permissions are module actions.
+ * What makes an entity a `config.recordTypes` entry when the block is
+ * installed. Columns are the table's logical columns; permissions are module
+ * actions.
  */
 export interface BlockSqlEntitySubject {
   readonly title: string;
@@ -322,7 +323,7 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   readonly idType: BlockSqlIdType;
   readonly claims: ClaimsMeta;
   readonly modules: AnyBlocksConfig;
-  /** The app-wide subject registry (`config.subjects`). */
+  /** The app-wide subject registry (`config.recordTypes`). */
   readonly subjects: SubjectsConfig;
   /** The provider's `rowsWith` and `rowsWithFor` templates under `provider`. */
   readonly providerRowsWith: string | undefined;
@@ -577,7 +578,7 @@ export interface ExtraColumn {
 
 export interface BlockSqlContextSource {
   readonly modules?: AnyBlocksConfig;
-  /** `config.subjects`, which `subjectsOption` falls back to. */
+  /** `config.recordTypes`, which `subjectsOption` falls back to. */
   readonly subjects?: SubjectsConfig;
   /** The names of `config.appTables`. */
   readonly appTables?: readonly string[];

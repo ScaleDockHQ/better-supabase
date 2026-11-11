@@ -378,7 +378,7 @@ export interface RequirementItem {
   readonly quantity: number;
   readonly dueOn?: Temporal.PlainDate;
   readonly locationId?: string;
-  /** For a purchase: a `config.subjects` record for the supplier. */
+  /** For a purchase: a `config.recordTypes` record for the supplier. */
   readonly supplier?: { readonly type: string; readonly id: string };
   /** For a purchase; default the item's average cost. */
   readonly unitCost?: Money;

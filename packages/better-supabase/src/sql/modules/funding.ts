@@ -292,7 +292,7 @@ ${readPolicy("products", ctx.scope.check(p("tenant"), read))}
 create table if not exists ${awards} (
   ${w("id")} uuid primary key default gen_random_uuid(),
   ${w("tenant")} ${ctx.idType} not null,
-  -- The record the award is for, a type in config.subjects.
+  -- The record the award is for, a type in config.recordTypes.
   ${w("subjectType")} text not null,
   ${w("subjectId")} text not null,
   -- The contacts company or person that pays, holding the funder role.

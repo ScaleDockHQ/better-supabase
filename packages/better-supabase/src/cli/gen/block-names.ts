@@ -346,7 +346,7 @@ function urlLines(
     }
   }
 
-  // `config.subjects` holds the app's types, the app tables' and the blocks'.
+  // `config.recordTypes` holds the app's types, the app tables' and the blocks'.
   for (const [type, subject] of Object.entries(config.subjects)) {
     const key = camel(type);
 

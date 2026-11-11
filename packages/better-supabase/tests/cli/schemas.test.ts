@@ -13,8 +13,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Snapshot } from "../../src/cli/introspect/types.ts";
 
+import { defineCliCommand } from "../../src/cli/core/command.ts";
 import { CLI_ERROR_CODES } from "../../src/cli/core/errors.ts";
-import { run } from "../../src/cli/core/run.ts";
+import { createCli, run } from "../../src/cli/core/run.ts";
 import { formatReport } from "../../src/cli/doctor/format.ts";
 import { RULES, runRules } from "../../src/cli/doctor/rules.ts";
 import { generatorJsonSchema } from "../../src/cli/introspect/typegen.ts";
@@ -227,6 +228,29 @@ describe("shipped JSON Schemas", () => {
 
     expect(result.code).toBe(code);
     expect(envelope.status).toBe(status);
+    expect(await errorsFor("cli-result-v2.json", envelope)).toEqual([]);
+  });
+
+  it("keeps a command's warnings in the --json document", async () => {
+    const hello = defineCliCommand({
+      meta: { name: "hello", description: "Says hello" },
+      args: {},
+      run: () =>
+        Promise.resolve({
+          code: 0,
+          data: {},
+          warnings: ["the config is stale"],
+        }),
+    });
+
+    const result = await createCli({ commands: { hello } }).run([
+      "hello",
+      "--json",
+    ]);
+
+    const envelope = JSON.parse(result.stdout) as Record<string, unknown>;
+
+    expect(envelope["warnings"]).toEqual(["the config is stale"]);
     expect(await errorsFor("cli-result-v2.json", envelope)).toEqual([]);
   });
 

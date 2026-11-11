@@ -21,6 +21,6 @@ export const searchBlock: BlockOf<
   client: "search",
   category: "work",
   description:
-    "A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
+    "A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
   recipes: ["command-search"],
 });

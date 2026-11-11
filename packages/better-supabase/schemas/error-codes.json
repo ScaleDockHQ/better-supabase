@@ -1252,7 +1252,7 @@
   },
   {
     "code": "COLLECTION_SUBJECT_TYPE_UNKNOWN",
-    "message": "not a subject type in config.subjects"
+    "message": "not a subject type in config.recordTypes"
   },
   {
     "code": "COMMENT_FORBIDDEN",
@@ -4557,7 +4557,7 @@
   },
   {
     "code": "RANK_SUBJECT_UNKNOWN",
-    "message": "this subject type has no rank column in config.subjects"
+    "message": "this subject type has no rank column in config.recordTypes"
   },
   {
     "code": "RATE_LIMIT_HITS"
@@ -4785,7 +4785,7 @@
   },
   {
     "code": "SEARCH_SUBJECT_UNKNOWN",
-    "message": "this subject type has no search entry in config.subjects"
+    "message": "this subject type has no search entry in config.recordTypes"
   },
   {
     "code": "SEGMENT_DESCRIPTION_UNSUPPORTED",

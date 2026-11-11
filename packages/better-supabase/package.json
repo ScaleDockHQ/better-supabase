@@ -32,6 +32,7 @@
     "bsb": "./bin/better-supabase.js"
   },
   "files": [
+    "api/naming.json",
     "bin",
     "dist",
     "schemas",
@@ -1166,6 +1167,7 @@
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
     },
+    "./api/naming.json": "./api/naming.json",
     "./schemas/*.json": "./schemas/*.json",
     "./testing/act-cases.json": "./testing/act-cases.json",
     "./sqlite": {
@@ -2431,6 +2433,7 @@
         "types": "./dist/testing/index.d.ts",
         "default": "./dist/testing/index.js"
       },
+      "./api/naming.json": "./api/naming.json",
       "./schemas/*.json": "./schemas/*.json",
       "./testing/act-cases.json": "./testing/act-cases.json",
       "./sqlite": {

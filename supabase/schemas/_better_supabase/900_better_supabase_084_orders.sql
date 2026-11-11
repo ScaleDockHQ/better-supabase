@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:688f88a108f172b3e8208b2caca026e7d7251987303907312bc8a7598d1a88ad
+-- @bsb-hash sha256:2b214ed9a5786cc414670fb444abcb01e6b570cde14b14e6fd805910812214b5
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1823,7 +1823,7 @@ grant execute on function "better_supabase"."list_order_variants"(uuid) to authe
 
 -- A draft purchase order for an order's lines, shipped by the supplier
 -- straight to the order's shipping address (drop ship): the supplier is a
--- config.subjects record (a contacts company by default), the location the
+-- config.recordTypes record (a contacts company by default), the location the
 -- one the order's lines were reserved at or the first active one, the unit
 -- cost the variant's average cost in the order's currency (0 without one;
 -- edit the draft before placing it). Needs inventory.purchase.

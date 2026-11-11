@@ -30,7 +30,7 @@ interface StageTemplate {
   readonly icon?: string;
 }
 
-/** One `on` entry, checked against `config.subjects`. */
+/** One `on` entry, checked against `config.recordTypes`. */
 export interface PipelineBinding {
   readonly type: string;
   readonly subject: RegisteredSubject;
@@ -302,13 +302,13 @@ export function pipelineBindings(
 
     if (subject === undefined) {
       throw new TypeError(
-        `${where}: register "${type}" in config.subjects first`,
+        `${where}: register "${type}" in config.recordTypes first`,
       );
     }
 
     if (subject.tenant === undefined) {
       throw new TypeError(
-        `${where}: config.subjects.${type} needs a tenant column`,
+        `${where}: config.recordTypes.${type} needs a tenant column`,
       );
     }
 

@@ -717,6 +717,36 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     });
   });
 
+  it("fails sql upgrade --check on a drop event trigger in a declarative file", async () => {
+    const config: ResolveInput = { blocks: ["audit"] };
+
+    const file = join(
+      root,
+      "supabase/schemas/900_better_supabase_999_unscoped.sql",
+    );
+
+    await sql(["sync"], config);
+    expect(await sql(["upgrade", "--check"], config)).toMatchObject({
+      code: 0,
+    });
+
+    const text = await readFile(file, "utf-8");
+    expect(text).not.toMatch(/^drop /mu);
+
+    await writeFile(
+      file,
+      text.replace(
+        "create event trigger",
+        "drop event trigger if exists bsb_audit_forget_dropped;\ncreate event trigger",
+      ),
+    );
+
+    const check = await sql(["upgrade", "--check"], config);
+
+    expect(check.code).toBe(1);
+    expect(check.error).toContain("drops an event trigger");
+  });
+
   it("derives grants from the schema files' policies with fromPolicies", async () => {
     const config: ResolveInput = {
       database: { expose: { notes: ["select"] } },

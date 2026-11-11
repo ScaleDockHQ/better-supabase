@@ -30,6 +30,14 @@ const AUTH_STUBS = `
   create function auth.role() returns text language sql stable as $$ select 'authenticated' $$;
 `;
 
+/** Schema files first, then data files: the data files repeat event triggers. */
+const inApplyOrder = <T extends { readonly kind: string }>(
+  files: readonly T[],
+): readonly T[] => [
+  ...files.filter((file) => file.kind === "schema"),
+  ...files.filter((file) => file.kind !== "schema" && file.kind !== "test"),
+];
+
 const SEED_ROWS = 6000;
 
 const ignoreTerminatedIdleClient = (error: Error & { code?: string }) => {
@@ -55,21 +63,19 @@ describe.skipIf(!live)("convert_audit_log_to_partitioned", () => {
 
     // The log as an app that never set the option has it, then the procedure
     // an app that turns the option on gets.
-    for (const file of renderBlocks(["audit"], {})) {
-      if (file.kind !== "test") {
-        await pool.query(file.contents);
-      }
+    for (const file of inApplyOrder(renderBlocks(["audit"], {}))) {
+      await pool.query(file.contents);
     }
 
     // `sql upgrade` after turning the option on: the module reruns over the
     // existing log, which stays unpartitioned, and adds the procedure.
-    for (const file of renderBlocks(["audit"], {
-      rerunnable: true,
-      modules: { audit: { options: { partitioned: true } } },
-    })) {
-      if (file.kind !== "test") {
-        await pool.query(file.contents);
-      }
+    for (const file of inApplyOrder(
+      renderBlocks(["audit"], {
+        rerunnable: true,
+        modules: { audit: { options: { partitioned: true } } },
+      }),
+    )) {
+      await pool.query(file.contents);
     }
 
     await pool.query(

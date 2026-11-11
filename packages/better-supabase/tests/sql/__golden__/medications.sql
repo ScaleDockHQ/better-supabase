@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:59e50852433e8488f2b67280904efbef617748e90a4d58a266792b2af059aeb0
+-- @bsb-hash sha256:2e7a51b1b1f779caa8c5ad5356095b3474086dc3451f8df4e2f441bf63ecfad6
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -37,7 +37,7 @@ grant all on "better_supabase"."medications" to service_role;
 create table "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the order is for, a type in config.subjects.
+  -- The record the order is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
@@ -1319,7 +1319,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:a3aeb1703c9fe5ae43d01d314428a75804e00960313665762c890f4aa4839ca0
+-- @bsb-hash sha256:91d2ead57b8b8e29735f0910e956f4f67092e464e836bb95161e50cb0ee16530
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1355,7 +1355,7 @@ grant all on "better_supabase"."medications" to service_role;
 create table "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the order is for, a type in config.subjects.
+  -- The record the order is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
@@ -2767,7 +2767,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:16e8a608b22e9992abf438162546a7f442fea5ec0f6771cfabb8bab258909644
+-- @bsb-hash sha256:33fcb8836a4d897c2de9a3f00f09a80c68e07fd60e941ac980e24a9ca1ce046c
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2808,7 +2808,7 @@ grant all on "app_private"."medications" to service_role;
 create table "app_private"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the order is for, a type in config.subjects.
+  -- The record the order is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
@@ -4090,7 +4090,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:80dcfe7ea3ce02b5584feb76c0d88004c2cfd867731b20925d6a0f590d3be9cc
+-- @bsb-hash sha256:82e11d8401bcaa0cf943fa41382fbea84d7086af3970738654afebf136bac6af
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4126,7 +4126,7 @@ grant all on "better_supabase"."medications" to service_role;
 create table "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the order is for, a type in config.subjects.
+  -- The record the order is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
@@ -6857,7 +6857,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:0a1c0d2f2a3ca69da42135d479e5ee1e49caca12994af2b770a5f57fe070fe6b
+-- @bsb-hash sha256:5ee36b5e2a2650c0f62d26848dc21bafa1415e40d72e9c72ceb5e8f9ef03b845
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6893,7 +6893,7 @@ grant all on "better_supabase"."medications" to service_role;
 create table "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  -- The record the order is for, a type in config.subjects.
+  -- The record the order is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,

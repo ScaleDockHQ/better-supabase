@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:5c0592e9582351e69a8ba329ea9bdd91553c5d01bf47586b81c0f1817eafee8b
+-- @bsb-hash sha256:75050baefa15ff13d5dc4dabcf4980278b96e0c6f19954fdaaa656b588417f33
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -164,7 +164,7 @@ revoke execute on function "better_supabase"."drive_can"(uuid, text) from public
 grant execute on function "better_supabase"."drive_can"(uuid, text) to authenticated, service_role;
 
 -- Whether the caller may read the node: the read role on it, so a check
--- function in config.subjects can follow drive grants.
+-- function in config.recordTypes can follow drive grants.
 create or replace function "better_supabase"."drive_node_readable"(node uuid)
 returns boolean
 language sql

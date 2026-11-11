@@ -90,7 +90,7 @@ export function subjectIdMatches(subject: Subject, value: string): string {
     : `${column} = (${value})::${subject.idType}`;
 }
 
-/** The keys of a registry entry (`config.subjects.<type>`) a module reads. */
+/** The keys of a registry entry (`config.recordTypes.<type>`) a module reads. */
 function fromRegistry(
   entry: SubjectConfig,
   extraKeys: readonly string[],
@@ -158,7 +158,7 @@ function rawSubjects(
   if (Array.isArray(raw)) {
     if (raw.length === 0) {
       throw new TypeError(
-        `${where}: list at least one config.subjects type, or pass an object of subject type to { table, ... }`,
+        `${where}: list at least one config.recordTypes type, or pass an object of subject type to { table, ... }`,
       );
     }
 
@@ -166,7 +166,7 @@ function rawSubjects(
       raw.map((type: unknown) => {
         if (typeof type !== "string" || !Object.hasOwn(registry, type)) {
           throw new TypeError(
-            `${where}: "${String(type)}" is not a subject type in config.subjects. Types: ${Object.keys(registry).join(", ") || "none"}`,
+            `${where}: "${String(type)}" is not a subject type in config.recordTypes. Types: ${Object.keys(registry).join(", ") || "none"}`,
           );
         }
 
@@ -177,7 +177,7 @@ function rawSubjects(
 
   if (!isRecord(raw)) {
     throw new TypeError(
-      `${where}: pass a list of config.subjects types, or an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
+      `${where}: pass a list of config.recordTypes types, or an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
     );
   }
 
@@ -245,7 +245,7 @@ function registeredRead(
 /**
  * `blocks.<instance>.on`: subject type to `{ table, id?, tenant?, permission?,
  * cascade? }` plus the `extra` keys the module reads, falling back to the
- * app-wide `config.subjects` registry.
+ * app-wide `config.recordTypes` registry.
  */
 export function subjectsOption(
   ctx: BlockSqlContext,
@@ -367,7 +367,7 @@ export function subjectsOption(
 
 /**
  * The record types `blocks.<instance>.on` allows, checked against
- * `config.subjects`, or `undefined` when `on` is unset and every registered
+ * `config.recordTypes`, or `undefined` when `on` is unset and every registered
  * type is allowed.
  */
 function allowedSubjectTypes(
@@ -746,10 +746,10 @@ export function subjectReadable(
 
 /**
  * Whether the caller may take `action` on subject `type`/`id`, for each of
- * `subjects` whose `config.subjects` entry declares it (the first of `actions`
- * it declares): `can_subject(type, id, action)` as the caller, so a key, the
- * provider's per-row grants and an owner column all count. Other types pass.
- * `undefined` when no subject declares one of `actions` or the `subjects`
+ * `subjects` whose `config.recordTypes` entry declares it (the first of
+ * `actions` it declares): `can_subject(type, id, action)` as the caller, so a
+ * key, the provider's per-row grants and an owner column all count. Other types
+ * pass. `undefined` when no subject declares one of `actions` or the `subjects`
  * module isn't installed, so the module's own check stays as it was; a module
  * that uses it lists `subjects` in `integrates`.
  */

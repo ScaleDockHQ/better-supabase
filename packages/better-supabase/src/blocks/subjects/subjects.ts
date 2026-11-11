@@ -31,7 +31,7 @@ export interface SubjectsOptions extends BlockOptions {
   readonly logger?: Logger;
 }
 
-/** A subject with its title and path, from `config.subjects`. */
+/** A subject with its title and path, from `config.recordTypes`. */
 export interface ResolvedSubject extends RecordRef {
   /** The `title` column's value, when the type names one. */
   readonly title?: string;
@@ -154,13 +154,13 @@ export interface Subjects {
    */
   myWork(options?: MyWorkOptions): AsyncResult<readonly MyTask[]>;
   /**
-   * The record's team, for types with `config.subjects.<type>.team`: add, end
-   * and list memberships, and the records the caller is on the team of. `hooks`
-   * don't wrap these.
+   * The record's team, for types with `config.recordTypes.<type>.team`: add,
+   * end and list memberships, and the records the caller is on the team of.
+   * `hooks` don't wrap these.
    */
   readonly members: SubjectMembers;
   /**
-   * The read log, for types with `config.subjects.<type>.auditReads`: log a
+   * The read log, for types with `config.recordTypes.<type>.auditReads`: log a
    * read with its purpose, and list who read a record. `hooks` don't wrap
    * these.
    */

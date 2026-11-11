@@ -250,7 +250,7 @@ ${lockModuleTable(ctx, "medications", { read: true })}
 create table if not exists ${orders} (
   ${o("id")} uuid primary key default gen_random_uuid(),
   ${o("tenant")} ${ctx.idType} not null,
-  -- The record the order is for, a type in config.subjects.
+  -- The record the order is for, a type in config.recordTypes.
   ${o("subjectType")} text not null,
   ${o("subjectId")} text not null,
   ${o("medication")} uuid not null,

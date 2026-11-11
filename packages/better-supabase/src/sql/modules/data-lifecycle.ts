@@ -898,7 +898,7 @@ export const DATA_LIFECYCLE: BlockSqlDefinition = {
     {
       from: 6,
       description:
-        "request_subject_export exports one config.subjects record (subject 'record'): its row decrypted through its reveal function and every module's rows attached to it, held in data_export_contents until the export job writes them. data_exports gains subject_type, subject_id and format, one named subject check replaces the generated ones, and the data_export events carry subjectType and subjectId.",
+        "request_subject_export exports one config.recordTypes record (subject 'record'): its row decrypted through its reveal function and every module's rows attached to it, held in data_export_contents until the export job writes them. data_exports gains subject_type, subject_id and format, one named subject check replaces the generated ones, and the data_export events carry subjectType and subjectId.",
       sql: () => "",
     },
     {

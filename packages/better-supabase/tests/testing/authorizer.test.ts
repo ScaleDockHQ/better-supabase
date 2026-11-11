@@ -128,8 +128,39 @@ describe("testAuthorizer", () => {
     });
 
     expect(await failures(seeded, ["export"])).toEqual([
-      "ignores a seed for another user or a version that is not live",
+      "ignores a seed for another user, another tenant or a version that is not live",
     ]);
+  });
+
+  it("refuses an authorizer that trusts a seed for another tenant", async () => {
+    const seeding = (checkTenant: boolean) =>
+      defineAuthorizer({
+        name: "seeding",
+        key: (ref: Ref) => ref,
+        evaluate: (request, runtime) => {
+          const seed = runtime?.seed;
+
+          const trusted =
+            seed !== undefined &&
+            seed.userId === request.subject.id &&
+            seed.version >= 0 &&
+            (!checkTenant ||
+              seed.tenant === null ||
+              seed.tenant === request.context.tenant);
+
+          return trusted ? { outcome: "granted" } : { outcome: "denied" };
+        },
+      });
+
+    expect(await failures(seeding(false), ["export"])).toEqual([
+      "ignores a seed for another user, another tenant or a version that is not live",
+    ]);
+
+    const report = await testAuthorizer(seeding(true), {
+      permissions: ["export"],
+    });
+
+    expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 
   it("passes an authorizer that reads the subject's claims", async () => {

@@ -647,7 +647,7 @@ const signalOf = (options: {
 
 /**
  * The medications block: an organization's medication list, orders on any
- * record registered in `config.subjects`, and the doses planned and recorded
+ * record registered in `config.recordTypes`, and the doses planned and recorded
  * against them, for a medication chart.
  */
 export function createMedications<

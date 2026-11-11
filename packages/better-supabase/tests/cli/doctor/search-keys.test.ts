@@ -20,7 +20,7 @@ const context = (
   database: DoctorContext["database"],
   subjects: Record<string, unknown> = searched,
 ): DoctorContext =>
-  // SAFETY: BS632 reads only config.subjects and database.
+  // SAFETY: BS632 reads only config.recordTypes and database.
   ({
     config: { subjects },
     ...(database === undefined ? {} : { database }),

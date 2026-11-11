@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:c3c53fcefbf9c391aa96760e6e439c602d43c283f53b4c7416f9a9cc1a32b0b1
+-- @bsb-hash sha256:e650495ad0f219e930725bb09db41ecd91099019addfde1b3a78603597950e46
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -119,7 +119,7 @@ grant all on "better_supabase"."deadlines" to service_role;
 
 -- Whether the caller may read the subject a deadline belongs to: its row is
 -- visible to them (the subject table's own policies apply) and they hold its
--- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- read permission, as blocks.deadlines.on or config.recordTypes declares it.
 -- Without subjects every subject passes; with them an unlisted type fails.
 -- plpgsql, so a subject table a later module creates binds late.
 create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
@@ -1768,7 +1768,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:dadc8c833414833684c57cc9b966e08c249eede4efc2356f4ee22f0198228456
+-- @bsb-hash sha256:83b13e13047b3d2f4c075fe2f635174adfb1049d30c1e1d68bb12ddc171703a0
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1886,7 +1886,7 @@ grant all on "better_supabase"."deadlines" to service_role;
 
 -- Whether the caller may read the subject a deadline belongs to: its row is
 -- visible to them (the subject table's own policies apply) and they hold its
--- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- read permission, as blocks.deadlines.on or config.recordTypes declares it.
 -- Without subjects every subject passes; with them an unlisted type fails.
 -- plpgsql, so a subject table a later module creates binds late.
 create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
@@ -3567,7 +3567,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:db5b96d13314029db50feb141191be1d076ca33cc1768c0a3fa5dad670a0766e
+-- @bsb-hash sha256:220c499fefa08ac78006c81ac65af8314f3b55507be38b87ac411b54c563aa8d
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3690,7 +3690,7 @@ grant all on "app_private"."deadlines" to service_role;
 
 -- Whether the caller may read the subject a deadline belongs to: its row is
 -- visible to them (the subject table's own policies apply) and they hold its
--- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- read permission, as blocks.deadlines.on or config.recordTypes declares it.
 -- Without subjects every subject passes; with them an unlisted type fails.
 -- plpgsql, so a subject table a later module creates binds late.
 create or replace function "app_private"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
@@ -5339,7 +5339,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:f3b4b4609661f9537efe36d938afdbce6bd07b9e0637a19f8341d64b2e349972
+-- @bsb-hash sha256:c4d7246e1140aed5c135d11a60ac7a04da27514d5cd5949ab0e6ec586fd7daea
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5457,7 +5457,7 @@ grant all on "better_supabase"."deadlines" to service_role;
 
 -- Whether the caller may read the subject a deadline belongs to: its row is
 -- visible to them (the subject table's own policies apply) and they hold its
--- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- read permission, as blocks.deadlines.on or config.recordTypes declares it.
 -- Without subjects every subject passes; with them an unlisted type fails.
 -- plpgsql, so a subject table a later module creates binds late.
 create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
@@ -7198,7 +7198,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:c2cb2b9df6e04527a1b8d36f4f38b99ba5ac5a39989cb6eedd6fe6c2a70e78c3
+-- @bsb-hash sha256:d870943a6aa57687f3fffb84f91adb63227e4bc59db7d081cb0560fe0d4326aa
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7305,7 +7305,7 @@ grant all on "better_supabase"."deadlines" to service_role;
 
 -- Whether the caller may read the subject a deadline belongs to: its row is
 -- visible to them (the subject table's own policies apply) and they hold its
--- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- read permission, as blocks.deadlines.on or config.recordTypes declares it.
 -- Without subjects every subject passes; with them an unlisted type fails.
 -- plpgsql, so a subject table a later module creates binds late.
 create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
@@ -8954,7 +8954,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:280d06a2b9dc2e76f540725b1ac22b1adcbd5a0543555f2345c1f2ca0050b400
+-- @bsb-hash sha256:7e61b41e701a2233f6934e8d2f51b8546bb2d3a756c1b816b025613c47eb0c35
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9072,7 +9072,7 @@ grant all on "better_supabase"."deadlines" to service_role;
 
 -- Whether the caller may read the subject a deadline belongs to: its row is
 -- visible to them (the subject table's own policies apply) and they hold its
--- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- read permission, as blocks.deadlines.on or config.recordTypes declares it.
 -- Without subjects every subject passes; with them an unlisted type fails.
 -- plpgsql, so a subject table a later module creates binds late.
 create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)

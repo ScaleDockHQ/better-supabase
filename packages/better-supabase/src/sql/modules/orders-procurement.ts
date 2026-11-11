@@ -112,7 +112,7 @@ export function dropShipFunctions(
   return `
 -- A draft purchase order for an order's lines, shipped by the supplier
 -- straight to the order's shipping address (drop ship): the supplier is a
--- config.subjects record (a contacts company by default), the location the
+-- config.recordTypes record (a contacts company by default), the location the
 -- one the order's lines were reserved at or the first active one, the unit
 -- cost the variant's average cost in the order's currency (0 without one;
 -- edit the draft before placing it). Needs inventory.purchase.

@@ -531,7 +531,7 @@ ${lockTable(deadlines, { read: true })}
 
 -- Whether the caller may read the subject a deadline belongs to: its row is
 -- visible to them (the subject table's own policies apply) and they hold its
--- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- read permission, as blocks.deadlines.on or config.recordTypes declares it.
 -- Without subjects every subject passes; with them an unlisted type fails.
 -- plpgsql, so a subject table a later module creates binds late.
 create or replace function ${fn("deadline_subject_readable")}(subject_type text, subject_id text, tenant ${idType})

@@ -125,7 +125,7 @@ export interface DataExportEventData {
   readonly organizationId?: string;
   readonly userId?: string;
   readonly requestedBy?: string;
-  /** Subject `record`: the `config.subjects` type and id that was exported. */
+  /** Subject `record`: the `config.recordTypes` type and id that was exported. */
   readonly subjectType?: string;
   readonly subjectId?: string;
   /** `data_export.completed`: the object paths and when they stop being served. */

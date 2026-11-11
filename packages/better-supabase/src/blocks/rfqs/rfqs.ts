@@ -87,7 +87,7 @@ export interface RfqLineInput {
 export interface RfqSupplier {
   readonly id: string;
   readonly rfqId: string;
-  /** A `config.subjects` type that contacts lists, such as `company`. */
+  /** A `config.recordTypes` type that contacts lists, such as `company`. */
   readonly supplierType: string;
   readonly supplierId: string;
   readonly status: RfqSupplierStatus;

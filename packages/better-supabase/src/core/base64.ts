@@ -20,7 +20,13 @@ export function toBase64(input: Uint8Array | string): string {
 
 /** Bytes of standard or URL-safe base64, padded or not. Throws on invalid input. */
 export function fromBase64(text: string): Uint8Array<ArrayBuffer> {
-  const base64 = text.replaceAll("-", "+").replaceAll("_", "/");
+  // Postgres encode() wraps lines every 76 characters; atob ignores the
+  // whitespace, but the padding must be counted without it.
+  const base64 = text
+    .replaceAll(/[\t\n\f\r ]/g, "")
+    .replaceAll("-", "+")
+    .replaceAll("_", "/");
+
   const binary = atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4));
   const bytes = new Uint8Array(binary.length);
 

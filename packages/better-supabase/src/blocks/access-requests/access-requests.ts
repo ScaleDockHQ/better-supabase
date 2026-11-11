@@ -95,7 +95,7 @@ export interface EmergencyReview {
 /** A request for access to one record, or an emergency access to it. */
 export interface RecordAccessRequest extends AccessRequestBase {
   readonly target: "record";
-  /** A `config.subjects` type with a record team, such as `client`. */
+  /** A `config.recordTypes` type with a record team, such as `client`. */
   readonly subjectType: string;
   readonly subjectId: string;
   /** The action asked for, such as `read`; emergency access is `read`. */
@@ -118,7 +118,7 @@ export interface AccessRequestInput {
 }
 
 export interface RecordAccessInput {
-  /** A `config.subjects` type with `team`, such as `client`. */
+  /** A `config.recordTypes` type with `team`, such as `client`. */
   readonly subjectType: string;
   readonly subjectId: string;
   /** One of the type's `team.actions`. Default: `read`. */

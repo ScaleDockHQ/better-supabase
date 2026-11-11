@@ -2693,7 +2693,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
 });
 
 describe("block on names an unknown record type (BS346)", () => {
-  it("reports list entries and keys that config.subjects lacks", async () => {
+  it("reports list entries and keys that config.recordTypes lacks", async () => {
     const findings = await run(
       "BS346",
       context(
@@ -2731,7 +2731,7 @@ describe("block on names an unknown record type (BS346)", () => {
     ).toEqual([]);
   });
 
-  it("passes a hyphenated type config.subjects registers", async () => {
+  it("passes a hyphenated type config.recordTypes registers", async () => {
     expect(
       await run(
         "BS346",

@@ -529,8 +529,99 @@ function adoptableTables(): string[] {
       ];
 }
 
+/**
+ * Table rows of a docs page that say "next minor", and tables that repeat their
+ * header row.
+ */
+function tableRows(): string[] {
+  return markdownFiles(docs, ".mdx").flatMap((file) => {
+    const lines = readFileSync(file, "utf-8").split("\n");
+
+    const squash = (line: string): string =>
+      line.replaceAll(/\s+/gu, " ").trim();
+
+    let header: string | undefined;
+
+    return lines.flatMap((line, index) => {
+      const where = `${relative(docs, file)}:${String(index + 1)}`;
+
+      if (!line.startsWith("|")) {
+        header = undefined;
+
+        return [];
+      }
+
+      const found: string[] = [];
+
+      if (/next minor/iu.test(line)) {
+        found.push(
+          `${where} says "next minor" in a table row; name the release`,
+        );
+      }
+
+      const isSeparator = /^\|[\s:|-]+\|$/u.test(line);
+
+      if (header === undefined) {
+        header = squash(line);
+      } else if (!isSeparator && squash(line) === header) {
+        found.push(`${where} repeats the table's header row`);
+      }
+
+      return found;
+    });
+  });
+}
+
+/**
+ * A `better-supabase/<subpath>` import in a code fence that the exports map
+ * doesn't resolve.
+ */
+function fenceImports(): string[] {
+  const { exports: exportsMap } = readJson(
+    PackageExports,
+    join(library, "package.json"),
+  );
+
+  const keys = Object.keys(exportsMap);
+
+  const resolves = (specifier: string): boolean => {
+    const key = `./${specifier.slice("better-supabase/".length)}`;
+
+    return keys.some((each) =>
+      each.includes("*")
+        ? key.startsWith(each.slice(0, each.indexOf("*"))) &&
+          key.endsWith(each.slice(each.indexOf("*") + 1))
+        : each === key,
+    );
+  };
+
+  return markdownFiles(docs, ".mdx").flatMap((file) => {
+    const text = readFileSync(file, "utf-8");
+
+    const fences = [...text.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gmu)].map(
+      (match) => match[1] ?? "",
+    );
+
+    return fences.flatMap((fence) =>
+      [
+        ...fence.matchAll(
+          /(?:from\s+|import\s*\(\s*|import\s+)["'](better-supabase\/[^"']+)["']/gu,
+        ),
+      ].flatMap((match) =>
+        match[1] === undefined || resolves(match[1])
+          ? []
+          : [
+              `${relative(docs, file)} imports "${match[1]}", which the package exports don't list`,
+            ],
+      ),
+    );
+  });
+}
+
 const problems = [
   ...doctorCodes(),
+  ...fenceImports(),
+  ...tableRows(),
   ...subpaths(),
   ...metaFiles(docs),
   ...naming(),

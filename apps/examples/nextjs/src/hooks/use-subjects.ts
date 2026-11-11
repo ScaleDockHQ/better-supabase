@@ -38,9 +38,9 @@ export interface SubjectsState extends SubjectsSnapshot, SubjectsActions {
 }
 
 /**
- * Titles and paths of `refs` from `config.subjects`. The hooks rendered in the
- * same tick share one `subject_titles` call, so a list of rows that each show a
- * subject link costs one round trip.
+ * Titles and paths of `refs` from `config.recordTypes`. The hooks rendered in
+ * the same tick share one `subject_titles` call, so a list of rows that each
+ * show a subject link costs one round trip.
  *
  * ```tsx
  * const { get } = useSubjects(rows.map((row) => row.subject));

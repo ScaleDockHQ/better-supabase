@@ -89,7 +89,7 @@ export interface MySubjectsPage {
   readonly nextCursor: string | null;
 }
 
-/** A record's team (`config.subjects.<type>.team`, ADR 0134). */
+/** A record's team (`config.recordTypes.<type>.team`, ADR 0134). */
 export interface SubjectMembers {
   /**
    * Puts a user or a team on the record's team, or reopens their membership in

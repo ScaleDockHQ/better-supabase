@@ -10,6 +10,6 @@ export const rankBlock: BlockOf<"rank", typeof createRank> = defineBlock({
   create: createRank,
   category: "database",
   description:
-    "Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.",
+    "Fractional rank keys: rank_between, move() for every config.recordTypes entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.",
   recipes: ["record-board", "work-item-board"],
 });

@@ -21,6 +21,9 @@ const DESCRIPTION =
 const UNSCOPED =
   /(?:^--[^\n]*\n)*(?:^drop event trigger [^;]*;[ \t]*\n)*^create (?:event trigger [^;]*|(?:or replace )?(?:constraint )?trigger [^;]*?\bon\s+"?auth"?\.[^;]*);[ \t]*\n?/gim;
 
+/** The `drop event trigger` lines a declarative file must not carry. */
+const DROP_EVENT_TRIGGER = /^drop event trigger [^;]*;[ \t]*\n/gim;
+
 /** `contents` without its unscoped statements, and those statements. */
 export function takeUnscoped(contents: string): {
   readonly rest: string;
@@ -58,7 +61,11 @@ export function withUnscopedFile(
     }
 
     const taken = takeUnscoped(file.contents);
-    found.push(...taken.statements);
+    found.push(
+      ...taken.statements.map((statement) =>
+        statement.replaceAll(DROP_EVENT_TRIGGER, "").trim(),
+      ),
+    );
 
     return taken.statements.length === 0
       ? file
@@ -87,7 +94,7 @@ export function withUnscopedFile(
       module: UNSCOPED_MODULE,
       kind: "schema",
       path: `${dir}/${prefix}_999_${UNSCOPED_MODULE}.sql`,
-      contents: `${header}\n\n${found.join("\n\n")}\n`,
+      contents: `${header}\n\n${[...new Set(found)].join("\n\n")}\n`,
     },
   ];
 }
