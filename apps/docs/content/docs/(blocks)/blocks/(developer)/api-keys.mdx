@@ -346,6 +346,12 @@ With an [authorization provider](/docs/extending/authorization-providers),
 key's scopes are the same permission keys your guards and policies check, and
 `add` fails when the provider lists none.
 
+`create_api_key` refuses an
+[interactive-only](/docs/repository/permissions#interactive-only-permissions)
+permission key, such as `organization.transfer_ownership`, as a scope with
+`API_KEY_FORBIDDEN`. The access functions never grant one to a key, so a key
+created before this check gets nothing from it.
+
 ## With an authorization provider
 
 Queries for a key run with the `api_key` claim. A provider's SQL functions

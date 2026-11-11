@@ -44,6 +44,11 @@ import {
 
 const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
 
+// The organization owner role is granted and taken away only from a user's
+// own session, never by an API key, OAuth client or agent.
+const ROLE_GATE =
+  "(better_supabase.interactive_session() or not better_supabase.interactive_only_role(can_assign.role))";
+
 // A token with an `act` claim (a support session) acts as its subject, so it
 // never carries the subject's platform permissions.
 const NOT_ACTING = `(platform_can.member is distinct from auth.uid() or auth.jwt() -> 'act' is null)`;
@@ -416,7 +421,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${SERVICE} or better_supabase.can_assign_as(auth.uid(), can_assign.tenant, can_assign.role)
+  select ${SERVICE} or (${ROLE_GATE} and better_supabase.can_assign_as(auth.uid(), can_assign.tenant, can_assign.role))
 $$;
 ${platformCanAssign(ctx)}
 
@@ -800,7 +805,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${SERVICE} or coalesce((${providerCanAssign(ctx, layout)}), false)
+  select ${SERVICE} or (${ROLE_GATE} and coalesce((${providerCanAssign(ctx, layout)}), false))
 $$;`;
 }
 
@@ -889,11 +894,14 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${SERVICE} or coalesce((${fill(functions.canAssign!, {
-    tenant: "can_assign.tenant",
-    role: "can_assign.role",
-    roles: "array[can_assign.role]::text[]",
-  })}), false)
+  select ${SERVICE} or (${ROLE_GATE} and coalesce((${fill(
+    functions.canAssign!,
+    {
+      tenant: "can_assign.tenant",
+      role: "can_assign.role",
+      roles: "array[can_assign.role]::text[]",
+    },
+  )}), false)
 $$;
 
 create or replace function better_supabase.permission_claims(user_id uuid)
@@ -1022,6 +1030,9 @@ ${[
   "permission_matches(text, text)",
   "scope_permissions(text)",
   "cap_allows(text)",
+  "interactive_session()",
+  "interactive_only(text)",
+  "interactive_only_role(text)",
   "operation_permission(text)",
   `can(text, ${id}, text)`,
   "tenant_ids_with(text)",

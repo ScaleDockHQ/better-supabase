@@ -433,7 +433,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:6e025f6dce3b2abb049dddf02e1401f4008dc19dfa6b9c9ccafa5990d62d997e
+-- @bsb-hash sha256:b67e8938e61cc61fcd23e0ff8cecd3684c302d8807f533df88f000fa428a0de7
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -521,6 +521,9 @@ begin
     ) then
       raise exception 'Not allowed to create API keys for every tenant' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
     end if;
+  end if;
+  if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s = any ('{impersonation.start,organization.delete,organization.transfer_ownership,platform.invite,sso.manage}'::text[])) then
+    raise exception 'Only a signed-in user may use this permission, so an API key cannot carry it' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
   end if;
   if expires_at is not null and expires_at <= now() then
     raise exception 'expires_at is in the past' using errcode = '22023', hint = 'API_KEY_EXPIRED';

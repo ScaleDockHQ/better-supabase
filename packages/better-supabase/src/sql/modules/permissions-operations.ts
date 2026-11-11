@@ -5,7 +5,11 @@ import type { OperationModule } from "./permissions-model.ts";
 import { operationPermission } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
-import { moduleOperations, modulePermissionKey } from "./permissions-model.ts";
+import {
+  INTERACTIVE_ONLY_OPERATIONS,
+  moduleOperations,
+  modulePermissionKey,
+} from "./permissions-model.ts";
 import { MODULE_PERMISSION_SCOPES } from "./permissions-scopes.ts";
 
 const isOperationModule = (name: string): name is OperationModule =>
@@ -52,6 +56,27 @@ function operationKeys(
   }
 
   return keys;
+}
+
+/**
+ * The permission keys only a signed-in user gets: the installed
+ * `INTERACTIVE_ONLY_OPERATIONS` after renames, with
+ * `authorization.delegation.interactiveOnly` and
+ * `blocks.permissions.interactiveOnly`.
+ */
+export function interactiveOnlyKeys(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): readonly string[] {
+  const keys = operationKeys(ctx, layout);
+
+  return [
+    ...new Set([
+      ...INTERACTIVE_ONLY_OPERATIONS.flatMap((op) => keys.get(op) ?? []),
+      ...(layout.delegationInteractiveOnly ?? []),
+      ...(ctx.modules.permissions?.interactiveOnly ?? []),
+    ]),
+  ].toSorted();
 }
 
 /**

@@ -471,6 +471,8 @@ export interface BlockSqlLayout {
    * (with `blocks.permissions.scopes` merged over it).
    */
   readonly delegationScopes?: Readonly<Record<string, readonly string[]>>;
+  /** `authorization.delegation.interactiveOnly`. */
+  readonly delegationInteractiveOnly?: readonly string[];
   /**
    * `authorization.versions`: the provider keeps the authorization versions, so
    * `sessions` reads them through its function and creates no table.

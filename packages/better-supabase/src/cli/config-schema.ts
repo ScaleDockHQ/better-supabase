@@ -205,6 +205,7 @@ const permissionsBlock = v.strictObject({
   ),
   platformClaim: v.optional(v.string()),
   scopes: v.optional(v.record(v.string(), strings)),
+  interactiveOnly: v.optional(strings),
   disabled: v.optional(
     v.strictObject({
       tenant: v.optional(v.union([v.string(), disabledRow])),
@@ -440,7 +441,10 @@ const authorization = v.strictObject({
   ),
   versions: v.optional(blockSchemas.authorizationVersionsSchema),
   delegation: v.optional(
-    v.strictObject({ scopes: v.optional(v.record(v.string(), strings)) }),
+    v.strictObject({
+      scopes: v.optional(v.record(v.string(), strings)),
+      interactiveOnly: v.optional(strings),
+    }),
   ),
   wildcards: v.optional(v.picklist(["all", "prefix", "none"])),
   problems: v.optional(strings),

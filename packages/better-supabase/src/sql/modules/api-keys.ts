@@ -19,6 +19,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { accessModel, moduleOperations } from "./permissions-model.ts";
+import { interactiveOnlyKeys } from "./permissions-operations.ts";
 
 const EVENTS: BlockSqlEvents<ApiKeysEvents> = {
   "api_key.created": {
@@ -238,6 +239,16 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   end if;`
     : "";
 
+  const interactive = interactiveOnlyKeys(ctx, layout);
+
+  const interactiveCheck =
+    interactive.length === 0
+      ? ""
+      : `
+  if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s = any (${sqlString(`{${interactive.join(",")}}`)}::text[])) then
+    ${fail("API_KEY_FORBIDDEN", "Only a signed-in user may use this permission, so an API key cannot carry it")}
+  end if;`;
+
   const state = (alias: string): string => `case
       when ${alias}.${c("revokedAt")} is not null and ${alias}.${c("revokedAt")} <= now() then 'revoked'
       when ${alias}.${c("expiresAt")} is not null and ${alias}.${c("expiresAt")} <= now() then 'expired'
@@ -418,7 +429,7 @@ begin
     ) then
       ${fail("API_KEY_FORBIDDEN", "Not allowed to create API keys for every tenant")}
     end if;
-  end if;${scopeCheck}${wildcard}
+  end if;${scopeCheck}${interactiveCheck}${wildcard}
   if expires_at is not null and expires_at <= now() then
     ${fail("API_KEY_EXPIRED", "expires_at is in the past", "22023")}
   end if;

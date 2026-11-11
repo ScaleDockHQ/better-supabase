@@ -29,6 +29,20 @@ describe("api-keys module", () => {
     expect(() => render({ scopes: ["bad scope"] })).toThrow(/is not a scope/);
   });
 
+  it("refuses interactive-only keys as scopes", () => {
+    const sql = moduleBody("api-keys", {
+      modules: {
+        "api-keys": {},
+        permissions: { interactiveOnly: ["billing.manage"] },
+      },
+    })!;
+
+    expect(sql).toContain(
+      "where s = any ('{billing.manage}'::text[])) then\n    raise exception 'Only a signed-in user may use this permission",
+    );
+    expect(render({})).not.toContain("Only a signed-in user");
+  });
+
   it("adds the kind column, checks it against the kinds option and takes it on create", () => {
     const sql = render({ kinds: ["client", "admin", "export", "feed"] });
     expect(sql).toContain(
