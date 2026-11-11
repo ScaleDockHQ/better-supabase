@@ -385,4 +385,26 @@ describe("blocks overview", () => {
 
     expect(rows).toEqual(expected);
   });
+
+  it("describes CLI result v2 and the documented exit codes in the skill", async () => {
+    const skill = await readFile(
+      join(import.meta.dirname, "../../skills/better-supabase/SKILL.md"),
+      "utf-8",
+    );
+
+    const errors = await readFile(docsFile("/docs/cli/errors.mdx"), "utf-8");
+    const line = skill.split("\n").find((each) => each.includes("Exit codes:"));
+
+    const documented = [...errors.matchAll(/^\| (\d+) +\|/gmu)].map(
+      (match) => match[1],
+    );
+
+    const listed = [...(line ?? "").matchAll(/(?:: |, )(\d+) /gu)].map(
+      (match) => match[1],
+    );
+
+    expect(documented.length).toBeGreaterThan(0);
+    expect(listed).toEqual(documented);
+    expect(skill).not.toMatch(/code under `?error`?/u);
+  });
 });
