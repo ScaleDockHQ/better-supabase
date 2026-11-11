@@ -82,3 +82,10 @@ the same way; see [Aggregates](/docs/repository/aggregates).
 as in `list({ _count: { notes: true } })`, they are a type error and an
 `invalid_request` error at runtime, never silently ignored. To count or
 aggregate the table itself, use `count()` or `aggregate()`.
+
+## Finding reads to fold into an include
+
+`better-supabase doctor` reports a read made once per item of a loop
+([BS634](/docs/cli/doctor#bs634)) and a read that waits for an earlier read
+of a related table ([BS635](/docs/cli/doctor#bs635)), and names the include
+that replaces it.
