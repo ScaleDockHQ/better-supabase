@@ -422,15 +422,25 @@ msgctxt "imports.dlTl_2"
 msgid "Bring customers in from a spreadsheet."
 msgstr "Bring customers in from a spreadsheet."
 
-#: src/app/[locale]/(app)/inbox/page.tsx
+#: src/app/[locale]/(app)/inbox/layout.tsx
 msgctxt "inbox.VCMKbt"
 msgid "Inbox"
 msgstr "Inbox"
 
+#: src/app/[locale]/(app)/inbox/layout.tsx
+msgctxt "inbox.X_KToh"
+msgid "One queue for the web widget, email, Slack and WhatsApp, kept live over Realtime."
+msgstr "One queue for the web widget, email, Slack and WhatsApp, kept live over Realtime."
+
 #: src/app/[locale]/(app)/inbox/page.tsx
-msgctxt "inbox.DRlmpk"
-msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
-msgstr "Customer conversations from the Help widget and chat channels, kept live over Realtime."
+msgctxt "inbox.SZLu0S"
+msgid "Pick a conversation"
+msgstr "Pick a conversation"
+
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.j6NWwp"
+msgid "Its messages, notes, context and actions show here."
+msgstr "Its messages, notes, context and actions show here."
 
 #: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
@@ -8951,13 +8961,91 @@ msgctxt "imports.6FpVY9"
 msgid "Import another file"
 msgstr "Import another file"
 
+#: src/features/inbox/components/channel-simulator-lazy.tsx
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.xUO0eO"
+msgid "Simulate a message"
+msgstr "Simulate a message"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.HEdsgA"
+msgid "Simulate an incoming message"
+msgstr "Simulate an incoming message"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.UsYAg6"
+msgid "The message arrives as if the channel delivered it. The same address continues one conversation."
+msgstr "The message arrives as if the channel delivered it. The same address continues one conversation."
+
+#: src/features/inbox/components/channel-simulator.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.KeO51o"
+msgid "Channel"
+msgstr "Channel"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.N_nrM1"
+msgid "Email or phone number"
+msgstr "Email or phone number"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.LLtKhp"
+msgid "Subject"
+msgstr "Subject"
+
+#: src/features/inbox/components/channel-simulator.tsx
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.T7Ry38"
+msgid "Message"
+msgstr "Message"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.l8WU4w"
+msgid "Receive message"
+msgstr "Receive message"
+
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.X4M1tJ"
 msgid "Reply scheduled"
 msgstr "Reply scheduled"
 
 #: src/features/inbox/components/composer.tsx
-#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.8_Hr8S"
+msgid "AI draft for the team"
+msgstr "AI draft for the team"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.wEQDC6"
+msgid "Edit"
+msgstr "Edit"
+
+#: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.9WRlF4"
+msgid "Send"
+msgstr "Send"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.nmpevl"
+msgid "Discard"
+msgstr "Discard"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.Q-qA3k"
+msgid "The WhatsApp reply window is closed"
+msgstr "The WhatsApp reply window is closed"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.A18cx6"
+msgid "The contact wrote more than 24 hours ago. Send an approved template, or add an internal note."
+msgstr "The contact wrote more than 24 hours ago. Send an approved template, or add an internal note."
+
+#: src/features/inbox/components/composer.tsx
 msgctxt "inbox.qMePPG"
 msgid "Note"
 msgstr "Note"
@@ -8978,9 +9066,30 @@ msgid "Write a reply"
 msgstr "Write a reply"
 
 #: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.0kc5kM"
 msgid "Internal note"
 msgstr "Internal note"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.Et-jZs"
+msgid "Macros"
+msgstr "Macros"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.A3ptul"
+msgid "Templates"
+msgstr "Templates"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.gQYJeA"
+msgid "Insert a macro"
+msgstr "Insert a macro"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.slZtLX"
+msgid "Send a template"
+msgstr "Send a template"
 
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.7tFha1"
@@ -8992,11 +9101,131 @@ msgctxt "inbox.KgAlAZ"
 msgid "Add note"
 msgstr "Add note"
 
-#: src/features/inbox/components/composer.tsx
-#: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.9WRlF4"
-msgid "Send"
-msgstr "Send"
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.v7m7rk"
+msgid "Web widget"
+msgstr "Web widget"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.sy-pv5"
+msgid "Email"
+msgstr "Email"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.sjzDbu"
+msgid "Slack"
+msgstr "Slack"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.5ow6dg"
+msgid "WhatsApp"
+msgstr "WhatsApp"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.k5NtsF"
+msgid "SMS"
+msgstr "SMS"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.RY1JgY"
+msgid "SLA breached"
+msgstr "SLA breached"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox._0mWw0"
+msgid "SLA due soon"
+msgstr "SLA due soon"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.W6nSYE"
+msgid "Resolved"
+msgstr "Resolved"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.iH-vKS"
+msgid "Snoozed"
+msgstr "Snoozed"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.eKEL_g"
+msgid "Pending"
+msgstr "Pending"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.O95R3Z"
+msgid "Phone"
+msgstr "Phone"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.ccLKRu"
+msgid "Channel account"
+msgstr "Channel account"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.8lCjAM"
+msgid "Priority"
+msgstr "Priority"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.fe7Ds3"
+msgid "First response"
+msgstr "First response"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.ZxgDJj"
+msgid "Waiting (target {minutes} min)"
+msgstr "Waiting (target {minutes} min)"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.TDUfVk"
+msgid "Started"
+msgstr "Started"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.zFegDD"
+msgid "Contact"
+msgstr "Contact"
+
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.OGqTOQ"
+msgid "Visitor"
+msgstr "Visitor"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.qRLDGS"
+msgid "Earlier conversations"
+msgstr "Earlier conversations"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.ebTvVL"
+msgid "This is the first conversation with this contact."
+msgstr "This is the first conversation with this contact."
+
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.Zay6OH"
+msgid "No subject"
+msgstr "No subject"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.Nb_g9b"
+msgid "No messages"
+msgstr "No messages"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.iHyFD4"
@@ -9009,38 +9238,19 @@ msgid "Conversation"
 msgstr "Conversation"
 
 #: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.Zay6OH"
-msgid "No subject"
-msgstr "No subject"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.OGqTOQ"
-msgid "Visitor"
-msgstr "Visitor"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.W6nSYE"
-msgid "Resolved"
-msgstr "Resolved"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.JfG49w"
-msgid "Open"
-msgstr "Open"
-
-#: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.9OHSlH"
-msgid "Snoozed until {time}"
-msgstr "Snoozed until {time}"
+msgctxt "inbox.oGjCbW"
+msgid "Until {time}"
+msgstr "Until {time}"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.Vja_gq"
 msgid "Bot answers"
 msgstr "Bot answers"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.uwMaA2"
+msgid "Bot paused"
+msgstr "Bot paused"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.seEgGq"
@@ -9063,6 +9273,11 @@ msgid "Take over from the bot"
 msgstr "Take over from the bot"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.fee4dL"
+msgid "Hand back to the bot"
+msgstr "Hand back to the bot"
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.9qc7BX"
 msgid "Snooze"
 msgstr "Snooze"
@@ -9078,9 +9293,30 @@ msgid "Resolve"
 msgstr "Resolve"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.tzwHXE"
+msgid "Someone is typing…"
+msgstr "Someone is typing…"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.03nvvB"
+msgid "Bot"
+msgstr "Bot"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.wsUmh9"
+msgid "Team"
+msgstr "Team"
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.1r7-tf"
 msgid "Message deleted"
 msgstr "Message deleted"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.0x75v-"
+msgid "Not delivered"
+msgstr "Not delivered"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.d_fRcX"
@@ -9088,9 +9324,95 @@ msgid "Seen"
 msgstr "Seen"
 
 #: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.tzwHXE"
-msgid "Someone is typing…"
-msgstr "Someone is typing…"
+msgctxt "inbox.DMqnF4"
+msgid "Delivered"
+msgstr "Delivered"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.GeN5hs"
+msgid "All channels"
+msgstr "All channels"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.fvK8Qi"
+msgid "All statuses"
+msgstr "All statuses"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.TFJD82"
+msgid "Anyone"
+msgstr "Anyone"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.snC7V6"
+msgid "Mine"
+msgstr "Mine"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.a1eoKk"
+msgid "Unassigned"
+msgstr "Unassigned"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.1udzha"
+msgid "Conversations"
+msgstr "Conversations"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.TA1mK7"
+msgid "Search conversations"
+msgstr "Search conversations"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.vx8bv3"
+msgid "Assignee"
+msgstr "Assignee"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.XayNHe"
+msgid "The queue did not load"
+msgstr "The queue did not load"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.xUnZ3u"
+msgid "Check your connection and try again."
+msgstr "Check your connection and try again."
+
+#: src/features/inbox/components/conversation-queue.tsx
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.1NNSUY"
+msgid "No conversations"
+msgstr "No conversations"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.W0PonI"
+msgid "Nothing matches these filters. Clear them, or use the simulator to receive a message."
+msgstr "Nothing matches these filters. Clear them, or use the simulator to receive a message."
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.F4gyn3"
+msgid "Clear filters"
+msgstr "Clear filters"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.bW7B87"
+msgid "New"
+msgstr "New"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.00LcfG"
+msgid "Load more"
+msgstr "Load more"
 
 #: src/features/inbox/components/help-sheet-lazy.tsx
 #: src/features/inbox/components/help-sheet.tsx
@@ -9119,11 +9441,6 @@ msgid "Could not send"
 msgstr "Could not send"
 
 #: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.T7Ry38"
-msgid "Message"
-msgstr "Message"
-
-#: src/features/inbox/components/help-sheet.tsx
 msgctxt "inbox.zsMxWw"
 msgid "How can we help?"
 msgstr "How can we help?"
@@ -9132,66 +9449,6 @@ msgstr "How can we help?"
 msgctxt "inbox.PQ8A3I"
 msgid "New conversation"
 msgstr "New conversation"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.TFJD82"
-msgid "Anyone"
-msgstr "Anyone"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.snC7V6"
-msgid "Mine"
-msgstr "Mine"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.a1eoKk"
-msgid "Unassigned"
-msgstr "Unassigned"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.1udzha"
-msgid "Conversations"
-msgstr "Conversations"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.eKEL_g"
-msgid "Pending"
-msgstr "Pending"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.zQvVDJ"
-msgid "All"
-msgstr "All"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.vx8bv3"
-msgid "Assignee"
-msgstr "Assignee"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.SZLu0S"
-msgid "Pick a conversation"
-msgstr "Pick a conversation"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.PjS425"
-msgid "Its messages, notes and actions show here."
-msgstr "Its messages, notes and actions show here."
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.1NNSUY"
-msgid "No conversations"
-msgstr "No conversations"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.K_kIrH"
-msgid "Open Help in the header to start one as a customer."
-msgstr "Open Help in the header to start one as a customer."
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.bW7B87"
-msgid "New"
-msgstr "New"
 
 #: src/features/inbox/components/later-items.tsx
 msgctxt "inbox._qJpQY"
@@ -9217,11 +9474,6 @@ msgstr "The scheduled replies didn't load"
 msgctxt "inbox.162kF7"
 msgid "Try again in a moment."
 msgstr "Try again in a moment."
-
-#: src/features/inbox/components/scheduled-replies.tsx
-msgctxt "inbox.62nsdy"
-msgid "Retry"
-msgstr "Retry"
 
 #: src/features/inbox/components/scheduled-replies.tsx
 msgctxt "inbox.yGEFsz"
