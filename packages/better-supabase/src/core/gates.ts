@@ -25,53 +25,70 @@ export async function openGates(
 ): Promise<Result<ReadonlySet<string>>> {
   const options = { schema: "better_supabase", ...(signal ? { signal } : {}) };
 
-  const answers = new Map<string, boolean>();
-  const open = new Set<string>();
+  const entries = Object.entries(specs);
+
+  const needsTenant = entries.some(
+    ([, spec]) => spec.gate !== undefined && spec.gate.id === undefined,
+  );
+
   let tenant: unknown;
 
-  for (const [key, spec] of Object.entries(specs)) {
+  if (needsTenant) {
+    const current = await rpc("current_tenant_id", {}, options);
+
+    if (!current.ok) {
+      return current;
+    }
+
+    tenant = current.data;
+  }
+
+  // Each distinct gate is asked once, and all of them in the same wave.
+  const pending = new Map<string, ReturnType<GateRpc>>();
+  const cacheKeys = new Map<string, string>();
+
+  for (const [key, spec] of entries) {
     const gate = spec.gate;
 
     if (gate === undefined) {
-      open.add(key);
       continue;
     }
 
-    let id = gate.id;
-
-    if (id === undefined) {
-      if (tenant === undefined) {
-        const current = await rpc("current_tenant_id", {}, options);
-
-        if (!current.ok) {
-          return current;
-        }
-
-        tenant = current.data;
-      }
-
-      id = tenant;
-    }
-
+    const id = gate.id ?? tenant;
     const cacheKey = JSON.stringify([gate.scope, id, gate.permission]);
-    let allowed = answers.get(cacheKey);
 
-    if (allowed === undefined) {
-      const called = await rpc(
-        "can",
-        { scope: gate.scope, scope_id: id, permission: gate.permission },
-        options,
+    cacheKeys.set(key, cacheKey);
+
+    if (!pending.has(cacheKey)) {
+      pending.set(
+        cacheKey,
+        rpc(
+          "can",
+          { scope: gate.scope, scope_id: id, permission: gate.permission },
+          options,
+        ),
       );
+    }
+  }
 
-      if (!called.ok) {
-        return called;
-      }
+  const answers = new Map<string, boolean>();
 
-      allowed = called.data === true;
-      answers.set(cacheKey, allowed);
+  for (const [cacheKey, call] of pending) {
+    const called = await call;
+
+    if (!called.ok) {
+      return called;
     }
 
-    if (allowed) {
+    answers.set(cacheKey, called.data === true);
+  }
+
+  const open = new Set<string>();
+
+  for (const [key, spec] of entries) {
+    const cacheKey = cacheKeys.get(key);
+
+    if (spec.gate === undefined || answers.get(cacheKey ?? "") === true) {
       open.add(key);
     }
   }
