@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.58.3 (2026-11-11)
+
+- Lazy server tables (`gen.serverTables: "lazy"`) now load the tables a call reaches through relations before the query is built, so includes, nested includes, relation filters, counts and `orderBy` across a relation no longer fail with `unknown table` in a fresh process. `specTables` no longer caches the fallback for a table that has not loaded yet.
+
+  `blocks.<name>.indexes.skip` and tables mapped to `null` keep the comments above a dropped statement, so a module file whose first statement is skipped keeps its `-- better-supabase module` and `@bsb-block` header, and the next `upgrade` reads the right version.
+
 ## 0.58.2 (2026-11-11)
 
 - With an authorization provider that defines `isApprover`, `approval_eligible_ids` asks it per pending request inside the set query instead of calling `approval_eligible` for every request no set rule matched, so a policy branch such as `id in (select better_supabase.approval_eligible_ids())` no longer re-runs every approver rule per request in every tenant. 2,000 pending requests in ten tenants: 349 ms before, 5.5 ms after. Run `better-supabase upgrade` and generate a migration.
