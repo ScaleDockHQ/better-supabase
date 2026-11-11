@@ -231,16 +231,16 @@ begin
         from "better_supabase"."employees" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
-    when 'invoice' then
-      select s."tenant_id", s."title"::text, null, '/finance/payables'
-        into v_tenant, v_title, v_body, v_url
-        from "better_supabase"."invoices" s
-        where s."id" = (search_refresh.subject_id)::uuid;
-      v_found := found;
     when 'ledger_account' then
       select s."tenant_id", s."name"::text, null, '/finance'
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."ledger_accounts" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'invoice' then
+      select s."tenant_id", s."title"::text, null, '/finance/payables'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."invoices" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'product' then
@@ -552,16 +552,16 @@ begin
       end if;
     end loop;
   end if;
-  if search_reindex.subject_type is null or search_reindex.subject_type = 'invoice' then
-    for v_id in select s."id"::text from "better_supabase"."invoices" s loop
-      if "better_supabase"."search_refresh"('invoice', v_id) then
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'ledger_account' then
+    for v_id in select s."id"::text from "better_supabase"."ledger_accounts" s loop
+      if "better_supabase"."search_refresh"('ledger_account', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
   end if;
-  if search_reindex.subject_type is null or search_reindex.subject_type = 'ledger_account' then
-    for v_id in select s."id"::text from "better_supabase"."ledger_accounts" s loop
-      if "better_supabase"."search_refresh"('ledger_account', v_id) then
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'invoice' then
+    for v_id in select s."id"::text from "better_supabase"."invoices" s loop
+      if "better_supabase"."search_refresh"('invoice', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
@@ -866,16 +866,16 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'employee')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'invoice', 'id', s."id"::text,
-      'title', s."title"::text, 'url', '/finance/payables'))
-    from "better_supabase"."invoices" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'invoice')::uuid[])), '[]'::jsonb);
-  found := found || coalesce((
-    select jsonb_agg(jsonb_build_object(
       'type', 'ledger_account', 'id', s."id"::text,
       'title', s."name"::text, 'url', '/finance'))
     from "better_supabase"."ledger_accounts" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'ledger_account')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'invoice', 'id', s."id"::text,
+      'title', s."title"::text, 'url', '/finance/payables'))
+    from "better_supabase"."invoices" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'invoice')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'product', 'id', s."id"::text,
@@ -1177,10 +1177,10 @@ begin
       return (select '/work' from "better_supabase"."work_items" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
       return (select '/people' from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
-    when 'invoice' then
-      return (select '/finance/payables' from "better_supabase"."invoices" s where s."id" = (subject_url.subject_id)::uuid);
     when 'ledger_account' then
       return (select '/finance' from "better_supabase"."ledger_accounts" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'invoice' then
+      return (select '/finance/payables' from "better_supabase"."invoices" s where s."id" = (subject_url.subject_id)::uuid);
     when 'product' then
       return (select '/shop' from "better_supabase"."products" s where s."id" = (subject_url.subject_id)::uuid);
     when 'rfq' then
@@ -1371,7 +1371,3 @@ GRANT EXECUTE ON FUNCTION "api"."release_ledger_hold"(uuid) TO "authenticated", 
 REVOKE ALL ON FUNCTION "api"."reverse_ledger_transaction"(uuid, text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "api"."reverse_ledger_transaction"(uuid, text) TO "authenticated", "service_role";
-
--- Index the rows that exist before the triggers do.
-select "better_supabase"."search_reindex"(t)
-from unnest(array['quote', 'invoice', 'ledger_account', 'rfq', 'till', 'order', 'booking', 'asset', 'lease', 'expense_report', 'work_order', 'shipment', 'contract', 'form', 'maintenance_plan', 'lims_sample', 'care_plan', 'incident', 'document', 'task']) as t;
