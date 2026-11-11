@@ -173,6 +173,59 @@ describe("free multi-sort", () => {
     ).toThrow(/reserved/u);
   });
 
+  it("skips empty terms and refuses malformed ones", () => {
+    const parse = (value: string): unknown => list.parsers.order?.parse(value);
+
+    expect(parse("name,,status:desc")).toEqual([
+      { column: "name", direction: "asc" },
+      { column: "status", direction: "desc" },
+    ]);
+    expect(parse(" , ")).toBeNull();
+    expect(parse(":asc")).toBeNull();
+    expect(parse("name:asc:extra")).toBeNull();
+  });
+
+  it("reads array input, with a default direction and no tiebreak twice", () => {
+    const refused = (order: unknown): unknown =>
+      list.parse({ order: order as never }).issues?.map((issue) => issue.path);
+
+    expect(refused([null])).toEqual([["order"]]);
+    expect(refused([{ column: "name", direction: "sideways" }])).toEqual([
+      ["order"],
+    ]);
+
+    const parsed = list.parse({
+      order: [
+        { column: "name" },
+        { column: "status", direction: "desc" },
+      ] as never,
+    });
+
+    const query = parsed.value!;
+
+    expect(query.order).toEqual([
+      { column: "name", direction: "asc" },
+      { column: "status", direction: "desc" },
+    ]);
+  });
+
+  it("compares and refuses configuration that names nothing", () => {
+    const parser = list.parsers.order;
+
+    expect(
+      parser?.eq?.(
+        [{ column: "name", direction: "asc" }],
+        [{ column: "name", direction: "asc" }],
+      ),
+    ).toBe(true);
+    expect(() =>
+      freeSort(betterSupabase, "nope" as never, { sortable: [] }),
+    ).toThrow(/unknown table/u);
+    expect(() =>
+      freeSort(betterSupabase, "customers", { sortable: ["nope" as never] }),
+    ).toThrow(/unknown column/u);
+  });
+
   it("describes the order parameter in OpenAPI and the JSON schema", () => {
     expect(list.openapi.map((parameter) => parameter.name)).toContain("order");
     expect(list.jsonSchema).toMatchObject({
