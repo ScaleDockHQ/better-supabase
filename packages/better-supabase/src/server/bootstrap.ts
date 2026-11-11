@@ -96,6 +96,12 @@ export interface Bootstrap<
    */
   readonly subject?: unknown;
   /**
+   * The tenant `subject` is restricted to, when the provider sets
+   * `subjectForTenant` and the call named a tenant; null when the subject
+   * covers every tenant. `accessFor` copies it into the seed.
+   */
+  readonly subjectTenant?: string | null;
+  /**
    * The caller's permissions, when the provider sets
    * `authorization.functions.bootstrapPermissions`: expanded from either wire
    * form (`BootstrapPermissionsWire`). Null when the provider returns none, or
@@ -142,6 +148,11 @@ export interface BootstrapRow {
   readonly reads: unknown;
   /** The authorizer subject the wrapper's `subject` function returned. */
   readonly subject: unknown;
+  /**
+   * The wrapper's `subject_tenant`; undefined for a wrapper generated before it
+   * existed.
+   */
+  readonly subjectTenant?: string | null;
   /** The wrapper's raw `permissions` payload, in either wire form. */
   readonly permissions?: unknown;
 }
@@ -255,6 +266,14 @@ function bootstrapRow(value: unknown): BootstrapRow {
     data: value["data"] ?? null,
     reads: value["reads"] ?? null,
     subject: value["subject"] ?? null,
+    ...("subject_tenant" in value
+      ? {
+          subjectTenant:
+            typeof value["subject_tenant"] === "string"
+              ? value["subject_tenant"]
+              : null,
+        }
+      : {}),
     permissions: value["permissions"] ?? null,
   };
 }
@@ -436,6 +455,12 @@ export async function bootstrapWith<C, P, T, S extends ReadSet = ReadSet>(
     // SAFETY: the decoded payload has the read set's result shape.
     reads: reads as ReadSetResult<S> | null,
     subject: row.sessionActive ? row.subject : null,
+    // An older wrapper doesn't say; the call's tenant is the narrow reading.
+    subjectTenant: row.sessionActive
+      ? row.subjectTenant === undefined
+        ? (tenant ?? null)
+        : row.subjectTenant
+      : null,
     permissions: row.sessionActive
       ? (expandBootstrapPermissions(row.permissions) ?? null)
       : null,
@@ -463,6 +488,8 @@ export function accessOf<
     readonly authzVersion: number | null;
     readonly authorizer: AnyAuthorizer | undefined;
     readonly subject?: unknown;
+    /** The tenant the subject is restricted to; null for the whole subject. */
+    readonly subjectTenant?: string | null;
   },
 ): Access<Ctx, C, P, Ref> {
   const view = toSession(ctx.auth);
@@ -475,6 +502,7 @@ export function accessOf<
       ? {
           userId: view.user.id,
           version: options.authzVersion,
+          tenant: options.subjectTenant ?? null,
           subject: options.subject,
         }
       : undefined;
@@ -626,6 +654,7 @@ export function serverBootstrap<
           null,
         authorizer: target.authorizer,
         subject: accessOptions.bootstrap?.subject,
+        subjectTenant: accessOptions.bootstrap?.subjectTenant ?? null,
       });
     },
   };

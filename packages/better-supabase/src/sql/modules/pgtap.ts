@@ -345,12 +345,14 @@ $$;
 
 create or replace function tests.age_import_run(run uuid, age interval)
 returns void
-language sql
+language plpgsql
 set search_path = ''
 as $$
+begin
   update better_supabase.import_runs
   set lease_expires_at = now() - age, heartbeat_at = now() - age
-  where id = run
+  where id = run;
+end;
 $$;
 
 -- Moves the stored import stamp into the past so a current subject looks edited.

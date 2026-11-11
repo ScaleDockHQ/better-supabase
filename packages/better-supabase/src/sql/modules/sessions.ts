@@ -335,7 +335,8 @@ function hasVersionSource(
 /**
  * The `'subject'` pair of a wrapper. With `subjectForTenant` a call that names
  * a tenant gets the subject restricted to it, and a call without one the whole
- * subject.
+ * subject. `subject_tenant` names the tenant the subject is restricted to, so a
+ * seed that a cache keys by user and version says what it covers.
  */
 function subjectSql(
   subject: string | undefined,
@@ -347,7 +348,7 @@ function subjectSql(
 
   return subjectForTenant === undefined
     ? `,\n    'subject', to_jsonb(${subject}())`
-    : `,\n    'subject', case when nullif(args ->> 'tenant', '') is null then to_jsonb(${subject}()) else to_jsonb(${subjectForTenant}) end`;
+    : `,\n    'subject', case when nullif(args ->> 'tenant', '') is null then to_jsonb(${subject}()) else to_jsonb(${subjectForTenant}) end,\n    'subject_tenant', nullif(args ->> 'tenant', '')`;
 }
 
 /**

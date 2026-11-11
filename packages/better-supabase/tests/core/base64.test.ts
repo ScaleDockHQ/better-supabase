@@ -46,3 +46,15 @@ describe("decodeJwtPayload", () => {
     expect(decodeJwtPayload(token("null"))).toBeUndefined();
   });
 });
+
+describe("fromBase64 with wrapped lines", () => {
+  const wrapped = toBase64("x".repeat(58)).replaceAll(/(.{76})/g, "$1\n");
+
+  it("decodes Postgres encode() output with line breaks", () => {
+    const text = "x".repeat(58);
+    const lines = toBase64(text).replaceAll(/(.{1,76})/g, "$1\n");
+    expect(fromBase64(wrapped)).toHaveLength(58);
+    expect(fromBase64(lines)).toHaveLength(58);
+    expect(fromBase64(lines.replaceAll("=", ""))).toHaveLength(58);
+  });
+});

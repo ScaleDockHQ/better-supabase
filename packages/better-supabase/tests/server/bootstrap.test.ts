@@ -337,8 +337,74 @@ describe("accessFor() with a bootstrap subject", () => {
     expect(seen[0]).toEqual({
       userId: USER,
       version: 7,
+      tenant: null,
       subject: { roles: ["admin"] },
     });
+  });
+});
+
+describe("accessFor() with a tenant-scoped bootstrap subject", () => {
+  const probe = () => {
+    const seeds: unknown[] = [];
+
+    const authorizer = {
+      apiVersion: 1 as const,
+      name: "probe",
+      key: (ref: string) => ref,
+      evaluate: (
+        request: { context: { tenant?: string } },
+        runtime?: { seed?: { tenant: string | null } },
+      ) => {
+        seeds.push(runtime?.seed);
+
+        // Honouring the seed's tenant keeps a one-tenant subject from denying t2.
+        const covered =
+          runtime?.seed?.tenant === null ||
+          runtime?.seed?.tenant === request.context.tenant;
+
+        return Promise.resolve(
+          covered || runtime?.seed === undefined
+            ? { outcome: "granted" as const }
+            : { outcome: "denied" as const },
+        );
+      },
+    };
+
+    const target = createServer(definition, {
+      env,
+      auth: { jwks: signer.jwks },
+      authorizer,
+    });
+
+    return { seeds, target };
+  };
+
+  const seedOf = async (extra: Record<string, unknown>) => {
+    const { seeds, target } = probe();
+    row = { ...row, subject: { roles: ["admin"] }, ...extra };
+
+    const request = await signedIn({ authz_ver: 4 });
+    const bootstrap = await target.bootstrapFor(request, { rpc: "home" });
+    const snapshot = await target.snapshot(request);
+    const access = await target.accessFor(snapshot, { bootstrap });
+
+    await access.can("posts.read");
+
+    return { seed: seeds[0] as { tenant: string | null }, bootstrap };
+  };
+
+  it("seeds the tenant the wrapper's subject is restricted to", async () => {
+    const { seed, bootstrap } = await seedOf({ subject_tenant: "t1" });
+
+    expect(bootstrap.subjectTenant).toBe("t1");
+    expect(seed).toMatchObject({ tenant: "t1", subject: { roles: ["admin"] } });
+  });
+
+  it("seeds null for the whole subject", async () => {
+    const { seed, bootstrap } = await seedOf({ subject_tenant: null });
+
+    expect(bootstrap.subjectTenant).toBeNull();
+    expect(seed).toMatchObject({ tenant: null });
   });
 });
 

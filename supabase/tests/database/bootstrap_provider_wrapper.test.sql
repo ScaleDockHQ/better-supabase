@@ -4,7 +4,7 @@
 -- `moduleBody("sessions", ...)`; packages/better-supabase/tests/sql/modules/
 -- sessions-pgtap-drift.test.ts fails when the generator's text differs.
 begin;
-select plan(8);
+select plan(10);
 
 create schema stubauthz;
 create schema stubapp;
@@ -59,6 +59,7 @@ begin
     'tenant', args ->> 'tenant',
     'data', to_jsonb(stubapp.page_data(args)),
     'subject', case when nullif(args ->> 'tenant', '') is null then to_jsonb(stubauthz.subject_for_caller()) else to_jsonb(stubauthz.subject_for(auth.uid(), (args ->> 'tenant'))) end,
+    'subject_tenant', nullif(args ->> 'tenant', ''),
     'permissions', to_jsonb(stubauthz.bootstrap_permissions(nullif(args ->> 'tenant', '')))
   );
 end;
@@ -87,6 +88,18 @@ select is(
   better_supabase.bootstrap_wrapper('{"tenant":"t1"}') -> 'subject' -> 'tenants',
   '["t1"]'::jsonb,
   'a named tenant gets the subject restricted to it'
+);
+
+select is(
+  better_supabase.bootstrap_wrapper('{"tenant":"t1"}') ->> 'subject_tenant',
+  't1',
+  'a restricted subject names its tenant'
+);
+
+select is(
+  better_supabase.bootstrap_wrapper('{}') -> 'subject_tenant',
+  'null'::jsonb,
+  'the whole subject names no tenant'
 );
 
 select is(
