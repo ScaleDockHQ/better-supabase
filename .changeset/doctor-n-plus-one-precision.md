@@ -1,7 +1,0 @@
----
-"better-supabase": patch
----
-
-Doctor's N+1 checks report fewer false positives and catch more real ones. BS634 skips a loop that calls a write such as `decideRequest` or `services.agenda.assignTask`, or a side effect such as `notifyAgendaUpdated(...)`, `publish...`, `send...` or `enqueue...`. For a search term or a JSON value it suggests one read with an `OR` of the conditions or an RPC that takes an array, and says when no batched form applies, instead of an `in` filter. It now also reads the callback of a per-item helper such as `mapInChunks(ids, 20, async (id) => ...)`, a `chunk.map(...)` inside a chunk callback, and services passed as typed parameters (`customers: CustomersService`). BS635 names a nested include for two tables that both reference a third (`include: { task: { include: { invoiceTasks: true } } }`), and reports a dependent read that shares a `Promise.all` wave with other reads of the same rows as info, since an include saves a request there, not a wait.
-
-BS609, BS634 and BS635 targets name the file, the enclosing function and the callee (`src/lib/tasks.ts#loadTask:db.quoteTasks.list`, `#2` for a second call), so baseline entries survive edits elsewhere in the file. Entries with the old `file:line` target still match, and `doctor --update-baseline` rewrites them with their reasons. `doctor --snapshot` reads the CLI's cached snapshot file (`{ key, snapshot }`), and `doctor --only BS609,BS634,BS635` runs without a database or snapshot, with an info finding that no include could be named.
