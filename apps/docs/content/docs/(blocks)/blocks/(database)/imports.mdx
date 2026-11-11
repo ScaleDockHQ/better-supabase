@@ -93,8 +93,9 @@ exists and it returns a subject, the write updates that row. `refs` maps each
 ref field to the entity it points at. The batch resolves those keys in one
 query and passes `resolved` to the write. A missing key is the warning
 `IMPORT_REF_MISSING`. A conflict, an error and a warning are stored on `import_run_issues`. A later run that
-applies the key sets `resolved_at`. `list_import_issues` pages them with a
-total capped at 10,000. `resolve_import_conflict` takes `keep` (the database
+applies the key sets `resolved_at`. `list_import_issues` pages them by keyset: pass the `next_cursor` of the
+previous page as `after`. `row_offset` still works while `after` is null. The
+total is capped at 10,000 and is null on a keyset page. `resolve_import_conflict` takes `keep` (the database
 value becomes the baseline) or `overwrite` (the next batch may write the
 source). `rebase_import_records(tenant, source, entities, keys)` copies the
 current stamp and hash onto the stored row. An entity without a target fails

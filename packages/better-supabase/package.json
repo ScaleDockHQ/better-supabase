@@ -354,6 +354,16 @@
       "types": "./dist/list/index.d.ts",
       "default": "./dist/list/index.js"
     },
+    "./list/buckets": {
+      "@better-supabase/source": "./src/list/buckets/index.ts",
+      "types": "./dist/list/buckets/index.d.ts",
+      "default": "./dist/list/buckets/index.js"
+    },
+    "./list/order": {
+      "@better-supabase/source": "./src/list/order/index.ts",
+      "types": "./dist/list/order/index.d.ts",
+      "default": "./dist/list/order/index.js"
+    },
     "./list/export": {
       "@better-supabase/source": "./src/list/export/index.ts",
       "types": "./dist/list/export/index.d.ts",
@@ -1770,6 +1780,14 @@
       "./list": {
         "types": "./dist/list/index.d.ts",
         "default": "./dist/list/index.js"
+      },
+      "./list/buckets": {
+        "types": "./dist/list/buckets/index.d.ts",
+        "default": "./dist/list/buckets/index.js"
+      },
+      "./list/order": {
+        "types": "./dist/list/order/index.d.ts",
+        "default": "./dist/list/order/index.js"
       },
       "./list/export": {
         "types": "./dist/list/export/index.d.ts",

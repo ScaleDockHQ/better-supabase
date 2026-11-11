@@ -3238,6 +3238,8 @@
       "ListDefinition",
       "ListExtra",
       "ListFilterConfig",
+      "ListFreeSort",
+      "ListOrder",
       "ListPage",
       "ListPagination",
       "ListParseOptions",
@@ -3246,9 +3248,29 @@
       "ListQuery",
       "ListQueryConfig",
       "ListQueryInput",
+      "ListRelationFacet",
       "ListSearchParams",
       "OpenApiParameter",
       "ParserSpec"
+    ]
+  },
+  "./list/buckets": {
+    "values": [
+      "listDateBuckets"
+    ],
+    "types": [
+      "BucketUnit",
+      "DateBucket",
+      "DateBucketArgs",
+      "ListDateBucketsOptions"
+    ]
+  },
+  "./list/order": {
+    "values": [
+      "freeSort"
+    ],
+    "types": [
+      "FreeSortConfig"
     ]
   },
   "./list/export": {

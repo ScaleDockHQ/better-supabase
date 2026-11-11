@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:fee3e807ae0c492801a823925bbc7e0698dde91399e4bb1bc475accbf63c7172
+-- @bsb-hash sha256:d50484696eef5aeda1fbdf7611ae9ee0d8a34553999d6cff093141850491a414
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,7 +116,9 @@ create index import_run_issues_open_idx
   on "better_supabase".import_run_issues ("tenant_id", "source", "entity", "key")
   where "resolved_at" is null;
 create index import_run_issues_run_idx
-  on "better_supabase".import_run_issues ("run_id", "entity");
+  on "better_supabase".import_run_issues ("run_id", "entity", "created_at", "id");
+create index import_run_issues_page_idx
+  on "better_supabase".import_run_issues ("run_id", "created_at", "id");
 alter table "better_supabase".import_run_issues enable row level security;
 revoke all on "better_supabase".import_run_issues from public, anon, authenticated;
 grant all on "better_supabase".import_run_issues to service_role;
@@ -399,7 +401,10 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Pages the issues of one run by keyset on (created_at, id): pass the previous page's next_cursor as
+-- after. row_offset still works when after is null. The total counts at most 10,000 rows and is
+-- null on a keyset page, so a caller keeps the one it read on the first page.
+create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -408,8 +413,13 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
+  v_limit integer := least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200);
+  v_after_at timestamptz;
+  v_after_id uuid;
   v_total integer;
   v_rows jsonb;
+  v_next text;
+  v_found integer;
 begin
   select r."tenant_id" into v_tenant from "better_supabase"."import_runs" r where r."id" = list_import_issues.run;
   if v_tenant is null then
@@ -418,31 +428,52 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  select count(*) into v_total from "better_supabase".import_run_issues i
-  where i."run_id" = list_import_issues.run
-    and (list_import_issues.entity is null or i."entity" = list_import_issues.entity);
-  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb) into v_rows from (
-    select i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
-    from "better_supabase".import_run_issues i
-    where i."run_id" = list_import_issues.run
-      and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
-    order by i."created_at", i."id"
-    limit least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200)
-    offset greatest(coalesce(list_import_issues.row_offset, 0), 0)
+  if list_import_issues.after is not null then
+    begin
+      v_after_at := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;
+      v_after_id := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;
+    exception when others then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+  else
+    select count(*) into v_total from (
+      select 1 from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+      limit 10001
+    ) c;
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(t) - 'id' - 'n' order by t."created_at", t."id") filter (where t."n" <= v_limit), '[]'::jsonb),
+    count(*),
+    max(translate(encode(convert_to(t."created_at"::text || '|' || t."id"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t."n" = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.*, row_number() over (order by p."created_at", p."id") as "n"
+    from (
+      select i."id", i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
+      from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+        and (v_after_at is null or (i."created_at", i."id") > (v_after_at, v_after_id))
+      order by i."created_at", i."id"
+      limit v_limit + 1
+      offset case when list_import_issues.after is null then greatest(coalesce(list_import_issues.row_offset, 0), 0) else 0 end
+    ) p
   ) t;
   return jsonb_build_object(
     'rows', v_rows,
-    'total', least(v_total, 10000),
-    'capped', v_total > 10000
+    'total', case when v_total is null then null else least(v_total, 10000) end,
+    'capped', coalesce(v_total > 10000, false),
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) to authenticated, service_role;
 
--- Counts and the first changed fields of a dry run. The dry run itself writes
--- no subject rows; the diff is what the batch returned.
-create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Counts and the changed fields of a dry run, paged by position in the diff: pass the previous
+-- page's next_cursor as after. row_offset still works when after is null.
+create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -452,26 +483,47 @@ as $$
 declare
   v_counts jsonb;
   v_diff jsonb;
+  v_limit integer := least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200);
+  v_after integer := 0;
   v_rows jsonb;
+  v_found integer;
+  v_next text;
 begin
   select r."counts", r."diff" into v_counts, v_diff from "better_supabase"."import_runs" r where r."id" = list_import_diff.run;
   if v_counts is null then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (
-    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value
-    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity
-    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)
-    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)
+  if list_import_diff.after is not null then
+    if list_import_diff.after !~ '^[0-9]{1,9}$' then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    v_after := list_import_diff.after::integer;
+  end if;
+  select coalesce(jsonb_agg(d.value order by d.ord) filter (where d.n <= v_limit), '[]'::jsonb),
+    count(*),
+    max(d.ord::text) filter (where d.n = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.value, p.ord, row_number() over (order by p.ord) as n
+    from (
+      select e.value, e.ord
+      from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) with ordinality e(value, ord)
+      where e.ord > v_after
+        and (list_import_diff.entity is null or e.value ->> 'entity' = list_import_diff.entity)
+      order by e.ord
+      offset case when list_import_diff.after is null then greatest(coalesce(list_import_diff.row_offset, 0), 0) else 0 end
+      limit v_limit + 1
+    ) p
   ) d;
   return jsonb_build_object(
     'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,
-    'rows', v_rows
+    'rows', v_rows,
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."resolve_import_conflict"(tenant uuid, source text, entity text, key text, action text)
 returns jsonb
@@ -1498,7 +1550,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:4ece9dd4a28a4e45a74d27c07ab43cb7d24525f2f05eb0a8fc7bccaf1aa74cd9
+-- @bsb-hash sha256:c2e9ce694ab3d8a469aa204563e29036fb3269a9e5fa25f709487665cb55b31b
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1613,7 +1665,9 @@ create index import_run_issues_open_idx
   on "better_supabase".import_run_issues ("tenant_id", "source", "entity", "key")
   where "resolved_at" is null;
 create index import_run_issues_run_idx
-  on "better_supabase".import_run_issues ("run_id", "entity");
+  on "better_supabase".import_run_issues ("run_id", "entity", "created_at", "id");
+create index import_run_issues_page_idx
+  on "better_supabase".import_run_issues ("run_id", "created_at", "id");
 alter table "better_supabase".import_run_issues enable row level security;
 revoke all on "better_supabase".import_run_issues from public, anon, authenticated;
 grant all on "better_supabase".import_run_issues to service_role;
@@ -1896,7 +1950,10 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Pages the issues of one run by keyset on (created_at, id): pass the previous page's next_cursor as
+-- after. row_offset still works when after is null. The total counts at most 10,000 rows and is
+-- null on a keyset page, so a caller keeps the one it read on the first page.
+create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -1905,8 +1962,13 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
+  v_limit integer := least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200);
+  v_after_at timestamptz;
+  v_after_id uuid;
   v_total integer;
   v_rows jsonb;
+  v_next text;
+  v_found integer;
 begin
   select r."tenant_id" into v_tenant from "better_supabase"."import_runs" r where r."id" = list_import_issues.run;
   if v_tenant is null then
@@ -1915,31 +1977,52 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  select count(*) into v_total from "better_supabase".import_run_issues i
-  where i."run_id" = list_import_issues.run
-    and (list_import_issues.entity is null or i."entity" = list_import_issues.entity);
-  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb) into v_rows from (
-    select i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
-    from "better_supabase".import_run_issues i
-    where i."run_id" = list_import_issues.run
-      and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
-    order by i."created_at", i."id"
-    limit least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200)
-    offset greatest(coalesce(list_import_issues.row_offset, 0), 0)
+  if list_import_issues.after is not null then
+    begin
+      v_after_at := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;
+      v_after_id := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;
+    exception when others then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+  else
+    select count(*) into v_total from (
+      select 1 from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+      limit 10001
+    ) c;
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(t) - 'id' - 'n' order by t."created_at", t."id") filter (where t."n" <= v_limit), '[]'::jsonb),
+    count(*),
+    max(translate(encode(convert_to(t."created_at"::text || '|' || t."id"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t."n" = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.*, row_number() over (order by p."created_at", p."id") as "n"
+    from (
+      select i."id", i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
+      from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+        and (v_after_at is null or (i."created_at", i."id") > (v_after_at, v_after_id))
+      order by i."created_at", i."id"
+      limit v_limit + 1
+      offset case when list_import_issues.after is null then greatest(coalesce(list_import_issues.row_offset, 0), 0) else 0 end
+    ) p
   ) t;
   return jsonb_build_object(
     'rows', v_rows,
-    'total', least(v_total, 10000),
-    'capped', v_total > 10000
+    'total', case when v_total is null then null else least(v_total, 10000) end,
+    'capped', coalesce(v_total > 10000, false),
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) to authenticated, service_role;
 
--- Counts and the first changed fields of a dry run. The dry run itself writes
--- no subject rows; the diff is what the batch returned.
-create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Counts and the changed fields of a dry run, paged by position in the diff: pass the previous
+-- page's next_cursor as after. row_offset still works when after is null.
+create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -1949,26 +2032,47 @@ as $$
 declare
   v_counts jsonb;
   v_diff jsonb;
+  v_limit integer := least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200);
+  v_after integer := 0;
   v_rows jsonb;
+  v_found integer;
+  v_next text;
 begin
   select r."counts", r."diff" into v_counts, v_diff from "better_supabase"."import_runs" r where r."id" = list_import_diff.run;
   if v_counts is null then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (
-    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value
-    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity
-    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)
-    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)
+  if list_import_diff.after is not null then
+    if list_import_diff.after !~ '^[0-9]{1,9}$' then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    v_after := list_import_diff.after::integer;
+  end if;
+  select coalesce(jsonb_agg(d.value order by d.ord) filter (where d.n <= v_limit), '[]'::jsonb),
+    count(*),
+    max(d.ord::text) filter (where d.n = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.value, p.ord, row_number() over (order by p.ord) as n
+    from (
+      select e.value, e.ord
+      from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) with ordinality e(value, ord)
+      where e.ord > v_after
+        and (list_import_diff.entity is null or e.value ->> 'entity' = list_import_diff.entity)
+      order by e.ord
+      offset case when list_import_diff.after is null then greatest(coalesce(list_import_diff.row_offset, 0), 0) else 0 end
+      limit v_limit + 1
+    ) p
   ) d;
   return jsonb_build_object(
     'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,
-    'rows', v_rows
+    'rows', v_rows,
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."resolve_import_conflict"(tenant uuid, source text, entity text, key text, action text)
 returns jsonb
@@ -3223,7 +3327,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:65a8c277d5a66208a9556ec0f9b4968cd8478687315dec7667bc8848dcf46993
+-- @bsb-hash sha256:23917d9dcbd9932f9218715ae026d8ecdd25a7f6f41f9f9c05065b13ae8cc61e
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3343,7 +3447,9 @@ create index import_run_issues_open_idx
   on "app_private".import_run_issues ("tenant_id", "source", "entity", "key")
   where "resolved_at" is null;
 create index import_run_issues_run_idx
-  on "app_private".import_run_issues ("run_id", "entity");
+  on "app_private".import_run_issues ("run_id", "entity", "created_at", "id");
+create index import_run_issues_page_idx
+  on "app_private".import_run_issues ("run_id", "created_at", "id");
 alter table "app_private".import_run_issues enable row level security;
 revoke all on "app_private".import_run_issues from public, anon, authenticated;
 grant all on "app_private".import_run_issues to service_role;
@@ -3626,7 +3732,10 @@ begin
 end;
 $$;
 
-create or replace function "app_private"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Pages the issues of one run by keyset on (created_at, id): pass the previous page's next_cursor as
+-- after. row_offset still works when after is null. The total counts at most 10,000 rows and is
+-- null on a keyset page, so a caller keeps the one it read on the first page.
+create or replace function "app_private"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -3635,8 +3744,13 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
+  v_limit integer := least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200);
+  v_after_at timestamptz;
+  v_after_id uuid;
   v_total integer;
   v_rows jsonb;
+  v_next text;
+  v_found integer;
 begin
   select r."tenant_id" into v_tenant from "app_private"."import_runs" r where r."id" = list_import_issues.run;
   if v_tenant is null then
@@ -3645,31 +3759,52 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  select count(*) into v_total from "app_private".import_run_issues i
-  where i."run_id" = list_import_issues.run
-    and (list_import_issues.entity is null or i."entity" = list_import_issues.entity);
-  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb) into v_rows from (
-    select i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
-    from "app_private".import_run_issues i
-    where i."run_id" = list_import_issues.run
-      and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
-    order by i."created_at", i."id"
-    limit least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200)
-    offset greatest(coalesce(list_import_issues.row_offset, 0), 0)
+  if list_import_issues.after is not null then
+    begin
+      v_after_at := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;
+      v_after_id := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;
+    exception when others then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+  else
+    select count(*) into v_total from (
+      select 1 from "app_private".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+      limit 10001
+    ) c;
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(t) - 'id' - 'n' order by t."created_at", t."id") filter (where t."n" <= v_limit), '[]'::jsonb),
+    count(*),
+    max(translate(encode(convert_to(t."created_at"::text || '|' || t."id"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t."n" = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.*, row_number() over (order by p."created_at", p."id") as "n"
+    from (
+      select i."id", i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
+      from "app_private".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+        and (v_after_at is null or (i."created_at", i."id") > (v_after_at, v_after_id))
+      order by i."created_at", i."id"
+      limit v_limit + 1
+      offset case when list_import_issues.after is null then greatest(coalesce(list_import_issues.row_offset, 0), 0) else 0 end
+    ) p
   ) t;
   return jsonb_build_object(
     'rows', v_rows,
-    'total', least(v_total, 10000),
-    'capped', v_total > 10000
+    'total', case when v_total is null then null else least(v_total, 10000) end,
+    'capped', coalesce(v_total > 10000, false),
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "app_private"."list_import_issues"(uuid, text, integer, integer) from public, anon;
-grant execute on function "app_private"."list_import_issues"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "app_private"."list_import_issues"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "app_private"."list_import_issues"(uuid, text, integer, integer, text) to authenticated, service_role;
 
--- Counts and the first changed fields of a dry run. The dry run itself writes
--- no subject rows; the diff is what the batch returned.
-create or replace function "app_private"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Counts and the changed fields of a dry run, paged by position in the diff: pass the previous
+-- page's next_cursor as after. row_offset still works when after is null.
+create or replace function "app_private"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -3679,26 +3814,47 @@ as $$
 declare
   v_counts jsonb;
   v_diff jsonb;
+  v_limit integer := least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200);
+  v_after integer := 0;
   v_rows jsonb;
+  v_found integer;
+  v_next text;
 begin
   select r."counts", r."diff" into v_counts, v_diff from "app_private"."import_runs" r where r."id" = list_import_diff.run;
   if v_counts is null then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (
-    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value
-    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity
-    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)
-    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)
+  if list_import_diff.after is not null then
+    if list_import_diff.after !~ '^[0-9]{1,9}$' then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    v_after := list_import_diff.after::integer;
+  end if;
+  select coalesce(jsonb_agg(d.value order by d.ord) filter (where d.n <= v_limit), '[]'::jsonb),
+    count(*),
+    max(d.ord::text) filter (where d.n = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.value, p.ord, row_number() over (order by p.ord) as n
+    from (
+      select e.value, e.ord
+      from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) with ordinality e(value, ord)
+      where e.ord > v_after
+        and (list_import_diff.entity is null or e.value ->> 'entity' = list_import_diff.entity)
+      order by e.ord
+      offset case when list_import_diff.after is null then greatest(coalesce(list_import_diff.row_offset, 0), 0) else 0 end
+      limit v_limit + 1
+    ) p
   ) d;
   return jsonb_build_object(
     'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,
-    'rows', v_rows
+    'rows', v_rows,
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "app_private"."list_import_diff"(uuid, text, integer, integer) from public, anon;
-grant execute on function "app_private"."list_import_diff"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "app_private"."list_import_diff"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "app_private"."list_import_diff"(uuid, text, integer, integer, text) to authenticated, service_role;
 
 create or replace function "app_private"."resolve_import_conflict"(tenant uuid, source text, entity text, key text, action text)
 returns jsonb
@@ -4725,7 +4881,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:787c1a391596589d501563407c288a71d9ec1d879a5db861db81c993d67641cf
+-- @bsb-hash sha256:fa7e96b290da22017043a3fe04d0ed104217bf6802eb302bdc8e6f8678230a32
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4840,7 +4996,9 @@ create index import_run_issues_open_idx
   on "better_supabase".import_run_issues ("tenant_id", "source", "entity", "key")
   where "resolved_at" is null;
 create index import_run_issues_run_idx
-  on "better_supabase".import_run_issues ("run_id", "entity");
+  on "better_supabase".import_run_issues ("run_id", "entity", "created_at", "id");
+create index import_run_issues_page_idx
+  on "better_supabase".import_run_issues ("run_id", "created_at", "id");
 alter table "better_supabase".import_run_issues enable row level security;
 revoke all on "better_supabase".import_run_issues from public, anon, authenticated;
 grant all on "better_supabase".import_run_issues to service_role;
@@ -5123,7 +5281,10 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Pages the issues of one run by keyset on (created_at, id): pass the previous page's next_cursor as
+-- after. row_offset still works when after is null. The total counts at most 10,000 rows and is
+-- null on a keyset page, so a caller keeps the one it read on the first page.
+create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -5132,8 +5293,13 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
+  v_limit integer := least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200);
+  v_after_at timestamptz;
+  v_after_id uuid;
   v_total integer;
   v_rows jsonb;
+  v_next text;
+  v_found integer;
 begin
   select r."tenant_id" into v_tenant from "better_supabase"."import_runs" r where r."id" = list_import_issues.run;
   if v_tenant is null then
@@ -5142,31 +5308,52 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  select count(*) into v_total from "better_supabase".import_run_issues i
-  where i."run_id" = list_import_issues.run
-    and (list_import_issues.entity is null or i."entity" = list_import_issues.entity);
-  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb) into v_rows from (
-    select i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
-    from "better_supabase".import_run_issues i
-    where i."run_id" = list_import_issues.run
-      and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
-    order by i."created_at", i."id"
-    limit least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200)
-    offset greatest(coalesce(list_import_issues.row_offset, 0), 0)
+  if list_import_issues.after is not null then
+    begin
+      v_after_at := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;
+      v_after_id := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;
+    exception when others then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+  else
+    select count(*) into v_total from (
+      select 1 from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+      limit 10001
+    ) c;
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(t) - 'id' - 'n' order by t."created_at", t."id") filter (where t."n" <= v_limit), '[]'::jsonb),
+    count(*),
+    max(translate(encode(convert_to(t."created_at"::text || '|' || t."id"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t."n" = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.*, row_number() over (order by p."created_at", p."id") as "n"
+    from (
+      select i."id", i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
+      from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+        and (v_after_at is null or (i."created_at", i."id") > (v_after_at, v_after_id))
+      order by i."created_at", i."id"
+      limit v_limit + 1
+      offset case when list_import_issues.after is null then greatest(coalesce(list_import_issues.row_offset, 0), 0) else 0 end
+    ) p
   ) t;
   return jsonb_build_object(
     'rows', v_rows,
-    'total', least(v_total, 10000),
-    'capped', v_total > 10000
+    'total', case when v_total is null then null else least(v_total, 10000) end,
+    'capped', coalesce(v_total > 10000, false),
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) to authenticated, service_role;
 
--- Counts and the first changed fields of a dry run. The dry run itself writes
--- no subject rows; the diff is what the batch returned.
-create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Counts and the changed fields of a dry run, paged by position in the diff: pass the previous
+-- page's next_cursor as after. row_offset still works when after is null.
+create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -5176,26 +5363,47 @@ as $$
 declare
   v_counts jsonb;
   v_diff jsonb;
+  v_limit integer := least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200);
+  v_after integer := 0;
   v_rows jsonb;
+  v_found integer;
+  v_next text;
 begin
   select r."counts", r."diff" into v_counts, v_diff from "better_supabase"."import_runs" r where r."id" = list_import_diff.run;
   if v_counts is null then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (
-    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value
-    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity
-    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)
-    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)
+  if list_import_diff.after is not null then
+    if list_import_diff.after !~ '^[0-9]{1,9}$' then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    v_after := list_import_diff.after::integer;
+  end if;
+  select coalesce(jsonb_agg(d.value order by d.ord) filter (where d.n <= v_limit), '[]'::jsonb),
+    count(*),
+    max(d.ord::text) filter (where d.n = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.value, p.ord, row_number() over (order by p.ord) as n
+    from (
+      select e.value, e.ord
+      from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) with ordinality e(value, ord)
+      where e.ord > v_after
+        and (list_import_diff.entity is null or e.value ->> 'entity' = list_import_diff.entity)
+      order by e.ord
+      offset case when list_import_diff.after is null then greatest(coalesce(list_import_diff.row_offset, 0), 0) else 0 end
+      limit v_limit + 1
+    ) p
   ) d;
   return jsonb_build_object(
     'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,
-    'rows', v_rows
+    'rows', v_rows,
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."resolve_import_conflict"(tenant uuid, source text, entity text, key text, action text)
 returns jsonb
@@ -6274,25 +6482,25 @@ as $$ select "better_supabase"."finish_import"($1, $2, $3, $4) $$;
 revoke execute on function "api"."finish_import"(uuid, text, integer, text) from public, anon, authenticated;
 grant execute on function "api"."finish_import"(uuid, text, integer, text) to service_role;
 
-create or replace function "api"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+create or replace function "api"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_import_issues"($1, $2, $3, $4) $$;
-revoke execute on function "api"."list_import_issues"(uuid, text, integer, integer) from public, anon;
-grant execute on function "api"."list_import_issues"(uuid, text, integer, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_import_issues"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."list_import_issues"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "api"."list_import_issues"(uuid, text, integer, integer, text) to authenticated, service_role;
 
-create or replace function "api"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+create or replace function "api"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_import_diff"($1, $2, $3, $4) $$;
-revoke execute on function "api"."list_import_diff"(uuid, text, integer, integer) from public, anon;
-grant execute on function "api"."list_import_diff"(uuid, text, integer, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_import_diff"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."list_import_diff"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "api"."list_import_diff"(uuid, text, integer, integer, text) to authenticated, service_role;
 
 create or replace function "api"."resolve_import_conflict"(tenant uuid, source text, entity text, key text, action text)
 returns jsonb
@@ -6544,7 +6752,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:1b863518d2844d41bef503eb728b977f04c55b131d4b635d9bbbda572773fd0d
+-- @bsb-hash sha256:ff97241ae9fe9e05c7b1914241b575507d0411a0850617470717d7519edf372d
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6644,7 +6852,9 @@ create index if not exists import_run_issues_open_idx
   on "better_supabase".import_run_issues ("tenant_id", "source", "entity", "key")
   where "resolved_at" is null;
 create index if not exists import_run_issues_run_idx
-  on "better_supabase".import_run_issues ("run_id", "entity");
+  on "better_supabase".import_run_issues ("run_id", "entity", "created_at", "id");
+create index if not exists import_run_issues_page_idx
+  on "better_supabase".import_run_issues ("run_id", "created_at", "id");
 alter table "better_supabase".import_run_issues enable row level security;
 grant all on "better_supabase".import_run_issues to service_role;
 
@@ -6926,7 +7136,10 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Pages the issues of one run by keyset on (created_at, id): pass the previous page's next_cursor as
+-- after. row_offset still works when after is null. The total counts at most 10,000 rows and is
+-- null on a keyset page, so a caller keeps the one it read on the first page.
+create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -6935,8 +7148,13 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
+  v_limit integer := least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200);
+  v_after_at timestamptz;
+  v_after_id uuid;
   v_total integer;
   v_rows jsonb;
+  v_next text;
+  v_found integer;
 begin
   select r."tenant_id" into v_tenant from "better_supabase"."import_runs" r where r."id" = list_import_issues.run;
   if v_tenant is null then
@@ -6945,31 +7163,52 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  select count(*) into v_total from "better_supabase".import_run_issues i
-  where i."run_id" = list_import_issues.run
-    and (list_import_issues.entity is null or i."entity" = list_import_issues.entity);
-  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb) into v_rows from (
-    select i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
-    from "better_supabase".import_run_issues i
-    where i."run_id" = list_import_issues.run
-      and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
-    order by i."created_at", i."id"
-    limit least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200)
-    offset greatest(coalesce(list_import_issues.row_offset, 0), 0)
+  if list_import_issues.after is not null then
+    begin
+      v_after_at := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;
+      v_after_id := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;
+    exception when others then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+  else
+    select count(*) into v_total from (
+      select 1 from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+      limit 10001
+    ) c;
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(t) - 'id' - 'n' order by t."created_at", t."id") filter (where t."n" <= v_limit), '[]'::jsonb),
+    count(*),
+    max(translate(encode(convert_to(t."created_at"::text || '|' || t."id"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t."n" = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.*, row_number() over (order by p."created_at", p."id") as "n"
+    from (
+      select i."id", i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
+      from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+        and (v_after_at is null or (i."created_at", i."id") > (v_after_at, v_after_id))
+      order by i."created_at", i."id"
+      limit v_limit + 1
+      offset case when list_import_issues.after is null then greatest(coalesce(list_import_issues.row_offset, 0), 0) else 0 end
+    ) p
   ) t;
   return jsonb_build_object(
     'rows', v_rows,
-    'total', least(v_total, 10000),
-    'capped', v_total > 10000
+    'total', case when v_total is null then null else least(v_total, 10000) end,
+    'capped', coalesce(v_total > 10000, false),
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) to authenticated, service_role;
 
--- Counts and the first changed fields of a dry run. The dry run itself writes
--- no subject rows; the diff is what the batch returned.
-create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Counts and the changed fields of a dry run, paged by position in the diff: pass the previous
+-- page's next_cursor as after. row_offset still works when after is null.
+create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -6979,26 +7218,47 @@ as $$
 declare
   v_counts jsonb;
   v_diff jsonb;
+  v_limit integer := least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200);
+  v_after integer := 0;
   v_rows jsonb;
+  v_found integer;
+  v_next text;
 begin
   select r."counts", r."diff" into v_counts, v_diff from "better_supabase"."import_runs" r where r."id" = list_import_diff.run;
   if v_counts is null then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (
-    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value
-    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity
-    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)
-    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)
+  if list_import_diff.after is not null then
+    if list_import_diff.after !~ '^[0-9]{1,9}$' then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    v_after := list_import_diff.after::integer;
+  end if;
+  select coalesce(jsonb_agg(d.value order by d.ord) filter (where d.n <= v_limit), '[]'::jsonb),
+    count(*),
+    max(d.ord::text) filter (where d.n = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.value, p.ord, row_number() over (order by p.ord) as n
+    from (
+      select e.value, e.ord
+      from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) with ordinality e(value, ord)
+      where e.ord > v_after
+        and (list_import_diff.entity is null or e.value ->> 'entity' = list_import_diff.entity)
+      order by e.ord
+      offset case when list_import_diff.after is null then greatest(coalesce(list_import_diff.row_offset, 0), 0) else 0 end
+      limit v_limit + 1
+    ) p
   ) d;
   return jsonb_build_object(
     'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,
-    'rows', v_rows
+    'rows', v_rows,
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."resolve_import_conflict"(tenant uuid, source text, entity text, key text, action text)
 returns jsonb
@@ -8023,7 +8283,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:0113eb88e71aaacff3022ecd2e08750e573a361228e2f981284c9cc805908a42
+-- @bsb-hash sha256:aaeed5d859aa75ffb5cb3adcbc81001c2a025b7d8e2c025fcf706066ff87a5b3
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8138,7 +8398,9 @@ create index import_run_issues_open_idx
   on "better_supabase".import_run_issues ("org_id", "source", "entity", "key")
   where "resolved_at" is null;
 create index import_run_issues_run_idx
-  on "better_supabase".import_run_issues ("run_id", "entity");
+  on "better_supabase".import_run_issues ("run_id", "entity", "created_at", "id");
+create index import_run_issues_page_idx
+  on "better_supabase".import_run_issues ("run_id", "created_at", "id");
 alter table "better_supabase".import_run_issues enable row level security;
 revoke all on "better_supabase".import_run_issues from public, anon, authenticated;
 grant all on "better_supabase".import_run_issues to service_role;
@@ -8421,7 +8683,10 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Pages the issues of one run by keyset on (created_at, id): pass the previous page's next_cursor as
+-- after. row_offset still works when after is null. The total counts at most 10,000 rows and is
+-- null on a keyset page, so a caller keeps the one it read on the first page.
+create or replace function "better_supabase"."list_import_issues"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -8430,8 +8695,13 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
+  v_limit integer := least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200);
+  v_after_at timestamptz;
+  v_after_id uuid;
   v_total integer;
   v_rows jsonb;
+  v_next text;
+  v_found integer;
 begin
   select r."org_id" into v_tenant from "better_supabase"."import_runs" r where r."id" = list_import_issues.run;
   if v_tenant is null then
@@ -8440,31 +8710,52 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
-  select count(*) into v_total from "better_supabase".import_run_issues i
-  where i."run_id" = list_import_issues.run
-    and (list_import_issues.entity is null or i."entity" = list_import_issues.entity);
-  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb) into v_rows from (
-    select i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
-    from "better_supabase".import_run_issues i
-    where i."run_id" = list_import_issues.run
-      and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
-    order by i."created_at", i."id"
-    limit least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200)
-    offset greatest(coalesce(list_import_issues.row_offset, 0), 0)
+  if list_import_issues.after is not null then
+    begin
+      v_after_at := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;
+      v_after_id := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;
+    exception when others then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end;
+  else
+    select count(*) into v_total from (
+      select 1 from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+      limit 10001
+    ) c;
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(t) - 'id' - 'n' order by t."created_at", t."id") filter (where t."n" <= v_limit), '[]'::jsonb),
+    count(*),
+    max(translate(encode(convert_to(t."created_at"::text || '|' || t."id"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t."n" = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.*, row_number() over (order by p."created_at", p."id") as "n"
+    from (
+      select i."id", i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
+      from "better_supabase".import_run_issues i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+        and (v_after_at is null or (i."created_at", i."id") > (v_after_at, v_after_id))
+      order by i."created_at", i."id"
+      limit v_limit + 1
+      offset case when list_import_issues.after is null then greatest(coalesce(list_import_issues.row_offset, 0), 0) else 0 end
+    ) p
   ) t;
   return jsonb_build_object(
     'rows', v_rows,
-    'total', least(v_total, 10000),
-    'capped', v_total > 10000
+    'total', case when v_total is null then null else least(v_total, 10000) end,
+    'capped', coalesce(v_total > 10000, false),
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_issues"(uuid, text, integer, integer, text) to authenticated, service_role;
 
--- Counts and the first changed fields of a dry run. The dry run itself writes
--- no subject rows; the diff is what the batch returned.
-create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Counts and the changed fields of a dry run, paged by position in the diff: pass the previous
+-- page's next_cursor as after. row_offset still works when after is null.
+create or replace function "better_supabase"."list_import_diff"(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -8474,26 +8765,47 @@ as $$
 declare
   v_counts jsonb;
   v_diff jsonb;
+  v_limit integer := least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200);
+  v_after integer := 0;
   v_rows jsonb;
+  v_found integer;
+  v_next text;
 begin
   select r."counts", r."diff" into v_counts, v_diff from "better_supabase"."import_runs" r where r."id" = list_import_diff.run;
   if v_counts is null then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
-  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (
-    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value
-    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity
-    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)
-    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)
+  if list_import_diff.after is not null then
+    if list_import_diff.after !~ '^[0-9]{1,9}$' then
+      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    end if;
+    v_after := list_import_diff.after::integer;
+  end if;
+  select coalesce(jsonb_agg(d.value order by d.ord) filter (where d.n <= v_limit), '[]'::jsonb),
+    count(*),
+    max(d.ord::text) filter (where d.n = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.value, p.ord, row_number() over (order by p.ord) as n
+    from (
+      select e.value, e.ord
+      from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) with ordinality e(value, ord)
+      where e.ord > v_after
+        and (list_import_diff.entity is null or e.value ->> 'entity' = list_import_diff.entity)
+      order by e.ord
+      offset case when list_import_diff.after is null then greatest(coalesce(list_import_diff.row_offset, 0), 0) else 0 end
+      limit v_limit + 1
+    ) p
   ) d;
   return jsonb_build_object(
     'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,
-    'rows', v_rows
+    'rows', v_rows,
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) from public, anon;
-grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) from public, anon;
+grant execute on function "better_supabase"."list_import_diff"(uuid, text, integer, integer, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."resolve_import_conflict"(tenant uuid, source text, entity text, key text, action text)
 returns jsonb

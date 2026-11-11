@@ -35,6 +35,7 @@ export const TABLE_FEATURES = [
   "rpc",
   "rollup",
   "copy",
+  "buckets",
 ] as const;
 
 export type TableFeature = (typeof TABLE_FEATURES)[number];

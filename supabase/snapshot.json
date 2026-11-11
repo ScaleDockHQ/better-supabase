@@ -210622,9 +210622,15 @@
         "schema": "better_supabase",
         "name": "list_import_diff",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_counts jsonb;\n  v_diff jsonb;\n  v_rows jsonb;\nbegin\n  select r.\"counts\", r.\"diff\" into v_counts, v_diff from \"better_supabase\".\"import_runs\" r where r.\"id\" = list_import_diff.run;\n  if v_counts is null then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (\n    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value\n    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity\n    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)\n    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)\n  ) d;\n  return jsonb_build_object(\n    'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,\n    'rows', v_rows\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.list_import_diff(run uuid, entity text DEFAULT NULL::text, row_limit integer DEFAULT 50, row_offset integer DEFAULT 0)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_counts jsonb;\n  v_diff jsonb;\n  v_rows jsonb;\nbegin\n  select r.\"counts\", r.\"diff\" into v_counts, v_diff from \"better_supabase\".\"import_runs\" r where r.\"id\" = list_import_diff.run;\n  if v_counts is null then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (\n    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value\n    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity\n    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)\n    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)\n  ) d;\n  return jsonb_build_object(\n    'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,\n    'rows', v_rows\n  );\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_counts jsonb;\n  v_diff jsonb;\n  v_limit integer := least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200);\n  v_after integer := 0;\n  v_rows jsonb;\n  v_found integer;\n  v_next text;\nbegin\n  select r.\"counts\", r.\"diff\" into v_counts, v_diff from \"better_supabase\".\"import_runs\" r where r.\"id\" = list_import_diff.run;\n  if v_counts is null then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if list_import_diff.after is not null then\n    if list_import_diff.after !~ '^[0-9]{1,9}$' then\n      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';\n    end if;\n    v_after := list_import_diff.after::integer;\n  end if;\n  select coalesce(jsonb_agg(d.value order by d.ord) filter (where d.n <= v_limit), '[]'::jsonb),\n    count(*),\n    max(d.ord::text) filter (where d.n = v_limit)\n  into v_rows, v_found, v_next\n  from (\n    select p.value, p.ord, row_number() over (order by p.ord) as n\n    from (\n      select e.value, e.ord\n      from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) with ordinality e(value, ord)\n      where e.ord > v_after\n        and (list_import_diff.entity is null or e.value ->> 'entity' = list_import_diff.entity)\n      order by e.ord\n      offset case when list_import_diff.after is null then greatest(coalesce(list_import_diff.row_offset, 0), 0) else 0 end\n      limit v_limit + 1\n    ) p\n  ) d;\n  return jsonb_build_object(\n    'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,\n    'rows', v_rows,\n    'next_cursor', case when v_found > v_limit then v_next else null end\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.list_import_diff(run uuid, entity text DEFAULT NULL::text, row_limit integer DEFAULT 50, row_offset integer DEFAULT 0, after text DEFAULT NULL::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_counts jsonb;\n  v_diff jsonb;\n  v_limit integer := least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200);\n  v_after integer := 0;\n  v_rows jsonb;\n  v_found integer;\n  v_next text;\nbegin\n  select r.\"counts\", r.\"diff\" into v_counts, v_diff from \"better_supabase\".\"import_runs\" r where r.\"id\" = list_import_diff.run;\n  if v_counts is null then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if list_import_diff.after is not null then\n    if list_import_diff.after !~ '^[0-9]{1,9}$' then\n      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';\n    end if;\n    v_after := list_import_diff.after::integer;\n  end if;\n  select coalesce(jsonb_agg(d.value order by d.ord) filter (where d.n <= v_limit), '[]'::jsonb),\n    count(*),\n    max(d.ord::text) filter (where d.n = v_limit)\n  into v_rows, v_found, v_next\n  from (\n    select p.value, p.ord, row_number() over (order by p.ord) as n\n    from (\n      select e.value, e.ord\n      from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) with ordinality e(value, ord)\n      where e.ord > v_after\n        and (list_import_diff.entity is null or e.value ->> 'entity' = list_import_diff.entity)\n      order by e.ord\n      offset case when list_import_diff.after is null then greatest(coalesce(list_import_diff.row_offset, 0), 0) else 0 end\n      limit v_limit + 1\n    ) p\n  ) d;\n  return jsonb_build_object(\n    'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,\n    'rows', v_rows,\n    'next_cursor', case when v_found > v_limit then v_next else null end\n  );\nend;\n$function$\n",
         "args": [
+          {
+            "mode": "in",
+            "name": "after",
+            "type_id": 25,
+            "has_default": true
+          },
           {
             "mode": "in",
             "name": "entity",
@@ -210650,8 +210656,8 @@
             "has_default": false
           }
         ],
-        "argument_types": "run uuid, entity text DEFAULT NULL::text, row_limit integer DEFAULT 50, row_offset integer DEFAULT 0",
-        "identity_argument_types": "run uuid, entity text, row_limit integer, row_offset integer",
+        "argument_types": "run uuid, entity text DEFAULT NULL::text, row_limit integer DEFAULT 50, row_offset integer DEFAULT 0, after text DEFAULT NULL::text",
+        "identity_argument_types": "run uuid, entity text, row_limit integer, row_offset integer, after text",
         "return_type_id": 3802,
         "return_type": "jsonb",
         "return_type_relation_id": null,
@@ -210668,9 +210674,15 @@
         "schema": "better_supabase",
         "name": "list_import_issues",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_tenant uuid;\n  v_total integer;\n  v_rows jsonb;\nbegin\n  select r.\"tenant_id\" into v_tenant from \"better_supabase\".\"import_runs\" r where r.\"id\" = list_import_issues.run;\n  if v_tenant is null then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then\n    raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';\n  end if;\n  select count(*) into v_total from \"better_supabase\".import_run_issues i\n  where i.\"run_id\" = list_import_issues.run\n    and (list_import_issues.entity is null or i.\"entity\" = list_import_issues.entity);\n  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb) into v_rows from (\n    select i.\"entity\", i.\"key\", i.\"kind\", i.\"code\", i.\"message\", i.\"created_at\", i.\"resolved_at\"\n    from \"better_supabase\".import_run_issues i\n    where i.\"run_id\" = list_import_issues.run\n      and (list_import_issues.entity is null or i.\"entity\" = list_import_issues.entity)\n    order by i.\"created_at\", i.\"id\"\n    limit least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200)\n    offset greatest(coalesce(list_import_issues.row_offset, 0), 0)\n  ) t;\n  return jsonb_build_object(\n    'rows', v_rows,\n    'total', least(v_total, 10000),\n    'capped', v_total > 10000\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.list_import_issues(run uuid, entity text DEFAULT NULL::text, row_limit integer DEFAULT 50, row_offset integer DEFAULT 0)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_tenant uuid;\n  v_total integer;\n  v_rows jsonb;\nbegin\n  select r.\"tenant_id\" into v_tenant from \"better_supabase\".\"import_runs\" r where r.\"id\" = list_import_issues.run;\n  if v_tenant is null then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then\n    raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';\n  end if;\n  select count(*) into v_total from \"better_supabase\".import_run_issues i\n  where i.\"run_id\" = list_import_issues.run\n    and (list_import_issues.entity is null or i.\"entity\" = list_import_issues.entity);\n  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb) into v_rows from (\n    select i.\"entity\", i.\"key\", i.\"kind\", i.\"code\", i.\"message\", i.\"created_at\", i.\"resolved_at\"\n    from \"better_supabase\".import_run_issues i\n    where i.\"run_id\" = list_import_issues.run\n      and (list_import_issues.entity is null or i.\"entity\" = list_import_issues.entity)\n    order by i.\"created_at\", i.\"id\"\n    limit least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200)\n    offset greatest(coalesce(list_import_issues.row_offset, 0), 0)\n  ) t;\n  return jsonb_build_object(\n    'rows', v_rows,\n    'total', least(v_total, 10000),\n    'capped', v_total > 10000\n  );\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_tenant uuid;\n  v_limit integer := least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200);\n  v_after_at timestamptz;\n  v_after_id uuid;\n  v_total integer;\n  v_rows jsonb;\n  v_next text;\n  v_found integer;\nbegin\n  select r.\"tenant_id\" into v_tenant from \"better_supabase\".\"import_runs\" r where r.\"id\" = list_import_issues.run;\n  if v_tenant is null then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then\n    raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';\n  end if;\n  if list_import_issues.after is not null then\n    begin\n      v_after_at := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;\n      v_after_id := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;\n    exception when others then\n      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';\n    end;\n  else\n    select count(*) into v_total from (\n      select 1 from \"better_supabase\".import_run_issues i\n      where i.\"run_id\" = list_import_issues.run\n        and (list_import_issues.entity is null or i.\"entity\" = list_import_issues.entity)\n      limit 10001\n    ) c;\n  end if;\n  select coalesce(jsonb_agg(to_jsonb(t) - 'id' - 'n' order by t.\"created_at\", t.\"id\") filter (where t.\"n\" <= v_limit), '[]'::jsonb),\n    count(*),\n    max(translate(encode(convert_to(t.\"created_at\"::text || '|' || t.\"id\"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t.\"n\" = v_limit)\n  into v_rows, v_found, v_next\n  from (\n    select p.*, row_number() over (order by p.\"created_at\", p.\"id\") as \"n\"\n    from (\n      select i.\"id\", i.\"entity\", i.\"key\", i.\"kind\", i.\"code\", i.\"message\", i.\"created_at\", i.\"resolved_at\"\n      from \"better_supabase\".import_run_issues i\n      where i.\"run_id\" = list_import_issues.run\n        and (list_import_issues.entity is null or i.\"entity\" = list_import_issues.entity)\n        and (v_after_at is null or (i.\"created_at\", i.\"id\") > (v_after_at, v_after_id))\n      order by i.\"created_at\", i.\"id\"\n      limit v_limit + 1\n      offset case when list_import_issues.after is null then greatest(coalesce(list_import_issues.row_offset, 0), 0) else 0 end\n    ) p\n  ) t;\n  return jsonb_build_object(\n    'rows', v_rows,\n    'total', case when v_total is null then null else least(v_total, 10000) end,\n    'capped', coalesce(v_total > 10000, false),\n    'next_cursor', case when v_found > v_limit then v_next else null end\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.list_import_issues(run uuid, entity text DEFAULT NULL::text, row_limit integer DEFAULT 50, row_offset integer DEFAULT 0, after text DEFAULT NULL::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_tenant uuid;\n  v_limit integer := least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200);\n  v_after_at timestamptz;\n  v_after_id uuid;\n  v_total integer;\n  v_rows jsonb;\n  v_next text;\n  v_found integer;\nbegin\n  select r.\"tenant_id\" into v_tenant from \"better_supabase\".\"import_runs\" r where r.\"id\" = list_import_issues.run;\n  if v_tenant is null then\n    raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';\n  end if;\n  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then\n    raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';\n  end if;\n  if list_import_issues.after is not null then\n    begin\n      v_after_at := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;\n      v_after_id := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;\n    exception when others then\n      raise exception 'after is not a cursor of this list' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';\n    end;\n  else\n    select count(*) into v_total from (\n      select 1 from \"better_supabase\".import_run_issues i\n      where i.\"run_id\" = list_import_issues.run\n        and (list_import_issues.entity is null or i.\"entity\" = list_import_issues.entity)\n      limit 10001\n    ) c;\n  end if;\n  select coalesce(jsonb_agg(to_jsonb(t) - 'id' - 'n' order by t.\"created_at\", t.\"id\") filter (where t.\"n\" <= v_limit), '[]'::jsonb),\n    count(*),\n    max(translate(encode(convert_to(t.\"created_at\"::text || '|' || t.\"id\"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t.\"n\" = v_limit)\n  into v_rows, v_found, v_next\n  from (\n    select p.*, row_number() over (order by p.\"created_at\", p.\"id\") as \"n\"\n    from (\n      select i.\"id\", i.\"entity\", i.\"key\", i.\"kind\", i.\"code\", i.\"message\", i.\"created_at\", i.\"resolved_at\"\n      from \"better_supabase\".import_run_issues i\n      where i.\"run_id\" = list_import_issues.run\n        and (list_import_issues.entity is null or i.\"entity\" = list_import_issues.entity)\n        and (v_after_at is null or (i.\"created_at\", i.\"id\") > (v_after_at, v_after_id))\n      order by i.\"created_at\", i.\"id\"\n      limit v_limit + 1\n      offset case when list_import_issues.after is null then greatest(coalesce(list_import_issues.row_offset, 0), 0) else 0 end\n    ) p\n  ) t;\n  return jsonb_build_object(\n    'rows', v_rows,\n    'total', case when v_total is null then null else least(v_total, 10000) end,\n    'capped', coalesce(v_total > 10000, false),\n    'next_cursor', case when v_found > v_limit then v_next else null end\n  );\nend;\n$function$\n",
         "args": [
+          {
+            "mode": "in",
+            "name": "after",
+            "type_id": 25,
+            "has_default": true
+          },
           {
             "mode": "in",
             "name": "entity",
@@ -210696,8 +210708,8 @@
             "has_default": false
           }
         ],
-        "argument_types": "run uuid, entity text DEFAULT NULL::text, row_limit integer DEFAULT 50, row_offset integer DEFAULT 0",
-        "identity_argument_types": "run uuid, entity text, row_limit integer, row_offset integer",
+        "argument_types": "run uuid, entity text DEFAULT NULL::text, row_limit integer DEFAULT 50, row_offset integer DEFAULT 0, after text DEFAULT NULL::text",
+        "identity_argument_types": "run uuid, entity text, row_limit integer, row_offset integer, after text",
         "return_type_id": 3802,
         "return_type": "jsonb",
         "return_type_relation_id": null,
@@ -317600,6 +317612,19 @@
             "predicate": "(resolved_at IS NULL)"
           },
           {
+            "name": "import_run_issues_page_idx",
+            "columns": [
+              "run_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "import_run_issues_pkey",
             "columns": [
               "id"
@@ -317614,7 +317639,9 @@
             "name": "import_run_issues_run_idx",
             "columns": [
               "run_id",
-              "entity"
+              "entity",
+              "created_at",
+              "id"
             ],
             "unique": false,
             "primary": false,
@@ -391538,7 +391565,7 @@
       {
         "schema": "better_supabase",
         "name": "list_import_diff",
-        "signature": "run uuid, entity text, row_limit integer, row_offset integer",
+        "signature": "run uuid, entity text, row_limit integer, row_offset integer, after text",
         "language": "plpgsql",
         "volatility": "stable",
         "securityDefiner": true,
@@ -391552,7 +391579,7 @@
       {
         "schema": "better_supabase",
         "name": "list_import_issues",
-        "signature": "run uuid, entity text, row_limit integer, row_offset integer",
+        "signature": "run uuid, entity text, row_limit integer, row_offset integer, after text",
         "language": "plpgsql",
         "volatility": "stable",
         "securityDefiner": true,
