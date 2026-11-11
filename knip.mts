@@ -122,10 +122,8 @@ const config: KnipConfig = {
       ignoreDependencies: [
         ...browserExample.ignoreDependencies,
         "@shadcn/helpers",
-        "@shadcn/react",
         "cmdk",
         "react-day-picker",
-        "react-resizable-panels",
         "recharts",
         "shiki",
       ],

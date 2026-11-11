@@ -55,7 +55,6 @@
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/forms/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/funding/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/imports/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/inbox/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/inspections/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/knowledge/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/legal-entities/page.tsx",

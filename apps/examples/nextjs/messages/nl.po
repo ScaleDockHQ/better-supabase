@@ -422,15 +422,25 @@ msgctxt "imports.dlTl_2"
 msgid "Bring customers in from a spreadsheet."
 msgstr "Haal klanten binnen uit een spreadsheet."
 
-#: src/app/[locale]/(app)/inbox/page.tsx
+#: src/app/[locale]/(app)/inbox/layout.tsx
 msgctxt "inbox.VCMKbt"
 msgid "Inbox"
 msgstr "Inbox"
 
+#: src/app/[locale]/(app)/inbox/layout.tsx
+msgctxt "inbox.X_KToh"
+msgid "One queue for the web widget, email, Slack and WhatsApp, kept live over Realtime."
+msgstr "Eén wachtrij voor de webwidget, e-mail, Slack en WhatsApp, live bijgewerkt via Realtime."
+
 #: src/app/[locale]/(app)/inbox/page.tsx
-msgctxt "inbox.DRlmpk"
-msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
-msgstr "Klantgesprekken uit de Help-widget en chatkanalen, live bijgewerkt via Realtime."
+msgctxt "inbox.SZLu0S"
+msgid "Pick a conversation"
+msgstr "Kies een gesprek"
+
+#: src/app/[locale]/(app)/inbox/page.tsx
+msgctxt "inbox.j6NWwp"
+msgid "Its messages, notes, context and actions show here."
+msgstr "De berichten, notities, context en acties staan hier."
 
 #: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
@@ -8951,13 +8961,91 @@ msgctxt "imports.6FpVY9"
 msgid "Import another file"
 msgstr "Nog een bestand importeren"
 
+#: src/features/inbox/components/channel-simulator-lazy.tsx
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.xUO0eO"
+msgid "Simulate a message"
+msgstr "Bericht simuleren"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.HEdsgA"
+msgid "Simulate an incoming message"
+msgstr "Een binnenkomend bericht simuleren"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.UsYAg6"
+msgid "The message arrives as if the channel delivered it. The same address continues one conversation."
+msgstr "Het bericht komt binnen alsof het kanaal het bezorgde. Hetzelfde adres zet één gesprek voort."
+
+#: src/features/inbox/components/channel-simulator.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.KeO51o"
+msgid "Channel"
+msgstr "Kanaal"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.N_nrM1"
+msgid "Email or phone number"
+msgstr "E-mailadres of telefoonnummer"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.LLtKhp"
+msgid "Subject"
+msgstr "Onderwerp"
+
+#: src/features/inbox/components/channel-simulator.tsx
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.T7Ry38"
+msgid "Message"
+msgstr "Bericht"
+
+#: src/features/inbox/components/channel-simulator.tsx
+msgctxt "inbox.l8WU4w"
+msgid "Receive message"
+msgstr "Bericht ontvangen"
+
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.X4M1tJ"
 msgid "Reply scheduled"
 msgstr "Antwoord ingepland"
 
 #: src/features/inbox/components/composer.tsx
-#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.8_Hr8S"
+msgid "AI draft for the team"
+msgstr "AI-concept voor het team"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.wEQDC6"
+msgid "Edit"
+msgstr "Bewerken"
+
+#: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.9WRlF4"
+msgid "Send"
+msgstr "Versturen"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.nmpevl"
+msgid "Discard"
+msgstr "Verwerpen"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.Q-qA3k"
+msgid "The WhatsApp reply window is closed"
+msgstr "Het WhatsApp-antwoordvenster is gesloten"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.A18cx6"
+msgid "The contact wrote more than 24 hours ago. Send an approved template, or add an internal note."
+msgstr "De contactpersoon schreef meer dan 24 uur geleden. Stuur een goedgekeurde sjabloon of voeg een interne notitie toe."
+
+#: src/features/inbox/components/composer.tsx
 msgctxt "inbox.qMePPG"
 msgid "Note"
 msgstr "Notitie"
@@ -8978,9 +9066,30 @@ msgid "Write a reply"
 msgstr "Schrijf een antwoord"
 
 #: src/features/inbox/components/composer.tsx
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.0kc5kM"
 msgid "Internal note"
 msgstr "Interne notitie"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.Et-jZs"
+msgid "Macros"
+msgstr "Macro's"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.A3ptul"
+msgid "Templates"
+msgstr "Sjablonen"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.gQYJeA"
+msgid "Insert a macro"
+msgstr "Een macro invoegen"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.slZtLX"
+msgid "Send a template"
+msgstr "Een sjabloon versturen"
 
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.7tFha1"
@@ -8992,11 +9101,131 @@ msgctxt "inbox.KgAlAZ"
 msgid "Add note"
 msgstr "Notitie toevoegen"
 
-#: src/features/inbox/components/composer.tsx
-#: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.9WRlF4"
-msgid "Send"
-msgstr "Versturen"
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.v7m7rk"
+msgid "Web widget"
+msgstr "Webwidget"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.sjzDbu"
+msgid "Slack"
+msgstr "Slack"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.5ow6dg"
+msgid "WhatsApp"
+msgstr "WhatsApp"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.k5NtsF"
+msgid "SMS"
+msgstr "Sms"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox.RY1JgY"
+msgid "SLA breached"
+msgstr "SLA overschreden"
+
+#: src/features/inbox/components/conversation-badges.tsx
+msgctxt "inbox._0mWw0"
+msgid "SLA due soon"
+msgstr "SLA bijna verlopen"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.W6nSYE"
+msgid "Resolved"
+msgstr "Opgelost"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.iH-vKS"
+msgid "Snoozed"
+msgstr "Uitgesteld"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.eKEL_g"
+msgid "Pending"
+msgstr "In afwachting"
+
+#: src/features/inbox/components/conversation-badges.tsx
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.O95R3Z"
+msgid "Phone"
+msgstr "Telefoon"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.ccLKRu"
+msgid "Channel account"
+msgstr "Kanaalaccount"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.8lCjAM"
+msgid "Priority"
+msgstr "Prioriteit"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.fe7Ds3"
+msgid "First response"
+msgstr "Eerste reactie"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.ZxgDJj"
+msgid "Waiting (target {minutes} min)"
+msgstr "Wacht (doel {minutes} min)"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.TDUfVk"
+msgid "Started"
+msgstr "Gestart"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.zFegDD"
+msgid "Contact"
+msgstr "Contactpersoon"
+
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.OGqTOQ"
+msgid "Visitor"
+msgstr "Bezoeker"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.qRLDGS"
+msgid "Earlier conversations"
+msgstr "Eerdere gesprekken"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.ebTvVL"
+msgid "This is the first conversation with this contact."
+msgstr "Dit is het eerste gesprek met deze contactpersoon."
+
+#: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.Zay6OH"
+msgid "No subject"
+msgstr "Geen onderwerp"
+
+#: src/features/inbox/components/conversation-context.tsx
+msgctxt "inbox.Nb_g9b"
+msgid "No messages"
+msgstr "Geen berichten"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.iHyFD4"
@@ -9009,38 +9238,19 @@ msgid "Conversation"
 msgstr "Gesprek"
 
 #: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.Zay6OH"
-msgid "No subject"
-msgstr "Geen onderwerp"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.OGqTOQ"
-msgid "Visitor"
-msgstr "Bezoeker"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.W6nSYE"
-msgid "Resolved"
-msgstr "Opgelost"
-
-#: src/features/inbox/components/conversation-panel.tsx
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.JfG49w"
-msgid "Open"
-msgstr "Open"
-
-#: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.9OHSlH"
-msgid "Snoozed until {time}"
-msgstr "Gesnoozed tot {time}"
+msgctxt "inbox.oGjCbW"
+msgid "Until {time}"
+msgstr "Tot {time}"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.Vja_gq"
 msgid "Bot answers"
 msgstr "Bot antwoordt"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.uwMaA2"
+msgid "Bot paused"
+msgstr "Bot gepauzeerd"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.seEgGq"
@@ -9063,6 +9273,11 @@ msgid "Take over from the bot"
 msgstr "Overnemen van de bot"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.fee4dL"
+msgid "Hand back to the bot"
+msgstr "Teruggeven aan de bot"
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.9qc7BX"
 msgid "Snooze"
 msgstr "Snoozen"
@@ -9078,9 +9293,30 @@ msgid "Resolve"
 msgstr "Oplossen"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.tzwHXE"
+msgid "Someone is typing…"
+msgstr "Iemand typt…"
+
+#: src/features/inbox/components/conversation-panel.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.03nvvB"
+msgid "Bot"
+msgstr "Bot"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.wsUmh9"
+msgid "Team"
+msgstr "Team"
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.1r7-tf"
 msgid "Message deleted"
 msgstr "Bericht verwijderd"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.0x75v-"
+msgid "Not delivered"
+msgstr "Niet bezorgd"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.d_fRcX"
@@ -9088,9 +9324,95 @@ msgid "Seen"
 msgstr "Gezien"
 
 #: src/features/inbox/components/conversation-panel.tsx
-msgctxt "inbox.tzwHXE"
-msgid "Someone is typing…"
-msgstr "Iemand typt…"
+msgctxt "inbox.DMqnF4"
+msgid "Delivered"
+msgstr "Bezorgd"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.GeN5hs"
+msgid "All channels"
+msgstr "Alle kanalen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.fvK8Qi"
+msgid "All statuses"
+msgstr "Alle statussen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.TFJD82"
+msgid "Anyone"
+msgstr "Iedereen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.snC7V6"
+msgid "Mine"
+msgstr "Van mij"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.a1eoKk"
+msgid "Unassigned"
+msgstr "Niet toegewezen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.1udzha"
+msgid "Conversations"
+msgstr "Gesprekken"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.TA1mK7"
+msgid "Search conversations"
+msgstr "Gesprekken zoeken"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.vx8bv3"
+msgid "Assignee"
+msgstr "Toegewezen aan"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.XayNHe"
+msgid "The queue did not load"
+msgstr "De wachtrij is niet geladen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.xUnZ3u"
+msgid "Check your connection and try again."
+msgstr "Controleer je verbinding en probeer het opnieuw."
+
+#: src/features/inbox/components/conversation-queue.tsx
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.1NNSUY"
+msgid "No conversations"
+msgstr "Geen gesprekken"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.W0PonI"
+msgid "Nothing matches these filters. Clear them, or use the simulator to receive a message."
+msgstr "Niets komt overeen met deze filters. Wis ze, of gebruik de simulator om een bericht te ontvangen."
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.F4gyn3"
+msgid "Clear filters"
+msgstr "Filters wissen"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.bW7B87"
+msgid "New"
+msgstr "Nieuw"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.00LcfG"
+msgid "Load more"
+msgstr "Meer laden"
 
 #: src/features/inbox/components/help-sheet-lazy.tsx
 #: src/features/inbox/components/help-sheet.tsx
@@ -9119,11 +9441,6 @@ msgid "Could not send"
 msgstr "Versturen mislukt"
 
 #: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.T7Ry38"
-msgid "Message"
-msgstr "Bericht"
-
-#: src/features/inbox/components/help-sheet.tsx
 msgctxt "inbox.zsMxWw"
 msgid "How can we help?"
 msgstr "Waarmee kunnen we helpen?"
@@ -9132,66 +9449,6 @@ msgstr "Waarmee kunnen we helpen?"
 msgctxt "inbox.PQ8A3I"
 msgid "New conversation"
 msgstr "Nieuw gesprek"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.TFJD82"
-msgid "Anyone"
-msgstr "Iedereen"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.snC7V6"
-msgid "Mine"
-msgstr "Van mij"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.a1eoKk"
-msgid "Unassigned"
-msgstr "Niet toegewezen"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.1udzha"
-msgid "Conversations"
-msgstr "Gesprekken"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.eKEL_g"
-msgid "Pending"
-msgstr "In afwachting"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.zQvVDJ"
-msgid "All"
-msgstr "Alle"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.vx8bv3"
-msgid "Assignee"
-msgstr "Toegewezen aan"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.SZLu0S"
-msgid "Pick a conversation"
-msgstr "Kies een gesprek"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.PjS425"
-msgid "Its messages, notes and actions show here."
-msgstr "De berichten, notities en acties verschijnen hier."
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.1NNSUY"
-msgid "No conversations"
-msgstr "Geen gesprekken"
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.K_kIrH"
-msgid "Open Help in the header to start one as a customer."
-msgstr "Open Help in de kop om er als klant een te beginnen."
-
-#: src/features/inbox/components/inbox-view.tsx
-msgctxt "inbox.bW7B87"
-msgid "New"
-msgstr "Nieuw"
 
 #: src/features/inbox/components/later-items.tsx
 msgctxt "inbox._qJpQY"
@@ -9217,11 +9474,6 @@ msgstr "De ingeplande antwoorden zijn niet geladen"
 msgctxt "inbox.162kF7"
 msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
-
-#: src/features/inbox/components/scheduled-replies.tsx
-msgctxt "inbox.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
 
 #: src/features/inbox/components/scheduled-replies.tsx
 msgctxt "inbox.yGEFsz"

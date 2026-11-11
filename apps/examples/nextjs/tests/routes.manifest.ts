@@ -437,7 +437,16 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/inbox",
     maxCalls: 8,
     maxWaves: 3,
-    instant: false,
+    instant: true,
+    scale: false,
+  },
+  {
+    route: "/inbox/[conversation]",
+    archetype: "conversation",
+    url: null,
+    maxCalls: 12,
+    maxWaves: 3,
+    instant: true,
     scale: false,
   },
   {

@@ -69,7 +69,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   "workflow-sdk": none("Runtime for durable runs; runs show on /workflows/[run]."),
   "workflow-editor": at("/workflows/builder"),
   "chat-sdk-state": none("State adapter for the Chat SDK bot; conversations show on /inbox."),
-  inbox: at("/inbox"),
+  inbox: at("/inbox", "/inbox/[conversation]"),
   "ai-chat": at("/assistant"),
   "ai-files": at("/assistant"),
   knowledge: at("/knowledge"),
