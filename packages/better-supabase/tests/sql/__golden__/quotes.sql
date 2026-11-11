@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:ad5c4eae0aa3389d2a6b05d60c212c1d6b55b5e516bb8432d01efe403eb85b46
+-- @bsb-hash sha256:5df6e7edbc9c3534899595c583b3768ee1807950bc2bee1024b0b9623967eb23
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1354,7 +1354,9 @@ grant execute on function "better_supabase"."select_quote_variant"(uuid, jsonb) 
 -- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,
 -- decidedAt?, decidedBy?, decisionNote?, company?, contact?, origin?,
 -- pricesIncludeTax?, attrs?, legalEntityId?, buyer?, lines, taxLines?,
--- totals? }. A quote that is already imported is kept as it is.
+-- totals? }. A quote that is already imported is kept as it is, unless
+-- item.data.update is 'apply': then its fields, lines, stored tax and totals
+-- are replaced, whatever status the quote is in.
 create or replace function "better_supabase"."import_quote"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -1371,6 +1373,7 @@ declare
   v_warnings jsonb := '[]'::jsonb;
   v_computed jsonb;
   v_given jsonb;
+  v_same boolean;
 begin
   if import_quote.subject_id is not null then
     select * into v_row from "better_supabase"."quotes" y where y."id" = import_quote.subject_id::uuid and y."tenant_id" = v_tenant;
@@ -1381,6 +1384,14 @@ begin
       return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
     end if;
     v_id := v_row."id";
+    v_same := (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb));
+    -- A quote that was sent or decided can't change its lines. The import
+    -- reopens it for the replacement, then the update below restores the
+    -- status it had, so a historical quote keeps its decided state.
+    if not v_same and jsonb_typeof(v_data -> 'lines') = 'array' then
+      update "better_supabase"."quotes" y set "status" = 'draft' where y."id" = v_id;
+      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
+    end if;
     update "better_supabase"."quotes" y set
       "status" = coalesce(v_data ->> 'status', 'draft'),
       "created_at" = coalesce(nullif(v_data ->> 'createdAt', '')::timestamptz, y."created_at"),
@@ -1396,16 +1407,50 @@ begin
       "valid_until" = coalesce(nullif(v_data ->> 'validUntil', '')::date, y."valid_until"),
       "company_id" = coalesce(nullif(v_data ->> 'companyId', ''), y."company_id")
     where y."id" = v_id;
-    if (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+    if v_same then
       update "better_supabase"."quote_lines" l set
         "description" = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l."description"),
         "tax_rate_bps" = coalesce((e.l ->> 'taxRateBps')::integer, l."tax_rate_bps"),
         "tax_code" = coalesce(nullif(e.l ->> 'taxCode', ''), l."tax_code")
       from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
       where l."parent_id" = v_id and l."position" = e.n::integer;
-    elsif jsonb_typeof(v_data -> 'lines') = 'array' then
-      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
     end if;
+  if jsonb_typeof(v_data -> 'taxLines') = 'array' then
+    v_computed := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(z."tax_code", '') || ':' || z."tax_rate_bps"::text as key, sum(z."net") as net, sum(z."tax") as tax
+        from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id group by 1) k
+    ), '{}'::jsonb);
+    v_given := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(g.value ->> 'taxCode', '') || ':' || coalesce((g.value ->> 'taxRateBps')::integer, 0)::text as key,
+          sum((g.value ->> 'net')::bigint) as net, sum((g.value ->> 'tax')::bigint) as tax
+        from jsonb_array_elements(v_data -> 'taxLines') g group by 1) k
+    ), '{}'::jsonb);
+    if v_computed <> v_given then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_MISMATCH', 'message', 'the stored tax per code differs from the tax computed from the lines; the stored amounts were kept', 'computed', v_computed, 'given', v_given));
+    end if;
+    delete from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id;
+    insert into "better_supabase"."quote_tax_lines" ("tenant_id", "parent_id", "tax_rate_bps", "tax_code", "net", "tax", "gross", "discount")
+    select v_tenant, v_id, coalesce((g.value ->> 'taxRateBps')::integer, 0), nullif(g.value ->> 'taxCode', ''), (g.value ->> 'net')::bigint, (g.value ->> 'tax')::bigint,
+      coalesce((g.value ->> 'gross')::bigint, (g.value ->> 'net')::bigint + (g.value ->> 'tax')::bigint), coalesce((g.value ->> 'discount')::bigint, 0)
+    from jsonb_array_elements(v_data -> 'taxLines') g;
+  end if;
+  if jsonb_typeof(v_data -> 'totals') = 'object' then
+    select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
+    if (v_data -> 'totals' ->> 'subtotal' is not null and (v_data -> 'totals' ->> 'subtotal')::bigint <> v_row."subtotal")
+      or (v_data -> 'totals' ->> 'tax' is not null and (v_data -> 'totals' ->> 'tax')::bigint <> v_row."tax_total")
+      or (v_data -> 'totals' ->> 'total' is not null and (v_data -> 'totals' ->> 'total')::bigint <> v_row."total") then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TOTALS_MISMATCH', 'message', 'the stored totals differ from the totals computed from the lines; the stored totals were kept',
+        'computed', jsonb_build_object('subtotal', v_row."subtotal"::text, 'tax', v_row."tax_total"::text, 'total', v_row."total"::text),
+        'given', v_data -> 'totals'));
+    end if;
+    update "better_supabase"."quotes" y set
+      "subtotal" = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, y."subtotal"),
+      "tax_total" = coalesce((v_data -> 'totals' ->> 'tax')::bigint, y."tax_total"),
+      "total" = coalesce((v_data -> 'totals' ->> 'total')::bigint, y."total")
+    where y."id" = v_id;
+  end if;
     select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
     return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row."updated_at", 'warnings', v_warnings);
   end if;
@@ -1620,7 +1665,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:4bcb491a04a86a6998515b87ad3ad96336e487d6bd634a4319a9698790f4f55a
+-- @bsb-hash sha256:4f500d011ce679767681d8f138282d34a8dd469d8eef39c074280a795f63d011
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3081,7 +3126,9 @@ grant execute on function "better_supabase"."select_quote_variant"(uuid, jsonb) 
 -- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,
 -- decidedAt?, decidedBy?, decisionNote?, company?, contact?, origin?,
 -- pricesIncludeTax?, attrs?, legalEntityId?, buyer?, lines, taxLines?,
--- totals? }. A quote that is already imported is kept as it is.
+-- totals? }. A quote that is already imported is kept as it is, unless
+-- item.data.update is 'apply': then its fields, lines, stored tax and totals
+-- are replaced, whatever status the quote is in.
 create or replace function "better_supabase"."import_quote"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -3098,6 +3145,7 @@ declare
   v_warnings jsonb := '[]'::jsonb;
   v_computed jsonb;
   v_given jsonb;
+  v_same boolean;
 begin
   if import_quote.subject_id is not null then
     select * into v_row from "better_supabase"."quotes" y where y."id" = import_quote.subject_id::uuid and y."tenant_id" = v_tenant;
@@ -3108,6 +3156,14 @@ begin
       return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
     end if;
     v_id := v_row."id";
+    v_same := (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb));
+    -- A quote that was sent or decided can't change its lines. The import
+    -- reopens it for the replacement, then the update below restores the
+    -- status it had, so a historical quote keeps its decided state.
+    if not v_same and jsonb_typeof(v_data -> 'lines') = 'array' then
+      update "better_supabase"."quotes" y set "status" = 'draft' where y."id" = v_id;
+      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
+    end if;
     update "better_supabase"."quotes" y set
       "status" = coalesce(v_data ->> 'status', 'draft'),
       "created_at" = coalesce(nullif(v_data ->> 'createdAt', '')::timestamptz, y."created_at"),
@@ -3123,16 +3179,50 @@ begin
       "valid_until" = coalesce(nullif(v_data ->> 'validUntil', '')::date, y."valid_until"),
       "company_id" = coalesce(nullif(v_data ->> 'companyId', ''), y."company_id")
     where y."id" = v_id;
-    if (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+    if v_same then
       update "better_supabase"."quote_lines" l set
         "description" = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l."description"),
         "tax_rate_bps" = coalesce((e.l ->> 'taxRateBps')::integer, l."tax_rate_bps"),
         "tax_code" = coalesce(nullif(e.l ->> 'taxCode', ''), l."tax_code")
       from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
       where l."parent_id" = v_id and l."position" = e.n::integer;
-    elsif jsonb_typeof(v_data -> 'lines') = 'array' then
-      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
     end if;
+  if jsonb_typeof(v_data -> 'taxLines') = 'array' then
+    v_computed := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(z."tax_code", '') || ':' || z."tax_rate_bps"::text as key, sum(z."net") as net, sum(z."tax") as tax
+        from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id group by 1) k
+    ), '{}'::jsonb);
+    v_given := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(g.value ->> 'taxCode', '') || ':' || coalesce((g.value ->> 'taxRateBps')::integer, 0)::text as key,
+          sum((g.value ->> 'net')::bigint) as net, sum((g.value ->> 'tax')::bigint) as tax
+        from jsonb_array_elements(v_data -> 'taxLines') g group by 1) k
+    ), '{}'::jsonb);
+    if v_computed <> v_given then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_MISMATCH', 'message', 'the stored tax per code differs from the tax computed from the lines; the stored amounts were kept', 'computed', v_computed, 'given', v_given));
+    end if;
+    delete from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id;
+    insert into "better_supabase"."quote_tax_lines" ("tenant_id", "parent_id", "tax_rate_bps", "tax_code", "net", "tax", "gross", "discount")
+    select v_tenant, v_id, coalesce((g.value ->> 'taxRateBps')::integer, 0), nullif(g.value ->> 'taxCode', ''), (g.value ->> 'net')::bigint, (g.value ->> 'tax')::bigint,
+      coalesce((g.value ->> 'gross')::bigint, (g.value ->> 'net')::bigint + (g.value ->> 'tax')::bigint), coalesce((g.value ->> 'discount')::bigint, 0)
+    from jsonb_array_elements(v_data -> 'taxLines') g;
+  end if;
+  if jsonb_typeof(v_data -> 'totals') = 'object' then
+    select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
+    if (v_data -> 'totals' ->> 'subtotal' is not null and (v_data -> 'totals' ->> 'subtotal')::bigint <> v_row."subtotal")
+      or (v_data -> 'totals' ->> 'tax' is not null and (v_data -> 'totals' ->> 'tax')::bigint <> v_row."tax_total")
+      or (v_data -> 'totals' ->> 'total' is not null and (v_data -> 'totals' ->> 'total')::bigint <> v_row."total") then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TOTALS_MISMATCH', 'message', 'the stored totals differ from the totals computed from the lines; the stored totals were kept',
+        'computed', jsonb_build_object('subtotal', v_row."subtotal"::text, 'tax', v_row."tax_total"::text, 'total', v_row."total"::text),
+        'given', v_data -> 'totals'));
+    end if;
+    update "better_supabase"."quotes" y set
+      "subtotal" = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, y."subtotal"),
+      "tax_total" = coalesce((v_data -> 'totals' ->> 'tax')::bigint, y."tax_total"),
+      "total" = coalesce((v_data -> 'totals' ->> 'total')::bigint, y."total")
+    where y."id" = v_id;
+  end if;
     select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
     return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row."updated_at", 'warnings', v_warnings);
   end if;
@@ -3354,7 +3444,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:4dfda644d00a710ee87ccd59085e5f8afdb8f7f3ca1c76566869d350f8db6d16
+-- @bsb-hash sha256:5eda050458e62cdaf763a841c755dc727a316b1ac0abed0fec21b0b9fd254740
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4712,7 +4802,9 @@ grant execute on function "app_private"."select_quote_variant"(uuid, jsonb) to a
 -- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,
 -- decidedAt?, decidedBy?, decisionNote?, company?, contact?, origin?,
 -- pricesIncludeTax?, attrs?, legalEntityId?, buyer?, lines, taxLines?,
--- totals? }. A quote that is already imported is kept as it is.
+-- totals? }. A quote that is already imported is kept as it is, unless
+-- item.data.update is 'apply': then its fields, lines, stored tax and totals
+-- are replaced, whatever status the quote is in.
 create or replace function "app_private"."import_quote"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -4729,6 +4821,7 @@ declare
   v_warnings jsonb := '[]'::jsonb;
   v_computed jsonb;
   v_given jsonb;
+  v_same boolean;
 begin
   if import_quote.subject_id is not null then
     select * into v_row from "app_private"."quotes" y where y."id" = import_quote.subject_id::uuid and y."tenant_id" = v_tenant;
@@ -4739,6 +4832,14 @@ begin
       return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
     end if;
     v_id := v_row."id";
+    v_same := (select count(*) from "app_private"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb));
+    -- A quote that was sent or decided can't change its lines. The import
+    -- reopens it for the replacement, then the update below restores the
+    -- status it had, so a historical quote keeps its decided state.
+    if not v_same and jsonb_typeof(v_data -> 'lines') = 'array' then
+      update "app_private"."quotes" y set "status" = 'draft' where y."id" = v_id;
+      perform "app_private"."set_quote_lines"(v_id, v_data -> 'lines');
+    end if;
     update "app_private"."quotes" y set
       "status" = coalesce(v_data ->> 'status', 'draft'),
       "created_at" = coalesce(nullif(v_data ->> 'createdAt', '')::timestamptz, y."created_at"),
@@ -4754,16 +4855,50 @@ begin
       "valid_until" = coalesce(nullif(v_data ->> 'validUntil', '')::date, y."valid_until"),
       "company_id" = coalesce(nullif(v_data ->> 'companyId', ''), y."company_id")
     where y."id" = v_id;
-    if (select count(*) from "app_private"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+    if v_same then
       update "app_private"."quote_lines" l set
         "description" = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l."description"),
         "tax_rate_bps" = coalesce((e.l ->> 'taxRateBps')::integer, l."tax_rate_bps"),
         "tax_code" = coalesce(nullif(e.l ->> 'taxCode', ''), l."tax_code")
       from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
       where l."parent_id" = v_id and l."position" = e.n::integer;
-    elsif jsonb_typeof(v_data -> 'lines') = 'array' then
-      perform "app_private"."set_quote_lines"(v_id, v_data -> 'lines');
     end if;
+  if jsonb_typeof(v_data -> 'taxLines') = 'array' then
+    v_computed := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(z."tax_code", '') || ':' || z."tax_rate_bps"::text as key, sum(z."net") as net, sum(z."tax") as tax
+        from "app_private"."quote_tax_lines" z where z."parent_id" = v_id group by 1) k
+    ), '{}'::jsonb);
+    v_given := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(g.value ->> 'taxCode', '') || ':' || coalesce((g.value ->> 'taxRateBps')::integer, 0)::text as key,
+          sum((g.value ->> 'net')::bigint) as net, sum((g.value ->> 'tax')::bigint) as tax
+        from jsonb_array_elements(v_data -> 'taxLines') g group by 1) k
+    ), '{}'::jsonb);
+    if v_computed <> v_given then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_MISMATCH', 'message', 'the stored tax per code differs from the tax computed from the lines; the stored amounts were kept', 'computed', v_computed, 'given', v_given));
+    end if;
+    delete from "app_private"."quote_tax_lines" z where z."parent_id" = v_id;
+    insert into "app_private"."quote_tax_lines" ("tenant_id", "parent_id", "tax_rate_bps", "tax_code", "net", "tax", "gross", "discount")
+    select v_tenant, v_id, coalesce((g.value ->> 'taxRateBps')::integer, 0), nullif(g.value ->> 'taxCode', ''), (g.value ->> 'net')::bigint, (g.value ->> 'tax')::bigint,
+      coalesce((g.value ->> 'gross')::bigint, (g.value ->> 'net')::bigint + (g.value ->> 'tax')::bigint), coalesce((g.value ->> 'discount')::bigint, 0)
+    from jsonb_array_elements(v_data -> 'taxLines') g;
+  end if;
+  if jsonb_typeof(v_data -> 'totals') = 'object' then
+    select * into v_row from "app_private"."quotes" y where y."id" = v_id;
+    if (v_data -> 'totals' ->> 'subtotal' is not null and (v_data -> 'totals' ->> 'subtotal')::bigint <> v_row."subtotal")
+      or (v_data -> 'totals' ->> 'tax' is not null and (v_data -> 'totals' ->> 'tax')::bigint <> v_row."tax_total")
+      or (v_data -> 'totals' ->> 'total' is not null and (v_data -> 'totals' ->> 'total')::bigint <> v_row."total") then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TOTALS_MISMATCH', 'message', 'the stored totals differ from the totals computed from the lines; the stored totals were kept',
+        'computed', jsonb_build_object('subtotal', v_row."subtotal"::text, 'tax', v_row."tax_total"::text, 'total', v_row."total"::text),
+        'given', v_data -> 'totals'));
+    end if;
+    update "app_private"."quotes" y set
+      "subtotal" = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, y."subtotal"),
+      "tax_total" = coalesce((v_data -> 'totals' ->> 'tax')::bigint, y."tax_total"),
+      "total" = coalesce((v_data -> 'totals' ->> 'total')::bigint, y."total")
+    where y."id" = v_id;
+  end if;
     select * into v_row from "app_private"."quotes" y where y."id" = v_id;
     return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row."updated_at", 'warnings', v_warnings);
   end if;
@@ -4978,7 +5113,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:412a869be8c5a8c40b9d0f629c639dbceaa457f6aa7e4840a5bf73446d1fe12a
+-- @bsb-hash sha256:a5893005f1e44a0ea67bb955f0abafe04f001cd431b86ee3edc6f7623978cc4e
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6331,7 +6466,9 @@ grant execute on function "better_supabase"."select_quote_variant"(uuid, jsonb) 
 -- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,
 -- decidedAt?, decidedBy?, decisionNote?, company?, contact?, origin?,
 -- pricesIncludeTax?, attrs?, legalEntityId?, buyer?, lines, taxLines?,
--- totals? }. A quote that is already imported is kept as it is.
+-- totals? }. A quote that is already imported is kept as it is, unless
+-- item.data.update is 'apply': then its fields, lines, stored tax and totals
+-- are replaced, whatever status the quote is in.
 create or replace function "better_supabase"."import_quote"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -6348,6 +6485,7 @@ declare
   v_warnings jsonb := '[]'::jsonb;
   v_computed jsonb;
   v_given jsonb;
+  v_same boolean;
 begin
   if import_quote.subject_id is not null then
     select * into v_row from "better_supabase"."quotes" y where y."id" = import_quote.subject_id::uuid and y."tenant_id" = v_tenant;
@@ -6358,6 +6496,14 @@ begin
       return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
     end if;
     v_id := v_row."id";
+    v_same := (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb));
+    -- A quote that was sent or decided can't change its lines. The import
+    -- reopens it for the replacement, then the update below restores the
+    -- status it had, so a historical quote keeps its decided state.
+    if not v_same and jsonb_typeof(v_data -> 'lines') = 'array' then
+      update "better_supabase"."quotes" y set "status" = 'draft' where y."id" = v_id;
+      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
+    end if;
     update "better_supabase"."quotes" y set
       "status" = coalesce(v_data ->> 'status', 'draft'),
       "created_at" = coalesce(nullif(v_data ->> 'createdAt', '')::timestamptz, y."created_at"),
@@ -6373,16 +6519,50 @@ begin
       "valid_until" = coalesce(nullif(v_data ->> 'validUntil', '')::date, y."valid_until"),
       "company_id" = coalesce(nullif(v_data ->> 'companyId', ''), y."company_id")
     where y."id" = v_id;
-    if (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+    if v_same then
       update "better_supabase"."quote_lines" l set
         "description" = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l."description"),
         "tax_rate_bps" = coalesce((e.l ->> 'taxRateBps')::integer, l."tax_rate_bps"),
         "tax_code" = coalesce(nullif(e.l ->> 'taxCode', ''), l."tax_code")
       from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
       where l."parent_id" = v_id and l."position" = e.n::integer;
-    elsif jsonb_typeof(v_data -> 'lines') = 'array' then
-      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
     end if;
+  if jsonb_typeof(v_data -> 'taxLines') = 'array' then
+    v_computed := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(z."tax_code", '') || ':' || z."tax_rate_bps"::text as key, sum(z."net") as net, sum(z."tax") as tax
+        from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id group by 1) k
+    ), '{}'::jsonb);
+    v_given := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(g.value ->> 'taxCode', '') || ':' || coalesce((g.value ->> 'taxRateBps')::integer, 0)::text as key,
+          sum((g.value ->> 'net')::bigint) as net, sum((g.value ->> 'tax')::bigint) as tax
+        from jsonb_array_elements(v_data -> 'taxLines') g group by 1) k
+    ), '{}'::jsonb);
+    if v_computed <> v_given then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_MISMATCH', 'message', 'the stored tax per code differs from the tax computed from the lines; the stored amounts were kept', 'computed', v_computed, 'given', v_given));
+    end if;
+    delete from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id;
+    insert into "better_supabase"."quote_tax_lines" ("tenant_id", "parent_id", "tax_rate_bps", "tax_code", "net", "tax", "gross", "discount")
+    select v_tenant, v_id, coalesce((g.value ->> 'taxRateBps')::integer, 0), nullif(g.value ->> 'taxCode', ''), (g.value ->> 'net')::bigint, (g.value ->> 'tax')::bigint,
+      coalesce((g.value ->> 'gross')::bigint, (g.value ->> 'net')::bigint + (g.value ->> 'tax')::bigint), coalesce((g.value ->> 'discount')::bigint, 0)
+    from jsonb_array_elements(v_data -> 'taxLines') g;
+  end if;
+  if jsonb_typeof(v_data -> 'totals') = 'object' then
+    select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
+    if (v_data -> 'totals' ->> 'subtotal' is not null and (v_data -> 'totals' ->> 'subtotal')::bigint <> v_row."subtotal")
+      or (v_data -> 'totals' ->> 'tax' is not null and (v_data -> 'totals' ->> 'tax')::bigint <> v_row."tax_total")
+      or (v_data -> 'totals' ->> 'total' is not null and (v_data -> 'totals' ->> 'total')::bigint <> v_row."total") then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TOTALS_MISMATCH', 'message', 'the stored totals differ from the totals computed from the lines; the stored totals were kept',
+        'computed', jsonb_build_object('subtotal', v_row."subtotal"::text, 'tax', v_row."tax_total"::text, 'total', v_row."total"::text),
+        'given', v_data -> 'totals'));
+    end if;
+    update "better_supabase"."quotes" y set
+      "subtotal" = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, y."subtotal"),
+      "tax_total" = coalesce((v_data -> 'totals' ->> 'tax')::bigint, y."tax_total"),
+      "total" = coalesce((v_data -> 'totals' ->> 'total')::bigint, y."total")
+    where y."id" = v_id;
+  end if;
     select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
     return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row."updated_at", 'warnings', v_warnings);
   end if;
@@ -6793,7 +6973,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:0ab3f2b48376d297896d1d93f26a74420cc43e18fa13f23d40b1abd4a2306e46
+-- @bsb-hash sha256:94a53a27177cbe421d80bb7f65c71bc1bca42ea08c324b360d1f9f9e7861ae62
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8144,7 +8324,9 @@ grant execute on function "better_supabase"."select_quote_variant"(uuid, jsonb) 
 -- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,
 -- decidedAt?, decidedBy?, decisionNote?, company?, contact?, origin?,
 -- pricesIncludeTax?, attrs?, legalEntityId?, buyer?, lines, taxLines?,
--- totals? }. A quote that is already imported is kept as it is.
+-- totals? }. A quote that is already imported is kept as it is, unless
+-- item.data.update is 'apply': then its fields, lines, stored tax and totals
+-- are replaced, whatever status the quote is in.
 create or replace function "better_supabase"."import_quote"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -8161,6 +8343,7 @@ declare
   v_warnings jsonb := '[]'::jsonb;
   v_computed jsonb;
   v_given jsonb;
+  v_same boolean;
 begin
   if import_quote.subject_id is not null then
     select * into v_row from "better_supabase"."quotes" y where y."id" = import_quote.subject_id::uuid and y."tenant_id" = v_tenant;
@@ -8171,6 +8354,14 @@ begin
       return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
     end if;
     v_id := v_row."id";
+    v_same := (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb));
+    -- A quote that was sent or decided can't change its lines. The import
+    -- reopens it for the replacement, then the update below restores the
+    -- status it had, so a historical quote keeps its decided state.
+    if not v_same and jsonb_typeof(v_data -> 'lines') = 'array' then
+      update "better_supabase"."quotes" y set "status" = better_supabase.as_column_type('draft', (null::"better_supabase"."quotes")."status") where y."id" = v_id;
+      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
+    end if;
     update "better_supabase"."quotes" y set
       "status" = better_supabase.as_column_type(coalesce(v_data ->> 'status', 'draft'), (null::"better_supabase"."quotes")."status"),
       "created_at" = coalesce(nullif(v_data ->> 'createdAt', '')::timestamptz, y."created_at"),
@@ -8186,16 +8377,50 @@ begin
       "valid_until" = coalesce(nullif(v_data ->> 'validUntil', '')::date, y."valid_until"),
       "company_id" = coalesce(nullif(v_data ->> 'companyId', ''), y."company_id")
     where y."id" = v_id;
-    if (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+    if v_same then
       update "better_supabase"."quote_lines" l set
         "description" = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l."description"),
         "tax_rate_bps" = coalesce((e.l ->> 'taxRateBps')::integer, l."tax_rate_bps"),
         "tax_code" = coalesce(nullif(e.l ->> 'taxCode', ''), l."tax_code")
       from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
       where l."parent_id" = v_id and l."position" = e.n::integer;
-    elsif jsonb_typeof(v_data -> 'lines') = 'array' then
-      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
     end if;
+  if jsonb_typeof(v_data -> 'taxLines') = 'array' then
+    v_computed := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(z."tax_code", '') || ':' || z."tax_rate_bps"::text as key, sum(z."net") as net, sum(z."tax") as tax
+        from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id group by 1) k
+    ), '{}'::jsonb);
+    v_given := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(g.value ->> 'taxCode', '') || ':' || coalesce((g.value ->> 'taxRateBps')::integer, 0)::text as key,
+          sum((g.value ->> 'net')::bigint) as net, sum((g.value ->> 'tax')::bigint) as tax
+        from jsonb_array_elements(v_data -> 'taxLines') g group by 1) k
+    ), '{}'::jsonb);
+    if v_computed <> v_given then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_MISMATCH', 'message', 'the stored tax per code differs from the tax computed from the lines; the stored amounts were kept', 'computed', v_computed, 'given', v_given));
+    end if;
+    delete from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id;
+    insert into "better_supabase"."quote_tax_lines" ("tenant_id", "parent_id", "tax_rate_bps", "tax_code", "net", "tax", "gross", "discount")
+    select v_tenant, v_id, coalesce((g.value ->> 'taxRateBps')::integer, 0), nullif(g.value ->> 'taxCode', ''), (g.value ->> 'net')::bigint, (g.value ->> 'tax')::bigint,
+      coalesce((g.value ->> 'gross')::bigint, (g.value ->> 'net')::bigint + (g.value ->> 'tax')::bigint), coalesce((g.value ->> 'discount')::bigint, 0)
+    from jsonb_array_elements(v_data -> 'taxLines') g;
+  end if;
+  if jsonb_typeof(v_data -> 'totals') = 'object' then
+    select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
+    if (v_data -> 'totals' ->> 'subtotal' is not null and (v_data -> 'totals' ->> 'subtotal')::bigint <> v_row."subtotal")
+      or (v_data -> 'totals' ->> 'tax' is not null and (v_data -> 'totals' ->> 'tax')::bigint <> v_row."tax_total")
+      or (v_data -> 'totals' ->> 'total' is not null and (v_data -> 'totals' ->> 'total')::bigint <> v_row."total") then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TOTALS_MISMATCH', 'message', 'the stored totals differ from the totals computed from the lines; the stored totals were kept',
+        'computed', jsonb_build_object('subtotal', v_row."subtotal"::text, 'tax', v_row."tax_total"::text, 'total', v_row."total"::text),
+        'given', v_data -> 'totals'));
+    end if;
+    update "better_supabase"."quotes" y set
+      "subtotal" = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, y."subtotal"),
+      "tax_total" = coalesce((v_data -> 'totals' ->> 'tax')::bigint, y."tax_total"),
+      "total" = coalesce((v_data -> 'totals' ->> 'total')::bigint, y."total")
+    where y."id" = v_id;
+  end if;
     select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
     return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row."updated_at", 'warnings', v_warnings);
   end if;
@@ -8410,7 +8635,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:51a67438821080443ccb0504e65fda1cc8a36f8348a81facce796887105c7d9c
+-- @bsb-hash sha256:8ea0b4e63252e8c7ad3fbe7701ae1935eabd1be121a8ad26eaec34c8c4cdd20e
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9763,7 +9988,9 @@ grant execute on function "better_supabase"."select_quote_variant"(uuid, jsonb) 
 -- status?, title?, currency, validUntil?, createdAt?, sentAt?, viewedAt?,
 -- decidedAt?, decidedBy?, decisionNote?, company?, contact?, origin?,
 -- pricesIncludeTax?, attrs?, legalEntityId?, buyer?, lines, taxLines?,
--- totals? }. A quote that is already imported is kept as it is.
+-- totals? }. A quote that is already imported is kept as it is, unless
+-- item.data.update is 'apply': then its fields, lines, stored tax and totals
+-- are replaced, whatever status the quote is in.
 create or replace function "better_supabase"."import_quote"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -9780,6 +10007,7 @@ declare
   v_warnings jsonb := '[]'::jsonb;
   v_computed jsonb;
   v_given jsonb;
+  v_same boolean;
 begin
   if import_quote.subject_id is not null then
     select * into v_row from "better_supabase"."quotes" y where y."id" = import_quote.subject_id::uuid and y."org_id" = v_tenant;
@@ -9790,6 +10018,14 @@ begin
       return jsonb_build_object('subjectId', v_row."id"::text, 'updatedAt', v_row."updated_at", 'warnings', jsonb_build_array(jsonb_build_object('code', 'IMPORT_DOCUMENT_CHANGED', 'message', 'the source quote changed after it was imported; an imported quote is kept as imported, so import the correction as a new quote')));
     end if;
     v_id := v_row."id";
+    v_same := (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb));
+    -- A quote that was sent or decided can't change its lines. The import
+    -- reopens it for the replacement, then the update below restores the
+    -- status it had, so a historical quote keeps its decided state.
+    if not v_same and jsonb_typeof(v_data -> 'lines') = 'array' then
+      update "better_supabase"."quotes" y set "status" = 'draft' where y."id" = v_id;
+      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
+    end if;
     update "better_supabase"."quotes" y set
       "status" = coalesce(v_data ->> 'status', 'draft'),
       "created_at" = coalesce(nullif(v_data ->> 'createdAt', '')::timestamptz, y."created_at"),
@@ -9805,16 +10041,50 @@ begin
       "valid_until" = coalesce(nullif(v_data ->> 'validUntil', '')::date, y."valid_until"),
       "company_id" = coalesce(nullif(v_data ->> 'companyId', ''), y."company_id")
     where y."id" = v_id;
-    if (select count(*) from "better_supabase"."quote_lines" l where l."parent_id" = v_id) = jsonb_array_length(coalesce(v_data -> 'lines', '[]'::jsonb)) then
+    if v_same then
       update "better_supabase"."quote_lines" l set
         "description" = coalesce(nullif(e.l ->> 'title', ''), nullif(e.l ->> 'description', ''), l."description"),
         "tax_rate_bps" = coalesce((e.l ->> 'taxRateBps')::integer, l."tax_rate_bps"),
         "tax_code" = coalesce(nullif(e.l ->> 'taxCode', ''), l."tax_code")
       from jsonb_array_elements(v_data -> 'lines') with ordinality as e(l, n)
       where l."parent_id" = v_id and l."position" = e.n::integer;
-    elsif jsonb_typeof(v_data -> 'lines') = 'array' then
-      perform "better_supabase"."set_quote_lines"(v_id, v_data -> 'lines');
     end if;
+  if jsonb_typeof(v_data -> 'taxLines') = 'array' then
+    v_computed := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(z."tax_code", '') || ':' || z."tax_rate_bps"::text as key, sum(z."net") as net, sum(z."tax") as tax
+        from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id group by 1) k
+    ), '{}'::jsonb);
+    v_given := coalesce((
+      select jsonb_object_agg(k.key, jsonb_build_object('net', k.net, 'tax', k.tax))
+      from (select coalesce(g.value ->> 'taxCode', '') || ':' || coalesce((g.value ->> 'taxRateBps')::integer, 0)::text as key,
+          sum((g.value ->> 'net')::bigint) as net, sum((g.value ->> 'tax')::bigint) as tax
+        from jsonb_array_elements(v_data -> 'taxLines') g group by 1) k
+    ), '{}'::jsonb);
+    if v_computed <> v_given then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TAX_MISMATCH', 'message', 'the stored tax per code differs from the tax computed from the lines; the stored amounts were kept', 'computed', v_computed, 'given', v_given));
+    end if;
+    delete from "better_supabase"."quote_tax_lines" z where z."parent_id" = v_id;
+    insert into "better_supabase"."quote_tax_lines" ("org_id", "parent_id", "tax_rate_bps", "tax_code", "net", "tax", "gross", "discount")
+    select v_tenant, v_id, coalesce((g.value ->> 'taxRateBps')::integer, 0), nullif(g.value ->> 'taxCode', ''), (g.value ->> 'net')::bigint, (g.value ->> 'tax')::bigint,
+      coalesce((g.value ->> 'gross')::bigint, (g.value ->> 'net')::bigint + (g.value ->> 'tax')::bigint), coalesce((g.value ->> 'discount')::bigint, 0)
+    from jsonb_array_elements(v_data -> 'taxLines') g;
+  end if;
+  if jsonb_typeof(v_data -> 'totals') = 'object' then
+    select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
+    if (v_data -> 'totals' ->> 'subtotal' is not null and (v_data -> 'totals' ->> 'subtotal')::bigint <> v_row."subtotal")
+      or (v_data -> 'totals' ->> 'tax' is not null and (v_data -> 'totals' ->> 'tax')::bigint <> v_row."tax_total")
+      or (v_data -> 'totals' ->> 'total' is not null and (v_data -> 'totals' ->> 'total')::bigint <> v_row."total") then
+      v_warnings := v_warnings || jsonb_build_array(jsonb_build_object('code', 'IMPORT_TOTALS_MISMATCH', 'message', 'the stored totals differ from the totals computed from the lines; the stored totals were kept',
+        'computed', jsonb_build_object('subtotal', v_row."subtotal"::text, 'tax', v_row."tax_total"::text, 'total', v_row."total"::text),
+        'given', v_data -> 'totals'));
+    end if;
+    update "better_supabase"."quotes" y set
+      "subtotal" = coalesce((v_data -> 'totals' ->> 'subtotal')::bigint, y."subtotal"),
+      "tax_total" = coalesce((v_data -> 'totals' ->> 'tax')::bigint, y."tax_total"),
+      "total" = coalesce((v_data -> 'totals' ->> 'total')::bigint, y."total")
+    where y."id" = v_id;
+  end if;
     select * into v_row from "better_supabase"."quotes" y where y."id" = v_id;
     return jsonb_build_object('subjectId', v_id::text, 'updatedAt', v_row."updated_at", 'warnings', v_warnings);
   end if;

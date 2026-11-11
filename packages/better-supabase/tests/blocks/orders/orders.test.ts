@@ -1675,6 +1675,57 @@ describe("orders from documents", () => {
     ]);
   });
 
+  it("saves a draft, confirms it, and holds and releases an order", async () => {
+    const { orders: o, calls } = orders({
+      order_from_lines: () => ({
+        ...orderRow({ status: "draft", cartId: null }),
+        created: true,
+      }),
+      confirm_draft_order: () => orderRow({ status: "confirmed" }),
+      hold_order: () =>
+        orderRow({
+          status: "on_hold",
+          heldAt: "2026-11-10T10:00:00Z",
+          holdReason: "Credit check",
+        }),
+      release_order_hold: () => orderRow({ status: "confirmed" }),
+    });
+
+    const drafted = await o
+      .fromLines({
+        organizationId: "org",
+        input: {
+          currency: "EUR",
+          lines: [{ variantId: "v1", quantity: 1 }],
+          draft: true,
+        },
+      })
+      .orThrow();
+
+    expect(drafted.order.status).toBe("draft");
+    expect(calls[0]?.args).toMatchObject({ attrs: { draft: true } });
+
+    expect(
+      (await o.confirmDraft({ orderId: "o1", locationId: "l1" }).orThrow())
+        .status,
+    ).toBe("confirmed");
+
+    const held = await o
+      .hold({ orderId: "o1", reason: "Credit check" })
+      .orThrow();
+
+    expect(held.status).toBe("on_hold");
+    expect(held.holdReason).toBe("Credit check");
+    expect(held.heldAt?.toString()).toBe("2026-11-10T10:00:00Z");
+
+    expect((await o.releaseHold("o1").orThrow()).status).toBe("confirmed");
+    expect(calls.slice(1)).toEqual([
+      { fn: "confirm_draft_order", args: { order_id: "o1", location: "l1" } },
+      { fn: "hold_order", args: { order_id: "o1", reason: "Credit check" } },
+      { fn: "release_order_hold", args: { order_id: "o1" } },
+    ]);
+  });
+
   it("drafts a drop ship purchase order from an order", async () => {
     const { orders: o, calls } = orders({
       purchase_order_from_order: () => ({

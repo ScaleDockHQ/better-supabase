@@ -14682,11 +14682,6 @@ msgctxt "settings._3yfCs"
 msgid "AI providers"
 msgstr "AI-providers"
 
-#: src/features/settings/components/settings-nav-links.tsx
-msgctxt "settings.D3idYv"
-msgid "Settings"
-msgstr "Instellingen"
-
 #: src/features/shifts/components/roster-board.tsx
 msgctxt "shifts.LHKgIm"
 msgid "The roster didn't load"
@@ -15331,6 +15326,11 @@ msgid "Draft"
 msgstr "Concept"
 
 #: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.0Hhe6f"
+msgid "On hold"
+msgstr "In de wacht"
+
+#: src/features/shop/components/order-status-badge.tsx
 msgctxt "shop.M1w9up"
 msgid "Awaiting payment"
 msgstr "Wacht op betaling"
@@ -15376,6 +15376,21 @@ msgid "Order cancelled"
 msgstr "Bestelling geannuleerd"
 
 #: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.8vir8Z"
+msgid "Draft confirmed"
+msgstr "Concept bevestigd"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.t9oC-P"
+msgid "Order put on hold"
+msgstr "Order in de wacht gezet"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.-y0jGW"
+msgid "Hold released"
+msgstr "Wacht opgeheven"
+
+#: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.cBURaZ"
 msgid "Fulfillment created"
 msgstr "Afhandeling aangemaakt"
@@ -15401,14 +15416,29 @@ msgid "{count, plural, one {# line} other {# lines}} sent to the kitchen"
 msgstr "{count, plural, one {# regel} other {# regels}} naar de keuken gestuurd"
 
 #: src/features/shop/components/order-transitions.tsx
-msgctxt "shop.01-5kQ"
-msgid "Mark as paid"
-msgstr "Markeren als betaald"
+msgctxt "shop.ILawY9"
+msgid "Confirm draft"
+msgstr "Concept bevestigen"
 
 #: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.8fI5PB"
 msgid "Cancel order"
 msgstr "Bestelling annuleren"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop._tJQ7S"
+msgid "Release hold"
+msgstr "Wacht opheffen"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.01-5kQ"
+msgid "Mark as paid"
+msgstr "Markeren als betaald"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.K1HLMq"
+msgid "Put on hold"
+msgstr "In de wacht zetten"
 
 #: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.BR3V4w"
@@ -18170,4 +18200,4 @@ msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
 #: src/lib/use-error-message.ts
 msgctxt "errors.TM7s8X"
 msgid "The list was cut off. Ask for a page instead."
-msgstr ""
+msgstr "De lijst is afgekapt. Vraag in plaats daarvan een pagina op."

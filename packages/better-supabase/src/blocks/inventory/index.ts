@@ -12,6 +12,7 @@ export {
   type PurchaseOrderInput,
   type PurchaseOrderLine,
   type PurchaseOrderStatus,
+  type PurchaseOrderTaxLine,
   type Receipt,
   type ReceiptLine,
   type Reservation,

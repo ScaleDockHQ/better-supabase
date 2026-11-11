@@ -23,6 +23,7 @@ import type { TableModule } from "../schema/define.ts";
 import type {
   AnyFunctions,
   AnyModels,
+  Relations,
   Row,
   TableKey,
   TableMeta,
@@ -47,9 +48,23 @@ import {
   filterWhere,
 } from "./filter-query.ts";
 import { facetCacheKey, loadFacetCounts, openListRun } from "./list-facets.ts";
+import {
+  all,
+  countsOf,
+  facetSchema,
+  filterParser,
+  first,
+  intParser,
+  isSearchParams,
+  listParser,
+  MAX_FILTER_PARAM,
+  readRecord,
+  toInt,
+  UNSET,
+  validTimeZone,
+} from "./list-params.ts";
 
-/** Facet value meaning "not set": filters with `is null`. */
-export const UNSET = "__unset__";
+export { UNSET } from "./list-params.ts";
 
 type Column<M extends AnyModels, T extends keyof M> = Extract<
   keyof Row<M, T>,
@@ -59,6 +74,50 @@ type Column<M extends AnyModels, T extends keyof M> = Extract<
 type TextColumn<M extends AnyModels, T extends keyof M> = {
   [K in Column<M, T>]: [NonNullable<Row<M, T>[K]>] extends [string] ? K : never;
 }[Column<M, T>];
+
+type RelationKey<M extends AnyModels, T extends keyof M> = Extract<
+  keyof Relations<M, T>,
+  string
+>;
+
+type RelationTargetColumn<
+  M extends AnyModels,
+  T extends keyof M,
+  K extends RelationKey<M, T>,
+> = Relations<M, T>[K] extends { readonly table: infer X extends keyof M }
+  ? Extract<keyof Row<M, X>, string>
+  : never;
+
+/**
+ * A facet on a column of a related table: `{ relation: "tags", column: "name"
+ * }` matches rows with a related tag named by any of the values (a to-many
+ * relation) or whose related row has that value (a to-one relation).
+ */
+export type ListRelationFacet<M extends AnyModels, T extends keyof M> = {
+  readonly [K in RelationKey<M, T>]: {
+    readonly relation: K;
+    readonly column: RelationTargetColumn<M, T, K>;
+  };
+}[RelationKey<M, T>];
+
+/** One term of a free sort: a column of `sortable` and its direction. */
+export interface ListOrder {
+  readonly column: string;
+  readonly direction: "asc" | "desc";
+}
+
+/** A free sort, built by `freeSort` (`better-supabase/list/order`). */
+export interface ListFreeSort {
+  readonly sortable: readonly string[];
+  /** Checks the `order` input and reports what is wrong. */
+  check(raw: unknown, issues: ValidationIssue[]): ListOrder[] | undefined;
+  /** The repository `orderBy` of an order, ending in the tiebreak column. */
+  orderBy(order: readonly ListOrder[]): Record<string, string>[];
+  readonly parser: ParserSpec<readonly ListOrder[]>;
+  serialize(order: readonly ListOrder[]): string;
+  readonly openapi: OpenApiParameter;
+  readonly jsonSchema: Readonly<Record<string, unknown>>;
+}
 
 /** `offset` pages by number; `cursor` continues after the last row (keyset). */
 export type ListPagination = "offset" | "cursor";
@@ -98,9 +157,19 @@ export interface ListQueryConfig<
     | { readonly fts: Column<M, T>; readonly config?: string };
   /**
    * Filterable columns by URL key. Values are validated against enums and CHECK
-   * unions.
+   * unions. A facet can name a column of a related table instead (a
+   * `ListRelationFacet`); it filters but has no counts, so its `facetCounts`
+   * entry is empty.
    */
-  readonly facets?: { readonly [K in F]: Column<M, T> };
+  readonly facets?: {
+    readonly [K in F]: Column<M, T> | ListRelationFacet<M, T>;
+  };
+  /**
+   * A free sort from `freeSort` in `better-supabase/list/order`: the caller
+   * picks up to three columns through the `order` URL parameter or input. It
+   * lives in its own entry, so a list without it does not carry its code.
+   */
+  readonly freeSort?: ListFreeSort;
   /**
    * Fields a filter tree (ReUI Filters' `FilterQuery`) may name, by field id.
    * Each has a type and, optionally, the subset of its operators to allow.
@@ -136,6 +205,8 @@ export interface ListQueryConfig<
 export interface ListQuery<S extends string, F extends string> {
   readonly q?: string;
   readonly sort: S;
+  /** A free sort (`sortable`). When set, it replaces `sort`. */
+  readonly order?: readonly ListOrder[];
   /** 1-based. Always 1 with cursor pagination. */
   readonly page: number;
   /** Cursor pagination: the `nextCursor` of the previous page. */
@@ -152,6 +223,7 @@ export interface ListQuery<S extends string, F extends string> {
 export interface ListQueryInput<S extends string, F extends string> {
   readonly q?: string;
   readonly sort?: S;
+  readonly order?: readonly ListOrder[];
   readonly page?: number;
   readonly after?: string;
   readonly size?: number;
@@ -203,7 +275,10 @@ export interface ListParseOptions {
 
 export interface FacetInfo {
   readonly key: string;
+  /** The column filtered: of the related table for a relation facet. */
   readonly column: string;
+  /** Set for a facet on a related table. */
+  readonly relation?: { readonly name: string; readonly many: boolean };
   readonly nullable: boolean;
   /** Allowed values when the column is an enum or CHECK union. */
   readonly values?: readonly string[];
@@ -334,6 +409,8 @@ export interface ListExtra<M extends AnyModels, T extends keyof M> {
 export type ListParsers<S extends string, F extends string> = {
   readonly q: ParserSpec<string>;
   readonly sort: ParserSpec<S>;
+  /** The free sort as `column:direction` pairs, when the list has `sortable`. */
+  readonly order?: ParserSpec<readonly ListOrder[]>;
   readonly page: ParserSpec<number>;
   readonly after: ParserSpec<string>;
   readonly size: ParserSpec<number>;
@@ -345,79 +422,6 @@ export type ListParsers<S extends string, F extends string> = {
 } & { readonly [K in F]: ParserSpec<readonly string[]> };
 
 const RESERVED = new Set(["q", "sort", "page", "after", "size"]);
-
-/** Longest `filter` URL parameter, in characters. */
-const MAX_FILTER_PARAM = 16_384;
-
-function validTimeZone(timeZone: string): boolean {
-  try {
-    return (
-      new Intl.DateTimeFormat("en", { timeZone }).resolvedOptions().timeZone !==
-      ""
-    );
-  } catch {
-    return false;
-  }
-}
-
-function first(
-  value: string | readonly string[] | undefined,
-): string | undefined {
-  return typeof value === "string" ? value : value?.[0];
-}
-
-function all(value: string | readonly string[] | undefined): string[] {
-  const values = typeof value === "string" ? [value] : [...(value ?? [])];
-
-  return values.flatMap((entry) =>
-    entry.split(",").flatMap((part) => {
-      const trimmed = part.trim();
-
-      return trimmed === "" ? [] : [trimmed];
-    }),
-  );
-}
-
-const isParamValue = (value: unknown): boolean =>
-  value === undefined ||
-  typeof value === "string" ||
-  (Array.isArray(value) && value.every((entry) => typeof entry === "string"));
-
-function isSearchParams(value: object): value is ListSearchParams {
-  return (
-    value instanceof URLSearchParams ||
-    (!("facets" in value && typeof value.facets === "object") &&
-      Object.values(value).every(isParamValue))
-  );
-}
-
-function readRecord(
-  input: ListSearchParams,
-): Record<string, string | readonly string[] | undefined> {
-  if (!(input instanceof URLSearchParams)) {
-    return input;
-  }
-
-  const out: Record<string, string[]> = {};
-
-  for (const [key, value] of input) {
-    (out[key] ??= []).push(value);
-  }
-
-  return out;
-}
-
-function toInt(raw: unknown): number | undefined {
-  if (typeof raw === "number") {
-    return raw;
-  }
-
-  if (typeof raw !== "string" || !/^\d+$/.test(raw)) {
-    return Number.NaN;
-  }
-
-  return Number(raw);
-}
 
 /**
  * A reusable list endpoint for one table: search, facets, sorts and pagination,
@@ -478,8 +482,14 @@ export function defineListQuery<
   const cursor = config.pagination !== "offset";
   // SAFETY: config.sorts is keyed by S, and Object.keys widens the keys to string.
   const sortKeys = Object.keys(config.sorts) as S[];
+
   // SAFETY: config.facets is keyed by F, and Object.entries widens the keys to string.
-  const facetEntries = Object.entries(config.facets ?? {}) as [F, string][];
+  const facetEntries = Object.entries(config.facets ?? {}) as [
+    F,
+    string | { readonly relation: string; readonly column: string },
+  ][];
+
+  const ordering = config.freeSort;
   const filterFields = filterFieldsOf(meta, config.filters ?? {});
   const filtering = filterFields.length > 0;
 
@@ -490,14 +500,28 @@ export function defineListQuery<
     maxValues: facetLimit,
   };
 
-  for (const [key, column] of facetEntries) {
-    if (RESERVED.has(key) || (filtering && key === "filter")) {
+  for (const [key, entry] of facetEntries) {
+    if (
+      RESERVED.has(key) ||
+      (filtering && key === "filter") ||
+      (ordering && key === "order")
+    ) {
       throw new TypeError(`defineListQuery: facet key "${key}" is reserved`);
     }
 
-    if (!meta.columns[column]) {
+    if (typeof entry === "string") {
+      if (!meta.columns[entry]) {
+        throw new TypeError(
+          `defineListQuery: unknown column "${table}.${entry}"`,
+        );
+      }
+
+      continue;
+    }
+
+    if (!meta.relations[entry.relation]) {
       throw new TypeError(
-        `defineListQuery: unknown column "${table}.${column}"`,
+        `defineListQuery: unknown relation "${table}.${entry.relation}"`,
       );
     }
   }
@@ -508,12 +532,27 @@ export function defineListQuery<
     );
   }
 
-  const facets: FacetInfo[] = facetEntries.map(([key, column]) => {
-    const columnMeta = meta.columns[column]!;
+  const facets: FacetInfo[] = facetEntries.map(([key, entry]) => {
+    if (typeof entry !== "string") {
+      const relation = meta.relations[entry.relation]!;
+
+      const columnMeta =
+        betterSupabase.meta.tables[relation.table]?.columns[entry.column];
+
+      return {
+        key,
+        column: entry.column,
+        relation: { name: entry.relation, many: relation.kind === "many" },
+        nullable: false,
+        ...(columnMeta?.enum ? { values: columnMeta.enum } : {}),
+      };
+    }
+
+    const columnMeta = meta.columns[entry]!;
 
     return {
       key,
-      column,
+      column: entry,
       nullable: columnMeta.nullable === true,
       ...(columnMeta.enum ? { values: columnMeta.enum } : {}),
     };
@@ -529,6 +568,7 @@ export function defineListQuery<
   function normalize(raw: {
     q?: unknown;
     sort?: unknown;
+    order?: unknown;
     page?: unknown;
     after?: unknown;
     size?: unknown;
@@ -582,6 +622,17 @@ export function defineListQuery<
           path: ["sort"],
         });
       }
+    }
+
+    let order: ListOrder[] | undefined;
+
+    if (raw.order !== undefined && raw.order !== null && raw.order !== "") {
+      order = ordering
+        ? ordering.check(raw.order, issues)
+        : void issues.push({
+            message: "This list has no free sort",
+            path: ["order"],
+          });
     }
 
     const page =
@@ -668,6 +719,7 @@ export function defineListQuery<
       value: {
         ...(q ? { q } : {}),
         sort,
+        ...(order && order.length > 0 ? { order } : {}),
         page: page ?? 1,
         ...(after ? { after } : {}),
         size: size ?? pageSize,
@@ -733,6 +785,7 @@ export function defineListQuery<
         timeZone,
         q: first(record["q"]),
         sort: first(record["sort"]),
+        order: first(record["order"]),
         page: first(record["page"]),
         after: first(record["after"]),
         size: first(record["size"]),
@@ -765,6 +818,7 @@ export function defineListQuery<
       timeZone,
       q: typed.q,
       sort: typed.sort,
+      order: typed.order,
       page: typed.page,
       after: typed.after,
       size: typed.size,
@@ -808,6 +862,16 @@ export function defineListQuery<
   ): Where | undefined {
     if (!values || values.length === 0) {
       return undefined;
+    }
+
+    if (facet.relation) {
+      const related = { [facet.column]: { in: [...values] } };
+
+      return {
+        [facet.relation.name]: facet.relation.many
+          ? { some: related }
+          : related,
+      };
     }
 
     const unset = values.includes(UNSET);
@@ -871,68 +935,21 @@ export function defineListQuery<
       ? { after: query.after ?? null }
       : { page: query.page, count: config.count ?? "planned" };
 
+    // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0634: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
+    const sorted = config.sorts[query.sort];
+
     // SAFETY: orderBy comes from config.sorts for table T, the filter is
     // built from its columns, and `paging` matches the pagination P.
     return {
       ...(filter ? { where: filter } : {}),
-      // oxlint-disable-next-line typescript/no-unsafe-enum-assignment -- false positive: the key type is a string, not an enum (ADR 0634: 9 findings, tsgolint 7.0.2006 treats the mapped-type key as an enum)
-      orderBy: config.sorts[query.sort],
+      orderBy:
+        ordering && query.order && query.order.length > 0
+          ? ordering.orderBy(query.order)
+          : sorted,
       size: query.size,
       ...paging,
     } as never;
   }
-
-  /** Rows per value of one facet, from its grouped aggregate. */
-  function countsOf(
-    facet: FacetInfo,
-    groups: readonly Record<string, unknown>[],
-  ): Record<string, number> {
-    const counts: Record<string, number> = {};
-
-    for (const value of facet.values ?? []) {
-      counts[value] = 0;
-    }
-
-    for (const group of groups) {
-      const raw = group[facet.column];
-      const key = raw === null || raw === undefined ? UNSET : String(raw);
-      counts[key] = (counts[key] ?? 0) + Number(group["_count"] ?? 0);
-    }
-
-    return counts;
-  }
-
-  const listParser: ParserSpec<readonly string[]> = {
-    parse: (value) => {
-      const values = all(value);
-
-      return values.length > 0 ? values : null;
-    },
-    serialize: (values) => values.join(","),
-  };
-
-  const intParser: ParserSpec<number> = {
-    parse: (value) => (/^\d+$/.test(value) ? Number(value) : null),
-    serialize: String,
-  };
-
-  const filterParser: ParserSpec<FilterQuery> = {
-    parse: (value) => {
-      const decoded =
-        value.length > MAX_FILTER_PARAM ? undefined : decodeFilterQuery(value);
-
-      const group =
-        typeof decoded === "object" &&
-        decoded !== null &&
-        "type" in decoded &&
-        decoded.type === "group";
-
-      // SAFETY: a decoded group; `parse` checks every node before it is used.
-      return group ? (decoded as FilterQuery) : null;
-    },
-    serialize: encodeFilterQuery,
-    eq: (a, b) => encodeFilterQuery(a) === encodeFilterQuery(b),
-  };
 
   // SAFETY: the object has q, sort, page and size parsers, a filter parser when
   // filters are configured, and one list parser per facet key in F.
@@ -947,6 +964,7 @@ export function defineListQuery<
         (sortKeys as string[]).includes(value) ? (value as S) : null,
       serialize: (value: S) => value,
     },
+    ...(ordering ? { order: ordering.parser } : {}),
     page: intParser,
     after: {
       parse: (value: string) => value || null,
@@ -956,17 +974,6 @@ export function defineListQuery<
     ...(filtering ? { filter: filterParser } : {}),
     ...Object.fromEntries(facets.map((facet) => [facet.key, listParser])),
   } as ListParsers<S, F>;
-
-  const facetSchema = (facet: FacetInfo): Record<string, unknown> => ({
-    type: "array",
-    items: {
-      type: "string",
-      ...(facet.values
-        ? { enum: [...facet.values, ...(facet.nullable ? [UNSET] : [])] }
-        : {}),
-    },
-    uniqueItems: true,
-  });
 
   // SAFETY: the Array.isArray check narrows the search config to its column-list form.
   const searchDescription = config.search
@@ -994,6 +1001,7 @@ export function defineListQuery<
       description: `Ordering. Default \`${config.defaultSort}\`.`,
       schema: { type: "string", enum: sortKeys, default: config.defaultSort },
     },
+    ...(ordering ? [ordering.openapi] : []),
     cursor
       ? {
           name: "after",
@@ -1037,7 +1045,7 @@ export function defineListQuery<
       name: facet.key,
       in: "query",
       required: false,
-      description: `Filter on ${facet.column}. Comma-separated; any value matches.${facet.nullable ? ` \`${UNSET}\` matches empty.` : ""}`,
+      description: `Filter on ${facet.relation ? `${facet.relation.name}.` : ""}${facet.column}. Comma-separated; any value matches.${facet.nullable ? ` \`${UNSET}\` matches empty.` : ""}`,
       schema: facetSchema(facet),
       style: "form",
       explode: false,
@@ -1064,6 +1072,7 @@ export function defineListQuery<
           }
         : {}),
       sort: { type: "string", enum: sortKeys, default: config.defaultSort },
+      ...(ordering ? { order: ordering.jsonSchema } : {}),
       ...(cursor
         ? { after: { type: "string" } }
         : { page: { type: "integer", minimum: 1, default: 1 } }),
@@ -1115,10 +1124,13 @@ export function defineListQuery<
     loaded: ReturnType<typeof openRun>,
     query: ListQuery<S, F>,
   ): AsyncResult<FacetCountFields<F>> {
+    const countable = facets.filter((facet) => !facet.relation);
+    const related = facets.filter((facet) => facet.relation);
+
     const counts = loadFacetCounts({
       enabled: config.facetCounts === true,
       mode: facetCountMode,
-      facets,
+      facets: countable,
       facetLimit,
       scanCap: facetScanCap,
       options: loaded.options,
@@ -1130,7 +1142,17 @@ export function defineListQuery<
     });
 
     // SAFETY: facet keys are F, the names from config.facets.
-    return counts as AsyncResult<FacetCountFields<F>>;
+    return (
+      related.length === 0 || config.facetCounts !== true
+        ? counts
+        : counts.map((data) => ({
+            ...data,
+            facetCounts: {
+              ...data.facetCounts,
+              ...Object.fromEntries(related.map((facet) => [facet.key, {}])),
+            },
+          }))
+    ) as AsyncResult<FacetCountFields<F>>;
   }
 
   function openRun(
@@ -1193,6 +1215,10 @@ export function defineListQuery<
 
       if (query.sort && query.sort !== config.defaultSort) {
         params.set("sort", query.sort);
+      }
+
+      if (ordering && query.order && query.order.length > 0) {
+        params.set("order", ordering.serialize(query.order));
       }
 
       if (query.page && query.page !== 1) {

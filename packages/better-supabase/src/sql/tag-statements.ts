@@ -7,9 +7,10 @@ import { listBody, listDeclare } from "./list-template.ts";
 /**
  * The `@bsb` tags that render SQL beyond a single call (ADR 0637, ADR 0661):
  * `access` policies, a keyset `list` function, an `idempotency` index, an id
- * `rpc` function, a stored `rollup` trigger and a `copy` function. `table
- * enable` writes each as a block between marker comments in the table's file,
- * so a later run replaces it instead of adding a second copy.
+ * `rpc` function, a stored `rollup` trigger, a `copy` function and a `buckets`
+ * function that counts rows per date bucket (ADR 0672). `table enable` writes
+ * each as a block between marker comments in the table's file, so a later run
+ * replaces it instead of adding a second copy.
  */
 export const RENDERED_FEATURES = [
   "access",
@@ -18,6 +19,7 @@ export const RENDERED_FEATURES = [
   "rpc",
   "rollup",
   "copy",
+  "buckets",
 ] as const;
 
 export type RenderedFeature = (typeof RENDERED_FEATURES)[number];
@@ -417,6 +419,65 @@ revoke execute on function ${fn}(${idType}[]) from public;
 grant execute on function ${fn}(${idType}[]) to authenticated, service_role;`;
 }
 
+const MAX_BUCKETS = 5000;
+
+function bucketsBlock(schema: string, table: string, tag: BsbTag): string {
+  const target = `${quote(schema)}.${quote(table)}`;
+  const name = identifier(arg(tag, "name") ?? `${table}_date_buckets`, "name");
+  const fn = `${quote(schema)}.${quote(name)}`;
+  const dateColumn = arg(tag, "column");
+
+  if (dateColumn === undefined) {
+    throw new TypeError(
+      "@bsb buckets needs column=<date or timestamp column> to group by",
+    );
+  }
+
+  const column = identifier(dateColumn, "column");
+  const filters = list(tag, "filter").map((c) => identifier(c, "filter"));
+  const max = Number(arg(tag, "max") ?? "1000");
+
+  if (!Number.isInteger(max) || max < 1 || max > MAX_BUCKETS) {
+    throw new TypeError(
+      `@bsb buckets: max is a whole number from 1 to ${MAX_BUCKETS}`,
+    );
+  }
+
+  const equals = filters.map(
+    (filter) =>
+      `\n        and (not (${name}.equals ? ${sqlString(filter)}) or x.${quote(filter)}::text in (select jsonb_array_elements_text(${name}.equals -> ${sqlString(filter)})))`,
+  );
+
+  return `-- The rows of ${schema}.${table} per date bucket of ${column} (at most ${max} buckets); row security decides the rows.
+create or replace function ${fn}(unit text, tz text default 'UTC', from_at timestamptz default null, to_at timestamptz default null, equals jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  if ${name}.unit is null or ${name}.unit not in ('hour', 'day', 'week', 'month', 'quarter', 'year') then
+    raise exception 'unit must be hour, day, week, month, quarter or year' using errcode = '22023';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('bucket', b.bucket, 'count', b.n) order by b.bucket), '[]'::jsonb)
+    from (
+      select date_trunc(${name}.unit, x.${quote(column)}::timestamptz, ${name}.tz) as bucket, count(*) as n
+      from ${target} x
+      where (${name}.from_at is null or x.${quote(column)} >= ${name}.from_at)
+        and (${name}.to_at is null or x.${quote(column)} < ${name}.to_at)${equals.join("")}
+      group by 1
+      order by 1
+      limit ${max}
+    ) b
+  );
+end;
+$$;
+revoke execute on function ${fn}(text, text, timestamptz, timestamptz, jsonb) from public;
+grant execute on function ${fn}(text, text, timestamptz, timestamptz, jsonb) to authenticated, service_role;`;
+}
+
 function copyBlock(schema: string, table: string, tag: BsbTag): string {
   const target = `${quote(schema)}.${quote(table)}`;
   const name = identifier(arg(tag, "name") ?? `copy_${table}`, "name");
@@ -590,6 +651,10 @@ export function renderTagBlock(
 
       case "copy": {
         return copyBlock(schema, table, tag);
+      }
+
+      case "buckets": {
+        return bucketsBlock(schema, table, tag);
       }
 
       default: {

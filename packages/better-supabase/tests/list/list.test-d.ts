@@ -9,11 +9,14 @@ import type {
 import type {
   FilterField,
   FilterQuery,
+  ListOrder,
   ListQuery,
+  ParserSpec,
 } from "../../src/list/index.ts";
 
 import { createSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
+import { freeSort } from "../../src/list/order/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
@@ -129,6 +132,33 @@ describe("list types", () => {
       sorts: { name: { name: "asc" } },
       // @ts-expect-error default sort must be one of the sorts
       defaultSort: "other",
+    });
+  });
+
+  it("types relation facets and free sort columns", () => {
+    const list = defineListQuery(betterSupabase, "customers", {
+      facets: {
+        noteKind: { relation: "notes", column: "kind" },
+        // @ts-expect-error -- the column is not on the related table
+        bad: { relation: "notes", column: "nope" },
+      },
+      freeSort: freeSort(betterSupabase, "customers", {
+        sortable: ["name", "createdAt"],
+      }),
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+    });
+
+    expectTypeOf<
+      keyof ListQuery<"name", "noteKind">["facets"]
+    >().toEqualTypeOf<"noteKind">();
+    expectTypeOf(list.parsers.order).toEqualTypeOf<
+      ParserSpec<readonly ListOrder[]> | undefined
+    >();
+
+    freeSort(betterSupabase, "customers", {
+      // @ts-expect-error -- not a customers column
+      sortable: ["nmae"],
     });
   });
 });

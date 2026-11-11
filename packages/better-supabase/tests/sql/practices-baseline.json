@@ -261,7 +261,7 @@
     "row-triggers": 1
   },
   "inventory": {
-    "security-definer-functions": 307
+    "security-definer-functions": 331
   },
   "invitations": {
     "security-definer-functions": 72,
@@ -366,7 +366,7 @@
     "row-triggers": 1
   },
   "orders": {
-    "security-definer-functions": 223
+    "security-definer-functions": 241
   },
   "organizations": {
     "security-definer-functions": 109,

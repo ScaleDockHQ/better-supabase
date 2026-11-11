@@ -122,6 +122,7 @@ as $$
     'invoiceNumber', x.${o("invoiceNumber")}, 'invoicedAt', x.${o("invoicedAt")}, 'placedAt', x.${o("placedAt")},
     'paidAt', x.${o("paidAt")}, 'fulfilledAt', x.${o("fulfilledAt")}, 'completedAt', x.${o("completedAt")},
     'cancelledAt', x.${o("cancelledAt")}, 'cancelReason', ${or("orders", "x", "cancelReason")},
+    'heldAt', ${or("orders", "x", "heldAt")}, 'holdReason', ${or("orders", "x", "holdReason")},
     'lines', coalesce((select jsonb_agg(jsonb_build_object(
         'id', l.${ol("id")}, 'variantId', l.${ol("variant")}, 'productId', l.${ol("product")}, 'sku', l.${ol("sku")},
         'title', l.${ol("title")}, 'quantity', l.${ol("quantity")}, 'unitAmount', ${text("l", ol("unitAmount"))},
@@ -569,8 +570,8 @@ end;
 $$;
 revoke execute on function ${fn("order_cancel")}(uuid, text) from public, anon, authenticated;
 
--- Cancels an order that is waiting for payment, or a confirmed one before
--- anything shipped. Staff with orders.manage and the customer who placed
+-- Cancels a draft, an order that is waiting for payment, a confirmed one or
+-- one on hold, before anything shipped. Staff with orders.manage and the customer who placed
 -- it can.
 create or replace function ${fn("cancel_order")}(order_id uuid, reason text default null)
 returns boolean
@@ -591,9 +592,9 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from ${ctx.table("fulfillments")} y
+  if v_order.status::text not in ('draft', 'pending_payment', 'confirmed', 'on_hold') or exists (select 1 from ${ctx.table("fulfillments")} y
     where y.${ctx.col("fulfillments", "order")} = v_order.id and ${ctx.is("fulfillments", "status", `y.${ctx.col("fulfillments", "status")}`, ["shipped", "delivered"])}) then
-    ${fail("ORDERS_TRANSITION_INVALID", "only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one", "55000")}
+    ${fail("ORDERS_TRANSITION_INVALID", "only a draft, an order waiting for payment, a confirmed one or one on hold, with nothing shipped, can be cancelled; refund a paid one", "55000")}
   end if;
   perform ${fn("order_cancel")}(v_order.id, cancel_order.reason);
   return true;

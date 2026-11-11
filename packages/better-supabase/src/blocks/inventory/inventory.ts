@@ -11,6 +11,7 @@ import type { InventoryProcurement } from "./procurement.ts";
 import type { InventoryReads } from "./reads.ts";
 import type { InventoryTracking } from "./tracking.ts";
 
+import { money } from "../../commerce/money.ts";
 import { detailArg } from "../../commerce/stock-detail.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -166,10 +167,33 @@ export interface TransferInput {
 export interface PurchaseOrderLine extends StockLine {
   /** The cost per unit, in the order's currency. */
   readonly unitCost: Money;
+  /**
+   * The tax rate of the line in basis points (2100 is 21 percent). Lines with a
+   * rate add up into the order's tax lines.
+   */
+  readonly taxRateBps?: number;
+  /** The tax code of the line; the tax lines group by code and rate. */
+  readonly taxCode?: string;
+}
+
+/** The tax of a purchase order at one code and rate. */
+export interface PurchaseOrderTaxLine {
+  readonly taxCode?: string;
+  readonly taxRateBps: number;
+  /** The lines' value before tax. */
+  readonly net: Money;
+  readonly tax: Money;
+  /** The net plus the tax. */
+  readonly gross: Money;
 }
 
 export interface PurchaseOrderInput {
   readonly id?: string;
+  /**
+   * The order's number, up to 50 characters and unique per organization. An
+   * order without one gets the next number when it is placed.
+   */
+  readonly number?: string;
   /** Where the goods arrive. */
   readonly locationId: string;
   /** A `config.subjects` record for the supplier, such as a company. */
@@ -292,7 +316,14 @@ export interface Inventory<F extends object = Record<never, never>>
   savePurchaseOrder(input: {
     organizationId: string;
     input: PurchaseOrderInput;
-  }): AsyncResult<{ readonly id: string }>;
+  }): AsyncResult<{ readonly id: string; readonly number?: string }>;
+  /**
+   * The order's tax per code and rate, rebuilt each time the draft is saved
+   * from the lines that carry a `taxRateBps`.
+   */
+  purchaseOrderTaxLines(
+    purchaseOrderId: string,
+  ): AsyncResult<readonly PurchaseOrderTaxLine[]>;
   /** Marks the order as ordered and counts its lines as incoming stock. */
   placePurchaseOrder(purchaseOrderId: string): AsyncResult<boolean>;
   /** Receives some or all of the ordered units; the rest stay on backorder. */
@@ -300,6 +331,20 @@ export interface Inventory<F extends object = Record<never, never>>
     purchaseOrderId: string;
     lines: readonly ReceiptLine[];
   }): AsyncResult<Receipt>;
+  /**
+   * Gives up part of what a placed order still owes, line by line, for a
+   * supplier that can't deliver it all. The units stop counting as incoming; an
+   * order with nothing left owed becomes `received`, or `cancelled` when
+   * nothing was received.
+   */
+  cancelPurchaseOrderQuantity(input: {
+    purchaseOrderId: string;
+    lines: readonly { readonly lineId: string; readonly quantity: number }[];
+  }): AsyncResult<{
+    readonly status: PurchaseOrderStatus;
+    /** Units still owed across the order. */
+    readonly backordered: number;
+  }>;
   cancelPurchaseOrder(purchaseOrderId: string): AsyncResult<boolean>;
   /** The handler for a scheduled job that runs `expireReservations`. */
   readonly job: JobHandler<unknown>;
@@ -331,6 +376,16 @@ function idOf(fn: string) {
   });
 }
 
+function savedOrderOf(value: unknown): {
+  readonly id: string;
+  readonly number?: string;
+} {
+  const row = recordOf(value, "save_purchase_order");
+  const number = optionalText(row["number"]);
+
+  return { id: textOf(row["id"]), ...(number ? { number } : {}) };
+}
+
 function maxRowsOf(payload: unknown): number | undefined {
   if (!isRecord(payload)) {
     return undefined;
@@ -339,6 +394,25 @@ function maxRowsOf(payload: unknown): number | undefined {
   const value = payload["maxRows"];
 
   return typeof value === "number" ? value : undefined;
+}
+
+function taxLinesOf(value: unknown): readonly PurchaseOrderTaxLine[] {
+  const row = recordOf(value, "purchase_order_tax_lines");
+  const currency = textOf(row["currency"]);
+  const lines = Array.isArray(row["lines"]) ? row["lines"] : [];
+
+  return lines.map((entry: unknown) => {
+    const line = recordOf(entry, "purchase_order_tax_lines");
+    const code = optionalText(line["taxCode"]);
+
+    return {
+      ...(code ? { taxCode: code } : {}),
+      taxRateBps: Number(line["taxRateBps"]),
+      net: money(BigInt(textOf(line["net"])), currency),
+      tax: money(BigInt(textOf(line["tax"])), currency),
+      gross: money(BigInt(textOf(line["gross"])), currency),
+    };
+  });
 }
 
 function purchaseLines(
@@ -355,6 +429,8 @@ function purchaseLines(
       variantId: line.variantId,
       quantity: line.quantity,
       unitCost: line.unitCost.amount.toString(),
+      ...(line.taxRateBps === undefined ? {} : { taxRateBps: line.taxRateBps }),
+      ...(line.taxCode === undefined ? {} : { taxCode: line.taxCode }),
     });
   }
 
@@ -547,10 +623,37 @@ export function createInventory<
           expected_at: instantArg(input.expectedAt) ?? null,
           lines,
           note: input.note ?? null,
+          ...(input.number === undefined ? {} : { number: input.number }),
         },
-        idOf("save_purchase_order"),
+        savedOrderOf,
       );
     },
+    cancelPurchaseOrderQuantity: ({ purchaseOrderId, lines }) =>
+      call(
+        "cancel_purchase_order_quantity",
+        {
+          purchase_order: purchaseOrderId,
+          lines: lines.map(({ lineId, quantity }) => ({ lineId, quantity })),
+        },
+        (value) => {
+          const row = recordOf(value, "cancel_purchase_order_quantity");
+
+          return {
+            status: enumOrThrow(
+              row["status"],
+              PURCHASE_ORDER_STATUSES,
+              "purchase order status",
+            ),
+            backordered: Number(row["backordered"]),
+          };
+        },
+      ),
+    purchaseOrderTaxLines: (purchaseOrderId) =>
+      call(
+        "purchase_order_tax_lines",
+        { purchase_order: purchaseOrderId },
+        taxLinesOf,
+      ),
     placePurchaseOrder: (purchaseOrderId) =>
       call("place_purchase_order", { purchase_order: purchaseOrderId }, isTrue),
     receivePurchaseOrder: ({ purchaseOrderId, lines }) =>

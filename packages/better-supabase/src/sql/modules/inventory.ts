@@ -26,6 +26,10 @@ import {
   addressFunctions,
 } from "./inventory-address.ts";
 import {
+  allocationImportFunctions,
+  allocationImportTargets,
+} from "./inventory-allocation-import.ts";
+import {
   ALLOCATION_TABLES,
   allocationFunctions,
   allocationTable,
@@ -161,6 +165,12 @@ const EVENTS: BlockSqlEvents<InventoryEvents> = {
     "supplierId",
   ]),
   "purchase_order.cancelled": stockEvent("purchase-orders", [
+    "locationId",
+    "status",
+    "supplierType",
+    "supplierId",
+  ]),
+  "purchase_order.line_cancelled": stockEvent("purchase-orders", [
     "locationId",
     "status",
     "supplierType",
@@ -344,9 +354,27 @@ const NAMES: BlockSqlNames = {
         received: "quantity_received",
         quantityCanceled: "quantity_canceled",
         taxCode: "tax_code",
+        taxRateBps: "tax_rate_bps",
         unitCost: "unit_cost",
       },
-      optional: ["quantityCanceled", "taxCode"],
+      optional: ["quantityCanceled", "taxCode", "taxRateBps"],
+    },
+    purchaseOrderTaxLines: {
+      name: "purchase_order_tax_lines",
+      app: {},
+      lifecycle: tenantExport,
+      optionalTable: true,
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        order: "purchase_order_id",
+        taxCode: "tax_code",
+        taxRateBps: "tax_rate_bps",
+        net: "net",
+        tax: "tax",
+        gross: "gross",
+      },
+      optional: ["taxCode"],
     },
     ...PROCUREMENT_TABLES,
     ...TRACKING_TABLES,
@@ -417,6 +445,7 @@ function tables(ctx: BlockSqlContext, names: InventoryNames): string {
   const tl = columns(ctx, "transferLines");
   const po = columns(ctx, "purchaseOrders");
   const pl = columns(ctx, "purchaseOrderLines");
+  const pt = columns(ctx, "purchaseOrderTaxLines");
 
   // Where a drop-ship order goes and the document it came from.
   const shipping = [
@@ -532,13 +561,32 @@ create table if not exists ${t("purchaseOrderLines")} (
   ${pl("order")} uuid not null references ${t("purchaseOrders")} (${po("id")}) on delete cascade,
   ${pl("variant")} uuid not null references ${variants},
   ${pl("quantity")} ${QUANTITY} not null check (${pl("quantity")} > 0),
-  ${pl("received")} ${QUANTITY} not null default 0 check (${pl("received")} between 0 and ${pl("quantity")}${ctx.has("purchaseOrderLines", "quantityCanceled") ? ` - ${pl("quantityCanceled")}` : ""}),${ctx.has("purchaseOrderLines", "quantityCanceled") ? `\n  ${pl("quantityCanceled")} ${QUANTITY} not null default 0 check (${pl("quantityCanceled")} between 0 and ${pl("quantity")}),` : ""}${ctx.has("purchaseOrderLines", "taxCode") ? `\n  ${pl("taxCode")} text,` : ""}
+  ${pl("received")} ${QUANTITY} not null default 0 check (${pl("received")} between 0 and ${pl("quantity")}${ctx.has("purchaseOrderLines", "quantityCanceled") ? ` - ${pl("quantityCanceled")}` : ""}),${ctx.has("purchaseOrderLines", "quantityCanceled") ? `\n  ${pl("quantityCanceled")} ${QUANTITY} not null default 0 check (${pl("quantityCanceled")} between 0 and ${pl("quantity")}),` : ""}${ctx.has("purchaseOrderLines", "taxCode") ? `\n  ${pl("taxCode")} text,` : ""}${ctx.has("purchaseOrderLines", "taxRateBps") ? `\n  ${pl("taxRateBps")} integer check (${pl("taxRateBps")} between 0 and 100000),` : ""}
   ${pl("unitCost")} bigint not null check (${pl("unitCost")} >= 0),
   unique (${pl("order")}, ${pl("variant")})
 );
 create index if not exists ${ctx.naming.rename("purchase_order_lines_variant_idx")} on ${t("purchaseOrderLines")} (${pl("variant")});
 ${lockTable(t("purchaseOrderLines"), { read: true })}
-${read("purchaseOrderLines")}
+${read("purchaseOrderLines")}${
+          ctx.hasTable("purchaseOrderTaxLines")
+            ? `
+
+-- The tax of a purchase order per tax code and rate, rebuilt from its lines
+-- each time the draft is saved. Amounts are minor units of the order's currency.
+create table if not exists ${t("purchaseOrderTaxLines")} (
+  ${pt("id")} uuid primary key default gen_random_uuid(),
+  ${pt("tenant")} ${ctx.idType} not null,
+  ${pt("order")} uuid not null references ${t("purchaseOrders")} (${po("id")}) on delete cascade,${ctx.has("purchaseOrderTaxLines", "taxCode") ? `\n  ${pt("taxCode")} text,` : ""}
+  ${pt("taxRateBps")} integer not null check (${pt("taxRateBps")} between 0 and 100000),
+  ${pt("net")} bigint not null check (${pt("net")} >= 0),
+  ${pt("tax")} bigint not null check (${pt("tax")} >= 0),
+  ${pt("gross")} bigint not null check (${pt("gross")} >= 0)
+);
+create index if not exists ${ctx.naming.rename("purchase_order_tax_lines_order_idx")} on ${t("purchaseOrderTaxLines")} (${pt("order")});
+${lockTable(t("purchaseOrderTaxLines"), { read: true })}
+${read("purchaseOrderTaxLines")}`
+            : ""
+        }
 `
       : ""
   }${procurementTables(ctx, read, lock, variants, location)}${trackingTables(ctx, read, lock)}${allocationTable(ctx, read, lock)}${countTables(ctx, read, lock)}`;
@@ -616,7 +664,7 @@ function build(ctx: BlockSqlContext): string {
 -- weighted average cost, reservations with expiry, allocations with
 -- backorders, transfers, purchase requisitions and purchase orders with
 -- receiving into goods receipts.
-${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${countFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${inventoryReads(ctx)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
+${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${allocationImportFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${countFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${inventoryReads(ctx)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -778,9 +826,29 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
               "timestamptz",
               "jsonb",
               "text",
+              ...(ctx.has("purchaseOrders", "number") ? ["text"] : []),
             ],
             returns: "jsonb",
           },
+          ...(ctx.has("purchaseOrderLines", "quantityCanceled")
+            ? [
+                {
+                  name: "cancel_purchase_order_quantity",
+                  args: ["uuid", "jsonb"],
+                  returns: "jsonb",
+                },
+              ]
+            : []),
+          ...(ctx.hasTable("purchaseOrderTaxLines") &&
+          ctx.has("purchaseOrderLines", "taxRateBps")
+            ? [
+                {
+                  name: "purchase_order_tax_lines",
+                  args: ["uuid"],
+                  returns: "jsonb",
+                },
+              ]
+            : []),
           { name: "place_purchase_order", args: ["uuid"], returns: "boolean" },
           {
             name: "receive_purchase_order",
@@ -864,7 +932,10 @@ export const INVENTORY: BlockSqlDefinition = {
     accounting: (own) =>
       accountingContributions(own, inventoryAccountingSources(own)),
     approvals: procurementApprovals,
-    imports: countImportTargets,
+    imports: (own) => [
+      ...countImportTargets(own),
+      ...allocationImportTargets(own),
+    ],
   },
   contract,
   build,

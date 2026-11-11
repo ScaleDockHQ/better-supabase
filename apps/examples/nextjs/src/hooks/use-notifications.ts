@@ -1,7 +1,6 @@
 "use client";
 
 import type {
-  NotificationCounts,
   NotificationFeedOptions,
   NotificationsActions,
   NotificationsSnapshot,
@@ -11,11 +10,7 @@ import {
   createNotificationsController,
   unreadCount,
 } from "better-supabase/blocks/notifications";
-import { tenantOf } from "better-supabase/next";
 import { useBlockEnv, useController, useLatest } from "better-supabase/react";
-import { useCallback } from "react";
-
-import { useAuth } from "@/lib/hooks";
 
 export type { NotificationSource } from "better-supabase/blocks/notifications";
 
@@ -66,41 +61,4 @@ export function useNotifications<T>(
       }),
     [auth, ports, topic, latest],
   ).view;
-}
-
-/**
- * The badge numbers through the browser client: the `notification_counts`
- * function on the block's `api` schema, which `notifications.counts()` calls on
- * the server. Calling it directly keeps the notifications client, which renders
- * and delivers, out of the shell's first load (ADR 0643). Pass it as `load` to
- * `useNotifications`.
- */
-export function useNotificationCountsLoader(): () => Promise<
-  readonly NotificationCounts[]
-> {
-  const { supabase } = useBlockEnv();
-  const tenant = tenantOf(useAuth());
-
-  return useCallback(async () => {
-    if (tenant === undefined) {
-      return [];
-    }
-
-    const { data } = await supabase
-      .schema("api")
-      .rpc("notification_counts", { tenant, actionable: [] });
-
-    // SAFETY: the function returns `{ unread, actionable, actionable_subjects }` as jsonb numbers.
-    const counts = data as Record<string, number> | null;
-
-    return counts
-      ? [
-          {
-            unread: counts["unread"] ?? 0,
-            actionable: counts["actionable"] ?? 0,
-            actionableSubjects: counts["actionable_subjects"] ?? 0,
-          },
-        ]
-      : [];
-  }, [supabase, tenant]);
 }

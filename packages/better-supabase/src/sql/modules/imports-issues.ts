@@ -31,7 +31,9 @@ create index if not exists import_run_issues_open_idx
   on ${table} (${issueTenant(ctx)}, "source", "entity", "key")
   where "resolved_at" is null;
 create index if not exists import_run_issues_run_idx
-  on ${table} ("run_id", "entity");
+  on ${table} ("run_id", "entity", "created_at", "id");
+create index if not exists import_run_issues_page_idx
+  on ${table} ("run_id", "created_at", "id");
 ${lockTable(table)}
 `;
 }
@@ -116,7 +118,10 @@ begin
 end;
 $$;
 
-create or replace function ${fn("list_import_issues")}(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Pages the issues of one run by keyset on (created_at, id): pass the previous page's next_cursor as
+-- after. row_offset still works when after is null. The total counts at most 10,000 rows and is
+-- null on a keyset page, so a caller keeps the one it read on the first page.
+create or replace function ${fn("list_import_issues")}(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -125,8 +130,13 @@ set search_path = ''
 as $$
 declare
   v_tenant ${ctx.idType};
+  v_limit integer := least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200);
+  v_after_at timestamptz;
+  v_after_id uuid;
   v_total integer;
   v_rows jsonb;
+  v_next text;
+  v_found integer;
 begin
   select r.${r("tenant")} into v_tenant from ${runs} r where r.${r("id")} = list_import_issues.run;
   if v_tenant is null then
@@ -135,30 +145,51 @@ begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("IMPORT_FORBIDDEN", "not allowed to list import issues")}
   end if;
-  select count(*) into v_total from ${table} i
-  where i."run_id" = list_import_issues.run
-    and (list_import_issues.entity is null or i."entity" = list_import_issues.entity);
-  select coalesce(jsonb_agg(row_to_json(t)), '[]'::jsonb) into v_rows from (
-    select i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
-    from ${table} i
-    where i."run_id" = list_import_issues.run
-      and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
-    order by i."created_at", i."id"
-    limit least(greatest(coalesce(list_import_issues.row_limit, 50), 1), 200)
-    offset greatest(coalesce(list_import_issues.row_offset, 0), 0)
+  if list_import_issues.after is not null then
+    begin
+      v_after_at := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 1)::timestamptz;
+      v_after_id := split_part(convert_from(decode(translate(list_import_issues.after, '-_.', '+/='), 'base64'), 'utf8'), '|', 2)::uuid;
+    exception when others then
+      ${fail("IMPORT_ITEM_INVALID", "after is not a cursor of this list", "22023")}
+    end;
+  else
+    select count(*) into v_total from (
+      select 1 from ${table} i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+      limit 10001
+    ) c;
+  end if;
+  select coalesce(jsonb_agg(to_jsonb(t) - 'id' - 'n' order by t."created_at", t."id") filter (where t."n" <= v_limit), '[]'::jsonb),
+    count(*),
+    max(translate(encode(convert_to(t."created_at"::text || '|' || t."id"::text, 'utf8'), 'base64'), '+/=', '-_.')) filter (where t."n" = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.*, row_number() over (order by p."created_at", p."id") as "n"
+    from (
+      select i."id", i."entity", i."key", i."kind", i."code", i."message", i."created_at", i."resolved_at"
+      from ${table} i
+      where i."run_id" = list_import_issues.run
+        and (list_import_issues.entity is null or i."entity" = list_import_issues.entity)
+        and (v_after_at is null or (i."created_at", i."id") > (v_after_at, v_after_id))
+      order by i."created_at", i."id"
+      limit v_limit + 1
+      offset case when list_import_issues.after is null then greatest(coalesce(list_import_issues.row_offset, 0), 0) else 0 end
+    ) p
   ) t;
   return jsonb_build_object(
     'rows', v_rows,
-    'total', least(v_total, 10000),
-    'capped', v_total > 10000
+    'total', case when v_total is null then null else least(v_total, 10000) end,
+    'capped', coalesce(v_total > 10000, false),
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-${userGrant(`${fn("list_import_issues")}(uuid, text, integer, integer)`)}
+${userGrant(`${fn("list_import_issues")}(uuid, text, integer, integer, text)`)}
 
--- Counts and the first changed fields of a dry run. The dry run itself writes
--- no subject rows; the diff is what the batch returned.
-create or replace function ${fn("list_import_diff")}(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0)
+-- Counts and the changed fields of a dry run, paged by position in the diff: pass the previous
+-- page's next_cursor as after. row_offset still works when after is null.
+create or replace function ${fn("list_import_diff")}(run uuid, entity text default null, row_limit integer default 50, row_offset integer default 0, after text default null)
 returns jsonb
 language plpgsql
 stable
@@ -168,25 +199,46 @@ as $$
 declare
   v_counts jsonb;
   v_diff jsonb;
+  v_limit integer := least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200);
+  v_after integer := 0;
   v_rows jsonb;
+  v_found integer;
+  v_next text;
 begin
   select r.${r("counts")}, r.${r("diff")} into v_counts, v_diff from ${runs} r where r.${r("id")} = list_import_diff.run;
   if v_counts is null then
     ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
   end if;
-  select coalesce(jsonb_agg(d.value), '[]'::jsonb) into v_rows from (
-    select value from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) value
-    where list_import_diff.entity is null or value ->> 'entity' = list_import_diff.entity
-    offset greatest(coalesce(list_import_diff.row_offset, 0), 0)
-    limit least(greatest(coalesce(list_import_diff.row_limit, 50), 1), 200)
+  if list_import_diff.after is not null then
+    if list_import_diff.after !~ '^[0-9]{1,9}$' then
+      ${fail("IMPORT_ITEM_INVALID", "after is not a cursor of this list", "22023")}
+    end if;
+    v_after := list_import_diff.after::integer;
+  end if;
+  select coalesce(jsonb_agg(d.value order by d.ord) filter (where d.n <= v_limit), '[]'::jsonb),
+    count(*),
+    max(d.ord::text) filter (where d.n = v_limit)
+  into v_rows, v_found, v_next
+  from (
+    select p.value, p.ord, row_number() over (order by p.ord) as n
+    from (
+      select e.value, e.ord
+      from jsonb_array_elements(coalesce(v_diff, '[]'::jsonb)) with ordinality e(value, ord)
+      where e.ord > v_after
+        and (list_import_diff.entity is null or e.value ->> 'entity' = list_import_diff.entity)
+      order by e.ord
+      offset case when list_import_diff.after is null then greatest(coalesce(list_import_diff.row_offset, 0), 0) else 0 end
+      limit v_limit + 1
+    ) p
   ) d;
   return jsonb_build_object(
     'counts', case when list_import_diff.entity is null then v_counts else coalesce(v_counts -> list_import_diff.entity, '{}'::jsonb) end,
-    'rows', v_rows
+    'rows', v_rows,
+    'next_cursor', case when v_found > v_limit then v_next else null end
   );
 end;
 $$;
-${userGrant(`${fn("list_import_diff")}(uuid, text, integer, integer)`)}
+${userGrant(`${fn("list_import_diff")}(uuid, text, integer, integer, text)`)}
 
 create or replace function ${fn("resolve_import_conflict")}(tenant ${ctx.idType}, source text, entity text, key text, action text)
 returns jsonb

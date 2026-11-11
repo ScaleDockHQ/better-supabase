@@ -93,8 +93,9 @@ exists and it returns a subject, the write updates that row. `refs` maps each
 ref field to the entity it points at. The batch resolves those keys in one
 query and passes `resolved` to the write. A missing key is the warning
 `IMPORT_REF_MISSING`. A conflict, an error and a warning are stored on `import_run_issues`. A later run that
-applies the key sets `resolved_at`. `list_import_issues` pages them with a
-total capped at 10,000. `resolve_import_conflict` takes `keep` (the database
+applies the key sets `resolved_at`. `list_import_issues` pages them by keyset: pass the `next_cursor` of the
+previous page as `after`. `row_offset` still works while `after` is null. The
+total is capped at 10,000 and is null on a keyset page. `resolve_import_conflict` takes `keep` (the database
 value becomes the baseline) or `overwrite` (the next batch may write the
 source). `rebase_import_records(tenant, source, entities, keys)` copies the
 current stamp and hash onto the stored row. An entity without a target fails
@@ -220,6 +221,25 @@ A quote or invoice whose number is already taken fails by default. Put
 `onTaken: "next_free"` in the item's `data` and the import issues the next free
 number instead and reports `IMPORT_NUMBER_REASSIGNED` as a warning; an unknown
 value is `IMPORT_ITEM_INVALID`.
+
+An imported quote that is already stored is kept as imported. Put
+`update: "apply"` in the item's `data` to replace it: the import reopens a
+sent or decided quote for the line replacement, then restores the status,
+dates and answer in `data`, and applies the stored `taxLines` and `totals`
+again, with the same warnings as a first import. A table of your own that
+guards the quote `status` column with a trigger has to skip the change in
+import mode, with `better_supabase.importing()`.
+
+The inventory block contributes the `stock_allocation` entity, written by
+`import_stock_allocation` (the invoices block already owns `import_allocation`
+for payment allocations). The data is `variantId` or `sku`, `locationId` or
+`location` (a code), `documentType`, `documentId`, `lineId`, `quantity`, and the
+`allocated` and `fulfilled` parts, with `status` of `open`, `fulfilled` or
+`released`. An open allocation adds what it holds to the location's reserved
+stock; a fulfilled or released one holds nothing. No stock movement or event is
+written, so import the stock itself through its own target. A later run
+replaces an open allocation and keeps a fulfilled or released one as
+imported, with `IMPORT_DOCUMENT_CHANGED`.
 
 A state machine accepts any declared status on insert in import mode. It
 writes one history row from no status to the inserted status with the reason
