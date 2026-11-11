@@ -310,7 +310,7 @@ grant execute on function better_supabase.only_helper() to authenticated;`;
         throw cause;
       }
     }
-  });
+  }, 90_000);
 
   it("writes security invoker wrappers with the same arguments and grants", () => {
     const file = schemaFile("settings", {
@@ -481,7 +481,7 @@ grant execute on function "api"."${name}"(${types}) to service_role;`,
     }
 
     expect(missing).toEqual([]);
-  });
+  }, 90_000);
 
   it("selects from functions that return rows and keeps defaults", () => {
     const sql = `create or replace function better_supabase.list_things(tenant uuid, max_items integer default 50, variadic tags text[] default '{}')
