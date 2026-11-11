@@ -123,6 +123,14 @@ conversation (subject `conversation`) and pass their ids as `attachmentIds`;
 [reactions](/docs/blocks/reactions) block, every message carries its reaction
 summary.
 
+The read functions check each conversation of the messages they return once,
+then read the messages by key, so a read costs the same for a caller who can
+see ten conversations as for one who can see thousands across many tenants.
+`messaging_messages_json_unchecked(ids)` returns the same JSON without any
+check, for your own `security definer` function after it checked that the
+caller reads every conversation of `ids`. It is granted to `service_role`
+only.
+
 ### File anchors
 
 `anchor` on a top-level message says where it points. A file anchor points at

@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:835ed69a8b074d6cb9a24164833e4690302c6cbe0ec3f837a81a4941af4995e3
+-- @bsb-hash sha256:fa2936f0e8d95a3f5ca36f8724aeddd9d496eef43b8f0c3e60650600b30fe510
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -110,6 +110,56 @@ end;
 $$;
 revoke execute on function "better_supabase"."comments_json"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."comments_json"(uuid[]) to authenticated, service_role;
+
+-- A page of a record conversation's sent comment ids, as their owner, once
+-- the conversation passes the read check.
+create or replace function "better_supabase"."comment_page"(
+  conversation uuid,
+  after timestamptz default null,
+  max_rows integer default 100,
+  skip integer default 0,
+  after_id uuid default null,
+  include_deleted boolean default true
+)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from "better_supabase"."conversations" c
+    where c."id" = comment_page.conversation and c."kind" = 'subject'
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when c."kind" = 'inbox'
+    then "better_supabase"."inbox_conversation_allowed"(c."id"::text)
+    else ((coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    or (c."access" = 'subject' and c."subject_type" in ('drive_node')))
+    and case c."access"
+      when 'tenant' then true
+      when 'members' then "better_supabase"."is_conversation_member"(c."id")
+      when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
+      else false
+    end)
+    or (c."kind" = 'subject' and ((c."tenant_id")::text, (c."subject_type")::text, (c."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end))
+  ) then
+    return '{}'::uuid[];
+  end if;
+  return array(
+    select x."id" from "better_supabase"."messages" x
+    where x."conversation_id" = comment_page.conversation and x."sent_at" is not null
+  and (x."kind" = 'message' or "better_supabase"."inbox_note_readable"(x."conversation_id"))
+      and (coalesce(comment_page.include_deleted, true) or x."archived_at" is null)
+      and (comment_page.after is null
+        or (x."sent_at", x."id") > (comment_page.after, coalesce(comment_page.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
+    order by x."sent_at", x."id"
+    limit least(greatest(coalesce(comment_page.max_rows, 100), 1), 500)
+    offset greatest(coalesce(comment_page.skip, 0), 0)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."comment_page"(uuid, timestamptz, integer, integer, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."comment_page"(uuid, timestamptz, integer, integer, uuid, boolean) to authenticated, service_role;
 
 -- One comment the caller reads, or null.
 create or replace function "better_supabase"."get_comment"(message uuid)
@@ -284,20 +334,78 @@ begin
     return '[]'::jsonb;
   end if;
   perform "better_supabase"."record_subject_read"(list_comments.subject_type, list_comments.subject_id, null, 'comments', 'list_comments');
-  return "better_supabase"."comments_json"(array(
-    select x."id" from "better_supabase"."messages" x
-    where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."archived_at" is null)
-      and (list_comments.after is null
-        or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
-    order by x."sent_at", x."id"
-    limit least(greatest(coalesce(list_comments.max_rows, 100), 1), 500)
-    offset greatest(coalesce(list_comments.skip, 0), 0)
-  ));
+  return "better_supabase"."comments_json"("better_supabase"."comment_page"(v_conv, list_comments.after, list_comments.max_rows, list_comments.skip, list_comments.after_id, list_comments.include_deleted));
 end;
 $$;
 revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) to authenticated, service_role;
+
+-- list_comments without any check, as the owner. Only for the app's own
+-- security definer function after it checked that the caller reads the
+-- record and holds the comment read key in its tenant. Service role only.
+create or replace function "better_supabase"."list_comments_unchecked"(
+  tenant uuid,
+  subject_type text,
+  subject_id text,
+  after timestamptz default null,
+  max_rows integer default 100,
+  skip integer default 0,
+  after_id uuid default null,
+  include_deleted boolean default true
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv uuid;
+  v_ids uuid[];
+begin
+  select c."id" into v_conv from "better_supabase"."conversations" c
+  where c."tenant_id" = list_comments_unchecked.tenant and c."kind" = 'subject'
+    and c."subject_type" = list_comments_unchecked.subject_type and c."subject_id" = list_comments_unchecked.subject_id;
+  if v_conv is null then
+    return '[]'::jsonb;
+  end if;
+  perform "better_supabase"."record_subject_read"(list_comments_unchecked.subject_type, list_comments_unchecked.subject_id, null, 'comments', 'list_comments_unchecked');
+  v_ids := array(
+    select x."id" from "better_supabase"."messages" x
+    where x."conversation_id" = v_conv and x."sent_at" is not null
+      and (coalesce(list_comments_unchecked.include_deleted, true) or x."archived_at" is null)
+      and (list_comments_unchecked.after is null
+        or (x."sent_at", x."id") > (list_comments_unchecked.after, coalesce(list_comments_unchecked.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
+    order by x."sent_at", x."id"
+    limit least(greatest(coalesce(list_comments_unchecked.max_rows, 100), 1), 500)
+    offset greatest(coalesce(list_comments_unchecked.skip, 0), 0)
+  );
+  return (
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements("better_supabase"."messaging_messages_json_unchecked"(v_ids)) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c."id" as id, c."subject_type" as subject_type, c."subject_id" as subject_id
+      from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct (e.row ->> 'conversation_id')::uuid from e))
+    ),
+    t as materialized (
+      select t."message_id" as message, t."task_id" as task from "better_supabase"."comment_tasks" t
+      where t."message_id" = any (v_ids)
+    )
+    select coalesce(jsonb_agg(e.row || jsonb_build_object(
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
+    ) order by e.n), '[]'::jsonb)
+    from e
+    join c on c.id = (e.row ->> 'conversation_id')::uuid
+    left join t on t.message = (e.row ->> 'id')::uuid
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_comments_unchecked"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_comments_unchecked"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) to service_role;
 
 -- The top-level comments anchored to a file, oldest first: on its pages,
 -- regions and moments, on any record the caller can read.
@@ -323,8 +431,44 @@ $$;
 revoke execute on function "better_supabase"."list_file_comments"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_file_comments"(uuid, integer) to authenticated, service_role;
 
+-- The number of sent, not deleted comments per conversation, as their
+-- owner, for the conversations of the list that pass the read check.
+create or replace function "better_supabase"."comment_count_rows"(conversations uuid[])
+returns table (id uuid, n bigint)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  select x."conversation_id", count(*) from "better_supabase"."messages" x
+  where x."conversation_id" = any (array(
+      select c."id" from "better_supabase"."conversations" c
+      where c."id" = any (comment_count_rows.conversations) and c."kind" = 'subject'
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when c."kind" = 'inbox'
+    then "better_supabase"."inbox_conversation_allowed"(c."id"::text)
+    else ((coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
+    or (c."access" = 'subject' and c."subject_type" in ('drive_node')))
+    and case c."access"
+      when 'tenant' then true
+      when 'members' then "better_supabase"."is_conversation_member"(c."id")
+      when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
+      else false
+    end)
+    or (c."kind" = 'subject' and ((c."tenant_id")::text, (c."subject_type")::text, (c."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end))
+    ))
+    and x."sent_at" is not null and x."archived_at" is null
+  and (x."kind" = 'message' or "better_supabase"."inbox_note_readable"(x."conversation_id"))
+  group by x."conversation_id";
+end;
+$$;
+revoke execute on function "better_supabase"."comment_count_rows"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."comment_count_rows"(uuid[]) to authenticated, service_role;
+
 -- Comments per record the caller can read, for counters in a list:
--- { subject_id: count }, deleted ones left out.
+-- { subject_id: count }, deleted ones left out. The records' conversations
+-- are read under the caller's policies, then counted by key.
 create or replace function "better_supabase"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb
 language plpgsql
@@ -334,17 +478,16 @@ set search_path = ''
 as $$
 begin
   return (
-    select coalesce(jsonb_object_agg(s.subject_id, s.n), '{}'::jsonb)
-    from (
-      select c."subject_id" as subject_id, count(*) as n
+    with c as materialized (
+      select c."id" as id, c."subject_id" as subject_id
       from "better_supabase"."conversations" c
-      join "better_supabase"."messages" x on x."conversation_id" = c."id"
       where c."tenant_id" = comment_counts.tenant and c."kind" = 'subject'
         and c."subject_type" = comment_counts.subject_type
         and c."subject_id" = any (comment_counts.subject_ids)
-        and x."sent_at" is not null and x."archived_at" is null
-      group by 1
-    ) s
+    )
+    select coalesce(jsonb_object_agg(c.subject_id, n.n), '{}'::jsonb)
+    from c
+    join "better_supabase"."comment_count_rows"(array(select c.id from c)) n on n.id = c.id
   );
 end;
 $$;

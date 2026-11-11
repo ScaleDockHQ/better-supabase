@@ -15,7 +15,11 @@ import { authorLookup } from "./authors.ts";
 import { conversationFunctions } from "./messaging-conversations.ts";
 import { messagingRowJson } from "./messaging-names.ts";
 import { summaryFunctions } from "./messaging-summaries.ts";
-import { MESSAGE_RESERVED, conversationReadable } from "./messaging-tables.ts";
+import {
+  MESSAGE_RESERVED,
+  conversationReadable,
+  noteReadable,
+} from "./messaging-tables.ts";
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const MAX_UUID = "'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid";
@@ -45,13 +49,13 @@ function messagesJson(q: MessagingSql): string {
         const a = (column: string): string => at.col("attachments", column);
 
         return `,
-  f as (
+  f as materialized (
     select coalesce(jsonb_object_agg(g.id, g.files), '{}'::jsonb) as files
     from (
       select a.${a("subjectId")} as id, jsonb_agg(jsonb_build_object('id', a.${a("id")}, 'name', a.${a("name")}, 'mimeType', a.${a("mimeType")}, 'size', a.${a("size")}, 'status', a.${a("status")}) order by a.${a("createdAt")}, a.${a("id")}) as files
       from ${at.table("attachments")} a
       where a.${a("subjectType")} = ${message}
-        and a.${a("subjectId")} = any (array(select x::text from unnest(messaging_messages_json.ids) x))
+        and a.${a("subjectId")} = any (array(select x.${ms("id")}::text from page_rows x))
         and a.${a("status")} <> 'infected'
       group by a.${a("subjectId")}
     ) g
@@ -61,7 +65,7 @@ function messagesJson(q: MessagingSql): string {
 
   const reactions = ctx.installed("reactions")
     ? `,
-  r as (
+  r as materialized (
     select coalesce(jsonb_object_agg(g.tenant, ${ctx.of("reactions").fn("reaction_summary")}(g.tenant, ${message}, g.ids)), '{}'::jsonb) as reactions
     from (
       select m.${ms("tenant")} as tenant, array_agg(m.${ms("id")}::text) as ids from page_rows m group by m.${ms("tenant")}
@@ -93,10 +97,43 @@ function messagesJson(q: MessagingSql): string {
     ...(reactions ? ["r"] : []),
   ].join(", ");
 
+  const cv = q.cols("conversations");
+
+  const select = (
+    rows: string,
+    ids: string,
+  ): string => `  with ${rows}${authors ? `,\n  a as materialized (select ${authors.call(ids)} as authors)` : ""}${files}${reactions}
+  select coalesce(jsonb_agg(${json} order by coalesce(x.${ms("sentAt")}, ${ctx.has("messages", "scheduledFor") ? `x.${ms("scheduledFor")}, ` : ""}x.${ms("createdAt")}), x.${ms("id")}), '[]'::jsonb)
+  from ${from}`;
+
   return `${authors?.sql ?? ""}
 
+-- The messages of ids the caller may read, as their owner: each distinct
+-- conversation of ids is checked once, so a read never weighs every
+-- conversation the caller can see. A sent message shows to the
+-- conversation's readers, an unsent one to its author.
+create or replace function ${fn("messaging_message_rows")}(ids uuid[])
+returns setof ${t("messages")}
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m.* from ${t("messages")} m
+  where m.${ms("id")} = any (messaging_message_rows.ids)
+    and m.${ms("conversation")} = any (array(
+      select c.${cv("id")} from ${t("conversations")} c
+      where c.${cv("id")} = any (array(select distinct v.${ms("conversation")} from ${t("messages")} v where v.${ms("id")} = any (messaging_message_rows.ids)))
+        and (${q.service} or ${conversationReadable(q, "c")})
+    ))
+    and (${q.service} or ((m.${ms("sentAt")} is not null or m.${ms("author")} = (select auth.uid()))${noteReadable(q, "m")}))
+$$;
+${userGrant(`${fn("messaging_message_rows")}(uuid[])`)}
+
 -- The messages of ids the caller may read, oldest first, each with its
--- author, files and reactions when those modules are installed.
+-- author, files and reactions when those modules are installed. The rows
+-- come from messaging_message_rows, and the conversations they belong to
+-- are read once more under the caller's policies.
 create or replace function ${fn("messaging_messages_json")}(ids uuid[])
 returns jsonb
 language sql
@@ -104,13 +141,41 @@ stable
 security invoker
 set search_path = ''
 as $$
-  with page_rows as (
-    select m.* from ${t("messages")} m where m.${ms("id")} = any (messaging_messages_json.ids)
-  )${authors ? `,\n  a as (select ${authors.call("messaging_messages_json.ids")} as authors)` : ""}${files}${reactions}
-  select coalesce(jsonb_agg(${json} order by coalesce(x.${ms("sentAt")}, ${ctx.has("messages", "scheduledFor") ? `x.${ms("scheduledFor")}, ` : ""}x.${ms("createdAt")}), x.${ms("id")}), '[]'::jsonb)
-  from ${from}
+${select(
+  `checked as materialized (
+    select m.* from ${fn("messaging_message_rows")}(messaging_messages_json.ids) m
+  ),
+  page_rows as (
+    select k.* from checked k
+    where k.${ms("conversation")} = any (array(
+      select c.${cv("id")} from ${t("conversations")} c
+      where c.${cv("id")} = any (array(select distinct v.${ms("conversation")} from checked v))
+    ))
+  )`,
+  "messaging_messages_json.ids",
+)}
 $$;
-${userGrant(`${fn("messaging_messages_json")}(uuid[])`)}`;
+${userGrant(`${fn("messaging_messages_json")}(uuid[])`)}
+
+-- messaging_messages_json without any access check, for a security definer
+-- function that has already checked the caller reads every conversation of
+-- ids. Never grant it to anon or authenticated: it returns any message,
+-- sent or not, with its files and reactions.
+create or replace function ${fn("messaging_messages_json_unchecked")}(ids uuid[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+${select(
+  `page_rows as (
+    select m.* from ${t("messages")} m where m.${ms("id")} = any (messaging_messages_json_unchecked.ids)
+  )`,
+  "messaging_messages_json_unchecked.ids",
+)}
+$$;
+${serviceGrant(`${fn("messaging_messages_json_unchecked")}(uuid[])`)}`;
 }
 
 /**
@@ -505,11 +570,7 @@ as $$
   select case when not coalesce(${ctx.of("subjects").fn("can_subject")}(list_record_mentions.subject_type, list_record_mentions.subject_id, 'read'), false)
     then '[]'::jsonb
     else coalesce((
-      select jsonb_agg(jsonb_build_object(
-        'message', ${fn("messaging_messages_json")}(array[p.message]) -> 0,
-        'conversation', jsonb_build_object('id', c.${cv("id")}, 'kind', c.${cv("kind")}, 'title', c.${cv("title")}, 'subject_type', c.${cv("subjectType")}, 'subject_id', c.${cv("subjectId")})
-      ) order by p.created_at desc, p.message desc)
-      from (
+      with p as materialized (
         select x.${rm("message")} as message, x.${rm("conversation")} as conversation, x.${rm("createdAt")} as created_at
         from ${t("recordMentions")} x
         where x.${rm("subjectType")} = list_record_mentions.subject_type and x.${rm("subjectId")} = list_record_mentions.subject_id
@@ -517,8 +578,17 @@ as $$
             or (x.${rm("createdAt")}, x.${rm("message")}) < (list_record_mentions.before, coalesce(list_record_mentions.before_id, ${MAX_UUID})))
         order by x.${rm("createdAt")} desc, x.${rm("message")} desc
         limit ${pageSize("list_record_mentions.max_rows", 20, 100)}
-      ) p
+      ),
+      j as materialized (
+        select e.row from jsonb_array_elements(${fn("messaging_messages_json")}(array(select p.message from p))) e(row)
+      )
+      select jsonb_agg(jsonb_build_object(
+        'message', j.row,
+        'conversation', jsonb_build_object('id', c.${cv("id")}, 'kind', c.${cv("kind")}, 'title', c.${cv("title")}, 'subject_type', c.${cv("subjectType")}, 'subject_id', c.${cv("subjectId")})
+      ) order by p.created_at desc, p.message desc)
+      from p
       join ${t("conversations")} c on c.${cv("id")} = p.conversation
+      left join j on (j.row ->> ${sqlString(ms("id").replaceAll('"', ""))})::uuid = p.message
     ), '[]'::jsonb)
   end
 $$;
