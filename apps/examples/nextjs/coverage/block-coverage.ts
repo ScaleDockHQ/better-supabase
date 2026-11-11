@@ -93,7 +93,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   "saved-views": at("/customers"),
   relations: at("/customers/[id]"),
   "bulk-actions": at("/work/grid"),
-  search: later("p1", "/customers"),
+  search: at("/search", "/customers"),
   metrics: at("/metrics"),
   calendar: at("/calendar"),
   bookings: at("/calendar/availability"),

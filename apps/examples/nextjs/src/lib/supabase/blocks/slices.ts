@@ -352,6 +352,7 @@ export const leaveConfig = {
 /** The `ledger` instance's config slice. */
 export const ledgerConfig = {
   schema: "better_supabase",
+  api: "api",
   options: {},
 } as const satisfies GeneratedBlock;
 

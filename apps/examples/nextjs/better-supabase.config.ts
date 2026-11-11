@@ -424,7 +424,10 @@ export default defineConfig({
     // bookings show up as meetings on the booker's contact.
     activities: { options: { recordings: true, bookings: true } },
     // A rejected, withdrawn or expired quote is sent again in one call.
-    quotes: { options: { resend: true } },
+    quotes: {
+      options: { resend: true },
+      names: { quote: { url: "/crm/quotes/{id}" } },
+    },
     goals: {},
     "state-machine": {
       options: {
@@ -479,6 +482,7 @@ export default defineConfig({
     "time-entries": { options: { on: ["company", "project"] } },
     // Fixed deposit invoices and a discount on the invoice header.
     invoices: {
+      names: { invoice: { url: "/finance/payables" } },
       columns: {
         invoices: {
           depositAmount: "deposit_amount",
@@ -490,9 +494,9 @@ export default defineConfig({
     catalog: { names: { product: { url: "/shop" } } },
     inventory: {},
     // Requests for quotation to suppliers; an award creates the purchase order.
-    rfqs: {},
+    rfqs: { names: { rfq: { url: "/rfqs" } } },
     // Till sessions, cash drawers and end-of-day counts that post to accounting.
-    tills: {},
+    tills: { names: { till: { url: "/tills" } } },
     // Fiscal periods and leave years close through one protocol.
     periods: {},
     // Due dates computed from approved rule sets, with a citation.
@@ -501,11 +505,17 @@ export default defineConfig({
     commissions: {},
     referrals: {},
     // The kitchen display and order board under /shop/kitchen.
-    orders: { options: { kitchen: true } },
+    orders: {
+      options: { kitchen: true },
+      names: { order: { url: "/shop/orders/{id}" } },
+    },
     promotions: {},
     calendar: {},
     // Weekly or daily rules book a series one occurrence at a time.
-    bookings: { options: { recurring: true } },
+    bookings: {
+      options: { recurring: true },
+      names: { booking: { url: "/calendar" } },
+    },
     // Points and areas use PostGIS geography columns (ADR 0066).
     assets: { options: { postgis: true } },
     guests: {},
@@ -520,8 +530,8 @@ export default defineConfig({
     collections: {},
     warranty: {},
     "agent-checkout": {},
-    dispatch: {},
-    shipments: {},
+    dispatch: { names: { work_order: { url: "/field/dispatch" } } },
+    shipments: { names: { shipment: { url: "/field/shipments" } } },
     // Contracts send for signature with signatures and remind owners of the
     // notice deadline with reminders; controls publish policies as versions.
     signatures: {},
@@ -545,14 +555,17 @@ export default defineConfig({
     meetings: { options: { calendar: "Meetings" }, uses: { tasks: "tasks" } },
     // Preventive plans by time or meter that open dispatch work orders with
     // their spare parts, plus meter readings and calibrations.
-    maintenance: {},
+    maintenance: { names: { maintenance_plan: { url: "/maintenance" } } },
     // Renditions of drive files and usage rights with a territory, a channel
     // and an expiry date.
     dam: {},
     // Laboratory samples tested against specification limits; an out of
     // specification result opens a nonconformity case, and instruments are
     // assets whose "calibration" qualification must be valid on the test date.
-    lims: { options: { instrumentQualification: "calibration" } },
+    lims: {
+      options: { instrumentQualification: "calibration" },
+      names: { lims_sample: { url: "/lims" } },
+    },
     // Review cycles with self, peer and manager reviews, calibration sessions
     // and sign-off through approvals.
     appraisals: {},
@@ -567,6 +580,7 @@ export default defineConfig({
     shifts: {},
     // Double-entry books with a chart, journals, periods and reports.
     accounting: {},
+    ledger: { names: { ledger_account: { url: "/finance" } } },
     // Bills of materials on work centers, production orders that consume and
     // receive stock through inventory, lot genealogy and material requirements.
     manufacturing: {},
@@ -620,7 +634,7 @@ export default defineConfig({
     medications: { options: { missedCaseKind: "incident", guestRead: true } },
     // Care plans keep each customer's problems, goals and actions; a
     // restrictive measure waits for an approval before it starts.
-    "care-plans": {},
+    "care-plans": { names: { care_plan: { url: "/care-plans" } } },
     // Dose range, duplicate therapy and interaction alerts over medication orders.
     "clinical-decision-support": {},
     "e-prescribing": {},
@@ -643,7 +657,7 @@ export default defineConfig({
     // Pages and posts with locales and scheduled publish, read by anon.
     content: {},
     "jsonb-schemas": {},
-    forms: {},
+    forms: { names: { form: { url: "/forms/{id}" } } },
     // An import target the pgTAP tests drive; real apps point one at each
     // table their source system fills.
     imports: {
@@ -673,7 +687,7 @@ export default defineConfig({
     templates: {
       options: { brand: { table: "public.organizations", column: "brand" } },
     },
-    documents: {},
+    documents: { names: { document: { url: "/documents/{id}" } } },
     "webhooks-out": {},
     outbox: {},
     "service-accounts": {},

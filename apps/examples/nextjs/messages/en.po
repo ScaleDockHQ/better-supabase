@@ -1102,6 +1102,19 @@ msgctxt "rules.S0Fieh"
 msgid "Conditions on customer fields, tested in the database when a customer is saved."
 msgstr "Conditions on customer fields, tested in the database when a customer is saved."
 
+#: src/app/[locale]/(app)/search/page.tsx
+#: src/features/search/components/command-center.tsx
+#: src/features/search/components/command-search-trigger.tsx
+#: src/features/search/components/command-search.tsx
+msgctxt "search.xmcVZ0"
+msgid "Search"
+msgstr "Search"
+
+#: src/app/[locale]/(app)/search/page.tsx
+msgctxt "search.NfHs8W"
+msgid "One search over every record you can read, answered by the database."
+msgstr "One search over every record you can read, answered by the database."
+
 #: src/app/[locale]/(app)/settings/audit/error.tsx
 msgctxt "audit.HpZQZz"
 msgid "The audit log could not be read."
@@ -20949,23 +20962,155 @@ msgctxt "searchSettings.LG-5un"
 msgid "Records join the search index when they are saved; change the filters to see more."
 msgstr "Records join the search index when they are saved; change the filters to see more."
 
-#: src/features/search/components/command-search-lazy.tsx
-#: src/features/search/components/command-search.tsx
-msgctxt "search.xmcVZ0"
-msgid "Search"
-msgstr "Search"
+#: src/features/search/components/command-center.tsx
+msgctxt "search.k0So_A"
+msgid "New customer"
+msgstr "New customer"
 
+#: src/features/search/components/command-center.tsx
+msgctxt "search.8DzYt6"
+msgid "create add customer"
+msgstr "create add customer"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.BUx5CV"
+msgid "Create organization"
+msgstr "Create organization"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.JTVNHH"
+msgid "new organization workspace"
+msgstr "new organization workspace"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.ee1Wp5"
+msgid "Light theme"
+msgstr "Light theme"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.vycAyB"
+msgid "theme appearance light"
+msgstr "theme appearance light"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.Efqxns"
+msgid "Dark theme"
+msgstr "Dark theme"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.lrS5d3"
+msgid "theme appearance dark"
+msgstr "theme appearance dark"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.Vny4fL"
+msgid "System theme"
+msgstr "System theme"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.L9ZKrI"
+msgid "theme appearance system"
+msgstr "theme appearance system"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.PGNc-r"
+msgid "Switch language to {language}"
+msgstr "Switch language to {language}"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.6eGClL"
+msgid "language locale"
+msgstr "language locale"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.W0mw0_"
+msgid "Find records, run an action or open a page. Press Escape to close."
+msgstr "Find records, run an action or open a page. Press Escape to close."
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.jBvMCq"
+msgid "Search records, actions and pages"
+msgstr "Search records, actions and pages"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.5dVh8D"
+msgid "Search failed"
+msgstr "Search failed"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.0Bueza"
+msgid "Records could not load. Actions and pages still work."
+msgstr "Records could not load. Actions and pages still work."
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/search/components/command-center.tsx
 #: src/features/search/components/command-search.tsx
 msgctxt "search.SMrXWc"
 msgid "Favorites"
 msgstr "Favorites"
 
+#: src/features/search/components/command-center.tsx
 #: src/features/search/components/command-search.tsx
 msgctxt "search.iXpep1"
 msgid "Recent"
 msgstr "Recent"
 
+#: src/features/search/components/command-center.tsx
+msgctxt "search.AgxEdc"
+msgid "Records"
+msgstr "Records"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.p2W4v1"
+msgid "See all results for {query}"
+msgstr "See all results for {query}"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.xIoGG9"
+msgid "Go to"
+msgstr "Go to"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.wSAvhu"
+msgid "Assistant"
+msgstr "Assistant"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.Kg5rmE"
+msgid "Ask the assistant: {query}"
+msgstr "Ask the assistant: {query}"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search._Qqv2W"
+msgid "No records match. Ask the assistant or see all results."
+msgstr "No records match. Ask the assistant or see all results."
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.3V5uAe"
+msgid "to move"
+msgstr "to move"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.JViuKI"
+msgid "to open"
+msgstr "to open"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.cP4XVq"
+msgid "to close"
+msgstr "to close"
+
 #: src/features/search/components/command-search.tsx
+#: src/features/search/use-subject-type-label.tsx
 msgctxt "search.TkYZBT"
 msgid "Customers"
 msgstr "Customers"
@@ -21059,6 +21204,281 @@ msgstr "No streams found"
 msgctxt "securityEvents.UpBMGK"
 msgid "Receivers register a stream to get security event tokens; change the filters to see more."
 msgstr "Receivers register a stream to get security event tokens; change the filters to see more."
+
+#: src/features/search/components/organization-commands.tsx
+msgctxt "search.0lmKIf"
+msgid "Switch organization"
+msgstr "Switch organization"
+
+#: src/features/search/components/organization-commands.tsx
+msgctxt "search.qQ6ahH"
+msgid "Switched to {name}"
+msgstr "Switched to {name}"
+
+#: src/features/search/components/search-form.tsx
+msgctxt "search.R2OwGQ"
+msgid "Search every record you can read"
+msgstr "Search every record you can read"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.hAe_zr"
+msgid "Search every record"
+msgstr "Search every record"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.vj8p_i"
+msgid "Type a name, a number or a few words. Results cover every record you can read, grouped by type."
+msgstr "Type a name, a number or a few words. Results cover every record you can read, grouped by type."
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.dGqEN8"
+msgid "No records match {q}"
+msgstr "No records match {q}"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.pK0fYg"
+msgid "Check the spelling, or search with fewer words. Records you cannot read never appear."
+msgstr "Check the spelling, or search with fewer words. Records you cannot read never appear."
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.EaZlsM"
+msgid "Ask the assistant"
+msgstr "Ask the assistant"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.uAOtqE"
+msgid "Filter by type"
+msgstr "Filter by type"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.zQvVDJ"
+msgid "All"
+msgstr "All"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.9UmdVU"
+msgid "Showing the best {count, number} matches. Narrow the search to see others."
+msgstr "Showing the best {count, number} matches. Narrow the search to see others."
+
+#: src/features/search/components/semantic-search-note.tsx
+msgctxt "search.GZVYlO"
+msgid "Semantic search"
+msgstr "Semantic search"
+
+#: src/features/search/components/semantic-search-note.tsx
+msgctxt "search.M3t0pi"
+msgid "Matching by meaning needs an embedding model for the query. Set AI_GATEWAY_API_KEY to turn it on; text search covers every record today."
+msgstr "Matching by meaning needs an embedding model for the query. Set AI_GATEWAY_API_KEY to turn it on; text search covers every record today."
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.hMzcSq"
+msgid "Messages"
+msgstr "Messages"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.1udzha"
+msgid "Conversations"
+msgstr "Conversations"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.LUrJwE"
+msgid "Channels"
+msgstr "Channels"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.3IInif"
+msgid "Companies"
+msgstr "Companies"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.Tpy00S"
+msgid "People"
+msgstr "People"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.CQa3R9"
+msgid "Deals"
+msgstr "Deals"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.R85gsW"
+msgid "Courses"
+msgstr "Courses"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.eR3YIn"
+msgid "Posts"
+msgstr "Posts"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.UmEsZF"
+msgid "Activities"
+msgstr "Activities"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.epJ5ty"
+msgid "Quotes"
+msgstr "Quotes"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.zQ5vfB"
+msgid "Work items"
+msgstr "Work items"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.HHzdGS"
+msgid "Employees"
+msgstr "Employees"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.6dqYnF"
+msgid "Invoices"
+msgstr "Invoices"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.w46Kss"
+msgid "Ledger accounts"
+msgstr "Ledger accounts"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.7NFfmz"
+msgid "Products"
+msgstr "Products"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.j9HJG_"
+msgid "Product variants"
+msgstr "Product variants"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.nkj_Ln"
+msgid "Requests for quotation"
+msgstr "Requests for quotation"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.CKpmLI"
+msgid "Tills"
+msgstr "Tills"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.X7jl6w"
+msgid "Orders"
+msgstr "Orders"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.cNe7fb"
+msgid "Calendar events"
+msgstr "Calendar events"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.uxvKKF"
+msgid "Bookings"
+msgstr "Bookings"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.d1uESJ"
+msgid "Assets"
+msgstr "Assets"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.VdsWJi"
+msgid "Leases"
+msgstr "Leases"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.NtQFQD"
+msgid "Expense reports"
+msgstr "Expense reports"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search._VTdwj"
+msgid "Shipments"
+msgstr "Shipments"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.ZwpbZp"
+msgid "Contracts"
+msgstr "Contracts"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search._s79W_"
+msgid "Risks"
+msgstr "Risks"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.TTLDST"
+msgid "Cases"
+msgstr "Cases"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.p7zCOV"
+msgid "Inspections"
+msgstr "Inspections"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.yGsZm0"
+msgid "Forms"
+msgstr "Forms"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.dMaTpi"
+msgid "Meetings"
+msgstr "Meetings"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.cQfwTT"
+msgid "Maintenance plans"
+msgstr "Maintenance plans"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.vHs4z_"
+msgid "Laboratory samples"
+msgstr "Laboratory samples"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.BEwAxd"
+msgid "Production orders"
+msgstr "Production orders"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.y10hgk"
+msgid "Care plans"
+msgstr "Care plans"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.mtr3R4"
+msgid "Incidents"
+msgstr "Incidents"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.Jq3FDz"
+msgid "Content"
+msgstr "Content"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.vBlT6y"
+msgid "Documents"
+msgstr "Documents"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.lRdUjp"
+msgid "Files and folders"
+msgstr "Files and folders"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.UxTJRa"
+msgid "Projects"
+msgstr "Projects"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.yhU1et"
+msgid "Tasks"
+msgstr "Tasks"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.izHU3r"
+msgid "Work orders"
+msgstr "Work orders"
 
 #: src/features/sequences/components/sequence-builder.tsx
 msgctxt "sequences.xiZz44"

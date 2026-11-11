@@ -17,6 +17,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import { useRef, useState } from "react";
 
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -326,7 +327,9 @@ export function ChatView({
   rating?: boolean;
 }) {
   const t = useExtracted("assistant");
-  const [input, setInput] = useState("");
+  // The command center sends a question as `?ask=`; it fills the composer without sending.
+  const ask = useSearchParams().get("ask") ?? "";
+  const [input, setInput] = useState(() => ask);
   const [editing, setEditing] = useState<string | undefined>();
   const [attachments, setAttachments] = useState<FileUIPart[]>([]);
   const [uploading, setUploading] = useState(false);
