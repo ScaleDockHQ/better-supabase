@@ -1,7 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:25c1e54fc9b091ccc2db04bd1c076d609967052b8b6a3ac3f19102f5f7f1665a
--- @bsb-hash sha256:9aa1e4a0369c7d387bc8e18d156b2321f977aa51783527c0448f8e4e702d2660
+-- @bsb-hash sha256:162ec5c59399da750f2cc4f7515b423b520cbc6fef06ace48a5445a1269e61aa
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

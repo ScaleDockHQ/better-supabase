@@ -1,7 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:e481c062dbd34dbe69fa07936354957cae1e017776bfc21819d880b148860e10
--- @bsb-hash sha256:cda7cad0ee01a31cf518f7f8f61a52c777cd489a0608c892a3bef3d0bb643e42
+-- @bsb-hash sha256:78f5be2ebfb2ac9eb9bd29fe94c9536b3f8a958c91f798fe402a5b9b4b1ee311
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

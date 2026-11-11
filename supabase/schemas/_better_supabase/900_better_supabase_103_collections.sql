@@ -1,6 +1,6 @@
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:6f51f7413971f5a435e65fc1453dc21e8ff0080e9da448b1211f7e60a02124cd
+-- @bsb-hash sha256:968f620d8c8542e3d6f2fe8757a86c9590fb7092ee95b1a1b7fe50de66ce8974
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -134,7 +134,7 @@ begin
   if v_scope not in ('user', 'team', 'tenant') then
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
-  if create_collection.subject_type is null or not (create_collection.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])) then
+  if create_collection.subject_type is null or not (create_collection.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])) then
     raise exception 'not a subject type in config.recordTypes' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
@@ -394,8 +394,8 @@ begin
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
-      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -688,8 +688,8 @@ begin
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
-      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
+      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
@@ -867,8 +867,8 @@ begin
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
+      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
       when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)

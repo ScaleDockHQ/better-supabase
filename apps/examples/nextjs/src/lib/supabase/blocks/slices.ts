@@ -335,15 +335,19 @@ export const domainsConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `reviews` instance's config slice. */
+export const reviewsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `leave` instance's config slice. */
 export const leaveConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},
 } as const satisfies GeneratedBlock;
-
-/** The `reviews` instance's config slice. */
-export const reviewsConfig = {
 
 /** The `ledger` instance's config slice. */
 export const ledgerConfig = {

@@ -1,7 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:2d1b65216ead351f910f21fdecd8251358fa78c486ff0652fd66cd4e031c3d4e
--- @bsb-hash sha256:d502db8a39cb44d9c4c2a9b7f0291560fa05345163ce34b448ee2575a32d8899
+-- @bsb-hash sha256:9c39c344a8c8ed492d44a4088e4aaf762b00889ef34bbad587a2e1c60dc4b620
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

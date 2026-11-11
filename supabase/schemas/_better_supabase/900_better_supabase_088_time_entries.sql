@@ -1,7 +1,6 @@
 -- better-supabase module: time-entries
 -- @bsb-block time-entries@3 managed
--- @bsb-hash sha256:77ce5952c04789d7d388643c2d84c5527ed07c9c3b94effb2c60ff57f1c1086c
--- @bsb-hash sha256:4082542c93cb2837b9131d7441cefa778459f473c11553884b791f56450960e8
+-- @bsb-hash sha256:9da31458df4f12915cdb196a98d142068d4bfcf028df18effc47cac81014c930
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

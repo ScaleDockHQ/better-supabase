@@ -1,7 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:eb072f48f9bd5fe7cb6644b2a1fcd9b1803b54a88be411a59d8cbaddfb832767
--- @bsb-hash sha256:6e9ef7b390911d10c29f9d8caced23a4b01efef31cf55db0c5ddc13759e8b63f
+-- @bsb-hash sha256:f4b51cdee41c0fc4633e232454cbc482db18f61207e608b2515580dc0fc1cc75
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

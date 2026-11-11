@@ -1,7 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:9c84aaca09e139c41a9292a1f3d06861150567f8bdd74ebce54f0930c1e46bac
--- @bsb-hash sha256:2203b4807c021005aa9ea7fccc3c4ed53eca10c4544424fb84cd1c222bf57c87
+-- @bsb-hash sha256:a38607998bd071e73a3e6e5aef17c9be17c3d5e7d9567a5f8b8311e84fa5850a
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

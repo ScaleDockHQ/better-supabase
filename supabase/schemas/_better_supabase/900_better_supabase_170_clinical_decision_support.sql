@@ -1,7 +1,6 @@
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:5e6b4b9a132ccd7c702bab56fa5f506610f31dd47c2ed9d01cb58d108972097d
--- @bsb-hash sha256:aab5cd1d12db16138135217a5bb2471cc1794b6b897110c3c70a8d3603404e7e
+-- @bsb-hash sha256:65691a3be8bdc9264481f5b68ca4cbe3d1bf1ba9b15747a37ccbd6f719410005
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

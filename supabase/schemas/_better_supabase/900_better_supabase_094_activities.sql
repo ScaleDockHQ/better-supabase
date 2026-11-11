@@ -1,7 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:ef9b18482fa56657e6aadbca34431cb96bf396ef75e71bb905ddaa954fc6c315
--- @bsb-hash sha256:bb1b57bfba41304ecbd98b10c05a03b2a07d69fb129ce12bc192d8bf137b531a
+-- @bsb-hash sha256:535a2a2128b7623a53149c09b6874c2c09d4b19f0a09b0dc20481eeef51711ad
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

@@ -1,7 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:8d810076877436b4fa441de629c099da4b72adfb0ae4aa2c1b616faa89926df7
--- @bsb-hash sha256:506209e95275813d0b38258458bcb5b514a77a64227887e59afc4e2cff5b55f8
+-- @bsb-hash sha256:5134353fa6c4536a8fa98e5f1133fb89548edf05eade670c3d5619aa5bfff886
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

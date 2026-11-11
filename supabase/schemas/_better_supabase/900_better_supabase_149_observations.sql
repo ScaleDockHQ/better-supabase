@@ -1,7 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:a75914b001fdd286020530ec4359d7a7c485d79967beb322ea6bc1c793bab042
--- @bsb-hash sha256:99258a4fc7665353929341b1b0d2f2b260e581f3367a05fed3b80634c5c03f4e
+-- @bsb-hash sha256:d6a2f2144d5fa20ceb562369dab002f13ef35e3c4a14cf95c968c9d160605203
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

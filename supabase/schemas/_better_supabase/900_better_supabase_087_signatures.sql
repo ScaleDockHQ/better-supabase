@@ -1,7 +1,6 @@
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:2b7ec31cd1b9d3f7046d4d378334badc49773eef819cbccda35c6b32eef15413
--- @bsb-hash sha256:162446b37baaedec38b1880d18fb286e141b32f162bb4e357d014f0ae9016bec
+-- @bsb-hash sha256:6b8c34c2e1064caca96ecc865cbb0552bd22f2e97f9f53e3df2bb2c6bd7c8745
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

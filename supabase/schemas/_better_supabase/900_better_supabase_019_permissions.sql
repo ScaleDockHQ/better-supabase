@@ -1,7 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:b16cdfe03082e39c5fe46b1069aeeb29407967d41df542dce00e25b397c6ccbf
--- @bsb-hash sha256:9f8d35d94e9b90edaa062f0b09efb6fe2f7748837f504f77789f70549d83bd98
+-- @bsb-hash sha256:9648e31edea0efc59017f8abd17b36052a42f2fc7c4e519a54b04c0d6b074a4f
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -504,13 +503,13 @@ as $$
     when 'warehouse.manage' then 'warehouse.manage'
     when 'warehouse.pick' then 'warehouse.pick'
     when 'warehouse.read' then 'warehouse.read'
+    when 'warranty.decide' then 'warranty.decide'
+    when 'warranty.read' then 'warranty.read'
+    when 'warranty.write' then 'warranty.write'
     when 'webhooks-in.create' then 'webhooks.manage'
     when 'webhooks-in.delete' then 'webhooks.manage'
     when 'webhooks-in.read' then 'webhooks.read'
     when 'webhooks-in.update' then 'webhooks.manage'
-    when 'warranty.decide' then 'warranty.decide'
-    when 'warranty.read' then 'warranty.read'
-    when 'warranty.write' then 'warranty.write'
     when 'webhooks-out.manage' then 'webhooks.manage'
     when 'webhooks-out.read' then 'webhooks.read'
     when 'workflow-editor.manage' then 'workflow_editor.manage'

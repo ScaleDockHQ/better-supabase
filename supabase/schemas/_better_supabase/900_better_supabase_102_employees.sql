@@ -1,7 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:878d47c409e03b474e907f7df4bbe5bf65039c3afb98ff25e5b77a0414794e52
--- @bsb-hash sha256:107ed8fb66800bd3bf835222917e1b7c758378969e211e6422b51bcc322ab4c0
+-- @bsb-hash sha256:0f92f1e9b753b1e25cb14cbebe8971d729bdfec0f41e78e5a36ed80cb011de4a
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

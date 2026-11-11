@@ -1,7 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:eb4f25b704b59ea45a158bdcf532cba80674d79da55217b412f28610ab996696
--- @bsb-hash sha256:9401a1234516517362c5d3e51b54f39ef0cb349ed8e21c87917fd29b2a9fd600
+-- @bsb-hash sha256:20ec1ebcae9c280e1aa7787bcdff48a86447f8df92e4f0d3811406bf205ee77c
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

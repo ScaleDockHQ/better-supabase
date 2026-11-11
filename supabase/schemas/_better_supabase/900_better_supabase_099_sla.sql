@@ -1,7 +1,6 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:1adb4a62bab762a46084c6b1116d0835befa3fded08d9ac0e80ccec68d5c8f55
--- @bsb-hash sha256:dd745a682a365055cd3e30dedc634ff7bbfd9c58d1ca5f87e75cca20d07917f3
+-- @bsb-hash sha256:2a874a1f3ae0d6a15d37bf88528552d36d798a2c1bf8afbf8aaa6b6b2dea836c
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

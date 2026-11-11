@@ -171,6 +171,28 @@ test("the risks overview paints its heading before the register", async ({
   await expect(page.getByTestId("record-list")).toBeVisible();
 });
 
+test("the warranty overview paints its heading before the claims", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/");
+  const link = await navLink(page, "Warranty", "Commerce");
+
+  await expect(link.first()).toBeVisible();
+
+  await instant(page, async () => {
+    await link.first().click();
+    await page.waitForURL((url) => url.pathname === "/shop/warranty");
+
+    await expect(
+      page.getByRole("heading", { name: "Warranty claims" }),
+    ).toBeVisible();
+    await expect(page.getByTestId("record-list")).toHaveCount(0);
+  });
+
+  await expect(page.getByTestId("record-list")).toBeVisible();
+});
+
 test("a risk search writes the URL and keeps the register", async ({
   page,
 }) => {

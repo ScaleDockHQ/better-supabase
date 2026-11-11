@@ -1,7 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:c97a088cf909c241ebe59d0dece2c5bd01d07008cc7d20ec50ff89e1302e1d01
--- @bsb-hash sha256:628037783dc3916e72d47fe665cf4b724e2bc34f8722034a65b63bcb17e997bc
+-- @bsb-hash sha256:15fa859772f0bacb117ad3a34fc7de3c3d2343722c35f17186bb51c360b982af
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

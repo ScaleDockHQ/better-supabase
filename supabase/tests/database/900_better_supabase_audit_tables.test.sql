@@ -1,14 +1,12 @@
 -- better-supabase module: audit
 -- @bsb-block-test audit
--- @bsb-hash sha256:7dc40567816d8a80fd41de5e7af5487c0bfb2e4d7d53391b48a75aafde8d4af8
--- @bsb-hash sha256:d101a08e7c14ea975b9b465091f67415055fe387251bec6cff3c34a5e58b8b24
+-- @bsb-hash sha256:dc665d5e9cee807980785210a9bdc1de06bbc0a27d3c685fc7e105dc55efce98
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select extensions.plan(1245);
-select extensions.plan(1255);
+select extensions.plan(1270);
 
 create temp table bsb_audit_probe_0 (like "better_supabase"."access_requests" including defaults including identity including generated) on commit drop;
 do $$
@@ -6010,7 +6008,6 @@ select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supa
 select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_124' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.job_openings write entries');
 drop table pg_temp.bsb_audit_probe_124;
 
-create temp table bsb_audit_probe_125 (like "better_supabase"."leave_requests" including defaults including identity including generated) on commit drop;
 create temp table bsb_audit_probe_125 (like "better_supabase"."knowledge_documents" including defaults including identity including generated) on commit drop;
 do $$
 declare
@@ -6052,11 +6049,6 @@ begin
   delete from pg_temp.bsb_audit_probe_125;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'leave_requests', 'bsb_audit', 'better_supabase.leave_requests has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'leave_requests', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.leave_requests calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."leave_requests"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.leave_requests is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."leave_requests"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.leave_requests is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_125' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.leave_requests write entries');
 select extensions.has_trigger('better_supabase', 'knowledge_documents', 'bsb_audit', 'better_supabase.knowledge_documents has the bsb_audit trigger');
 select extensions.trigger_is('better_supabase', 'knowledge_documents', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.knowledge_documents calls audit_row_change()');
 select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."knowledge_documents"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.knowledge_documents is registered with its ignored columns');
@@ -6064,7 +6056,6 @@ select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supa
 select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_125' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.knowledge_documents write entries');
 drop table pg_temp.bsb_audit_probe_125;
 
-create temp table bsb_audit_probe_126 (like "better_supabase"."leave_types" including defaults including identity including generated) on commit drop;
 create temp table bsb_audit_probe_126 (like "better_supabase"."leases" including defaults including identity including generated) on commit drop;
 do $$
 declare
@@ -6106,11 +6097,6 @@ begin
   delete from pg_temp.bsb_audit_probe_126;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'leave_types', 'bsb_audit', 'better_supabase.leave_types has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'leave_types', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.leave_types calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."leave_types"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.leave_types is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."leave_types"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.leave_types is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_126' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.leave_types write entries');
 select extensions.has_trigger('better_supabase', 'leases', 'bsb_audit', 'better_supabase.leases has the bsb_audit trigger');
 select extensions.trigger_is('better_supabase', 'leases', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.leases calls audit_row_change()');
 select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."leases"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.leases is registered with its ignored columns');
@@ -6118,7 +6104,7 @@ select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supa
 select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_126' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.leases write entries');
 drop table pg_temp.bsb_audit_probe_126;
 
-create temp table bsb_audit_probe_127 (like "better_supabase"."ledger_accounts" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_127 (like "better_supabase"."leave_requests" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6159,14 +6145,14 @@ begin
   delete from pg_temp.bsb_audit_probe_127;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'ledger_accounts', 'bsb_audit', 'better_supabase.ledger_accounts has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'ledger_accounts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.ledger_accounts calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_accounts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.ledger_accounts is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_accounts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.ledger_accounts is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_127' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.ledger_accounts write entries');
+select extensions.has_trigger('better_supabase', 'leave_requests', 'bsb_audit', 'better_supabase.leave_requests has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'leave_requests', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.leave_requests calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."leave_requests"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.leave_requests is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."leave_requests"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.leave_requests is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_127' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.leave_requests write entries');
 drop table pg_temp.bsb_audit_probe_127;
 
-create temp table bsb_audit_probe_128 (like "better_supabase"."ledger_holds" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_128 (like "better_supabase"."leave_types" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6207,14 +6193,14 @@ begin
   delete from pg_temp.bsb_audit_probe_128;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'ledger_holds', 'bsb_audit', 'better_supabase.ledger_holds has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'ledger_holds', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.ledger_holds calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_holds"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.ledger_holds is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_holds"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.ledger_holds is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_128' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.ledger_holds write entries');
+select extensions.has_trigger('better_supabase', 'leave_types', 'bsb_audit', 'better_supabase.leave_types has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'leave_types', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.leave_types calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."leave_types"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.leave_types is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."leave_types"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.leave_types is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_128' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.leave_types write entries');
 drop table pg_temp.bsb_audit_probe_128;
 
-create temp table bsb_audit_probe_129 (like "better_supabase"."ledger_transactions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_129 (like "better_supabase"."ledger_accounts" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6255,14 +6241,14 @@ begin
   delete from pg_temp.bsb_audit_probe_129;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'ledger_transactions', 'bsb_audit', 'better_supabase.ledger_transactions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'ledger_transactions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.ledger_transactions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_transactions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.ledger_transactions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_transactions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.ledger_transactions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_129' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.ledger_transactions write entries');
+select extensions.has_trigger('better_supabase', 'ledger_accounts', 'bsb_audit', 'better_supabase.ledger_accounts has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'ledger_accounts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.ledger_accounts calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_accounts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.ledger_accounts is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_accounts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.ledger_accounts is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_129' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.ledger_accounts write entries');
 drop table pg_temp.bsb_audit_probe_129;
 
-create temp table bsb_audit_probe_130 (like "better_supabase"."legal_entities" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_130 (like "better_supabase"."ledger_holds" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6303,14 +6289,14 @@ begin
   delete from pg_temp.bsb_audit_probe_130;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'legal_entities', 'bsb_audit', 'better_supabase.legal_entities has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'legal_entities', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.legal_entities calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."legal_entities"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.legal_entities is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."legal_entities"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.legal_entities is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_130' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.legal_entities write entries');
+select extensions.has_trigger('better_supabase', 'ledger_holds', 'bsb_audit', 'better_supabase.ledger_holds has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'ledger_holds', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.ledger_holds calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_holds"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.ledger_holds is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_holds"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.ledger_holds is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_130' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.ledger_holds write entries');
 drop table pg_temp.bsb_audit_probe_130;
 
-create temp table bsb_audit_probe_131 (like "better_supabase"."legal_entity_settings" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_131 (like "better_supabase"."ledger_transactions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6351,14 +6337,14 @@ begin
   delete from pg_temp.bsb_audit_probe_131;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'legal_entity_settings', 'bsb_audit', 'better_supabase.legal_entity_settings has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'legal_entity_settings', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.legal_entity_settings calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."legal_entity_settings"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.legal_entity_settings is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."legal_entity_settings"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.legal_entity_settings is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_131' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.legal_entity_settings write entries');
+select extensions.has_trigger('better_supabase', 'ledger_transactions', 'bsb_audit', 'better_supabase.ledger_transactions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'ledger_transactions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.ledger_transactions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_transactions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.ledger_transactions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."ledger_transactions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.ledger_transactions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_131' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.ledger_transactions write entries');
 drop table pg_temp.bsb_audit_probe_131;
 
-create temp table bsb_audit_probe_132 (like "better_supabase"."lims_methods" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_132 (like "better_supabase"."legal_entities" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6399,14 +6385,14 @@ begin
   delete from pg_temp.bsb_audit_probe_132;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'lims_methods', 'bsb_audit', 'better_supabase.lims_methods has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'lims_methods', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.lims_methods calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_methods"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.lims_methods is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_methods"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.lims_methods is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_132' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.lims_methods write entries');
+select extensions.has_trigger('better_supabase', 'legal_entities', 'bsb_audit', 'better_supabase.legal_entities has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'legal_entities', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.legal_entities calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."legal_entities"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.legal_entities is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."legal_entities"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.legal_entities is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_132' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.legal_entities write entries');
 drop table pg_temp.bsb_audit_probe_132;
 
-create temp table bsb_audit_probe_133 (like "better_supabase"."lims_results" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_133 (like "better_supabase"."legal_entity_settings" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6447,14 +6433,14 @@ begin
   delete from pg_temp.bsb_audit_probe_133;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'lims_results', 'bsb_audit', 'better_supabase.lims_results has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'lims_results', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.lims_results calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_results"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.lims_results is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_results"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.lims_results is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_133' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.lims_results write entries');
+select extensions.has_trigger('better_supabase', 'legal_entity_settings', 'bsb_audit', 'better_supabase.legal_entity_settings has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'legal_entity_settings', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.legal_entity_settings calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."legal_entity_settings"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.legal_entity_settings is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."legal_entity_settings"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.legal_entity_settings is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_133' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.legal_entity_settings write entries');
 drop table pg_temp.bsb_audit_probe_133;
 
-create temp table bsb_audit_probe_134 (like "better_supabase"."lims_samples" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_134 (like "better_supabase"."lims_methods" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6495,14 +6481,14 @@ begin
   delete from pg_temp.bsb_audit_probe_134;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'lims_samples', 'bsb_audit', 'better_supabase.lims_samples has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'lims_samples', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.lims_samples calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_samples"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.lims_samples is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_samples"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.lims_samples is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_134' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.lims_samples write entries');
+select extensions.has_trigger('better_supabase', 'lims_methods', 'bsb_audit', 'better_supabase.lims_methods has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'lims_methods', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.lims_methods calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_methods"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.lims_methods is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_methods"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.lims_methods is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_134' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.lims_methods write entries');
 drop table pg_temp.bsb_audit_probe_134;
 
-create temp table bsb_audit_probe_135 (like "better_supabase"."mail_accounts" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_135 (like "better_supabase"."lims_results" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6543,14 +6529,14 @@ begin
   delete from pg_temp.bsb_audit_probe_135;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'mail_accounts', 'bsb_audit', 'better_supabase.mail_accounts has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'mail_accounts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.mail_accounts calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_accounts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.mail_accounts is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_accounts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.mail_accounts is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_135' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.mail_accounts write entries');
+select extensions.has_trigger('better_supabase', 'lims_results', 'bsb_audit', 'better_supabase.lims_results has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'lims_results', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.lims_results calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_results"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.lims_results is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_results"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.lims_results is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_135' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.lims_results write entries');
 drop table pg_temp.bsb_audit_probe_135;
 
-create temp table bsb_audit_probe_136 (like "better_supabase"."mail_messages" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_136 (like "better_supabase"."lims_samples" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6591,14 +6577,14 @@ begin
   delete from pg_temp.bsb_audit_probe_136;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'mail_messages', 'bsb_audit', 'better_supabase.mail_messages has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'mail_messages', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.mail_messages calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_messages"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.mail_messages is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_messages"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.mail_messages is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_136' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.mail_messages write entries');
+select extensions.has_trigger('better_supabase', 'lims_samples', 'bsb_audit', 'better_supabase.lims_samples has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'lims_samples', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.lims_samples calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_samples"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.lims_samples is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."lims_samples"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.lims_samples is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_136' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.lims_samples write entries');
 drop table pg_temp.bsb_audit_probe_136;
 
-create temp table bsb_audit_probe_137 (like "better_supabase"."mail_threads" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_137 (like "better_supabase"."mail_accounts" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6639,14 +6625,14 @@ begin
   delete from pg_temp.bsb_audit_probe_137;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'mail_threads', 'bsb_audit', 'better_supabase.mail_threads has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'mail_threads', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.mail_threads calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_threads"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.mail_threads is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_threads"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.mail_threads is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_137' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.mail_threads write entries');
+select extensions.has_trigger('better_supabase', 'mail_accounts', 'bsb_audit', 'better_supabase.mail_accounts has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'mail_accounts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.mail_accounts calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_accounts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.mail_accounts is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_accounts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.mail_accounts is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_137' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.mail_accounts write entries');
 drop table pg_temp.bsb_audit_probe_137;
 
-create temp table bsb_audit_probe_138 (like "better_supabase"."maintenance_calibrations" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_138 (like "better_supabase"."mail_messages" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6687,14 +6673,14 @@ begin
   delete from pg_temp.bsb_audit_probe_138;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'maintenance_calibrations', 'bsb_audit', 'better_supabase.maintenance_calibrations has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'maintenance_calibrations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_calibrations calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_calibrations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_calibrations is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_calibrations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_calibrations is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_138' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_calibrations write entries');
+select extensions.has_trigger('better_supabase', 'mail_messages', 'bsb_audit', 'better_supabase.mail_messages has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'mail_messages', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.mail_messages calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_messages"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.mail_messages is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_messages"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.mail_messages is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_138' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.mail_messages write entries');
 drop table pg_temp.bsb_audit_probe_138;
 
-create temp table bsb_audit_probe_139 (like "better_supabase"."maintenance_meter_readings" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_139 (like "better_supabase"."mail_threads" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6735,14 +6721,14 @@ begin
   delete from pg_temp.bsb_audit_probe_139;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'maintenance_meter_readings', 'bsb_audit', 'better_supabase.maintenance_meter_readings has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'maintenance_meter_readings', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_meter_readings calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_meter_readings"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_meter_readings is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_meter_readings"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_meter_readings is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_139' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_meter_readings write entries');
+select extensions.has_trigger('better_supabase', 'mail_threads', 'bsb_audit', 'better_supabase.mail_threads has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'mail_threads', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.mail_threads calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_threads"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.mail_threads is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."mail_threads"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.mail_threads is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_139' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.mail_threads write entries');
 drop table pg_temp.bsb_audit_probe_139;
 
-create temp table bsb_audit_probe_140 (like "better_supabase"."maintenance_meters" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_140 (like "better_supabase"."maintenance_calibrations" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6783,14 +6769,14 @@ begin
   delete from pg_temp.bsb_audit_probe_140;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'maintenance_meters', 'bsb_audit', 'better_supabase.maintenance_meters has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'maintenance_meters', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_meters calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_meters"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_meters is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_meters"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_meters is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_140' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_meters write entries');
+select extensions.has_trigger('better_supabase', 'maintenance_calibrations', 'bsb_audit', 'better_supabase.maintenance_calibrations has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'maintenance_calibrations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_calibrations calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_calibrations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_calibrations is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_calibrations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_calibrations is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_140' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_calibrations write entries');
 drop table pg_temp.bsb_audit_probe_140;
 
-create temp table bsb_audit_probe_141 (like "better_supabase"."maintenance_plan_parts" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_141 (like "better_supabase"."maintenance_meter_readings" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6831,14 +6817,14 @@ begin
   delete from pg_temp.bsb_audit_probe_141;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'maintenance_plan_parts', 'bsb_audit', 'better_supabase.maintenance_plan_parts has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'maintenance_plan_parts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_plan_parts calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_plan_parts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_plan_parts is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_plan_parts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_plan_parts is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_141' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_plan_parts write entries');
+select extensions.has_trigger('better_supabase', 'maintenance_meter_readings', 'bsb_audit', 'better_supabase.maintenance_meter_readings has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'maintenance_meter_readings', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_meter_readings calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_meter_readings"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_meter_readings is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_meter_readings"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_meter_readings is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_141' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_meter_readings write entries');
 drop table pg_temp.bsb_audit_probe_141;
 
-create temp table bsb_audit_probe_142 (like "better_supabase"."maintenance_plans" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_142 (like "better_supabase"."maintenance_meters" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6879,14 +6865,14 @@ begin
   delete from pg_temp.bsb_audit_probe_142;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'maintenance_plans', 'bsb_audit', 'better_supabase.maintenance_plans has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'maintenance_plans', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_plans calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_plans"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_plans is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_plans"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_plans is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_142' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_plans write entries');
+select extensions.has_trigger('better_supabase', 'maintenance_meters', 'bsb_audit', 'better_supabase.maintenance_meters has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'maintenance_meters', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_meters calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_meters"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_meters is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_meters"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_meters is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_142' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_meters write entries');
 drop table pg_temp.bsb_audit_probe_142;
 
-create temp table bsb_audit_probe_143 (like "better_supabase"."maintenance_request_checklist_items" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_143 (like "better_supabase"."maintenance_plan_parts" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6927,14 +6913,14 @@ begin
   delete from pg_temp.bsb_audit_probe_143;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'maintenance_request_checklist_items', 'bsb_audit', 'better_supabase.maintenance_request_checklist_items has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'maintenance_request_checklist_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_request_checklist_items calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_request_checklist_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_request_checklist_items is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_request_checklist_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_request_checklist_items is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_143' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_request_checklist_items write entries');
+select extensions.has_trigger('better_supabase', 'maintenance_plan_parts', 'bsb_audit', 'better_supabase.maintenance_plan_parts has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'maintenance_plan_parts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_plan_parts calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_plan_parts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_plan_parts is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_plan_parts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_plan_parts is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_143' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_plan_parts write entries');
 drop table pg_temp.bsb_audit_probe_143;
 
-create temp table bsb_audit_probe_144 (like "better_supabase"."maintenance_requests" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_144 (like "better_supabase"."maintenance_plans" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -6975,14 +6961,14 @@ begin
   delete from pg_temp.bsb_audit_probe_144;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'maintenance_requests', 'bsb_audit', 'better_supabase.maintenance_requests has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'maintenance_requests', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_requests calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_requests"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_requests is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_requests"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_requests is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_144' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_requests write entries');
+select extensions.has_trigger('better_supabase', 'maintenance_plans', 'bsb_audit', 'better_supabase.maintenance_plans has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'maintenance_plans', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_plans calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_plans"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_plans is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_plans"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_plans is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_144' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_plans write entries');
 drop table pg_temp.bsb_audit_probe_144;
 
-create temp table bsb_audit_probe_145 (like "better_supabase"."medication_administrations" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_145 (like "better_supabase"."maintenance_request_checklist_items" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7023,14 +7009,14 @@ begin
   delete from pg_temp.bsb_audit_probe_145;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'medication_administrations', 'bsb_audit', 'better_supabase.medication_administrations has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'medication_administrations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.medication_administrations calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medication_administrations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.medication_administrations is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medication_administrations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.medication_administrations is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_145' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.medication_administrations write entries');
+select extensions.has_trigger('better_supabase', 'maintenance_request_checklist_items', 'bsb_audit', 'better_supabase.maintenance_request_checklist_items has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'maintenance_request_checklist_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_request_checklist_items calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_request_checklist_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_request_checklist_items is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_request_checklist_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_request_checklist_items is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_145' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_request_checklist_items write entries');
 drop table pg_temp.bsb_audit_probe_145;
 
-create temp table bsb_audit_probe_146 (like "better_supabase"."medication_orders" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_146 (like "better_supabase"."maintenance_requests" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7071,14 +7057,14 @@ begin
   delete from pg_temp.bsb_audit_probe_146;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'medication_orders', 'bsb_audit', 'better_supabase.medication_orders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'medication_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.medication_orders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medication_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.medication_orders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medication_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.medication_orders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_146' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.medication_orders write entries');
+select extensions.has_trigger('better_supabase', 'maintenance_requests', 'bsb_audit', 'better_supabase.maintenance_requests has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'maintenance_requests', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.maintenance_requests calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_requests"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.maintenance_requests is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."maintenance_requests"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.maintenance_requests is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_146' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.maintenance_requests write entries');
 drop table pg_temp.bsb_audit_probe_146;
 
-create temp table bsb_audit_probe_147 (like "better_supabase"."medications" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_147 (like "better_supabase"."medication_administrations" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7119,14 +7105,14 @@ begin
   delete from pg_temp.bsb_audit_probe_147;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'medications', 'bsb_audit', 'better_supabase.medications has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'medications', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.medications calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medications"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.medications is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medications"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.medications is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_147' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.medications write entries');
+select extensions.has_trigger('better_supabase', 'medication_administrations', 'bsb_audit', 'better_supabase.medication_administrations has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'medication_administrations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.medication_administrations calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medication_administrations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.medication_administrations is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medication_administrations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.medication_administrations is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_147' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.medication_administrations write entries');
 drop table pg_temp.bsb_audit_probe_147;
 
-create temp table bsb_audit_probe_148 (like "better_supabase"."meeting_action_items" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_148 (like "better_supabase"."medication_orders" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7167,14 +7153,14 @@ begin
   delete from pg_temp.bsb_audit_probe_148;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'meeting_action_items', 'bsb_audit', 'better_supabase.meeting_action_items has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'meeting_action_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meeting_action_items calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_action_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meeting_action_items is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_action_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meeting_action_items is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_148' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meeting_action_items write entries');
+select extensions.has_trigger('better_supabase', 'medication_orders', 'bsb_audit', 'better_supabase.medication_orders has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'medication_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.medication_orders calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medication_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.medication_orders is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medication_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.medication_orders is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_148' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.medication_orders write entries');
 drop table pg_temp.bsb_audit_probe_148;
 
-create temp table bsb_audit_probe_149 (like "better_supabase"."meeting_agenda_items" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_149 (like "better_supabase"."medications" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7215,14 +7201,14 @@ begin
   delete from pg_temp.bsb_audit_probe_149;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'meeting_agenda_items', 'bsb_audit', 'better_supabase.meeting_agenda_items has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'meeting_agenda_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meeting_agenda_items calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_agenda_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meeting_agenda_items is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_agenda_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meeting_agenda_items is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_149' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meeting_agenda_items write entries');
+select extensions.has_trigger('better_supabase', 'medications', 'bsb_audit', 'better_supabase.medications has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'medications', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.medications calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medications"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.medications is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."medications"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.medications is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_149' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.medications write entries');
 drop table pg_temp.bsb_audit_probe_149;
 
-create temp table bsb_audit_probe_150 (like "better_supabase"."meeting_attendees" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_150 (like "better_supabase"."meeting_action_items" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7263,14 +7249,14 @@ begin
   delete from pg_temp.bsb_audit_probe_150;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'meeting_attendees', 'bsb_audit', 'better_supabase.meeting_attendees has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'meeting_attendees', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meeting_attendees calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_attendees"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meeting_attendees is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_attendees"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meeting_attendees is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_150' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meeting_attendees write entries');
+select extensions.has_trigger('better_supabase', 'meeting_action_items', 'bsb_audit', 'better_supabase.meeting_action_items has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'meeting_action_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meeting_action_items calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_action_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meeting_action_items is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_action_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meeting_action_items is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_150' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meeting_action_items write entries');
 drop table pg_temp.bsb_audit_probe_150;
 
-create temp table bsb_audit_probe_151 (like "better_supabase"."meeting_decisions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_151 (like "better_supabase"."meeting_agenda_items" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7311,14 +7297,14 @@ begin
   delete from pg_temp.bsb_audit_probe_151;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'meeting_decisions', 'bsb_audit', 'better_supabase.meeting_decisions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'meeting_decisions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meeting_decisions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_decisions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meeting_decisions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_decisions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meeting_decisions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_151' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meeting_decisions write entries');
+select extensions.has_trigger('better_supabase', 'meeting_agenda_items', 'bsb_audit', 'better_supabase.meeting_agenda_items has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'meeting_agenda_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meeting_agenda_items calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_agenda_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meeting_agenda_items is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_agenda_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meeting_agenda_items is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_151' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meeting_agenda_items write entries');
 drop table pg_temp.bsb_audit_probe_151;
 
-create temp table bsb_audit_probe_152 (like "better_supabase"."meetings" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_152 (like "better_supabase"."meeting_attendees" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7359,14 +7345,14 @@ begin
   delete from pg_temp.bsb_audit_probe_152;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'meetings', 'bsb_audit', 'better_supabase.meetings has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'meetings', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meetings calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meetings"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meetings is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meetings"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meetings is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_152' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meetings write entries');
+select extensions.has_trigger('better_supabase', 'meeting_attendees', 'bsb_audit', 'better_supabase.meeting_attendees has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'meeting_attendees', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meeting_attendees calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_attendees"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meeting_attendees is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_attendees"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meeting_attendees is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_152' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meeting_attendees write entries');
 drop table pg_temp.bsb_audit_probe_152;
 
-create temp table bsb_audit_probe_153 (like "better_supabase"."memories" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_153 (like "better_supabase"."meeting_decisions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7407,14 +7393,14 @@ begin
   delete from pg_temp.bsb_audit_probe_153;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'memories', 'bsb_audit', 'better_supabase.memories has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'memories', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.memories calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."memories"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.memories is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."memories"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.memories is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_153' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.memories write entries');
+select extensions.has_trigger('better_supabase', 'meeting_decisions', 'bsb_audit', 'better_supabase.meeting_decisions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'meeting_decisions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meeting_decisions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_decisions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meeting_decisions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meeting_decisions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meeting_decisions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_153' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meeting_decisions write entries');
 drop table pg_temp.bsb_audit_probe_153;
 
-create temp table bsb_audit_probe_154 (like "better_supabase"."messages" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_154 (like "better_supabase"."meetings" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7455,14 +7441,14 @@ begin
   delete from pg_temp.bsb_audit_probe_154;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'messages', 'bsb_audit', 'better_supabase.messages has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'messages', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.messages calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."messages"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.messages is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."messages"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.messages is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_154' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.messages write entries');
+select extensions.has_trigger('better_supabase', 'meetings', 'bsb_audit', 'better_supabase.meetings has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'meetings', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.meetings calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meetings"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.meetings is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."meetings"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.meetings is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_154' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.meetings write entries');
 drop table pg_temp.bsb_audit_probe_154;
 
-create temp table bsb_audit_probe_155 (like "better_supabase"."moderation_items" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_155 (like "better_supabase"."memories" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7503,14 +7489,14 @@ begin
   delete from pg_temp.bsb_audit_probe_155;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'moderation_items', 'bsb_audit', 'better_supabase.moderation_items has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'moderation_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.moderation_items calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."moderation_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.moderation_items is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."moderation_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.moderation_items is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_155' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.moderation_items write entries');
+select extensions.has_trigger('better_supabase', 'memories', 'bsb_audit', 'better_supabase.memories has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'memories', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.memories calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."memories"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.memories is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."memories"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.memories is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_155' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.memories write entries');
 drop table pg_temp.bsb_audit_probe_155;
 
-create temp table bsb_audit_probe_156 (like "better_supabase"."observation_definitions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_156 (like "better_supabase"."messages" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7551,14 +7537,14 @@ begin
   delete from pg_temp.bsb_audit_probe_156;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'observation_definitions', 'bsb_audit', 'better_supabase.observation_definitions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'observation_definitions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.observation_definitions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."observation_definitions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.observation_definitions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."observation_definitions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.observation_definitions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_156' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.observation_definitions write entries');
+select extensions.has_trigger('better_supabase', 'messages', 'bsb_audit', 'better_supabase.messages has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'messages', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.messages calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."messages"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.messages is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."messages"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.messages is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_156' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.messages write entries');
 drop table pg_temp.bsb_audit_probe_156;
 
-create temp table bsb_audit_probe_157 (like "better_supabase"."observations" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_157 (like "better_supabase"."moderation_items" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7599,15 +7585,14 @@ begin
   delete from pg_temp.bsb_audit_probe_157;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'observations', 'bsb_audit', 'better_supabase.observations has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'observations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.observations calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."observations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.observations is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."observations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.observations is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_157' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.observations write entries');
+select extensions.has_trigger('better_supabase', 'moderation_items', 'bsb_audit', 'better_supabase.moderation_items has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'moderation_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.moderation_items calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."moderation_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.moderation_items is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."moderation_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.moderation_items is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_157' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.moderation_items write entries');
 drop table pg_temp.bsb_audit_probe_157;
 
-create temp table bsb_audit_probe_158 (like "better_supabase"."option_sets" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_158 (like "better_supabase"."orders" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_158 (like "better_supabase"."observation_definitions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7648,20 +7633,14 @@ begin
   delete from pg_temp.bsb_audit_probe_158;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'option_sets', 'bsb_audit', 'better_supabase.option_sets has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'option_sets', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.option_sets calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."option_sets"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.option_sets is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."option_sets"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.option_sets is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_158' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.option_sets write entries');
-select extensions.has_trigger('better_supabase', 'orders', 'bsb_audit', 'better_supabase.orders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.orders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.orders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.orders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_158' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.orders write entries');
+select extensions.has_trigger('better_supabase', 'observation_definitions', 'bsb_audit', 'better_supabase.observation_definitions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'observation_definitions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.observation_definitions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."observation_definitions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.observation_definitions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."observation_definitions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.observation_definitions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_158' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.observation_definitions write entries');
 drop table pg_temp.bsb_audit_probe_158;
 
-create temp table bsb_audit_probe_159 (like "better_supabase"."orders" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_159 (like "better_supabase"."pass_check_ins" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_159 (like "better_supabase"."observations" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7702,20 +7681,14 @@ begin
   delete from pg_temp.bsb_audit_probe_159;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'orders', 'bsb_audit', 'better_supabase.orders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.orders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.orders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.orders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_159' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.orders write entries');
-select extensions.has_trigger('better_supabase', 'pass_check_ins', 'bsb_audit', 'better_supabase.pass_check_ins has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pass_check_ins', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pass_check_ins calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pass_check_ins"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pass_check_ins is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pass_check_ins"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pass_check_ins is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_159' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pass_check_ins write entries');
+select extensions.has_trigger('better_supabase', 'observations', 'bsb_audit', 'better_supabase.observations has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'observations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.observations calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."observations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.observations is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."observations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.observations is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_159' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.observations write entries');
 drop table pg_temp.bsb_audit_probe_159;
 
-create temp table bsb_audit_probe_160 (like "better_supabase"."pass_check_ins" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_160 (like "better_supabase"."passes" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_160 (like "better_supabase"."option_sets" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7756,20 +7729,14 @@ begin
   delete from pg_temp.bsb_audit_probe_160;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'pass_check_ins', 'bsb_audit', 'better_supabase.pass_check_ins has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pass_check_ins', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pass_check_ins calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pass_check_ins"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pass_check_ins is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pass_check_ins"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pass_check_ins is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_160' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pass_check_ins write entries');
-select extensions.has_trigger('better_supabase', 'passes', 'bsb_audit', 'better_supabase.passes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'passes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.passes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."passes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.passes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."passes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.passes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_160' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.passes write entries');
+select extensions.has_trigger('better_supabase', 'option_sets', 'bsb_audit', 'better_supabase.option_sets has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'option_sets', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.option_sets calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."option_sets"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.option_sets is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."option_sets"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.option_sets is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_160' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.option_sets write entries');
 drop table pg_temp.bsb_audit_probe_160;
 
-create temp table bsb_audit_probe_161 (like "better_supabase"."passes" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_161 (like "better_supabase"."payroll_lines" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_161 (like "better_supabase"."orders" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7810,20 +7777,14 @@ begin
   delete from pg_temp.bsb_audit_probe_161;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'passes', 'bsb_audit', 'better_supabase.passes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'passes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.passes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."passes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.passes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."passes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.passes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_161' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.passes write entries');
-select extensions.has_trigger('better_supabase', 'payroll_lines', 'bsb_audit', 'better_supabase.payroll_lines has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'payroll_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.payroll_lines calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.payroll_lines is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.payroll_lines is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_161' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.payroll_lines write entries');
+select extensions.has_trigger('better_supabase', 'orders', 'bsb_audit', 'better_supabase.orders has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.orders calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.orders is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.orders is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_161' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.orders write entries');
 drop table pg_temp.bsb_audit_probe_161;
 
-create temp table bsb_audit_probe_162 (like "better_supabase"."payroll_lines" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_162 (like "better_supabase"."payroll_runs" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_162 (like "better_supabase"."pass_check_ins" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7864,20 +7825,14 @@ begin
   delete from pg_temp.bsb_audit_probe_162;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'payroll_lines', 'bsb_audit', 'better_supabase.payroll_lines has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'payroll_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.payroll_lines calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.payroll_lines is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.payroll_lines is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_162' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.payroll_lines write entries');
-select extensions.has_trigger('better_supabase', 'payroll_runs', 'bsb_audit', 'better_supabase.payroll_runs has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'payroll_runs', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.payroll_runs calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_runs"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.payroll_runs is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_runs"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.payroll_runs is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_162' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.payroll_runs write entries');
+select extensions.has_trigger('better_supabase', 'pass_check_ins', 'bsb_audit', 'better_supabase.pass_check_ins has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'pass_check_ins', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pass_check_ins calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pass_check_ins"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pass_check_ins is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pass_check_ins"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pass_check_ins is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_162' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pass_check_ins write entries');
 drop table pg_temp.bsb_audit_probe_162;
 
-create temp table bsb_audit_probe_163 (like "better_supabase"."payroll_runs" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_163 (like "better_supabase"."people" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_163 (like "better_supabase"."passes" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7918,20 +7873,14 @@ begin
   delete from pg_temp.bsb_audit_probe_163;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'payroll_runs', 'bsb_audit', 'better_supabase.payroll_runs has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'payroll_runs', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.payroll_runs calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_runs"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.payroll_runs is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_runs"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.payroll_runs is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_163' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.payroll_runs write entries');
-select extensions.has_trigger('better_supabase', 'people', 'bsb_audit', 'better_supabase.people has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'people', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.people calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."people"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.people is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."people"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.people is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_163' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.people write entries');
+select extensions.has_trigger('better_supabase', 'passes', 'bsb_audit', 'better_supabase.passes has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'passes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.passes calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."passes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.passes is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."passes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.passes is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_163' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.passes write entries');
 drop table pg_temp.bsb_audit_probe_163;
 
-create temp table bsb_audit_probe_164 (like "better_supabase"."people" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_164 (like "better_supabase"."periods" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_164 (like "better_supabase"."payroll_lines" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -7972,20 +7921,14 @@ begin
   delete from pg_temp.bsb_audit_probe_164;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'people', 'bsb_audit', 'better_supabase.people has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'people', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.people calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."people"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.people is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."people"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.people is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_164' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.people write entries');
-select extensions.has_trigger('better_supabase', 'periods', 'bsb_audit', 'better_supabase.periods has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'periods', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.periods calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."periods"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.periods is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."periods"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.periods is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_164' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.periods write entries');
+select extensions.has_trigger('better_supabase', 'payroll_lines', 'bsb_audit', 'better_supabase.payroll_lines has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'payroll_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.payroll_lines calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.payroll_lines is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.payroll_lines is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_164' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.payroll_lines write entries');
 drop table pg_temp.bsb_audit_probe_164;
 
-create temp table bsb_audit_probe_165 (like "better_supabase"."periods" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_165 (like "better_supabase"."permission_overrides" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_165 (like "better_supabase"."payroll_runs" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8026,20 +7969,14 @@ begin
   delete from pg_temp.bsb_audit_probe_165;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'periods', 'bsb_audit', 'better_supabase.periods has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'periods', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.periods calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."periods"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.periods is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."periods"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.periods is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_165' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.periods write entries');
-select extensions.has_trigger('better_supabase', 'permission_overrides', 'bsb_audit', 'better_supabase.permission_overrides has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'permission_overrides', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.permission_overrides calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permission_overrides"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.permission_overrides is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permission_overrides"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.permission_overrides is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_165' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.permission_overrides write entries');
+select extensions.has_trigger('better_supabase', 'payroll_runs', 'bsb_audit', 'better_supabase.payroll_runs has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'payroll_runs', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.payroll_runs calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_runs"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.payroll_runs is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."payroll_runs"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.payroll_runs is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_165' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.payroll_runs write entries');
 drop table pg_temp.bsb_audit_probe_165;
 
-create temp table bsb_audit_probe_166 (like "better_supabase"."permission_overrides" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_166 (like "better_supabase"."permissions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_166 (like "better_supabase"."people" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8080,20 +8017,14 @@ begin
   delete from pg_temp.bsb_audit_probe_166;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'permission_overrides', 'bsb_audit', 'better_supabase.permission_overrides has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'permission_overrides', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.permission_overrides calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permission_overrides"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.permission_overrides is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permission_overrides"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.permission_overrides is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_166' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.permission_overrides write entries');
-select extensions.has_trigger('better_supabase', 'permissions', 'bsb_audit', 'better_supabase.permissions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'permissions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.permissions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permissions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.permissions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permissions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.permissions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_166' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.permissions write entries');
+select extensions.has_trigger('better_supabase', 'people', 'bsb_audit', 'better_supabase.people has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'people', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.people calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."people"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.people is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."people"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.people is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_166' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.people write entries');
 drop table pg_temp.bsb_audit_probe_166;
 
-create temp table bsb_audit_probe_167 (like "better_supabase"."permissions" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_167 (like "better_supabase"."pick_lines" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_167 (like "better_supabase"."periods" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8134,20 +8065,14 @@ begin
   delete from pg_temp.bsb_audit_probe_167;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'permissions', 'bsb_audit', 'better_supabase.permissions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'permissions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.permissions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permissions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.permissions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permissions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.permissions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_167' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.permissions write entries');
-select extensions.has_trigger('better_supabase', 'pick_lines', 'bsb_audit', 'better_supabase.pick_lines has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pick_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pick_lines calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pick_lines is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pick_lines is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_167' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pick_lines write entries');
+select extensions.has_trigger('better_supabase', 'periods', 'bsb_audit', 'better_supabase.periods has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'periods', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.periods calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."periods"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.periods is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."periods"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.periods is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_167' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.periods write entries');
 drop table pg_temp.bsb_audit_probe_167;
 
-create temp table bsb_audit_probe_168 (like "better_supabase"."pick_lines" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_168 (like "better_supabase"."pick_lists" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_168 (like "better_supabase"."permission_overrides" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8188,20 +8113,14 @@ begin
   delete from pg_temp.bsb_audit_probe_168;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'pick_lines', 'bsb_audit', 'better_supabase.pick_lines has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pick_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pick_lines calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pick_lines is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pick_lines is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_168' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pick_lines write entries');
-select extensions.has_trigger('better_supabase', 'pick_lists', 'bsb_audit', 'better_supabase.pick_lists has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pick_lists', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pick_lists calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lists"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pick_lists is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lists"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pick_lists is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_168' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pick_lists write entries');
+select extensions.has_trigger('better_supabase', 'permission_overrides', 'bsb_audit', 'better_supabase.permission_overrides has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'permission_overrides', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.permission_overrides calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permission_overrides"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.permission_overrides is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permission_overrides"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.permission_overrides is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_168' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.permission_overrides write entries');
 drop table pg_temp.bsb_audit_probe_168;
 
-create temp table bsb_audit_probe_169 (like "better_supabase"."pick_lists" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_169 (like "better_supabase"."pick_waves" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_169 (like "better_supabase"."permissions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8242,20 +8161,14 @@ begin
   delete from pg_temp.bsb_audit_probe_169;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'pick_lists', 'bsb_audit', 'better_supabase.pick_lists has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pick_lists', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pick_lists calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lists"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pick_lists is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lists"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pick_lists is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_169' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pick_lists write entries');
-select extensions.has_trigger('better_supabase', 'pick_waves', 'bsb_audit', 'better_supabase.pick_waves has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pick_waves', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pick_waves calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_waves"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pick_waves is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_waves"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pick_waves is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_169' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pick_waves write entries');
+select extensions.has_trigger('better_supabase', 'permissions', 'bsb_audit', 'better_supabase.permissions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'permissions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.permissions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permissions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.permissions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."permissions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.permissions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_169' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.permissions write entries');
 drop table pg_temp.bsb_audit_probe_169;
 
-create temp table bsb_audit_probe_170 (like "better_supabase"."pick_waves" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_170 (like "better_supabase"."pipelines" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_170 (like "better_supabase"."pick_lines" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8296,20 +8209,14 @@ begin
   delete from pg_temp.bsb_audit_probe_170;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'pick_waves', 'bsb_audit', 'better_supabase.pick_waves has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pick_waves', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pick_waves calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_waves"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pick_waves is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_waves"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pick_waves is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_170' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pick_waves write entries');
-select extensions.has_trigger('better_supabase', 'pipelines', 'bsb_audit', 'better_supabase.pipelines has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pipelines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pipelines calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pipelines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pipelines is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pipelines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pipelines is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_170' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pipelines write entries');
+select extensions.has_trigger('better_supabase', 'pick_lines', 'bsb_audit', 'better_supabase.pick_lines has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'pick_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pick_lines calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pick_lines is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pick_lines is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_170' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pick_lines write entries');
 drop table pg_temp.bsb_audit_probe_170;
 
-create temp table bsb_audit_probe_171 (like "better_supabase"."pipelines" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_171 (like "better_supabase"."platform_roles" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_171 (like "better_supabase"."pick_lists" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8350,20 +8257,14 @@ begin
   delete from pg_temp.bsb_audit_probe_171;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'pipelines', 'bsb_audit', 'better_supabase.pipelines has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pipelines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pipelines calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pipelines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pipelines is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pipelines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pipelines is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_171' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pipelines write entries');
-select extensions.has_trigger('better_supabase', 'platform_roles', 'bsb_audit', 'better_supabase.platform_roles has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'platform_roles', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.platform_roles calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."platform_roles"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.platform_roles is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."platform_roles"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.platform_roles is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_171' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.platform_roles write entries');
+select extensions.has_trigger('better_supabase', 'pick_lists', 'bsb_audit', 'better_supabase.pick_lists has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'pick_lists', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pick_lists calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lists"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pick_lists is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_lists"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pick_lists is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_171' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pick_lists write entries');
 drop table pg_temp.bsb_audit_probe_171;
 
-create temp table bsb_audit_probe_172 (like "better_supabase"."platform_roles" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_172 (like "better_supabase"."pledges" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_172 (like "better_supabase"."pick_waves" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8404,20 +8305,14 @@ begin
   delete from pg_temp.bsb_audit_probe_172;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'platform_roles', 'bsb_audit', 'better_supabase.platform_roles has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'platform_roles', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.platform_roles calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."platform_roles"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.platform_roles is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."platform_roles"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.platform_roles is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_172' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.platform_roles write entries');
-select extensions.has_trigger('better_supabase', 'pledges', 'bsb_audit', 'better_supabase.pledges has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pledges', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pledges calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pledges"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pledges is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pledges"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pledges is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_172' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pledges write entries');
+select extensions.has_trigger('better_supabase', 'pick_waves', 'bsb_audit', 'better_supabase.pick_waves has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'pick_waves', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pick_waves calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_waves"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pick_waves is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pick_waves"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pick_waves is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_172' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pick_waves write entries');
 drop table pg_temp.bsb_audit_probe_172;
 
-create temp table bsb_audit_probe_173 (like "better_supabase"."pledges" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_173 (like "better_supabase"."post_boards" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_173 (like "better_supabase"."pipelines" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8458,20 +8353,14 @@ begin
   delete from pg_temp.bsb_audit_probe_173;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'pledges', 'bsb_audit', 'better_supabase.pledges has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'pledges', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pledges calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pledges"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pledges is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pledges"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pledges is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_173' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pledges write entries');
-select extensions.has_trigger('better_supabase', 'post_boards', 'bsb_audit', 'better_supabase.post_boards has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'post_boards', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.post_boards calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."post_boards"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.post_boards is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."post_boards"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.post_boards is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_173' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.post_boards write entries');
+select extensions.has_trigger('better_supabase', 'pipelines', 'bsb_audit', 'better_supabase.pipelines has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'pipelines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pipelines calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pipelines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pipelines is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pipelines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pipelines is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_173' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pipelines write entries');
 drop table pg_temp.bsb_audit_probe_173;
 
-create temp table bsb_audit_probe_174 (like "better_supabase"."post_boards" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_174 (like "better_supabase"."posts" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_174 (like "better_supabase"."platform_roles" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8512,20 +8401,14 @@ begin
   delete from pg_temp.bsb_audit_probe_174;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'post_boards', 'bsb_audit', 'better_supabase.post_boards has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'post_boards', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.post_boards calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."post_boards"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.post_boards is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."post_boards"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.post_boards is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_174' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.post_boards write entries');
-select extensions.has_trigger('better_supabase', 'posts', 'bsb_audit', 'better_supabase.posts has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'posts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.posts calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."posts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.posts is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."posts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.posts is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_174' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.posts write entries');
+select extensions.has_trigger('better_supabase', 'platform_roles', 'bsb_audit', 'better_supabase.platform_roles has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'platform_roles', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.platform_roles calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."platform_roles"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.platform_roles is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."platform_roles"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.platform_roles is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_174' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.platform_roles write entries');
 drop table pg_temp.bsb_audit_probe_174;
 
-create temp table bsb_audit_probe_175 (like "better_supabase"."posts" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_175 (like "better_supabase"."prescriptions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_175 (like "better_supabase"."pledges" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8566,20 +8449,14 @@ begin
   delete from pg_temp.bsb_audit_probe_175;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'posts', 'bsb_audit', 'better_supabase.posts has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'posts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.posts calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."posts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.posts is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."posts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.posts is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_175' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.posts write entries');
-select extensions.has_trigger('better_supabase', 'prescriptions', 'bsb_audit', 'better_supabase.prescriptions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'prescriptions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.prescriptions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."prescriptions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.prescriptions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."prescriptions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.prescriptions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_175' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.prescriptions write entries');
+select extensions.has_trigger('better_supabase', 'pledges', 'bsb_audit', 'better_supabase.pledges has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'pledges', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.pledges calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pledges"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.pledges is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."pledges"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.pledges is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_175' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.pledges write entries');
 drop table pg_temp.bsb_audit_probe_175;
 
-create temp table bsb_audit_probe_176 (like "better_supabase"."prescriptions" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_176 (like "better_supabase"."product_variants" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_176 (like "better_supabase"."post_boards" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8620,20 +8497,14 @@ begin
   delete from pg_temp.bsb_audit_probe_176;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'prescriptions', 'bsb_audit', 'better_supabase.prescriptions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'prescriptions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.prescriptions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."prescriptions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.prescriptions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."prescriptions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.prescriptions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_176' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.prescriptions write entries');
-select extensions.has_trigger('better_supabase', 'product_variants', 'bsb_audit', 'better_supabase.product_variants has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'product_variants', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.product_variants calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."product_variants"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.product_variants is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."product_variants"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.product_variants is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_176' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.product_variants write entries');
+select extensions.has_trigger('better_supabase', 'post_boards', 'bsb_audit', 'better_supabase.post_boards has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'post_boards', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.post_boards calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."post_boards"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.post_boards is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."post_boards"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.post_boards is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_176' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.post_boards write entries');
 drop table pg_temp.bsb_audit_probe_176;
 
-create temp table bsb_audit_probe_177 (like "better_supabase"."product_variants" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_177 (like "better_supabase"."production_consumptions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_177 (like "better_supabase"."posts" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8674,20 +8545,14 @@ begin
   delete from pg_temp.bsb_audit_probe_177;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'product_variants', 'bsb_audit', 'better_supabase.product_variants has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'product_variants', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.product_variants calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."product_variants"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.product_variants is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."product_variants"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.product_variants is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_177' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.product_variants write entries');
-select extensions.has_trigger('better_supabase', 'production_consumptions', 'bsb_audit', 'better_supabase.production_consumptions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'production_consumptions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.production_consumptions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_consumptions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.production_consumptions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_consumptions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.production_consumptions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_177' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.production_consumptions write entries');
+select extensions.has_trigger('better_supabase', 'posts', 'bsb_audit', 'better_supabase.posts has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'posts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.posts calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."posts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.posts is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."posts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.posts is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_177' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.posts write entries');
 drop table pg_temp.bsb_audit_probe_177;
 
-create temp table bsb_audit_probe_178 (like "better_supabase"."production_consumptions" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_178 (like "better_supabase"."production_order_operations" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_178 (like "better_supabase"."prescriptions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8728,20 +8593,14 @@ begin
   delete from pg_temp.bsb_audit_probe_178;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'production_consumptions', 'bsb_audit', 'better_supabase.production_consumptions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'production_consumptions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.production_consumptions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_consumptions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.production_consumptions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_consumptions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.production_consumptions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_178' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.production_consumptions write entries');
-select extensions.has_trigger('better_supabase', 'production_order_operations', 'bsb_audit', 'better_supabase.production_order_operations has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'production_order_operations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.production_order_operations calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_order_operations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.production_order_operations is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_order_operations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.production_order_operations is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_178' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.production_order_operations write entries');
+select extensions.has_trigger('better_supabase', 'prescriptions', 'bsb_audit', 'better_supabase.prescriptions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'prescriptions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.prescriptions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."prescriptions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.prescriptions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."prescriptions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.prescriptions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_178' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.prescriptions write entries');
 drop table pg_temp.bsb_audit_probe_178;
 
-create temp table bsb_audit_probe_179 (like "better_supabase"."production_order_operations" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_179 (like "better_supabase"."production_orders" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_179 (like "better_supabase"."product_variants" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8782,20 +8641,14 @@ begin
   delete from pg_temp.bsb_audit_probe_179;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'production_order_operations', 'bsb_audit', 'better_supabase.production_order_operations has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'production_order_operations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.production_order_operations calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_order_operations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.production_order_operations is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_order_operations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.production_order_operations is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_179' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.production_order_operations write entries');
-select extensions.has_trigger('better_supabase', 'production_orders', 'bsb_audit', 'better_supabase.production_orders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'production_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.production_orders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.production_orders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.production_orders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_179' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.production_orders write entries');
+select extensions.has_trigger('better_supabase', 'product_variants', 'bsb_audit', 'better_supabase.product_variants has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'product_variants', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.product_variants calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."product_variants"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.product_variants is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."product_variants"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.product_variants is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_179' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.product_variants write entries');
 drop table pg_temp.bsb_audit_probe_179;
 
-create temp table bsb_audit_probe_180 (like "better_supabase"."production_orders" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_180 (like "better_supabase"."products" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_180 (like "better_supabase"."production_consumptions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8836,20 +8689,14 @@ begin
   delete from pg_temp.bsb_audit_probe_180;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'production_orders', 'bsb_audit', 'better_supabase.production_orders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'production_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.production_orders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.production_orders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.production_orders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_180' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.production_orders write entries');
-select extensions.has_trigger('better_supabase', 'products', 'bsb_audit', 'better_supabase.products has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'products', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.products calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."products"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.products is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."products"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.products is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_180' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.products write entries');
+select extensions.has_trigger('better_supabase', 'production_consumptions', 'bsb_audit', 'better_supabase.production_consumptions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'production_consumptions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.production_consumptions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_consumptions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.production_consumptions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_consumptions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.production_consumptions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_180' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.production_consumptions write entries');
 drop table pg_temp.bsb_audit_probe_180;
 
-create temp table bsb_audit_probe_181 (like "better_supabase"."products" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_181 (like "better_supabase"."promotions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_181 (like "better_supabase"."production_order_operations" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8890,20 +8737,14 @@ begin
   delete from pg_temp.bsb_audit_probe_181;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'products', 'bsb_audit', 'better_supabase.products has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'products', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.products calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."products"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.products is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."products"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.products is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_181' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.products write entries');
-select extensions.has_trigger('better_supabase', 'promotions', 'bsb_audit', 'better_supabase.promotions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'promotions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.promotions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."promotions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.promotions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."promotions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.promotions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_181' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.promotions write entries');
+select extensions.has_trigger('better_supabase', 'production_order_operations', 'bsb_audit', 'better_supabase.production_order_operations has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'production_order_operations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.production_order_operations calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_order_operations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.production_order_operations is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_order_operations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.production_order_operations is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_181' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.production_order_operations write entries');
 drop table pg_temp.bsb_audit_probe_181;
 
-create temp table bsb_audit_probe_182 (like "better_supabase"."promotions" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_182 (like "better_supabase"."purchase_orders" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_182 (like "better_supabase"."production_orders" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8944,20 +8785,14 @@ begin
   delete from pg_temp.bsb_audit_probe_182;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'promotions', 'bsb_audit', 'better_supabase.promotions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'promotions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.promotions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."promotions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.promotions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."promotions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.promotions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_182' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.promotions write entries');
-select extensions.has_trigger('better_supabase', 'purchase_orders', 'bsb_audit', 'better_supabase.purchase_orders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'purchase_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.purchase_orders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.purchase_orders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.purchase_orders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_182' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.purchase_orders write entries');
+select extensions.has_trigger('better_supabase', 'production_orders', 'bsb_audit', 'better_supabase.production_orders has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'production_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.production_orders calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.production_orders is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."production_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.production_orders is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_182' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.production_orders write entries');
 drop table pg_temp.bsb_audit_probe_182;
 
-create temp table bsb_audit_probe_183 (like "better_supabase"."purchase_orders" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_183 (like "better_supabase"."purchase_requisitions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_183 (like "better_supabase"."products" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -8998,20 +8833,14 @@ begin
   delete from pg_temp.bsb_audit_probe_183;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'purchase_orders', 'bsb_audit', 'better_supabase.purchase_orders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'purchase_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.purchase_orders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.purchase_orders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.purchase_orders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_183' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.purchase_orders write entries');
-select extensions.has_trigger('better_supabase', 'purchase_requisitions', 'bsb_audit', 'better_supabase.purchase_requisitions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'purchase_requisitions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.purchase_requisitions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_requisitions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.purchase_requisitions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_requisitions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.purchase_requisitions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_183' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.purchase_requisitions write entries');
+select extensions.has_trigger('better_supabase', 'products', 'bsb_audit', 'better_supabase.products has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'products', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.products calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."products"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.products is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."products"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.products is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_183' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.products write entries');
 drop table pg_temp.bsb_audit_probe_183;
 
-create temp table bsb_audit_probe_184 (like "better_supabase"."purchase_requisitions" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_184 (like "better_supabase"."putaway_rules" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_184 (like "better_supabase"."promotions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9052,20 +8881,14 @@ begin
   delete from pg_temp.bsb_audit_probe_184;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'purchase_requisitions', 'bsb_audit', 'better_supabase.purchase_requisitions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'purchase_requisitions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.purchase_requisitions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_requisitions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.purchase_requisitions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_requisitions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.purchase_requisitions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_184' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.purchase_requisitions write entries');
-select extensions.has_trigger('better_supabase', 'putaway_rules', 'bsb_audit', 'better_supabase.putaway_rules has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'putaway_rules', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.putaway_rules calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."putaway_rules"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.putaway_rules is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."putaway_rules"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.putaway_rules is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_184' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.putaway_rules write entries');
+select extensions.has_trigger('better_supabase', 'promotions', 'bsb_audit', 'better_supabase.promotions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'promotions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.promotions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."promotions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.promotions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."promotions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.promotions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_184' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.promotions write entries');
 drop table pg_temp.bsb_audit_probe_184;
 
-create temp table bsb_audit_probe_185 (like "better_supabase"."putaway_rules" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_185 (like "better_supabase"."qualification_requirements" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_185 (like "better_supabase"."purchase_orders" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9106,20 +8929,14 @@ begin
   delete from pg_temp.bsb_audit_probe_185;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'putaway_rules', 'bsb_audit', 'better_supabase.putaway_rules has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'putaway_rules', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.putaway_rules calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."putaway_rules"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.putaway_rules is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."putaway_rules"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.putaway_rules is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_185' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.putaway_rules write entries');
-select extensions.has_trigger('better_supabase', 'qualification_requirements', 'bsb_audit', 'better_supabase.qualification_requirements has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'qualification_requirements', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.qualification_requirements calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_requirements"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.qualification_requirements is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_requirements"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.qualification_requirements is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_185' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.qualification_requirements write entries');
+select extensions.has_trigger('better_supabase', 'purchase_orders', 'bsb_audit', 'better_supabase.purchase_orders has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'purchase_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.purchase_orders calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.purchase_orders is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.purchase_orders is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_185' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.purchase_orders write entries');
 drop table pg_temp.bsb_audit_probe_185;
 
-create temp table bsb_audit_probe_186 (like "better_supabase"."qualification_requirements" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_186 (like "better_supabase"."qualification_types" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_186 (like "better_supabase"."purchase_requisitions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9160,20 +8977,14 @@ begin
   delete from pg_temp.bsb_audit_probe_186;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'qualification_requirements', 'bsb_audit', 'better_supabase.qualification_requirements has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'qualification_requirements', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.qualification_requirements calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_requirements"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.qualification_requirements is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_requirements"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.qualification_requirements is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_186' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.qualification_requirements write entries');
-select extensions.has_trigger('better_supabase', 'qualification_types', 'bsb_audit', 'better_supabase.qualification_types has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'qualification_types', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.qualification_types calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_types"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.qualification_types is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_types"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.qualification_types is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_186' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.qualification_types write entries');
+select extensions.has_trigger('better_supabase', 'purchase_requisitions', 'bsb_audit', 'better_supabase.purchase_requisitions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'purchase_requisitions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.purchase_requisitions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_requisitions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.purchase_requisitions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."purchase_requisitions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.purchase_requisitions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_186' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.purchase_requisitions write entries');
 drop table pg_temp.bsb_audit_probe_186;
 
-create temp table bsb_audit_probe_187 (like "better_supabase"."qualification_types" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_187 (like "better_supabase"."qualifications" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_187 (like "better_supabase"."putaway_rules" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9214,20 +9025,14 @@ begin
   delete from pg_temp.bsb_audit_probe_187;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'qualification_types', 'bsb_audit', 'better_supabase.qualification_types has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'qualification_types', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.qualification_types calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_types"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.qualification_types is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_types"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.qualification_types is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_187' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.qualification_types write entries');
-select extensions.has_trigger('better_supabase', 'qualifications', 'bsb_audit', 'better_supabase.qualifications has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'qualifications', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.qualifications calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualifications"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.qualifications is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualifications"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.qualifications is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_187' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.qualifications write entries');
+select extensions.has_trigger('better_supabase', 'putaway_rules', 'bsb_audit', 'better_supabase.putaway_rules has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'putaway_rules', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.putaway_rules calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."putaway_rules"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.putaway_rules is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."putaway_rules"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.putaway_rules is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_187' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.putaway_rules write entries');
 drop table pg_temp.bsb_audit_probe_187;
 
-create temp table bsb_audit_probe_188 (like "better_supabase"."qualifications" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_188 (like "better_supabase"."quotes" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_188 (like "better_supabase"."qualification_requirements" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9268,20 +9073,14 @@ begin
   delete from pg_temp.bsb_audit_probe_188;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'qualifications', 'bsb_audit', 'better_supabase.qualifications has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'qualifications', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.qualifications calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualifications"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.qualifications is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualifications"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.qualifications is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_188' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.qualifications write entries');
-select extensions.has_trigger('better_supabase', 'quotes', 'bsb_audit', 'better_supabase.quotes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'quotes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.quotes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."quotes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.quotes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."quotes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.quotes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_188' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.quotes write entries');
+select extensions.has_trigger('better_supabase', 'qualification_requirements', 'bsb_audit', 'better_supabase.qualification_requirements has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'qualification_requirements', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.qualification_requirements calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_requirements"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.qualification_requirements is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_requirements"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.qualification_requirements is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_188' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.qualification_requirements write entries');
 drop table pg_temp.bsb_audit_probe_188;
 
-create temp table bsb_audit_probe_189 (like "better_supabase"."quotes" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_189 (like "better_supabase"."reactions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_189 (like "better_supabase"."qualification_types" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9322,20 +9121,14 @@ begin
   delete from pg_temp.bsb_audit_probe_189;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'quotes', 'bsb_audit', 'better_supabase.quotes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'quotes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.quotes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."quotes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.quotes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."quotes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.quotes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_189' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.quotes write entries');
-select extensions.has_trigger('better_supabase', 'reactions', 'bsb_audit', 'better_supabase.reactions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'reactions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.reactions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reactions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.reactions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reactions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.reactions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_189' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.reactions write entries');
+select extensions.has_trigger('better_supabase', 'qualification_types', 'bsb_audit', 'better_supabase.qualification_types has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'qualification_types', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.qualification_types calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_types"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.qualification_types is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualification_types"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.qualification_types is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_189' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.qualification_types write entries');
 drop table pg_temp.bsb_audit_probe_189;
 
-create temp table bsb_audit_probe_190 (like "better_supabase"."reactions" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_190 (like "better_supabase"."referral_codes" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_190 (like "better_supabase"."qualifications" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9376,20 +9169,14 @@ begin
   delete from pg_temp.bsb_audit_probe_190;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'reactions', 'bsb_audit', 'better_supabase.reactions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'reactions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.reactions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reactions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.reactions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reactions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.reactions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_190' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.reactions write entries');
-select extensions.has_trigger('better_supabase', 'referral_codes', 'bsb_audit', 'better_supabase.referral_codes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'referral_codes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.referral_codes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referral_codes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.referral_codes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referral_codes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.referral_codes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_190' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.referral_codes write entries');
+select extensions.has_trigger('better_supabase', 'qualifications', 'bsb_audit', 'better_supabase.qualifications has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'qualifications', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.qualifications calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualifications"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.qualifications is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."qualifications"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.qualifications is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_190' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.qualifications write entries');
 drop table pg_temp.bsb_audit_probe_190;
 
-create temp table bsb_audit_probe_191 (like "better_supabase"."referral_codes" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_191 (like "better_supabase"."referrals" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_191 (like "better_supabase"."quotes" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9430,20 +9217,14 @@ begin
   delete from pg_temp.bsb_audit_probe_191;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'referral_codes', 'bsb_audit', 'better_supabase.referral_codes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'referral_codes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.referral_codes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referral_codes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.referral_codes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referral_codes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.referral_codes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_191' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.referral_codes write entries');
-select extensions.has_trigger('better_supabase', 'referrals', 'bsb_audit', 'better_supabase.referrals has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'referrals', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.referrals calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referrals"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.referrals is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referrals"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.referrals is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_191' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.referrals write entries');
+select extensions.has_trigger('better_supabase', 'quotes', 'bsb_audit', 'better_supabase.quotes has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'quotes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.quotes calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."quotes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.quotes is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."quotes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.quotes is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_191' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.quotes write entries');
 drop table pg_temp.bsb_audit_probe_191;
 
-create temp table bsb_audit_probe_192 (like "better_supabase"."referrals" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_192 (like "better_supabase"."relations" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_192 (like "better_supabase"."reactions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9484,20 +9265,14 @@ begin
   delete from pg_temp.bsb_audit_probe_192;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'referrals', 'bsb_audit', 'better_supabase.referrals has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'referrals', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.referrals calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referrals"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.referrals is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referrals"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.referrals is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_192' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.referrals write entries');
-select extensions.has_trigger('better_supabase', 'relations', 'bsb_audit', 'better_supabase.relations has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'relations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.relations calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."relations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.relations is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."relations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.relations is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_192' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.relations write entries');
+select extensions.has_trigger('better_supabase', 'reactions', 'bsb_audit', 'better_supabase.reactions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'reactions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.reactions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reactions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.reactions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reactions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.reactions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_192' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.reactions write entries');
 drop table pg_temp.bsb_audit_probe_192;
 
-create temp table bsb_audit_probe_193 (like "better_supabase"."relations" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_193 (like "better_supabase"."reminders" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_193 (like "better_supabase"."referral_codes" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9538,20 +9313,14 @@ begin
   delete from pg_temp.bsb_audit_probe_193;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'relations', 'bsb_audit', 'better_supabase.relations has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'relations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.relations calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."relations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.relations is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."relations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.relations is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_193' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.relations write entries');
-select extensions.has_trigger('better_supabase', 'reminders', 'bsb_audit', 'better_supabase.reminders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'reminders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.reminders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reminders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.reminders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reminders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.reminders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_193' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.reminders write entries');
+select extensions.has_trigger('better_supabase', 'referral_codes', 'bsb_audit', 'better_supabase.referral_codes has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'referral_codes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.referral_codes calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referral_codes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.referral_codes is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referral_codes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.referral_codes is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_193' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.referral_codes write entries');
 drop table pg_temp.bsb_audit_probe_193;
 
-create temp table bsb_audit_probe_194 (like "better_supabase"."reminders" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_194 (like "better_supabase"."rendered_documents" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_194 (like "better_supabase"."referrals" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9592,20 +9361,14 @@ begin
   delete from pg_temp.bsb_audit_probe_194;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'reminders', 'bsb_audit', 'better_supabase.reminders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'reminders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.reminders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reminders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.reminders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reminders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.reminders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_194' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.reminders write entries');
-select extensions.has_trigger('better_supabase', 'rendered_documents', 'bsb_audit', 'better_supabase.rendered_documents has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'rendered_documents', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rendered_documents calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rendered_documents"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rendered_documents is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rendered_documents"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rendered_documents is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_194' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rendered_documents write entries');
+select extensions.has_trigger('better_supabase', 'referrals', 'bsb_audit', 'better_supabase.referrals has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'referrals', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.referrals calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referrals"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.referrals is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."referrals"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.referrals is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_194' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.referrals write entries');
 drop table pg_temp.bsb_audit_probe_194;
 
-create temp table bsb_audit_probe_195 (like "better_supabase"."rendered_documents" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_195 (like "better_supabase"."reviews" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_195 (like "better_supabase"."relations" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9646,19 +9409,14 @@ begin
   delete from pg_temp.bsb_audit_probe_195;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'rendered_documents', 'bsb_audit', 'better_supabase.rendered_documents has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'rendered_documents', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rendered_documents calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rendered_documents"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rendered_documents is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rendered_documents"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rendered_documents is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_195' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rendered_documents write entries');
-select extensions.has_trigger('better_supabase', 'reviews', 'bsb_audit', 'better_supabase.reviews has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'reviews', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.reviews calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reviews"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.reviews is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reviews"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.reviews is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_195' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.reviews write entries');
+select extensions.has_trigger('better_supabase', 'relations', 'bsb_audit', 'better_supabase.relations has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'relations', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.relations calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."relations"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.relations is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."relations"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.relations is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_195' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.relations write entries');
 drop table pg_temp.bsb_audit_probe_195;
 
-create temp table bsb_audit_probe_196 (like "better_supabase"."rfq_lines" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_196 (like "better_supabase"."reminders" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9699,14 +9457,14 @@ begin
   delete from pg_temp.bsb_audit_probe_196;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'rfq_lines', 'bsb_audit', 'better_supabase.rfq_lines has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'rfq_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfq_lines calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfq_lines is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfq_lines is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_196' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfq_lines write entries');
+select extensions.has_trigger('better_supabase', 'reminders', 'bsb_audit', 'better_supabase.reminders has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'reminders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.reminders calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reminders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.reminders is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reminders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.reminders is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_196' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.reminders write entries');
 drop table pg_temp.bsb_audit_probe_196;
 
-create temp table bsb_audit_probe_197 (like "better_supabase"."rfq_quote_lines" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_197 (like "better_supabase"."rendered_documents" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9747,14 +9505,14 @@ begin
   delete from pg_temp.bsb_audit_probe_197;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'rfq_quote_lines', 'bsb_audit', 'better_supabase.rfq_quote_lines has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'rfq_quote_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfq_quote_lines calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_quote_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfq_quote_lines is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_quote_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfq_quote_lines is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_197' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfq_quote_lines write entries');
+select extensions.has_trigger('better_supabase', 'rendered_documents', 'bsb_audit', 'better_supabase.rendered_documents has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'rendered_documents', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rendered_documents calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rendered_documents"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rendered_documents is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rendered_documents"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rendered_documents is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_197' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rendered_documents write entries');
 drop table pg_temp.bsb_audit_probe_197;
 
-create temp table bsb_audit_probe_198 (like "better_supabase"."rfq_quotes" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_198 (like "better_supabase"."reviews" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9795,14 +9553,14 @@ begin
   delete from pg_temp.bsb_audit_probe_198;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'rfq_quotes', 'bsb_audit', 'better_supabase.rfq_quotes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'rfq_quotes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfq_quotes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_quotes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfq_quotes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_quotes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfq_quotes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_198' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfq_quotes write entries');
+select extensions.has_trigger('better_supabase', 'reviews', 'bsb_audit', 'better_supabase.reviews has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'reviews', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.reviews calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reviews"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.reviews is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."reviews"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.reviews is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_198' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.reviews write entries');
 drop table pg_temp.bsb_audit_probe_198;
 
-create temp table bsb_audit_probe_199 (like "better_supabase"."rfq_suppliers" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_199 (like "better_supabase"."rfq_lines" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9843,14 +9601,14 @@ begin
   delete from pg_temp.bsb_audit_probe_199;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'rfq_suppliers', 'bsb_audit', 'better_supabase.rfq_suppliers has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'rfq_suppliers', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfq_suppliers calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_suppliers"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfq_suppliers is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_suppliers"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfq_suppliers is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_199' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfq_suppliers write entries');
+select extensions.has_trigger('better_supabase', 'rfq_lines', 'bsb_audit', 'better_supabase.rfq_lines has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'rfq_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfq_lines calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfq_lines is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfq_lines is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_199' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfq_lines write entries');
 drop table pg_temp.bsb_audit_probe_199;
 
-create temp table bsb_audit_probe_200 (like "better_supabase"."rfqs" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_200 (like "better_supabase"."rfq_quote_lines" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9891,14 +9649,14 @@ begin
   delete from pg_temp.bsb_audit_probe_200;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'rfqs', 'bsb_audit', 'better_supabase.rfqs has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'rfqs', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfqs calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfqs"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfqs is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfqs"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfqs is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_200' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfqs write entries');
+select extensions.has_trigger('better_supabase', 'rfq_quote_lines', 'bsb_audit', 'better_supabase.rfq_quote_lines has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'rfq_quote_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfq_quote_lines calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_quote_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfq_quote_lines is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_quote_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfq_quote_lines is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_200' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfq_quote_lines write entries');
 drop table pg_temp.bsb_audit_probe_200;
 
-create temp table bsb_audit_probe_201 (like "better_supabase"."risk_assessments" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_201 (like "better_supabase"."rfq_quotes" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9939,14 +9697,14 @@ begin
   delete from pg_temp.bsb_audit_probe_201;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'risk_assessments', 'bsb_audit', 'better_supabase.risk_assessments has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'risk_assessments', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.risk_assessments calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risk_assessments"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.risk_assessments is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risk_assessments"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.risk_assessments is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_201' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.risk_assessments write entries');
+select extensions.has_trigger('better_supabase', 'rfq_quotes', 'bsb_audit', 'better_supabase.rfq_quotes has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'rfq_quotes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfq_quotes calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_quotes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfq_quotes is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_quotes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfq_quotes is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_201' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfq_quotes write entries');
 drop table pg_temp.bsb_audit_probe_201;
 
-create temp table bsb_audit_probe_202 (like "better_supabase"."risk_matrices" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_202 (like "better_supabase"."rfq_suppliers" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -9987,14 +9745,14 @@ begin
   delete from pg_temp.bsb_audit_probe_202;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'risk_matrices', 'bsb_audit', 'better_supabase.risk_matrices has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'risk_matrices', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.risk_matrices calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risk_matrices"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.risk_matrices is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risk_matrices"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.risk_matrices is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_202' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.risk_matrices write entries');
+select extensions.has_trigger('better_supabase', 'rfq_suppliers', 'bsb_audit', 'better_supabase.rfq_suppliers has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'rfq_suppliers', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfq_suppliers calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_suppliers"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfq_suppliers is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfq_suppliers"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfq_suppliers is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_202' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfq_suppliers write entries');
 drop table pg_temp.bsb_audit_probe_202;
 
-create temp table bsb_audit_probe_203 (like "better_supabase"."risks" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_203 (like "better_supabase"."rfqs" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10035,14 +9793,14 @@ begin
   delete from pg_temp.bsb_audit_probe_203;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'risks', 'bsb_audit', 'better_supabase.risks has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'risks', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.risks calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risks"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.risks is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risks"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.risks is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_203' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.risks write entries');
+select extensions.has_trigger('better_supabase', 'rfqs', 'bsb_audit', 'better_supabase.rfqs has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'rfqs', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.rfqs calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfqs"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.rfqs is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."rfqs"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.rfqs is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_203' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.rfqs write entries');
 drop table pg_temp.bsb_audit_probe_203;
 
-create temp table bsb_audit_probe_204 (like "better_supabase"."role_permissions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_204 (like "better_supabase"."risk_assessments" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10083,14 +9841,14 @@ begin
   delete from pg_temp.bsb_audit_probe_204;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'role_permissions', 'bsb_audit', 'better_supabase.role_permissions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'role_permissions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.role_permissions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."role_permissions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.role_permissions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."role_permissions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.role_permissions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_204' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.role_permissions write entries');
+select extensions.has_trigger('better_supabase', 'risk_assessments', 'bsb_audit', 'better_supabase.risk_assessments has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'risk_assessments', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.risk_assessments calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risk_assessments"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.risk_assessments is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risk_assessments"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.risk_assessments is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_204' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.risk_assessments write entries');
 drop table pg_temp.bsb_audit_probe_204;
 
-create temp table bsb_audit_probe_205 (like "better_supabase"."roles" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_205 (like "better_supabase"."risk_matrices" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10131,14 +9889,14 @@ begin
   delete from pg_temp.bsb_audit_probe_205;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'roles', 'bsb_audit', 'better_supabase.roles has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'roles', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.roles calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."roles"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.roles is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."roles"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.roles is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_205' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.roles write entries');
+select extensions.has_trigger('better_supabase', 'risk_matrices', 'bsb_audit', 'better_supabase.risk_matrices has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'risk_matrices', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.risk_matrices calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risk_matrices"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.risk_matrices is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risk_matrices"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.risk_matrices is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_205' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.risk_matrices write entries');
 drop table pg_temp.bsb_audit_probe_205;
 
-create temp table bsb_audit_probe_206 (like "better_supabase"."score_models" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_206 (like "better_supabase"."risks" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10179,14 +9937,14 @@ begin
   delete from pg_temp.bsb_audit_probe_206;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'score_models', 'bsb_audit', 'better_supabase.score_models has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'score_models', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.score_models calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."score_models"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.score_models is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."score_models"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.score_models is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_206' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.score_models write entries');
+select extensions.has_trigger('better_supabase', 'risks', 'bsb_audit', 'better_supabase.risks has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'risks', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.risks calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risks"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.risks is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."risks"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.risks is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_206' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.risks write entries');
 drop table pg_temp.bsb_audit_probe_206;
 
-create temp table bsb_audit_probe_207 (like "better_supabase"."segments" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_207 (like "better_supabase"."role_permissions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10227,14 +9985,14 @@ begin
   delete from pg_temp.bsb_audit_probe_207;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'segments', 'bsb_audit', 'better_supabase.segments has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'segments', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.segments calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."segments"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.segments is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."segments"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.segments is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_207' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.segments write entries');
+select extensions.has_trigger('better_supabase', 'role_permissions', 'bsb_audit', 'better_supabase.role_permissions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'role_permissions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.role_permissions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."role_permissions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.role_permissions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."role_permissions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.role_permissions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_207' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.role_permissions write entries');
 drop table pg_temp.bsb_audit_probe_207;
 
-create temp table bsb_audit_probe_208 (like "better_supabase"."sequences" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_208 (like "better_supabase"."roles" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10275,14 +10033,14 @@ begin
   delete from pg_temp.bsb_audit_probe_208;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'sequences', 'bsb_audit', 'better_supabase.sequences has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'sequences', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.sequences calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."sequences"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.sequences is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."sequences"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.sequences is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_208' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.sequences write entries');
+select extensions.has_trigger('better_supabase', 'roles', 'bsb_audit', 'better_supabase.roles has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'roles', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.roles calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."roles"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.roles is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."roles"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.roles is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_208' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.roles write entries');
 drop table pg_temp.bsb_audit_probe_208;
 
-create temp table bsb_audit_probe_209 (like "better_supabase"."share_links" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_209 (like "better_supabase"."score_models" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10323,14 +10081,14 @@ begin
   delete from pg_temp.bsb_audit_probe_209;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'share_links', 'bsb_audit', 'better_supabase.share_links has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'share_links', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.share_links calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."share_links"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.share_links is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."share_links"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.share_links is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_209' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.share_links write entries');
+select extensions.has_trigger('better_supabase', 'score_models', 'bsb_audit', 'better_supabase.score_models has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'score_models', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.score_models calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."score_models"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.score_models is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."score_models"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.score_models is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_209' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.score_models write entries');
 drop table pg_temp.bsb_audit_probe_209;
 
-create temp table bsb_audit_probe_210 (like "better_supabase"."shared_views" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_210 (like "better_supabase"."segments" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10371,14 +10129,14 @@ begin
   delete from pg_temp.bsb_audit_probe_210;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shared_views', 'bsb_audit', 'better_supabase.shared_views has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shared_views', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shared_views calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shared_views"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shared_views is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shared_views"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shared_views is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_210' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shared_views write entries');
+select extensions.has_trigger('better_supabase', 'segments', 'bsb_audit', 'better_supabase.segments has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'segments', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.segments calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."segments"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.segments is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."segments"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.segments is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_210' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.segments write entries');
 drop table pg_temp.bsb_audit_probe_210;
 
-create temp table bsb_audit_probe_211 (like "better_supabase"."shift_assignments" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_211 (like "better_supabase"."sequences" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10419,14 +10177,14 @@ begin
   delete from pg_temp.bsb_audit_probe_211;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shift_assignments', 'bsb_audit', 'better_supabase.shift_assignments has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shift_assignments', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shift_assignments calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_assignments"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shift_assignments is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_assignments"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shift_assignments is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_211' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shift_assignments write entries');
+select extensions.has_trigger('better_supabase', 'sequences', 'bsb_audit', 'better_supabase.sequences has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'sequences', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.sequences calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."sequences"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.sequences is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."sequences"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.sequences is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_211' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.sequences write entries');
 drop table pg_temp.bsb_audit_probe_211;
 
-create temp table bsb_audit_probe_212 (like "better_supabase"."shift_availability" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_212 (like "better_supabase"."share_links" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10467,14 +10225,14 @@ begin
   delete from pg_temp.bsb_audit_probe_212;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shift_availability', 'bsb_audit', 'better_supabase.shift_availability has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shift_availability', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shift_availability calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_availability"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shift_availability is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_availability"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shift_availability is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_212' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shift_availability write entries');
+select extensions.has_trigger('better_supabase', 'share_links', 'bsb_audit', 'better_supabase.share_links has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'share_links', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.share_links calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."share_links"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.share_links is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."share_links"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.share_links is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_212' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.share_links write entries');
 drop table pg_temp.bsb_audit_probe_212;
 
-create temp table bsb_audit_probe_213 (like "better_supabase"."shift_swaps" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_213 (like "better_supabase"."shared_views" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10515,14 +10273,14 @@ begin
   delete from pg_temp.bsb_audit_probe_213;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shift_swaps', 'bsb_audit', 'better_supabase.shift_swaps has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shift_swaps', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shift_swaps calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_swaps"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shift_swaps is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_swaps"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shift_swaps is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_213' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shift_swaps write entries');
+select extensions.has_trigger('better_supabase', 'shared_views', 'bsb_audit', 'better_supabase.shared_views has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shared_views', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shared_views calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shared_views"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shared_views is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shared_views"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shared_views is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_213' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shared_views write entries');
 drop table pg_temp.bsb_audit_probe_213;
 
-create temp table bsb_audit_probe_214 (like "better_supabase"."shift_templates" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_214 (like "better_supabase"."shift_assignments" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10563,14 +10321,14 @@ begin
   delete from pg_temp.bsb_audit_probe_214;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shift_templates', 'bsb_audit', 'better_supabase.shift_templates has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shift_templates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shift_templates calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_templates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shift_templates is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_templates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shift_templates is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_214' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shift_templates write entries');
+select extensions.has_trigger('better_supabase', 'shift_assignments', 'bsb_audit', 'better_supabase.shift_assignments has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shift_assignments', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shift_assignments calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_assignments"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shift_assignments is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_assignments"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shift_assignments is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_214' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shift_assignments write entries');
 drop table pg_temp.bsb_audit_probe_214;
 
-create temp table bsb_audit_probe_215 (like "better_supabase"."shifts" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_215 (like "better_supabase"."shift_availability" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10611,14 +10369,14 @@ begin
   delete from pg_temp.bsb_audit_probe_215;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shifts', 'bsb_audit', 'better_supabase.shifts has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shifts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shifts calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shifts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shifts is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shifts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shifts is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_215' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shifts write entries');
+select extensions.has_trigger('better_supabase', 'shift_availability', 'bsb_audit', 'better_supabase.shift_availability has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shift_availability', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shift_availability calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_availability"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shift_availability is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_availability"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shift_availability is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_215' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shift_availability write entries');
 drop table pg_temp.bsb_audit_probe_215;
 
-create temp table bsb_audit_probe_216 (like "better_supabase"."shipment_lines" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_216 (like "better_supabase"."shift_swaps" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10659,14 +10417,14 @@ begin
   delete from pg_temp.bsb_audit_probe_216;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shipment_lines', 'bsb_audit', 'better_supabase.shipment_lines has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shipment_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shipment_lines calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shipment_lines is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shipment_lines is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_216' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shipment_lines write entries');
+select extensions.has_trigger('better_supabase', 'shift_swaps', 'bsb_audit', 'better_supabase.shift_swaps has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shift_swaps', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shift_swaps calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_swaps"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shift_swaps is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_swaps"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shift_swaps is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_216' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shift_swaps write entries');
 drop table pg_temp.bsb_audit_probe_216;
 
-create temp table bsb_audit_probe_217 (like "better_supabase"."shipment_packages" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_217 (like "better_supabase"."shift_templates" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10707,14 +10465,14 @@ begin
   delete from pg_temp.bsb_audit_probe_217;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shipment_packages', 'bsb_audit', 'better_supabase.shipment_packages has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shipment_packages', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shipment_packages calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_packages"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shipment_packages is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_packages"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shipment_packages is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_217' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shipment_packages write entries');
+select extensions.has_trigger('better_supabase', 'shift_templates', 'bsb_audit', 'better_supabase.shift_templates has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shift_templates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shift_templates calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_templates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shift_templates is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shift_templates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shift_templates is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_217' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shift_templates write entries');
 drop table pg_temp.bsb_audit_probe_217;
 
-create temp table bsb_audit_probe_218 (like "better_supabase"."shipment_tracking_events" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_218 (like "better_supabase"."shifts" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10755,14 +10513,14 @@ begin
   delete from pg_temp.bsb_audit_probe_218;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shipment_tracking_events', 'bsb_audit', 'better_supabase.shipment_tracking_events has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shipment_tracking_events', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shipment_tracking_events calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_tracking_events"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shipment_tracking_events is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_tracking_events"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shipment_tracking_events is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_218' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shipment_tracking_events write entries');
+select extensions.has_trigger('better_supabase', 'shifts', 'bsb_audit', 'better_supabase.shifts has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shifts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shifts calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shifts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shifts is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shifts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shifts is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_218' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shifts write entries');
 drop table pg_temp.bsb_audit_probe_218;
 
-create temp table bsb_audit_probe_219 (like "better_supabase"."shipments" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_219 (like "better_supabase"."shipment_lines" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10803,14 +10561,14 @@ begin
   delete from pg_temp.bsb_audit_probe_219;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'shipments', 'bsb_audit', 'better_supabase.shipments has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'shipments', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shipments calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipments"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shipments is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipments"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shipments is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_219' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shipments write entries');
+select extensions.has_trigger('better_supabase', 'shipment_lines', 'bsb_audit', 'better_supabase.shipment_lines has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shipment_lines', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shipment_lines calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_lines"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shipment_lines is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_lines"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shipment_lines is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_219' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shipment_lines write entries');
 drop table pg_temp.bsb_audit_probe_219;
 
-create temp table bsb_audit_probe_220 (like "better_supabase"."signature_requests" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_220 (like "better_supabase"."shipment_packages" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10851,14 +10609,14 @@ begin
   delete from pg_temp.bsb_audit_probe_220;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'signature_requests', 'bsb_audit', 'better_supabase.signature_requests has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'signature_requests', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.signature_requests calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."signature_requests"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.signature_requests is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."signature_requests"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.signature_requests is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_220' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.signature_requests write entries');
+select extensions.has_trigger('better_supabase', 'shipment_packages', 'bsb_audit', 'better_supabase.shipment_packages has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shipment_packages', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shipment_packages calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_packages"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shipment_packages is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_packages"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shipment_packages is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_220' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shipment_packages write entries');
 drop table pg_temp.bsb_audit_probe_220;
 
-create temp table bsb_audit_probe_221 (like "better_supabase"."sla_policies" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_221 (like "better_supabase"."shipment_tracking_events" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10899,14 +10657,14 @@ begin
   delete from pg_temp.bsb_audit_probe_221;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'sla_policies', 'bsb_audit', 'better_supabase.sla_policies has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'sla_policies', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.sla_policies calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."sla_policies"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.sla_policies is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."sla_policies"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.sla_policies is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_221' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.sla_policies write entries');
+select extensions.has_trigger('better_supabase', 'shipment_tracking_events', 'bsb_audit', 'better_supabase.shipment_tracking_events has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shipment_tracking_events', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shipment_tracking_events calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_tracking_events"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shipment_tracking_events is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipment_tracking_events"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shipment_tracking_events is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_221' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shipment_tracking_events write entries');
 drop table pg_temp.bsb_audit_probe_221;
 
-create temp table bsb_audit_probe_222 (like "better_supabase"."stock_lot_links" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_222 (like "better_supabase"."shipments" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10947,15 +10705,14 @@ begin
   delete from pg_temp.bsb_audit_probe_222;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'stock_lot_links', 'bsb_audit', 'better_supabase.stock_lot_links has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'stock_lot_links', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.stock_lot_links calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."stock_lot_links"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.stock_lot_links is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."stock_lot_links"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.stock_lot_links is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_222' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.stock_lot_links write entries');
+select extensions.has_trigger('better_supabase', 'shipments', 'bsb_audit', 'better_supabase.shipments has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'shipments', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.shipments calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipments"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.shipments is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."shipments"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.shipments is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_222' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.shipments write entries');
 drop table pg_temp.bsb_audit_probe_222;
 
-create temp table bsb_audit_probe_223 (like "better_supabase"."tags" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_223 (like "better_supabase"."subject_collections" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_223 (like "better_supabase"."signature_requests" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -10996,20 +10753,14 @@ begin
   delete from pg_temp.bsb_audit_probe_223;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'tags', 'bsb_audit', 'better_supabase.tags has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tags', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tags calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tags"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tags is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tags"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tags is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_223' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tags write entries');
-select extensions.has_trigger('better_supabase', 'subject_collections', 'bsb_audit', 'better_supabase.subject_collections has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'subject_collections', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.subject_collections calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."subject_collections"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.subject_collections is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."subject_collections"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.subject_collections is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_223' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.subject_collections write entries');
+select extensions.has_trigger('better_supabase', 'signature_requests', 'bsb_audit', 'better_supabase.signature_requests has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'signature_requests', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.signature_requests calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."signature_requests"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.signature_requests is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."signature_requests"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.signature_requests is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_223' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.signature_requests write entries');
 drop table pg_temp.bsb_audit_probe_223;
 
-create temp table bsb_audit_probe_224 (like "better_supabase"."tax_codes" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_224 (like "better_supabase"."tags" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_224 (like "better_supabase"."sla_policies" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11050,20 +10801,14 @@ begin
   delete from pg_temp.bsb_audit_probe_224;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'tax_codes', 'bsb_audit', 'better_supabase.tax_codes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tax_codes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tax_codes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_codes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tax_codes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_codes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tax_codes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_224' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tax_codes write entries');
-select extensions.has_trigger('better_supabase', 'tags', 'bsb_audit', 'better_supabase.tags has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tags', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tags calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tags"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tags is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tags"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tags is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_224' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tags write entries');
+select extensions.has_trigger('better_supabase', 'sla_policies', 'bsb_audit', 'better_supabase.sla_policies has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'sla_policies', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.sla_policies calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."sla_policies"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.sla_policies is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."sla_policies"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.sla_policies is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_224' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.sla_policies write entries');
 drop table pg_temp.bsb_audit_probe_224;
 
-create temp table bsb_audit_probe_225 (like "better_supabase"."tax_rates" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_225 (like "better_supabase"."tax_codes" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_225 (like "better_supabase"."stock_lot_links" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11104,20 +10849,14 @@ begin
   delete from pg_temp.bsb_audit_probe_225;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'tax_rates', 'bsb_audit', 'better_supabase.tax_rates has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tax_rates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tax_rates calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_rates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tax_rates is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_rates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tax_rates is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_225' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tax_rates write entries');
-select extensions.has_trigger('better_supabase', 'tax_codes', 'bsb_audit', 'better_supabase.tax_codes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tax_codes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tax_codes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_codes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tax_codes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_codes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tax_codes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_225' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tax_codes write entries');
+select extensions.has_trigger('better_supabase', 'stock_lot_links', 'bsb_audit', 'better_supabase.stock_lot_links has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'stock_lot_links', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.stock_lot_links calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."stock_lot_links"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.stock_lot_links is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."stock_lot_links"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.stock_lot_links is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_225' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.stock_lot_links write entries');
 drop table pg_temp.bsb_audit_probe_225;
 
-create temp table bsb_audit_probe_226 (like "better_supabase"."tax_returns" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_226 (like "better_supabase"."tax_rates" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_226 (like "better_supabase"."subject_collections" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11158,20 +10897,14 @@ begin
   delete from pg_temp.bsb_audit_probe_226;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'tax_returns', 'bsb_audit', 'better_supabase.tax_returns has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tax_returns', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tax_returns calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_returns"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tax_returns is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_returns"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tax_returns is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_226' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tax_returns write entries');
-select extensions.has_trigger('better_supabase', 'tax_rates', 'bsb_audit', 'better_supabase.tax_rates has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tax_rates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tax_rates calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_rates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tax_rates is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_rates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tax_rates is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_226' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tax_rates write entries');
+select extensions.has_trigger('better_supabase', 'subject_collections', 'bsb_audit', 'better_supabase.subject_collections has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'subject_collections', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.subject_collections calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."subject_collections"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.subject_collections is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."subject_collections"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.subject_collections is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_226' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.subject_collections write entries');
 drop table pg_temp.bsb_audit_probe_226;
 
-create temp table bsb_audit_probe_227 (like "better_supabase"."teams" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_227 (like "better_supabase"."tax_returns" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_227 (like "better_supabase"."tags" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11212,20 +10945,14 @@ begin
   delete from pg_temp.bsb_audit_probe_227;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'teams', 'bsb_audit', 'better_supabase.teams has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'teams', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.teams calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."teams"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.teams is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."teams"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.teams is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_227' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.teams write entries');
-select extensions.has_trigger('better_supabase', 'tax_returns', 'bsb_audit', 'better_supabase.tax_returns has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tax_returns', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tax_returns calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_returns"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tax_returns is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_returns"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tax_returns is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_227' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tax_returns write entries');
+select extensions.has_trigger('better_supabase', 'tags', 'bsb_audit', 'better_supabase.tags has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'tags', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tags calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tags"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tags is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tags"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tags is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_227' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tags write entries');
 drop table pg_temp.bsb_audit_probe_227;
 
-create temp table bsb_audit_probe_228 (like "better_supabase"."templates" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_228 (like "better_supabase"."teams" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_228 (like "better_supabase"."tax_codes" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11266,20 +10993,14 @@ begin
   delete from pg_temp.bsb_audit_probe_228;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'templates', 'bsb_audit', 'better_supabase.templates has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'templates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.templates calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."templates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.templates is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."templates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.templates is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_228' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.templates write entries');
-select extensions.has_trigger('better_supabase', 'teams', 'bsb_audit', 'better_supabase.teams has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'teams', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.teams calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."teams"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.teams is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."teams"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.teams is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_228' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.teams write entries');
+select extensions.has_trigger('better_supabase', 'tax_codes', 'bsb_audit', 'better_supabase.tax_codes has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'tax_codes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tax_codes calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_codes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tax_codes is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_codes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tax_codes is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_228' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tax_codes write entries');
 drop table pg_temp.bsb_audit_probe_228;
 
-create temp table bsb_audit_probe_229 (like "better_supabase"."till_counts" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_229 (like "better_supabase"."templates" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_229 (like "better_supabase"."tax_rates" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11320,20 +11041,14 @@ begin
   delete from pg_temp.bsb_audit_probe_229;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'till_counts', 'bsb_audit', 'better_supabase.till_counts has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'till_counts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_counts calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_counts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_counts is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_counts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_counts is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_229' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_counts write entries');
-select extensions.has_trigger('better_supabase', 'templates', 'bsb_audit', 'better_supabase.templates has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'templates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.templates calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."templates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.templates is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."templates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.templates is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_229' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.templates write entries');
+select extensions.has_trigger('better_supabase', 'tax_rates', 'bsb_audit', 'better_supabase.tax_rates has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'tax_rates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tax_rates calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_rates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tax_rates is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_rates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tax_rates is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_229' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tax_rates write entries');
 drop table pg_temp.bsb_audit_probe_229;
 
-create temp table bsb_audit_probe_230 (like "better_supabase"."till_deposits" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_230 (like "better_supabase"."till_counts" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_230 (like "better_supabase"."tax_returns" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11374,20 +11089,14 @@ begin
   delete from pg_temp.bsb_audit_probe_230;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'till_deposits', 'bsb_audit', 'better_supabase.till_deposits has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'till_deposits', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_deposits calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_deposits"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_deposits is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_deposits"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_deposits is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_230' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_deposits write entries');
-select extensions.has_trigger('better_supabase', 'till_counts', 'bsb_audit', 'better_supabase.till_counts has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'till_counts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_counts calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_counts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_counts is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_counts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_counts is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_230' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_counts write entries');
+select extensions.has_trigger('better_supabase', 'tax_returns', 'bsb_audit', 'better_supabase.tax_returns has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'tax_returns', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tax_returns calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_returns"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tax_returns is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tax_returns"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tax_returns is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_230' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tax_returns write entries');
 drop table pg_temp.bsb_audit_probe_230;
 
-create temp table bsb_audit_probe_231 (like "better_supabase"."till_movements" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_231 (like "better_supabase"."till_deposits" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_231 (like "better_supabase"."teams" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11428,20 +11137,14 @@ begin
   delete from pg_temp.bsb_audit_probe_231;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'till_movements', 'bsb_audit', 'better_supabase.till_movements has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'till_movements', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_movements calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_movements"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_movements is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_movements"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_movements is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_231' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_movements write entries');
-select extensions.has_trigger('better_supabase', 'till_deposits', 'bsb_audit', 'better_supabase.till_deposits has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'till_deposits', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_deposits calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_deposits"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_deposits is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_deposits"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_deposits is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_231' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_deposits write entries');
+select extensions.has_trigger('better_supabase', 'teams', 'bsb_audit', 'better_supabase.teams has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'teams', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.teams calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."teams"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.teams is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."teams"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.teams is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_231' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.teams write entries');
 drop table pg_temp.bsb_audit_probe_231;
 
-create temp table bsb_audit_probe_232 (like "better_supabase"."till_sessions" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_232 (like "better_supabase"."till_movements" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_232 (like "better_supabase"."templates" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11482,20 +11185,14 @@ begin
   delete from pg_temp.bsb_audit_probe_232;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'till_sessions', 'bsb_audit', 'better_supabase.till_sessions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'till_sessions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_sessions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_sessions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_sessions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_sessions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_sessions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_232' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_sessions write entries');
-select extensions.has_trigger('better_supabase', 'till_movements', 'bsb_audit', 'better_supabase.till_movements has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'till_movements', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_movements calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_movements"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_movements is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_movements"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_movements is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_232' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_movements write entries');
+select extensions.has_trigger('better_supabase', 'templates', 'bsb_audit', 'better_supabase.templates has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'templates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.templates calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."templates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.templates is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."templates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.templates is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_232' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.templates write entries');
 drop table pg_temp.bsb_audit_probe_232;
 
-create temp table bsb_audit_probe_233 (like "better_supabase"."tills" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_233 (like "better_supabase"."till_sessions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_233 (like "better_supabase"."till_counts" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11536,20 +11233,14 @@ begin
   delete from pg_temp.bsb_audit_probe_233;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'tills', 'bsb_audit', 'better_supabase.tills has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tills', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tills calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tills"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tills is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tills"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tills is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_233' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tills write entries');
-select extensions.has_trigger('better_supabase', 'till_sessions', 'bsb_audit', 'better_supabase.till_sessions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'till_sessions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_sessions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_sessions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_sessions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_sessions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_sessions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_233' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_sessions write entries');
+select extensions.has_trigger('better_supabase', 'till_counts', 'bsb_audit', 'better_supabase.till_counts has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'till_counts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_counts calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_counts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_counts is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_counts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_counts is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_233' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_counts write entries');
 drop table pg_temp.bsb_audit_probe_233;
 
-create temp table bsb_audit_probe_234 (like "better_supabase"."time_entries" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_234 (like "better_supabase"."tills" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_234 (like "better_supabase"."till_deposits" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11590,20 +11281,14 @@ begin
   delete from pg_temp.bsb_audit_probe_234;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'time_entries', 'bsb_audit', 'better_supabase.time_entries has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'time_entries', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.time_entries calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_entries"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.time_entries is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_entries"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.time_entries is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_234' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.time_entries write entries');
-select extensions.has_trigger('better_supabase', 'tills', 'bsb_audit', 'better_supabase.tills has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'tills', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tills calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tills"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tills is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tills"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tills is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_234' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tills write entries');
+select extensions.has_trigger('better_supabase', 'till_deposits', 'bsb_audit', 'better_supabase.till_deposits has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'till_deposits', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_deposits calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_deposits"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_deposits is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_deposits"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_deposits is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_234' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_deposits write entries');
 drop table pg_temp.bsb_audit_probe_234;
 
-create temp table bsb_audit_probe_235 (like "better_supabase"."time_rates" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_235 (like "better_supabase"."time_entries" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_235 (like "better_supabase"."till_movements" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11644,20 +11329,14 @@ begin
   delete from pg_temp.bsb_audit_probe_235;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'time_rates', 'bsb_audit', 'better_supabase.time_rates has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'time_rates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.time_rates calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_rates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.time_rates is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_rates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.time_rates is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_235' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.time_rates write entries');
-select extensions.has_trigger('better_supabase', 'time_entries', 'bsb_audit', 'better_supabase.time_entries has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'time_entries', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.time_entries calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_entries"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.time_entries is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_entries"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.time_entries is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_235' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.time_entries write entries');
+select extensions.has_trigger('better_supabase', 'till_movements', 'bsb_audit', 'better_supabase.till_movements has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'till_movements', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_movements calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_movements"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_movements is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_movements"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_movements is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_235' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_movements write entries');
 drop table pg_temp.bsb_audit_probe_235;
 
-create temp table bsb_audit_probe_236 (like "better_supabase"."timeline_entries" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_236 (like "better_supabase"."time_rates" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_236 (like "better_supabase"."till_sessions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11698,20 +11377,14 @@ begin
   delete from pg_temp.bsb_audit_probe_236;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'timeline_entries', 'bsb_audit', 'better_supabase.timeline_entries has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'timeline_entries', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.timeline_entries calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timeline_entries"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.timeline_entries is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timeline_entries"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.timeline_entries is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_236' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.timeline_entries write entries');
-select extensions.has_trigger('better_supabase', 'time_rates', 'bsb_audit', 'better_supabase.time_rates has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'time_rates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.time_rates calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_rates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.time_rates is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_rates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.time_rates is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_236' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.time_rates write entries');
+select extensions.has_trigger('better_supabase', 'till_sessions', 'bsb_audit', 'better_supabase.till_sessions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'till_sessions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.till_sessions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_sessions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.till_sessions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."till_sessions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.till_sessions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_236' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.till_sessions write entries');
 drop table pg_temp.bsb_audit_probe_236;
 
-create temp table bsb_audit_probe_237 (like "better_supabase"."timesheets" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_237 (like "better_supabase"."timeline_entries" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_237 (like "better_supabase"."tills" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11752,20 +11425,14 @@ begin
   delete from pg_temp.bsb_audit_probe_237;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'timesheets', 'bsb_audit', 'better_supabase.timesheets has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'timesheets', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.timesheets calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timesheets"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.timesheets is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timesheets"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.timesheets is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_237' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.timesheets write entries');
-select extensions.has_trigger('better_supabase', 'timeline_entries', 'bsb_audit', 'better_supabase.timeline_entries has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'timeline_entries', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.timeline_entries calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timeline_entries"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.timeline_entries is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timeline_entries"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.timeline_entries is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_237' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.timeline_entries write entries');
+select extensions.has_trigger('better_supabase', 'tills', 'bsb_audit', 'better_supabase.tills has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'tills', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.tills calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tills"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.tills is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."tills"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.tills is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_237' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.tills write entries');
 drop table pg_temp.bsb_audit_probe_237;
 
-create temp table bsb_audit_probe_238 (like "better_supabase"."variant_sizes" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_238 (like "better_supabase"."timesheets" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_238 (like "better_supabase"."time_entries" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11806,20 +11473,14 @@ begin
   delete from pg_temp.bsb_audit_probe_238;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'variant_sizes', 'bsb_audit', 'better_supabase.variant_sizes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'variant_sizes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.variant_sizes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."variant_sizes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.variant_sizes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."variant_sizes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.variant_sizes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_238' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.variant_sizes write entries');
-select extensions.has_trigger('better_supabase', 'timesheets', 'bsb_audit', 'better_supabase.timesheets has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'timesheets', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.timesheets calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timesheets"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.timesheets is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timesheets"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.timesheets is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_238' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.timesheets write entries');
+select extensions.has_trigger('better_supabase', 'time_entries', 'bsb_audit', 'better_supabase.time_entries has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'time_entries', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.time_entries calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_entries"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.time_entries is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_entries"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.time_entries is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_238' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.time_entries write entries');
 drop table pg_temp.bsb_audit_probe_238;
 
-create temp table bsb_audit_probe_239 (like "better_supabase"."versions" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_239 (like "better_supabase"."variant_sizes" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_239 (like "better_supabase"."time_rates" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11860,20 +11521,14 @@ begin
   delete from pg_temp.bsb_audit_probe_239;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'versions', 'bsb_audit', 'better_supabase.versions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'versions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.versions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."versions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.versions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."versions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.versions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_239' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.versions write entries');
-select extensions.has_trigger('better_supabase', 'variant_sizes', 'bsb_audit', 'better_supabase.variant_sizes has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'variant_sizes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.variant_sizes calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."variant_sizes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.variant_sizes is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."variant_sizes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.variant_sizes is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_239' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.variant_sizes write entries');
+select extensions.has_trigger('better_supabase', 'time_rates', 'bsb_audit', 'better_supabase.time_rates has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'time_rates', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.time_rates calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_rates"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.time_rates is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."time_rates"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.time_rates is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_239' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.time_rates write entries');
 drop table pg_temp.bsb_audit_probe_239;
 
-create temp table bsb_audit_probe_240 (like "better_supabase"."waitlist_entries" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_240 (like "better_supabase"."versions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_240 (like "better_supabase"."timeline_entries" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11914,20 +11569,14 @@ begin
   delete from pg_temp.bsb_audit_probe_240;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'waitlist_entries', 'bsb_audit', 'better_supabase.waitlist_entries has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'waitlist_entries', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.waitlist_entries calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."waitlist_entries"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.waitlist_entries is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."waitlist_entries"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.waitlist_entries is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_240' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.waitlist_entries write entries');
-select extensions.has_trigger('better_supabase', 'versions', 'bsb_audit', 'better_supabase.versions has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'versions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.versions calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."versions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.versions is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."versions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.versions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_240' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.versions write entries');
+select extensions.has_trigger('better_supabase', 'timeline_entries', 'bsb_audit', 'better_supabase.timeline_entries has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'timeline_entries', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.timeline_entries calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timeline_entries"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.timeline_entries is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timeline_entries"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.timeline_entries is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_240' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.timeline_entries write entries');
 drop table pg_temp.bsb_audit_probe_240;
 
-create temp table bsb_audit_probe_241 (like "better_supabase"."webhook_endpoints" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_241 (like "better_supabase"."waitlist_entries" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_241 (like "better_supabase"."timesheets" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -11968,20 +11617,14 @@ begin
   delete from pg_temp.bsb_audit_probe_241;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'webhook_endpoints', 'bsb_audit', 'better_supabase.webhook_endpoints has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'webhook_endpoints', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.webhook_endpoints calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."webhook_endpoints"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.webhook_endpoints is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."webhook_endpoints"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.webhook_endpoints is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_241' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.webhook_endpoints write entries');
-select extensions.has_trigger('better_supabase', 'waitlist_entries', 'bsb_audit', 'better_supabase.waitlist_entries has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'waitlist_entries', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.waitlist_entries calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."waitlist_entries"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.waitlist_entries is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."waitlist_entries"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.waitlist_entries is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_241' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.waitlist_entries write entries');
+select extensions.has_trigger('better_supabase', 'timesheets', 'bsb_audit', 'better_supabase.timesheets has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'timesheets', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.timesheets calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timesheets"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.timesheets is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."timesheets"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.timesheets is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_241' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.timesheets write entries');
 drop table pg_temp.bsb_audit_probe_241;
 
-create temp table bsb_audit_probe_242 (like "better_supabase"."work_centers" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_242 (like "better_supabase"."warranty_claims" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_242 (like "better_supabase"."variant_sizes" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -12022,20 +11665,14 @@ begin
   delete from pg_temp.bsb_audit_probe_242;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'work_centers', 'bsb_audit', 'better_supabase.work_centers has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'work_centers', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_centers calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_centers"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_centers is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_centers"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_centers is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_242' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_centers write entries');
-select extensions.has_trigger('better_supabase', 'warranty_claims', 'bsb_audit', 'better_supabase.warranty_claims has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'warranty_claims', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.warranty_claims calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."warranty_claims"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.warranty_claims is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."warranty_claims"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.warranty_claims is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_242' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.warranty_claims write entries');
+select extensions.has_trigger('better_supabase', 'variant_sizes', 'bsb_audit', 'better_supabase.variant_sizes has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'variant_sizes', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.variant_sizes calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."variant_sizes"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.variant_sizes is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."variant_sizes"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.variant_sizes is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_242' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.variant_sizes write entries');
 drop table pg_temp.bsb_audit_probe_242;
 
-create temp table bsb_audit_probe_243 (like "better_supabase"."work_item_checklist_items" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_243 (like "better_supabase"."webhook_endpoints" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_243 (like "better_supabase"."versions" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -12076,20 +11713,14 @@ begin
   delete from pg_temp.bsb_audit_probe_243;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'work_item_checklist_items', 'bsb_audit', 'better_supabase.work_item_checklist_items has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'work_item_checklist_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_item_checklist_items calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_item_checklist_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_item_checklist_items is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_item_checklist_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_item_checklist_items is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_243' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_item_checklist_items write entries');
-select extensions.has_trigger('better_supabase', 'webhook_endpoints', 'bsb_audit', 'better_supabase.webhook_endpoints has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'webhook_endpoints', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.webhook_endpoints calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."webhook_endpoints"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.webhook_endpoints is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."webhook_endpoints"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.webhook_endpoints is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_243' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.webhook_endpoints write entries');
+select extensions.has_trigger('better_supabase', 'versions', 'bsb_audit', 'better_supabase.versions has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'versions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.versions calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."versions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.versions is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."versions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.versions is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_243' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.versions write entries');
 drop table pg_temp.bsb_audit_probe_243;
 
-create temp table bsb_audit_probe_244 (like "better_supabase"."work_items" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_244 (like "better_supabase"."work_centers" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_244 (like "better_supabase"."waitlist_entries" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -12130,20 +11761,14 @@ begin
   delete from pg_temp.bsb_audit_probe_244;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'work_items', 'bsb_audit', 'better_supabase.work_items has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'work_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_items calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_items is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_items is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_244' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_items write entries');
-select extensions.has_trigger('better_supabase', 'work_centers', 'bsb_audit', 'better_supabase.work_centers has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'work_centers', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_centers calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_centers"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_centers is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_centers"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_centers is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_244' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_centers write entries');
+select extensions.has_trigger('better_supabase', 'waitlist_entries', 'bsb_audit', 'better_supabase.waitlist_entries has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'waitlist_entries', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.waitlist_entries calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."waitlist_entries"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.waitlist_entries is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."waitlist_entries"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.waitlist_entries is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_244' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.waitlist_entries write entries');
 drop table pg_temp.bsb_audit_probe_244;
 
-create temp table bsb_audit_probe_245 (like "better_supabase"."work_order_parts" including defaults including identity including generated) on commit drop;
-create temp table bsb_audit_probe_245 (like "better_supabase"."work_item_checklist_items" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_245 (like "better_supabase"."warranty_claims" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -12184,14 +11809,14 @@ begin
   delete from pg_temp.bsb_audit_probe_245;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'work_order_parts', 'bsb_audit', 'better_supabase.work_order_parts has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'work_order_parts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_order_parts calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_order_parts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_order_parts is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_order_parts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_order_parts is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_245' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_order_parts write entries');
+select extensions.has_trigger('better_supabase', 'warranty_claims', 'bsb_audit', 'better_supabase.warranty_claims has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'warranty_claims', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.warranty_claims calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."warranty_claims"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.warranty_claims is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."warranty_claims"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.warranty_claims is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_245' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.warranty_claims write entries');
 drop table pg_temp.bsb_audit_probe_245;
 
-create temp table bsb_audit_probe_246 (like "better_supabase"."work_orders" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_246 (like "better_supabase"."webhook_endpoints" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -12232,14 +11857,14 @@ begin
   delete from pg_temp.bsb_audit_probe_246;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'work_orders', 'bsb_audit', 'better_supabase.work_orders has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'work_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_orders calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_orders is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_orders is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_246' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_orders write entries');
+select extensions.has_trigger('better_supabase', 'webhook_endpoints', 'bsb_audit', 'better_supabase.webhook_endpoints has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'webhook_endpoints', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.webhook_endpoints calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."webhook_endpoints"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.webhook_endpoints is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."webhook_endpoints"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.webhook_endpoints is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_246' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.webhook_endpoints write entries');
 drop table pg_temp.bsb_audit_probe_246;
 
-create temp table bsb_audit_probe_247 (like "better_supabase"."work_projects" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_247 (like "better_supabase"."work_centers" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -12280,14 +11905,14 @@ begin
   delete from pg_temp.bsb_audit_probe_247;
 end;
 $$;
-select extensions.has_trigger('better_supabase', 'work_projects', 'bsb_audit', 'better_supabase.work_projects has the bsb_audit trigger');
-select extensions.trigger_is('better_supabase', 'work_projects', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_projects calls audit_row_change()');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_projects"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_projects is registered with its ignored columns');
-select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_projects"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_projects is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_247' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_projects write entries');
+select extensions.has_trigger('better_supabase', 'work_centers', 'bsb_audit', 'better_supabase.work_centers has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'work_centers', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_centers calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_centers"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_centers is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_centers"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_centers is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_247' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_centers write entries');
 drop table pg_temp.bsb_audit_probe_247;
 
-create temp table bsb_audit_probe_248 (like "better_supabase"."workflow_definitions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_248 (like "better_supabase"."work_item_checklist_items" including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -12332,47 +11957,248 @@ select extensions.has_trigger('better_supabase', 'work_item_checklist_items', 'b
 select extensions.trigger_is('better_supabase', 'work_item_checklist_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_item_checklist_items calls audit_row_change()');
 select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_item_checklist_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_item_checklist_items is registered with its ignored columns');
 select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_item_checklist_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_item_checklist_items is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_245' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_item_checklist_items write entries');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_248' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_item_checklist_items write entries');
+drop table pg_temp.bsb_audit_probe_248;
 
-create temp table bsb_audit_probe_246 (like "better_supabase"."work_items" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_249 (like "better_supabase"."work_items" including defaults including identity including generated) on commit drop;
+do $$
+declare
+  col record;
+  sets text;
+begin
+  for col in
+    select a.attname from pg_catalog.pg_attribute a
+    where a.attrelid = 'pg_temp.bsb_audit_probe_249'::regclass and a.attnum > 0 and not a.attisdropped
+      and a.attnotnull and a.attidentity = ''
+  loop
+    execute format('alter table pg_temp.bsb_audit_probe_249 alter column %I drop not null', col.attname);
+  end loop;
+  perform better_supabase.audit('pg_temp.bsb_audit_probe_249', ignore => '{}'::text[], redact => '{}'::text[]);
+  insert into pg_temp.bsb_audit_probe_249 default values;
+  select string_agg(format('%I = %s', a.attname, v.value), ', ') into sets
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_type t on t.oid = a.atttypid
+  cross join lateral (
+    select case
+      when t.typtype = 'e' then quote_literal((select e.enumlabel from pg_catalog.pg_enum e where e.enumtypid = t.oid order by e.enumsortorder limit 1)) || '::' || format_type(t.oid, null)
+      when t.typtype <> 'b' then null
+      when t.typname = 'uuid' then 'gen_random_uuid()'
+      when t.typname in ('json', 'jsonb') then quote_literal('{"probe": true}') || '::' || t.typname
+      when t.typname = 'bool' then 'true'
+      when t.typname in ('date') then quote_literal('2001-02-03') || '::date'
+      when t.typname in ('time', 'timetz') then quote_literal('04:05:06') || '::' || t.typname
+      when t.typcategory = 'D' then quote_literal('2001-02-03 04:05:06+00') || '::' || t.typname
+      when t.typcategory = 'N' then '1'
+      when t.typcategory = 'S' then quote_literal('p')
+      when t.typcategory = 'A' then quote_literal('{}') || '::' || format_type(t.oid, null)
+    end as value
+  ) v
+  where a.attrelid = 'pg_temp.bsb_audit_probe_249'::regclass and a.attnum > 0 and not a.attisdropped
+    and a.attidentity = '' and a.attgenerated = '' and v.value is not null;
+  if sets is not null then
+    execute format('update pg_temp.bsb_audit_probe_249 set %s', sets);
+  end if;
+  delete from pg_temp.bsb_audit_probe_249;
+end;
+$$;
 select extensions.has_trigger('better_supabase', 'work_items', 'bsb_audit', 'better_supabase.work_items has the bsb_audit trigger');
 select extensions.trigger_is('better_supabase', 'work_items', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_items calls audit_row_change()');
 select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_items"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_items is registered with its ignored columns');
 select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_items"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_items is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_246' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_items write entries');
-
-create temp table bsb_audit_probe_247 (like "better_supabase"."work_order_parts" including defaults including identity including generated) on commit drop;
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_247' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_order_parts write entries');
-
-create temp table bsb_audit_probe_248 (like "better_supabase"."work_orders" including defaults including identity including generated) on commit drop;
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_248' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_orders write entries');
-drop table pg_temp.bsb_audit_probe_248;
-
-create temp table bsb_audit_probe_249 (like "better_supabase"."work_projects" including defaults including identity including generated) on commit drop;
-    where a.attrelid = 'pg_temp.bsb_audit_probe_249'::regclass and a.attnum > 0 and not a.attisdropped
-    execute format('alter table pg_temp.bsb_audit_probe_249 alter column %I drop not null', col.attname);
-  perform better_supabase.audit('pg_temp.bsb_audit_probe_249', ignore => '{}'::text[], redact => '{}'::text[]);
-  insert into pg_temp.bsb_audit_probe_249 default values;
-    execute format('update pg_temp.bsb_audit_probe_249 set %s', sets);
-  delete from pg_temp.bsb_audit_probe_249;
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_249' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_projects write entries');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_249' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_items write entries');
 drop table pg_temp.bsb_audit_probe_249;
 
-create temp table bsb_audit_probe_250 (like "better_supabase"."workflow_definitions" including defaults including identity including generated) on commit drop;
+create temp table bsb_audit_probe_250 (like "better_supabase"."work_order_parts" including defaults including identity including generated) on commit drop;
+do $$
+declare
+  col record;
+  sets text;
+begin
+  for col in
+    select a.attname from pg_catalog.pg_attribute a
     where a.attrelid = 'pg_temp.bsb_audit_probe_250'::regclass and a.attnum > 0 and not a.attisdropped
+      and a.attnotnull and a.attidentity = ''
+  loop
     execute format('alter table pg_temp.bsb_audit_probe_250 alter column %I drop not null', col.attname);
+  end loop;
   perform better_supabase.audit('pg_temp.bsb_audit_probe_250', ignore => '{}'::text[], redact => '{}'::text[]);
   insert into pg_temp.bsb_audit_probe_250 default values;
+  select string_agg(format('%I = %s', a.attname, v.value), ', ') into sets
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_type t on t.oid = a.atttypid
+  cross join lateral (
+    select case
+      when t.typtype = 'e' then quote_literal((select e.enumlabel from pg_catalog.pg_enum e where e.enumtypid = t.oid order by e.enumsortorder limit 1)) || '::' || format_type(t.oid, null)
+      when t.typtype <> 'b' then null
+      when t.typname = 'uuid' then 'gen_random_uuid()'
+      when t.typname in ('json', 'jsonb') then quote_literal('{"probe": true}') || '::' || t.typname
+      when t.typname = 'bool' then 'true'
+      when t.typname in ('date') then quote_literal('2001-02-03') || '::date'
+      when t.typname in ('time', 'timetz') then quote_literal('04:05:06') || '::' || t.typname
+      when t.typcategory = 'D' then quote_literal('2001-02-03 04:05:06+00') || '::' || t.typname
+      when t.typcategory = 'N' then '1'
+      when t.typcategory = 'S' then quote_literal('p')
+      when t.typcategory = 'A' then quote_literal('{}') || '::' || format_type(t.oid, null)
+    end as value
+  ) v
+  where a.attrelid = 'pg_temp.bsb_audit_probe_250'::regclass and a.attnum > 0 and not a.attisdropped
+    and a.attidentity = '' and a.attgenerated = '' and v.value is not null;
+  if sets is not null then
     execute format('update pg_temp.bsb_audit_probe_250 set %s', sets);
+  end if;
   delete from pg_temp.bsb_audit_probe_250;
+end;
+$$;
+select extensions.has_trigger('better_supabase', 'work_order_parts', 'bsb_audit', 'better_supabase.work_order_parts has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'work_order_parts', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_order_parts calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_order_parts"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_order_parts is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_order_parts"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_order_parts is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_250' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_order_parts write entries');
+drop table pg_temp.bsb_audit_probe_250;
+
+create temp table bsb_audit_probe_251 (like "better_supabase"."work_orders" including defaults including identity including generated) on commit drop;
+do $$
+declare
+  col record;
+  sets text;
+begin
+  for col in
+    select a.attname from pg_catalog.pg_attribute a
+    where a.attrelid = 'pg_temp.bsb_audit_probe_251'::regclass and a.attnum > 0 and not a.attisdropped
+      and a.attnotnull and a.attidentity = ''
+  loop
+    execute format('alter table pg_temp.bsb_audit_probe_251 alter column %I drop not null', col.attname);
+  end loop;
+  perform better_supabase.audit('pg_temp.bsb_audit_probe_251', ignore => '{}'::text[], redact => '{}'::text[]);
+  insert into pg_temp.bsb_audit_probe_251 default values;
+  select string_agg(format('%I = %s', a.attname, v.value), ', ') into sets
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_type t on t.oid = a.atttypid
+  cross join lateral (
+    select case
+      when t.typtype = 'e' then quote_literal((select e.enumlabel from pg_catalog.pg_enum e where e.enumtypid = t.oid order by e.enumsortorder limit 1)) || '::' || format_type(t.oid, null)
+      when t.typtype <> 'b' then null
+      when t.typname = 'uuid' then 'gen_random_uuid()'
+      when t.typname in ('json', 'jsonb') then quote_literal('{"probe": true}') || '::' || t.typname
+      when t.typname = 'bool' then 'true'
+      when t.typname in ('date') then quote_literal('2001-02-03') || '::date'
+      when t.typname in ('time', 'timetz') then quote_literal('04:05:06') || '::' || t.typname
+      when t.typcategory = 'D' then quote_literal('2001-02-03 04:05:06+00') || '::' || t.typname
+      when t.typcategory = 'N' then '1'
+      when t.typcategory = 'S' then quote_literal('p')
+      when t.typcategory = 'A' then quote_literal('{}') || '::' || format_type(t.oid, null)
+    end as value
+  ) v
+  where a.attrelid = 'pg_temp.bsb_audit_probe_251'::regclass and a.attnum > 0 and not a.attisdropped
+    and a.attidentity = '' and a.attgenerated = '' and v.value is not null;
+  if sets is not null then
+    execute format('update pg_temp.bsb_audit_probe_251 set %s', sets);
+  end if;
+  delete from pg_temp.bsb_audit_probe_251;
+end;
+$$;
+select extensions.has_trigger('better_supabase', 'work_orders', 'bsb_audit', 'better_supabase.work_orders has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'work_orders', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_orders calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_orders"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_orders is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_orders"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_orders is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_251' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_orders write entries');
+drop table pg_temp.bsb_audit_probe_251;
+
+create temp table bsb_audit_probe_252 (like "better_supabase"."work_projects" including defaults including identity including generated) on commit drop;
+do $$
+declare
+  col record;
+  sets text;
+begin
+  for col in
+    select a.attname from pg_catalog.pg_attribute a
+    where a.attrelid = 'pg_temp.bsb_audit_probe_252'::regclass and a.attnum > 0 and not a.attisdropped
+      and a.attnotnull and a.attidentity = ''
+  loop
+    execute format('alter table pg_temp.bsb_audit_probe_252 alter column %I drop not null', col.attname);
+  end loop;
+  perform better_supabase.audit('pg_temp.bsb_audit_probe_252', ignore => '{}'::text[], redact => '{}'::text[]);
+  insert into pg_temp.bsb_audit_probe_252 default values;
+  select string_agg(format('%I = %s', a.attname, v.value), ', ') into sets
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_type t on t.oid = a.atttypid
+  cross join lateral (
+    select case
+      when t.typtype = 'e' then quote_literal((select e.enumlabel from pg_catalog.pg_enum e where e.enumtypid = t.oid order by e.enumsortorder limit 1)) || '::' || format_type(t.oid, null)
+      when t.typtype <> 'b' then null
+      when t.typname = 'uuid' then 'gen_random_uuid()'
+      when t.typname in ('json', 'jsonb') then quote_literal('{"probe": true}') || '::' || t.typname
+      when t.typname = 'bool' then 'true'
+      when t.typname in ('date') then quote_literal('2001-02-03') || '::date'
+      when t.typname in ('time', 'timetz') then quote_literal('04:05:06') || '::' || t.typname
+      when t.typcategory = 'D' then quote_literal('2001-02-03 04:05:06+00') || '::' || t.typname
+      when t.typcategory = 'N' then '1'
+      when t.typcategory = 'S' then quote_literal('p')
+      when t.typcategory = 'A' then quote_literal('{}') || '::' || format_type(t.oid, null)
+    end as value
+  ) v
+  where a.attrelid = 'pg_temp.bsb_audit_probe_252'::regclass and a.attnum > 0 and not a.attisdropped
+    and a.attidentity = '' and a.attgenerated = '' and v.value is not null;
+  if sets is not null then
+    execute format('update pg_temp.bsb_audit_probe_252 set %s', sets);
+  end if;
+  delete from pg_temp.bsb_audit_probe_252;
+end;
+$$;
+select extensions.has_trigger('better_supabase', 'work_projects', 'bsb_audit', 'better_supabase.work_projects has the bsb_audit trigger');
+select extensions.trigger_is('better_supabase', 'work_projects', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.work_projects calls audit_row_change()');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_projects"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.work_projects is registered with its ignored columns');
+select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."work_projects"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.work_projects is registered with its redacted columns');
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_252' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.work_projects write entries');
+drop table pg_temp.bsb_audit_probe_252;
+
+create temp table bsb_audit_probe_253 (like "better_supabase"."workflow_definitions" including defaults including identity including generated) on commit drop;
+do $$
+declare
+  col record;
+  sets text;
+begin
+  for col in
+    select a.attname from pg_catalog.pg_attribute a
+    where a.attrelid = 'pg_temp.bsb_audit_probe_253'::regclass and a.attnum > 0 and not a.attisdropped
+      and a.attnotnull and a.attidentity = ''
+  loop
+    execute format('alter table pg_temp.bsb_audit_probe_253 alter column %I drop not null', col.attname);
+  end loop;
+  perform better_supabase.audit('pg_temp.bsb_audit_probe_253', ignore => '{}'::text[], redact => '{}'::text[]);
+  insert into pg_temp.bsb_audit_probe_253 default values;
+  select string_agg(format('%I = %s', a.attname, v.value), ', ') into sets
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_type t on t.oid = a.atttypid
+  cross join lateral (
+    select case
+      when t.typtype = 'e' then quote_literal((select e.enumlabel from pg_catalog.pg_enum e where e.enumtypid = t.oid order by e.enumsortorder limit 1)) || '::' || format_type(t.oid, null)
+      when t.typtype <> 'b' then null
+      when t.typname = 'uuid' then 'gen_random_uuid()'
+      when t.typname in ('json', 'jsonb') then quote_literal('{"probe": true}') || '::' || t.typname
+      when t.typname = 'bool' then 'true'
+      when t.typname in ('date') then quote_literal('2001-02-03') || '::date'
+      when t.typname in ('time', 'timetz') then quote_literal('04:05:06') || '::' || t.typname
+      when t.typcategory = 'D' then quote_literal('2001-02-03 04:05:06+00') || '::' || t.typname
+      when t.typcategory = 'N' then '1'
+      when t.typcategory = 'S' then quote_literal('p')
+      when t.typcategory = 'A' then quote_literal('{}') || '::' || format_type(t.oid, null)
+    end as value
+  ) v
+  where a.attrelid = 'pg_temp.bsb_audit_probe_253'::regclass and a.attnum > 0 and not a.attisdropped
+    and a.attidentity = '' and a.attgenerated = '' and v.value is not null;
+  if sets is not null then
+    execute format('update pg_temp.bsb_audit_probe_253 set %s', sets);
+  end if;
+  delete from pg_temp.bsb_audit_probe_253;
+end;
+$$;
 select extensions.has_trigger('better_supabase', 'workflow_definitions', 'bsb_audit', 'better_supabase.workflow_definitions has the bsb_audit trigger');
 select extensions.trigger_is('better_supabase', 'workflow_definitions', 'bsb_audit', 'better_supabase', 'audit_row_change', 'bsb_audit on better_supabase.workflow_definitions calls audit_row_change()');
 select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."workflow_definitions"'::regclass) -> 'ignore', '[]'))), '{}'::text[], 'better_supabase.workflow_definitions is registered with its ignored columns');
 select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings('"better_supabase"."workflow_definitions"'::regclass) -> 'redact', '[]'))), '{}'::text[], 'better_supabase.workflow_definitions is registered with its redacted columns');
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_248' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.workflow_definitions write entries');
-drop table pg_temp.bsb_audit_probe_248;
-select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_250' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.workflow_definitions write entries');
-drop table pg_temp.bsb_audit_probe_250;
+select extensions.results_eq($$select l."op"::text from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe_253' order by l."id"$$, $$values ('insert'), ('update'), ('delete')$$, 'inserts, updates and deletes on better_supabase.workflow_definitions write entries');
+drop table pg_temp.bsb_audit_probe_253;
 
 select * from extensions.finish();
 rollback;

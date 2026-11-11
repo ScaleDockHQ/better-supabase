@@ -1,7 +1,6 @@
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:bec9f7b0230bdf3700af57adbc980a85803c23d77b33afdf6bfb5e356068a3bc
--- @bsb-hash sha256:0b299aa56082edd74f99199b86244ec68245b44f0c98cb426815c4abfdd1a273
+-- @bsb-hash sha256:ebb6c5407ef08ca2b52e3d379a3bf73dadbcbffebf1e0fb2d72e27a1f750aa2e
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

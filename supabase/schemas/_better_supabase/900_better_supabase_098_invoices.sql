@@ -1,7 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:21118db2b43dd57f8e99edf3b31e503979f05cf6d1b18188aeecc5662807b5ab
--- @bsb-hash sha256:5046b02329776e79e2b2b9455b3679382d7674b9645789cf85b1c4daab82eb31
+-- @bsb-hash sha256:01a5f7fe0e5f2e516a1c272cad186866569a2d4d4f676056a21fbdc8e7198d82
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
