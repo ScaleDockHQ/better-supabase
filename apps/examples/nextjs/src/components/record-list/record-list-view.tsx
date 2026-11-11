@@ -14,7 +14,7 @@ import type {
   RecordListUrl,
 } from "./record-list-types";
 
-import { RecordListFacets } from "./record-list-facets";
+import { RecordListFacetsLazy } from "./record-list-facets-lazy";
 import { RecordListGrid } from "./record-list-grid";
 import { RecordListToolbar } from "./record-list-toolbar";
 import { useRecordListPage } from "./use-record-list-page";
@@ -74,7 +74,7 @@ export function RecordListView<Row extends RowData & { readonly id: string }>({
         sorts={sorts}
         filters={
           facets.length > 0 ? (
-            <RecordListFacets
+            <RecordListFacetsLazy
               facets={facets}
               selected={list.query.facets}
               counts={page?.facetCounts}

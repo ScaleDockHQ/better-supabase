@@ -120,6 +120,7 @@ const config: KnipConfig = {
       // knip skips, and for the chat tests. Phases 1 to 4 of the example plan
       // import them; drop an entry when a page imports its part.
       ignoreDependencies: [
+        ...browserExample.ignoreDependencies,
         "@shadcn/helpers",
         "@shadcn/react",
         "cmdk",
