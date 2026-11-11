@@ -284,7 +284,7 @@ on conflict (name) do update
 -- ==== permissions
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:20fade22abf98e4ed3f6ac6011495c4b0b96595bb0e7052162c00ab5c569cb78
+-- @bsb-hash sha256:d185810db33473cc2224722ea6160f63e9e9de6a9537f6ac735286bb0d45c569
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -384,7 +384,8 @@ $$;
 
 -- False when the token is narrower than the permission: an interactive-only
 -- key outside a user's own session, a permission cap (bsb_permission_cap)
--- without the key, or a delegated token whose scopes don't map to it. True
+-- without the key, an API key (api_key) or a delegated token whose scopes
+-- don't map to it. An API key without scopes holds no permission. True
 -- for every other token, the service role included.
 -- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
 -- claim is missing, so a cap from an older runAs keeps narrowing.
@@ -404,6 +405,15 @@ as $$
         select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
+    when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (
+      select 1
+      from jsonb_array_elements_text(case jsonb_typeof(jwt -> 'api_key' -> 'scopes')
+          when 'array' then jwt -> 'api_key' -> 'scopes'
+          else '[]'::jsonb
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
     when coalesce(jwt ->> 'client_id', '') = ''
       and (jwt -> 'act' is null
         or (jsonb_typeof(jwt -> 'act') = 'object'

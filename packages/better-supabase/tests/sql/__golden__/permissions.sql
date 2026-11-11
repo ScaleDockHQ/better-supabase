@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:14d735e87fce20760e0046cac2394294768f638e6707d70b8e6bd268699974be
+-- @bsb-hash sha256:17218b7dfd34fba4440ce23687201835885f511e46040df10e46db4f301ffbd7
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,7 +100,8 @@ $$;
 
 -- False when the token is narrower than the permission: an interactive-only
 -- key outside a user's own session, a permission cap (bsb_permission_cap)
--- without the key, or a delegated token whose scopes don't map to it. True
+-- without the key, an API key (api_key) or a delegated token whose scopes
+-- don't map to it. An API key without scopes holds no permission. True
 -- for every other token, the service role included.
 -- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
 -- claim is missing, so a cap from an older runAs keeps narrowing.
@@ -120,6 +121,15 @@ as $$
         select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
+    when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (
+      select 1
+      from jsonb_array_elements_text(case jsonb_typeof(jwt -> 'api_key' -> 'scopes')
+          when 'array' then jwt -> 'api_key' -> 'scopes'
+          else '[]'::jsonb
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
     when coalesce(jwt ->> 'client_id', '') = ''
       and (jwt -> 'act' is null
         or (jsonb_typeof(jwt -> 'act') = 'object'
@@ -558,7 +568,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:489d32f6700376aafb0653585c0e40cc24d3f718be6afc735768ab6d0b186dd1
+-- @bsb-hash sha256:f2a1989d8889e1eaad8fd78396217f0f2ce842fc9197fae0f158a527e54176a5
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -658,7 +668,8 @@ $$;
 
 -- False when the token is narrower than the permission: an interactive-only
 -- key outside a user's own session, a permission cap (bsb_permission_cap)
--- without the key, or a delegated token whose scopes don't map to it. True
+-- without the key, an API key (api_key) or a delegated token whose scopes
+-- don't map to it. An API key without scopes holds no permission. True
 -- for every other token, the service role included.
 -- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
 -- claim is missing, so a cap from an older runAs keeps narrowing.
@@ -678,6 +689,15 @@ as $$
         select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
+    when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (
+      select 1
+      from jsonb_array_elements_text(case jsonb_typeof(jwt -> 'api_key' -> 'scopes')
+          when 'array' then jwt -> 'api_key' -> 'scopes'
+          else '[]'::jsonb
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
     when coalesce(jwt ->> 'client_id', '') = ''
       and (jwt -> 'act' is null
         or (jsonb_typeof(jwt -> 'act') = 'object'
@@ -1534,7 +1554,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:2d3b99c3393ffd0f524d815d0bf2831665d66136031618495e11e3f8e1e08084
+-- @bsb-hash sha256:3de1d5e1aa2a7ea54d95151fdd321c2ce0dbd1648193fa28872f4b7b3177ccf3
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1638,7 +1658,8 @@ $$;
 
 -- False when the token is narrower than the permission: an interactive-only
 -- key outside a user's own session, a permission cap (bsb_permission_cap)
--- without the key, or a delegated token whose scopes don't map to it. True
+-- without the key, an API key (api_key) or a delegated token whose scopes
+-- don't map to it. An API key without scopes holds no permission. True
 -- for every other token, the service role included.
 -- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
 -- claim is missing, so a cap from an older runAs keeps narrowing.
@@ -1658,6 +1679,15 @@ as $$
         select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
+    when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (
+      select 1
+      from jsonb_array_elements_text(case jsonb_typeof(jwt -> 'api_key' -> 'scopes')
+          when 'array' then jwt -> 'api_key' -> 'scopes'
+          else '[]'::jsonb
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
     when coalesce(jwt ->> 'client_id', '') = ''
       and (jwt -> 'act' is null
         or (jsonb_typeof(jwt -> 'act') = 'object'
@@ -2096,7 +2126,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:aa110329dab3cdbfd9df641436e7effdbd61c1c64e8aa82791b3e8c859c5257e
+-- @bsb-hash sha256:9a24f9e6af8994cb3151cd535e576ae0c2ce2484061348b0b292f68d4836345e
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2195,7 +2225,8 @@ $$;
 
 -- False when the token is narrower than the permission: an interactive-only
 -- key outside a user's own session, a permission cap (bsb_permission_cap)
--- without the key, or a delegated token whose scopes don't map to it. True
+-- without the key, an API key (api_key) or a delegated token whose scopes
+-- don't map to it. An API key without scopes holds no permission. True
 -- for every other token, the service role included.
 -- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
 -- claim is missing, so a cap from an older runAs keeps narrowing.
@@ -2215,6 +2246,15 @@ as $$
         select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
+    when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (
+      select 1
+      from jsonb_array_elements_text(case jsonb_typeof(jwt -> 'api_key' -> 'scopes')
+          when 'array' then jwt -> 'api_key' -> 'scopes'
+          else '[]'::jsonb
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
     when coalesce(jwt ->> 'client_id', '') = ''
       and (jwt -> 'act' is null
         or (jsonb_typeof(jwt -> 'act') = 'object'
@@ -2907,7 +2947,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:14d735e87fce20760e0046cac2394294768f638e6707d70b8e6bd268699974be
+-- @bsb-hash sha256:17218b7dfd34fba4440ce23687201835885f511e46040df10e46db4f301ffbd7
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3006,7 +3046,8 @@ $$;
 
 -- False when the token is narrower than the permission: an interactive-only
 -- key outside a user's own session, a permission cap (bsb_permission_cap)
--- without the key, or a delegated token whose scopes don't map to it. True
+-- without the key, an API key (api_key) or a delegated token whose scopes
+-- don't map to it. An API key without scopes holds no permission. True
 -- for every other token, the service role included.
 -- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
 -- claim is missing, so a cap from an older runAs keeps narrowing.
@@ -3026,6 +3067,15 @@ as $$
         select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
+    when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (
+      select 1
+      from jsonb_array_elements_text(case jsonb_typeof(jwt -> 'api_key' -> 'scopes')
+          when 'array' then jwt -> 'api_key' -> 'scopes'
+          else '[]'::jsonb
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
     when coalesce(jwt ->> 'client_id', '') = ''
       and (jwt -> 'act' is null
         or (jsonb_typeof(jwt -> 'act') = 'object'
@@ -3464,7 +3514,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:b77a0b83184a25058b91e053d53330c0c559b60d45eb9ccf12b8cb6aa875b596
+-- @bsb-hash sha256:7309f9eb7f21d336047de4906569cde6f6d0474542492d918bbdd112ba7c9e18
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3563,7 +3613,8 @@ $$;
 
 -- False when the token is narrower than the permission: an interactive-only
 -- key outside a user's own session, a permission cap (bsb_permission_cap)
--- without the key, or a delegated token whose scopes don't map to it. True
+-- without the key, an API key (api_key) or a delegated token whose scopes
+-- don't map to it. An API key without scopes holds no permission. True
 -- for every other token, the service role included.
 -- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
 -- claim is missing, so a cap from an older runAs keeps narrowing.
@@ -3583,6 +3634,15 @@ as $$
         select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
+    when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (
+      select 1
+      from jsonb_array_elements_text(case jsonb_typeof(jwt -> 'api_key' -> 'scopes')
+          when 'array' then jwt -> 'api_key' -> 'scopes'
+          else '[]'::jsonb
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
     when coalesce(jwt ->> 'client_id', '') = ''
       and (jwt -> 'act' is null
         or (jsonb_typeof(jwt -> 'act') = 'object'

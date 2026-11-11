@@ -12,11 +12,11 @@ export const capFor = (member: string, permission: string): string =>
   `(${member} is distinct from auth.uid() or better_supabase.cap_allows(${permission}))`;
 
 /**
- * `scope_permissions` and `cap_allows`: a delegated token (a `client_id`, or an
- * `act` chain that is not a support or impersonation level) holds only the keys
- * its scopes map to, and a `forContext({ permissions })` cap holds only its
- * keys. The access functions apply both, so every policy and module that asks
- * them is narrowed without calling `token_scope_allows`.
+ * `scope_permissions` and `cap_allows`: an API key or a delegated token (a
+ * `client_id`, or an `act` chain that is not a support or impersonation level)
+ * holds only the keys its scopes map to, and a `forContext({ permissions })`
+ * cap holds only its keys. The access functions apply both, so every policy and
+ * module that asks them is narrowed without calling `token_scope_allows`.
  */
 export function delegationSql(
   ctx: BlockSqlContext,
@@ -97,7 +97,8 @@ $$;
 
 -- False when the token is narrower than the permission: an interactive-only
 -- key outside a user's own session, a permission cap (bsb_permission_cap)
--- without the key, or a delegated token whose scopes don't map to it. True
+-- without the key, an API key (api_key) or a delegated token whose scopes
+-- don't map to it. An API key without scopes holds no permission. True
 -- for every other token, the service role included.
 -- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
 -- claim is missing, so a cap from an older runAs keeps narrowing.
@@ -117,6 +118,15 @@ as $$
         select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
+    when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (
+      select 1
+      from jsonb_array_elements_text(case jsonb_typeof(jwt -> 'api_key' -> 'scopes')
+          when 'array' then jwt -> 'api_key' -> 'scopes'
+          else '[]'::jsonb
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
     when coalesce(jwt ->> 'client_id', '') = ''
       and (jwt -> 'act' is null
         or (jsonb_typeof(jwt -> 'act') = 'object'

@@ -550,6 +550,24 @@ describe("access module", () => {
     );
   });
 
+  it("narrows an API key to the permissions its scopes map to", () => {
+    const sql = access({ scopes: { "deals:read": ["deals.read"] } });
+
+    const cap = sql.slice(
+      sql.indexOf("function better_supabase.cap_allows("),
+      sql.indexOf("$$;", sql.indexOf("function better_supabase.cap_allows(")),
+    );
+
+    expect(cap).toContain(
+      "when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (",
+    );
+    expect(cap).toContain("else '[]'::jsonb");
+    expect(cap.indexOf("jwt -> 'api_key'")).toBeLessThan(
+      cap.indexOf("coalesce(jwt ->> 'client_id', '') = ''"),
+    );
+    expect(sql).toContain("when 'deals:read' then array['deals.read']::text[]");
+  });
+
   it("leaves role assignment to the service role without an assignment rule", () => {
     expect(provider({}, CALLER_ONLY)).toMatch(
       /and coalesce\(\(false\), false\)\)/,

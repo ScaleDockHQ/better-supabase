@@ -358,6 +358,31 @@ holds itself: the key's own scopes (or any under `*`), or the permission keys
 its OAuth scopes map to. Anything broader fails with `API_KEY_FORBIDDEN`. A
 signed-in user's own session is not limited this way.
 
+## Scopes narrow permissions
+
+A key holds only the permissions its scopes map to. `cap_allows`, which
+`member_can`, `can` and every policy and module that asks them apply, checks
+the permission against the key's scopes (or the keys those scopes map to in
+`blocks.permissions.scopes`). A scope of `*` holds every permission except the
+interactive-only ones, and a key with no scopes holds none. A personal key
+therefore no longer acts with every permission of its user, and a policy
+needs `has_scope()` only for scopes that are not permission keys.
+
+Before 0.61 a key held every non-interactive permission its user had. To
+migrate, list the keys whose access would shrink and give each the scopes it
+needs, or rotate it with new scopes:
+
+```sql
+select id, name, scopes from better_supabase.api_keys where scopes = '{}';
+
+update better_supabase.api_keys
+  set scopes = array['deals.read', 'deals.update']
+  where id = '...';
+```
+
+With `options.scopes: "catalog"` the scopes are the permission keys
+themselves, so a key's scopes read as the exact list of what it may do.
+
 ## With an authorization provider
 
 Queries for a key run with the `api_key` claim. A provider's SQL functions
