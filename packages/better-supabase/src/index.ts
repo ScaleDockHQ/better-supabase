@@ -88,6 +88,8 @@ export {
 export { isQuerySpec, specTables } from "./core/spec.ts";
 
 export type {
+  FunctionSpec,
+  FunctionSpecOptions,
   InferResult,
   QuerySpec,
   ReadMethod,

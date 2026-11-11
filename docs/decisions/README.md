@@ -447,10 +447,6 @@ add one, and link it from the code or config it explains.
 | [0673](0673-next-build-baselines-after-orders-and-purchase-orders.md)               | Raise two next-build raw baselines after draft orders and purchase order numbers                                                                                                           |
 | [0674](0674-next-build-baselines-after-list-extras.md)                              | Raise the customers first load and server raw baselines after the list extras                                                                                                              |
 | [0675](0675-comment-reads-by-key-approvers-in-the-set-and-usage-plans-once.md)      | Read comment conversations by key, ask isApprover in the approval set, read usage plans once                                                                                               |
-| <<<<<<< HEAD                                                                        |
-| [0676](0676-move-server-importers-onto-block-sets-and-wave-read-set-gates.md)       | Move server importers onto the core and shell block sets, and ask read set gates in one wave                                                                                               |
-|                                                                                     |                                                                                                                                                                                            |          |     |     |     | bd8cb90772 |
-| =======                                                                             |
 | [0676](0676-next-build-baselines-after-lazy-relation-targets.md)                    | Raise the next-build baselines after lazy server tables load their relation targets                                                                                                        |
-
-> > > > > > > origin/main
+| [0677](0677-move-server-importers-onto-block-sets-and-wave-read-set-gates.md)       | Move server importers onto the core and shell block sets, and ask read set gates in one wave                                                                                               |
+| [0680](0680-tag-function-payload-reads-with-their-tables.md)                        | Tag function payload reads with the tables they read                                                                                                                                       |

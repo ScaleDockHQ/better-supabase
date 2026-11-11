@@ -46,7 +46,7 @@ import { dbError } from "../core/errors.ts";
 import { isList } from "../core/guards.ts";
 import { isReadSet, readSetTables } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
-import { isQuerySpec } from "../core/spec.ts";
+import { isFunctionSpec, isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
 import { EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
@@ -1061,8 +1061,8 @@ export function createNext<
     },
 
     tags(target, tagOptions = {}) {
-      const specs = isReadSet(target)
-        ? Object.values(target.specs).filter((spec) => isQuerySpec(spec))
+      const entries = isReadSet(target)
+        ? Object.values(target.specs)
         : isList(target)
           ? target
           : [target];
@@ -1075,7 +1075,21 @@ export function createNext<
         }
       }
 
-      for (const spec of specs) {
+      for (const spec of entries) {
+        if (isFunctionSpec(spec)) {
+          for (const table of spec.tables ?? []) {
+            for (const tag of tableTags(table, tagOptions)) {
+              tags.add(tag);
+            }
+          }
+
+          continue;
+        }
+
+        if (!isQuerySpec(spec)) {
+          continue;
+        }
+
         for (const table of betterSupabase.tablesOf(spec)) {
           for (const tag of tableTags(table, tagOptions)) {
             tags.add(tag);
