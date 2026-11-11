@@ -145,7 +145,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   "billable-time": later("p7"),
   leases: at("/property/leases"),
   expenses: later("p7"),
-  donations: later("p8"),
+  donations: at("/shop/donations"),
   dispatch: at("/field/dispatch"),
   shipments: at("/field/shipments"),
   contracts: at("/crm/contracts", "/crm/contracts/[id]"),

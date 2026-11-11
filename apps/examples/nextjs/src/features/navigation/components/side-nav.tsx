@@ -170,6 +170,7 @@ const ICONS = {
   appraisals: AwardIcon,
   warehouse: ClipboardListIcon,
   rfqs: FileQuestionMarkIcon,
+  donations: HeartHandshakeIcon,
   passes: TicketIcon,
   leases: KeyRoundIcon,
   assets: BoxesIcon,

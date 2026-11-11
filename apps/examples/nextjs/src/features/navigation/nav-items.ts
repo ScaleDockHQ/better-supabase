@@ -66,6 +66,7 @@ export type NavId =
   | "appraisals"
   | "warehouse"
   | "rfqs"
+  | "donations"
   | "passes"
   | "leases"
   | "assets"
@@ -383,6 +384,12 @@ export const navItems: readonly NavItem[] = [
   { id: "dam", href: "/dam", area: "operations", requires: "dam.read" },
   { id: "lims", href: "/lims", area: "operations", requires: "lims.read" },
   { id: "rfqs", href: "/rfqs", area: "operations", requires: "rfqs.read" },
+  {
+    id: "donations",
+    href: "/shop/donations",
+    area: "commerce",
+    requires: "donations.read",
+  },
   {
     id: "passes",
     href: "/shop/passes",
