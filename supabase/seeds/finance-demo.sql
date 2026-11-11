@@ -168,6 +168,9 @@ begin
            (t, tx, rev, -100000 * g, 'EUR', now() - (g || ' days')::interval);
   end loop;
 
+  insert into better_supabase.accounting_settings (tenant_id, functional_currency)
+  values (t, 'EUR')
+  on conflict do nothing;
   insert into better_supabase.accounting_accounts (id, tenant_id, code, name, type, normal_side, currency)
   values (a_bank, t, '1100', 'Bank', 'asset', 'debit', 'EUR'),
          (a_rev, t, '8000', 'Revenue', 'income', 'credit', 'EUR');
