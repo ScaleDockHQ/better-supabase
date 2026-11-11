@@ -7,7 +7,7 @@ import * as v from "valibot";
 
 import { requirePostgres, sqlResult } from "@/features/developer/postgres";
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { JOBS_TAG } from "./jobs-cache";
 import { JOBS_PERMISSION, jobsOn, QUEUE_NAME, TEST_QUEUE } from "./jobs-server";
@@ -16,7 +16,7 @@ import { JOBS_PERMISSION, jobsOn, QUEUE_NAME, TEST_QUEUE } from "./jobs-server";
  * Queues a job on `settings_test` with the caller and organization in its
  * context, so it shows up in the organization's runs.
  */
-export const enqueueTestJob = bsb.action(
+export const enqueueTestJob = bsbCore.action(
   { requireTenant: true, permission: JOBS_PERMISSION },
   async (_input, { tenant, auth }): Promise<Result<number>> => {
     if (auth.kind !== "user") {
@@ -47,7 +47,7 @@ export const enqueueTestJob = bsb.action(
  * Queues a dead job again with its payload and context. It only replays a dead
  * letter whose recorded tenant is the caller's organization.
  */
-export const retryJobRun = bsb.action(
+export const retryJobRun = bsbCore.action(
   {
     input: v.object({
       queue: v.pipe(v.string(), v.regex(QUEUE_NAME)),

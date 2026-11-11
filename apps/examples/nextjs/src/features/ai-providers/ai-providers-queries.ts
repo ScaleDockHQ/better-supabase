@@ -5,7 +5,7 @@ import { tenantOf } from "better-supabase/next";
 import * as v from "valibot";
 
 import { getSession } from "@/features/user/user-queries";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { aiProviders } from "./ai-providers-server";
 
@@ -33,7 +33,7 @@ export type ProviderKeysRead =
 export async function getProviderKeys(): Promise<ProviderKeysRead> {
   const [session, { supabase }] = await Promise.all([
     getSession(),
-    bsb.context(),
+    bsbCore.context(),
   ]);
 
   const organizationId = tenantOf(session);

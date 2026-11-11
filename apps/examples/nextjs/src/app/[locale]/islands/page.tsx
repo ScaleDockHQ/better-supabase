@@ -19,7 +19,7 @@ import {
 } from "@/features/islands/components/session-island";
 import { islandScope } from "@/features/islands/islands-cache";
 import { Link } from "@/i18n/navigation";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 // Everything above the islands is the static shell, so a prefetch of this
 // page needs no session; the islands stream in behind their boundaries.
@@ -111,7 +111,7 @@ export default function IslandsPage({
 function IslandsAuthzRefresh() {
   return (
     <DataProviders>
-      <AuthzRefresh session={bsb.claims()} />
+      <AuthzRefresh session={bsbCore.claims()} />
     </DataProviders>
   );
 }

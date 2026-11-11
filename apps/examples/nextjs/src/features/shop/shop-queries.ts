@@ -20,7 +20,7 @@ import * as v from "valibot";
 
 import { BILLING_TAG } from "@/features/billing/billing-cache";
 import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { SHOP_TAG } from "./shop-cache";
 import { SHOP_CURRENCY } from "./shop-currency";
@@ -85,7 +85,7 @@ export interface Product {
  */
 async function loadProducts(): Promise<readonly Product[] | null> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+  const { session, db } = await bsbCore.cached();
   cacheTag(SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
   const tenant = tenantOf(session);
 
@@ -142,7 +142,7 @@ export type StockLevels = v.InferOutput<typeof StockLevels>;
  */
 async function loadStockLevels(): Promise<StockLevels | null> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+  const { session, db } = await bsbCore.cached();
   cacheTag(SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
   const tenant = tenantOf(session);
 
@@ -205,7 +205,7 @@ export interface Orders {
 /** The organization's placed orders and the caller's open carts (draft orders). */
 async function loadOrders(): Promise<Orders | null> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+  const { session, db } = await bsbCore.cached();
   cacheTag(SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
   const tenant = tenantOf(session);
 
@@ -340,7 +340,7 @@ async function loadOrderDetail(
   id: string,
 ): Promise<OrderView | DraftView | null> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
+  const { supabase } = await bsbCore.cached();
   cacheTag(SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
   const orders = shopOrders(supabase);
 
@@ -465,7 +465,7 @@ async function loadKitchen(
   station: string | null,
 ): Promise<KitchenView | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, supabase } = await bsbCore.cached();
   cacheTag(SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
   const tenant = tenantOf(session);
 
@@ -502,7 +502,7 @@ export function getKitchen(
 
 async function loadBoard(): Promise<BoardView | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, supabase } = await bsbCore.cached();
   cacheTag(SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
   const tenant = tenantOf(session);
 

@@ -4,7 +4,7 @@ import {
 } from "better-supabase/blocks/automations";
 
 import { blockConfig } from "@/lib/supabase/blocks.config";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { customerRuleFields } from "./rule-fields";
 
@@ -17,7 +17,7 @@ export async function syncRuleFields(): Promise<void> {
   const schema = blockConfig.automations.api;
 
   const admin = createAutomationsAdmin({
-    transport: rpcTransport(bsb.admin().$client, { schema }),
+    transport: rpcTransport(bsbCore.admin().$client, { schema }),
     schema,
   });
 

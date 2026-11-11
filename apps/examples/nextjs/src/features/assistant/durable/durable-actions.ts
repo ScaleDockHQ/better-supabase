@@ -4,7 +4,7 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { durable, durableContext } from "./durable-server";
 
@@ -13,7 +13,7 @@ import { durable, durableContext } from "./durable-server";
  * workflow once none of its approvals is pending; the chat page picks up the
  * answer when it opens.
  */
-export const decideApproval = bsb.action(
+export const decideApproval = bsbCore.action(
   {
     input: v.object({
       chatId: v.pipe(v.string(), v.uuid()),

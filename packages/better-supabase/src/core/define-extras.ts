@@ -283,6 +283,27 @@ function attach(scope: ExtrasScope, decodeEvents: () => EventHubType): void {
           (key) => !isFunctionSpec(bound[key]) && open.data.has(key),
         );
 
+        // The function entries start beside the table batch, not after it.
+        const calls = new Map<string, ReturnType<RpcCall>>();
+
+        for (const key of keys) {
+          const entry = bound[key];
+
+          if (
+            entry !== undefined &&
+            isFunctionSpec(entry) &&
+            open.data.has(key)
+          ) {
+            calls.set(
+              key,
+              rpc(entry.name, entry.args, {
+                ...(signal ? { signal } : {}),
+                ...(entry.schema === undefined ? {} : { schema: entry.schema }),
+              }),
+            );
+          }
+        }
+
         const result = await many(
           tableKeys.map((key) => bound[key]),
           signal,
@@ -296,23 +317,20 @@ function attach(scope: ExtrasScope, decodeEvents: () => EventHubType): void {
         const out: Record<string, unknown> = {};
 
         for (const key of keys) {
-          const entry = bound[key];
+          const call = calls.get(key);
 
           if (!open.data.has(key)) {
             out[key] = null;
-          } else if (isFunctionSpec(entry)) {
-            const called = await rpc(entry.name, entry.args, {
-              ...(signal ? { signal } : {}),
-              ...(entry.schema === undefined ? {} : { schema: entry.schema }),
-            });
+          } else if (call === undefined) {
+            out[key] = result.data[tableKeys.indexOf(key)];
+          } else {
+            const called = await call;
 
             if (!called.ok) {
               return called;
             }
 
             out[key] = called.data;
-          } else {
-            out[key] = result.data[tableKeys.indexOf(key)];
           }
         }
 

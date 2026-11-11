@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { knowledge } from "./knowledge-server";
 
@@ -15,7 +15,7 @@ import { knowledge } from "./knowledge-server";
  * `folderId` the document belongs to that drive folder, and only members who
  * can read the folder find it.
  */
-export const addDocument = bsb.action(
+export const addDocument = bsbCore.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -52,7 +52,7 @@ export const addDocument = bsb.action(
   },
 );
 
-export const removeDocument = bsb.action(
+export const removeDocument = bsbCore.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
@@ -79,7 +79,7 @@ export interface SearchHit {
 }
 
 /** Hybrid search over the documents the caller can read. */
-export const searchKnowledge = bsb.action(
+export const searchKnowledge = bsbCore.action(
   {
     input: v.object({
       query: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),

@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import { headers } from "next/headers";
 import * as v from "valibot";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { connectCredentials, integrationOf } from "./integrations-server";
 
@@ -19,7 +19,7 @@ const CALLBACK_PATH = "/api/integrations/callback";
  * send them to. The redirect URI comes from the request's own origin, which
  * Next.js has already checked against the host for a Server Action.
  */
-export const connectIntegration = bsb.action(
+export const connectIntegration = bsbCore.action(
   { input: Input },
   async ({ id }, { session }) => {
     const integration = integrationOf(id);
@@ -54,7 +54,7 @@ export const connectIntegration = bsb.action(
 );
 
 /** Revokes the user's grant at Connect, so the next read asks for consent. */
-export const disconnectIntegration = bsb.action(
+export const disconnectIntegration = bsbCore.action(
   { input: Input },
   async ({ id }, { session }) => {
     const integration = integrationOf(id);

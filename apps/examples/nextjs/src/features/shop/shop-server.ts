@@ -6,7 +6,7 @@ import { generatedOptions } from "better-supabase/blocks";
 import { createOrders, rpcTransport } from "better-supabase/blocks/orders";
 
 import { blockConfig } from "@/lib/supabase/blocks.config";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 const API_SCHEMA = blockConfig.orders.api;
 
@@ -20,6 +20,6 @@ export function shopOrders(supabase: RpcClient): Orders {
   return createOrders({
     ...generatedOptions(blockConfig.orders),
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
-    service: rpcTransport(bsb.admin().$client, { schema: API_SCHEMA }),
+    service: rpcTransport(bsbCore.admin().$client, { schema: API_SCHEMA }),
   });
 }

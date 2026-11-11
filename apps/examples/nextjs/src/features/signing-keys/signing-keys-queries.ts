@@ -4,7 +4,7 @@ import { cacheTag } from "next/cache";
 
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell } from "@/lib/supabase/server-shell";
 
 import { SIGNING_KEYS_TAG } from "./signing-keys-cache";
 import {
@@ -33,7 +33,7 @@ export interface SigningKeysOverview {
 export async function loadSigningKeys(): Promise<SigningKeysOverview | null> {
   "use cache: private";
 
-  const request = await bsb.cached();
+  const request = await bsbShell.cached();
   cacheTag(SIGNING_KEYS_TAG);
   const { session } = request;
   const permissions = await readPermissions(request);

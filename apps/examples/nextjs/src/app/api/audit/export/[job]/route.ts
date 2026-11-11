@@ -7,7 +7,7 @@ import {
 } from "@/features/audit/audit-export";
 import { serviceSupabase } from "@/lib/service-supabase";
 
-import { bsb } from "../../../../../lib/supabase/server";
+import { bsbCore } from "../../../../../lib/supabase/server-core";
 
 const JOB_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
@@ -17,7 +17,7 @@ const JOB_ID =
  * finished export. The object path starts with the caller's organization, so
  * one organization can never sign another's file.
  */
-export const GET = bsb.route<{ job: string }, true>(
+export const GET = bsbCore.route<{ job: string }, true>(
   async (_request, { params, tenant }) => {
     if (!JOB_ID.test(params.job)) {
       return err(dbError("invalid_input", "Unknown export"));

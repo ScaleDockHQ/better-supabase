@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { RULES_TAG } from "./rules-cache";
 
@@ -13,7 +13,7 @@ import { RULES_TAG } from "./rules-cache";
  * The editor saves through the browser client; this drops the caller's cached
  * rule list, so the next page shows the change.
  */
-export const rulesChanged = bsb.action(
+export const rulesChanged = bsbCore.action(
   { input: v.object({}), requireTenant: true },
   async (_input, { auth }) => {
     await refreshCaller(auth, [RULES_TAG]);

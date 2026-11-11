@@ -1,7 +1,7 @@
 import { tenantOf } from "better-supabase/next";
 import "server-only";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell } from "@/lib/supabase/server-shell";
 
 import type { ConversationRow } from "./inbox-types";
 
@@ -10,7 +10,7 @@ import { toConversationRow } from "./inbox-types";
 /** The open conversations of the active organization, newest activity first. */
 export async function getConversations(): Promise<readonly ConversationRow[]> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+  const { session, db } = await bsbShell.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {

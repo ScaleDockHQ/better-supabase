@@ -3,7 +3,7 @@
 import { ok } from "better-supabase";
 
 import { refreshCaller } from "@/lib/refresh-caller";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { SIGNING_KEYS_TAG } from "./signing-keys-cache";
 import {
@@ -17,7 +17,7 @@ import {
  * until the tokens it signed expire. With no key yet, it creates the first
  * (Ed25519).
  */
-export const rotateSigningKey = bsb.action(
+export const rotateSigningKey = bsbCore.action(
   { requireTenant: true, permission: SIGNING_KEYS_PERMISSION },
   async (_input, { tenant, auth }) => {
     const rotated = await signingKeys().rotate({

@@ -3,7 +3,7 @@ import { createSupabaseState, maintain } from "better-supabase/chat-sdk";
 
 import { env } from "@/env";
 import { postgres } from "@/features/developer/postgres";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell } from "@/lib/supabase/server-shell";
 
 /**
  * The inbox's periodic work: reopens conversations whose snooze ended, sends
@@ -21,7 +21,7 @@ export async function GET(request: Request): Promise<Response> {
   const connection = postgres();
 
   const result = await maintain({
-    inbox: bsb.admin().inbox,
+    inbox: bsbShell.admin().inbox,
     ...(connection && {
       state: createSupabaseState({ transport: sqlTransport(connection.admin) }),
     }),

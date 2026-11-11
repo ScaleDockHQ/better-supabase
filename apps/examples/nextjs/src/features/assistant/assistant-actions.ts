@@ -3,7 +3,7 @@
 import { aiFileUrl } from "better-supabase/blocks/ai-files";
 import * as v from "valibot";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { aiFiles } from "./assistant-server";
 
@@ -14,7 +14,7 @@ const MAX_SIZE = 10 * 1024 * 1024;
  * Reserves an attachment for the caller and returns where to upload it. The
  * bucket only accepts the upload at the reserved path.
  */
-export const reserveAttachment = bsb.action(
+export const reserveAttachment = bsbCore.action(
   {
     input: v.object({
       filename: v.pipe(v.string(), v.minLength(1), v.maxLength(255)),
@@ -45,7 +45,7 @@ export const reserveAttachment = bsb.action(
 );
 
 /** Marks the upload done and returns the file part the message holds. */
-export const confirmAttachment = bsb.action(
+export const confirmAttachment = bsbCore.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,

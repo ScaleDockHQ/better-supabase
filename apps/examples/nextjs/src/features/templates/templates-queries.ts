@@ -6,7 +6,7 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import { TEMPLATES_TAG } from "./templates-cache";
 import { CustomerTemplateBody, templatesOf } from "./templates-server";
@@ -32,7 +32,7 @@ export type TemplatesView =
 /** A failed read throws, so it is never cached and Retry reads again. */
 async function loadTemplates(): Promise<readonly TemplateCard[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, supabase } = await bsbCore.cached();
   cacheTag(TEMPLATES_TAG);
   const tenant = tenantOf(session);
 

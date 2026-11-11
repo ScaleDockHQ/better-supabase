@@ -7,7 +7,7 @@ import {
   paramsOf,
 } from "@/features/audit/audit-export";
 
-import { bsb } from "../../../../lib/supabase/server";
+import { bsbShell } from "../../../../lib/supabase/server-shell";
 
 /**
  * `GET /api/audit/export?actor=&type=&from=&to=&q=`: the active organization's
@@ -17,7 +17,7 @@ import { bsb } from "../../../../lib/supabase/server";
  * `probe=1` it answers `{ rows, limit }` instead, so the page can pick between
  * the two.
  */
-export const GET = bsb.route(
+export const GET = bsbShell.route(
   async (request, { session, tenant: organizationId, db }) => {
     if (!hasEntitlement(session, organizationId, "audit")) {
       return err(dbError("forbidden", "The audit log is not in your plan"));

@@ -9,7 +9,7 @@ import {
 } from "better-supabase/blocks/ai-schedules";
 
 import { blockConfig } from "@/lib/supabase/blocks.config";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 const API_SCHEMA = blockConfig["ai-schedules"].api;
 
@@ -21,6 +21,6 @@ export function aiTasks(supabase: RpcClient): AiSchedules {
   return createAiSchedules({
     ...generatedOptions(blockConfig["ai-schedules"]),
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
-    service: rpcTransport(bsb.admin().$client, { schema: API_SCHEMA }),
+    service: rpcTransport(bsbCore.admin().$client, { schema: API_SCHEMA }),
   });
 }

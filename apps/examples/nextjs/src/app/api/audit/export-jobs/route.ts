@@ -5,7 +5,7 @@ import { env } from "@/env";
 import { paramsOf } from "@/features/audit/audit-export";
 import { AUDIT_EXPORT_QUEUE, pushJobs } from "@/features/jobs/jobs-server";
 
-import { bsb } from "../../../../lib/supabase/server";
+import { bsbCore } from "../../../../lib/supabase/server-core";
 
 /**
  * `POST /api/audit/export-jobs?...` (same filters as the export): queues the
@@ -13,7 +13,7 @@ import { bsb } from "../../../../lib/supabase/server";
  * exports bucket and sends the caller a notification that links to `GET
  * /api/audit/export/<job>`.
  */
-export const POST = bsb.route(
+export const POST = bsbCore.route(
   async (request, { session, tenant: organizationId, auth }) => {
     if (!hasEntitlement(session, organizationId, "audit")) {
       return err(dbError("forbidden", "The audit log is not in your plan"));

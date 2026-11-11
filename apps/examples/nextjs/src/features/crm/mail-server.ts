@@ -12,7 +12,7 @@ import {
 
 import { connectCredentials } from "@/features/integrations/integrations-server";
 import { blockConfig } from "@/lib/supabase/blocks.config";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 const API_SCHEMA = blockConfig["mail-sync"].api;
 
@@ -32,7 +32,7 @@ export function mailSync(
 ): MailSync {
   const base = {
     ...generatedOptions(blockConfig["mail-sync"]),
-    transport: rpcTransport(supabase ?? bsb.admin().$client, {
+    transport: rpcTransport(supabase ?? bsbCore.admin().$client, {
       schema: API_SCHEMA,
     }),
     credentials: connectCredentials(),

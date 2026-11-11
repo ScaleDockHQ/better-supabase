@@ -1,5 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { bsb } from "@/lib/supabase/server";
+import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { ScopeVariant } from "../bench-cache";
 
@@ -17,7 +17,7 @@ export async function ScopeIsland({
   variant: Promise<ScopeVariant>;
 }) {
   const session =
-    (await variant) === "session" ? await bsb.sessionHandle() : undefined;
+    (await variant) === "session" ? await bsbCore.sessionHandle() : undefined;
 
   const who = await (session
     ? readScopeFromHandle(index, session)
