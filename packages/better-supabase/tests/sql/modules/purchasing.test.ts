@@ -137,3 +137,67 @@ describe("purchasing in orders and manufacturing", () => {
     ).toThrow(/purchaseSuggestions/);
   });
 });
+
+describe("purchase orders without the optional columns (ADR 0668)", () => {
+  const bare: BlockSqlLayout = {
+    modules: {
+      inventory: {
+        tables: { purchaseOrderTaxLines: null },
+        columns: {
+          purchaseOrders: { number: null },
+          purchaseOrderLines: { quantityCanceled: null, taxRateBps: null },
+        },
+      },
+    },
+  };
+
+  it("renders the purchase order functions without number, canceled quantity or tax lines", () => {
+    const full = sqlOf(["catalog", "inventory", "outbox"], "inventory");
+    const sql = sqlOf(["catalog", "inventory", "outbox"], "inventory", bare);
+
+    expect(sql).toContain('"better_supabase"."save_purchase_order"(');
+    expect(sql).not.toContain("purchase_order_tax_lines");
+    expect(sql).not.toContain("quantity_canceled");
+    expect(full).toContain("purchase_order_tax_lines");
+    expect(full).toContain("quantity_canceled");
+  });
+
+  it("renders purchase orders and sales orders without their optional columns", () => {
+    const layout: BlockSqlLayout = {
+      modules: {
+        inventory: {
+          columns: {
+            purchaseOrders: {
+              shipTo: null,
+              originType: null,
+              originId: null,
+              exchangeRate: null,
+            },
+          },
+        },
+        orders: {
+          columns: {
+            orders: {
+              email: null,
+              billingAddress: null,
+              originType: null,
+              originId: null,
+              variantOf: null,
+              heldFrom: null,
+            },
+            fulfillmentLines: { detail: null },
+          },
+        },
+      },
+    };
+
+    const names = ["catalog", "inventory", "orders", "outbox"];
+
+    for (const module of ["inventory", "orders"]) {
+      const bare = sqlOf(names, module, layout);
+
+      expect(bare.length).toBeGreaterThan(0);
+      expect(bare.length).toBeLessThan(sqlOf(names, module).length);
+    }
+  });
+});

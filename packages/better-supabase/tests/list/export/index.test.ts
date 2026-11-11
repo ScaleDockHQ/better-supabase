@@ -107,6 +107,71 @@ describe("exportListCsv", () => {
   });
 });
 
+describe("exportListCsv edges", () => {
+  it("starts with a byte order mark and falls back to a file name", async () => {
+    const response = await exportListCsv({
+      page: pager(rows.slice(0, 1)),
+      columns,
+      bom: true,
+      filename: "",
+    });
+
+    expect(response.headers.get("content-disposition")).toContain(
+      'filename="export.csv"',
+    );
+    expect([
+      ...new Uint8Array(await response.arrayBuffer()).slice(0, 3),
+    ]).toEqual([0xef, 0xbb, 0xbf]);
+  });
+
+  it("closes the stream when maxRows is zero, and clamps the page size", async () => {
+    const calls: (string | undefined)[] = [];
+
+    const response = await exportListCsv({
+      page: pager(rows, calls),
+      columns,
+      maxRows: 0,
+      pageSize: 0,
+    });
+
+    expect(await response.text()).toBe("id,name\r\n");
+    expect(calls).toEqual([undefined]);
+  });
+
+  it("errors the stream when a later page fails", async () => {
+    let call = 0;
+
+    const response = await exportListCsv({
+      page: () => {
+        call += 1;
+
+        return Promise.resolve(
+          call === 1
+            ? ok({ items: rows.slice(0, 1), nextCursor: "1", hasMore: true })
+            : err({ kind: "unknown", message: "boom", status: 500 } as never),
+        );
+      },
+      columns,
+    });
+
+    await expect(response.text()).rejects.toThrow("boom");
+  });
+
+  it("writes other values as text", () => {
+    class Money {
+      public toString(): string {
+        return "EUR 5";
+      }
+    }
+
+    expect(csvCell(new Money())).toBe("EUR 5");
+    expect(csvCell([1, 2])).toBe('"[1,2]"');
+    expect(csvCell(true)).toBe("true");
+    expect(csvCell("plain")).toBe("plain");
+    expect(csvCell(undefined)).toBe("");
+  });
+});
+
 describe("pageFromIds", () => {
   const load =
     (hidden: readonly string[] = []) =>
