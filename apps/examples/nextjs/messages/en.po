@@ -2296,6 +2296,7 @@ msgctxt "agents.PLLdyt"
 msgid "Memory saved"
 msgstr "Memory saved"
 
+#: src/features/agents/components/agent-publish.tsx
 #: src/features/agents/components/memory-manager.tsx
 msgctxt "agents.K3r6DQ"
 msgid "Delete"
@@ -25872,3 +25873,18 @@ msgstr "Your plan's limit is reached. Upgrade to continue."
 msgctxt "errors.TM7s8X"
 msgid "The list was cut off. Ask for a page instead."
 msgstr "The list was cut off. Ask for a page instead."
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.rfC5Ra"
+msgid "Delete this agent?"
+msgstr "Delete this agent?"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.bYeKbe"
+msgid "The agent is removed for everyone who installed it. This cannot be undone."
+msgstr "The agent is removed for everyone who installed it. This cannot be undone."
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"

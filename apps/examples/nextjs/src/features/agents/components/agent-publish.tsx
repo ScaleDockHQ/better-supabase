@@ -3,7 +3,19 @@
 import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -51,8 +63,11 @@ export function AgentPublish({
   const publish = useAction(publishAgent, { onError });
   const install = useAction(installAgent, { onError });
 
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   const remove = useAction(removeAgent, {
     onSuccess: () => {
+      setConfirmOpen(false);
       router.push("/assistant/agents");
     },
     onError,
@@ -109,16 +124,45 @@ export function AgentPublish({
           {installed ? t("Uninstall") : t("Install")}
         </Button>
         {canWrite ? (
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={remove.pending}
-            onClick={() => {
-              void remove.run({ id });
+          <AlertDialog
+            open={confirmOpen}
+            onOpenChange={(next) => {
+              if (!remove.pending) {
+                setConfirmOpen(next);
+              }
             }}
           >
-            {t("Delete agent")}
-          </Button>
+            <AlertDialogTrigger
+              render={<Button size="sm" variant="destructive" />}
+            >
+              {t("Delete agent")}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("Delete this agent?")}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t(
+                    "The agent is removed for everyone who installed it. This cannot be undone.",
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={remove.pending}>
+                  {t("Cancel")}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={remove.pending}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void remove.run({ id });
+                  }}
+                >
+                  {t("Delete")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         ) : null}
       </CardContent>
     </Card>

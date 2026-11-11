@@ -1,5 +1,7 @@
 "use client";
 
+import type { UIMessage } from "ai";
+
 import { useChat } from "@ai-sdk/react";
 import {
   lastAssistantMessageIsCompleteWithApprovalResponses,
@@ -14,6 +16,22 @@ import { assistantTour } from "../assistant-tour";
 import { ChatView } from "./chat-view";
 
 /**
+ * The scripted `searchKnowledge` call arrives with its output, so the SDK's
+ * tool-call check would send the next turn on its own. Only the answer to the
+ * clarifying questions continues the script by itself.
+ */
+const questionsAnswered = (options: { messages: UIMessage[] }): boolean =>
+  lastAssistantMessageIsCompleteWithToolCalls(options) &&
+  options.messages
+    .at(-1)
+    ?.parts.some(
+      (part) =>
+        part.type === "dynamic-tool" &&
+        part.toolName === "askQuestions" &&
+        part.state === "output-available",
+    ) === true;
+
+/**
  * The tour: the chat view over a scripted transport. It uses `useChat`
  * directly, so nothing is stored and no model is called.
  */
@@ -26,7 +44,7 @@ export function AssistantTourChat() {
     transport,
     sendAutomaticallyWhen: (options) =>
       lastAssistantMessageIsCompleteWithApprovalResponses(options) ||
-      lastAssistantMessageIsCompleteWithToolCalls(options),
+      questionsAnswered(options),
   });
 
   const next = script.next(chat.messages);
