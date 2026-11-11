@@ -45,7 +45,7 @@ Routes that moved fall by up to 1,278,031 raw and 374,170 gzip bytes (`/api/bs-s
 707,169 to 343,228). Routes that stay on the full server grow by at most 3,178 raw, 10,059 gzip and
 15,987 brotli bytes (`/shop/orders/page` 850,462 to 860,497 gzip): a third module group splits the
 shared chunk, so the chunks compress separately and slightly worse, the effect ADR 0542 recorded.
-The update path in `tests/next-build` never raises a number, so the 316 raised values were set
+The update path in `tests/next-build` never raises a number, so the raised values (316 at first, 324 after the last merge of main) were set
 from the guard's own output (`allowed -> measured`) and the guard passes. After merging main (ADR 0675's comment and usage reads) the four chat routes measured 70 to 82 brotli bytes above the baseline, so those four values were set the same way. The CI build then measured 25 to 54 raw bytes above the baseline on the workflow route and the three durable chat routes (a different machine, ADR 0639 slack), and those four raw values were set from the CI guard output. Client first load
 (`baseline.json`) did not move.
 
