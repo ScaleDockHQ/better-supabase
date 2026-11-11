@@ -1,7 +1,22 @@
 import type { ReactNode } from "react";
 
-import { FinanceMessages } from "@/features/finance-records/components/finance-messages";
+import { NextIntlClientProvider, useMessages } from "next-intl";
+
+import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
 
 export default function BankingLayout({ children }: { children: ReactNode }) {
-  return <FinanceMessages also={["banking"]}>{children}</FinanceMessages>;
+  const messages = useMessages();
+
+  return (
+    <NextIntlClientProvider
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "finance",
+        "recordDetail",
+        "recordList", "banking",
+      ])}
+    >
+      {children}
+    </NextIntlClientProvider>
+  );
 }

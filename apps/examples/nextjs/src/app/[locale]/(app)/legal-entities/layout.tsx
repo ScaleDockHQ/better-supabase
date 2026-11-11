@@ -1,7 +1,22 @@
 import type { ReactNode } from "react";
 
-import { FinanceMessages } from "@/features/finance-records/components/finance-messages";
+import { NextIntlClientProvider, useMessages } from "next-intl";
 
-export default function Layout({ children }: { children: ReactNode }) {
-  return <FinanceMessages>{children}</FinanceMessages>;
+import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
+
+export default function LegalEntitiesLayout({ children }: { children: ReactNode }) {
+  const messages = useMessages();
+
+  return (
+    <NextIntlClientProvider
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "finance",
+        "recordDetail",
+        "recordList",
+      ])}
+    >
+      {children}
+    </NextIntlClientProvider>
+  );
 }
