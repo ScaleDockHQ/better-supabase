@@ -67,7 +67,7 @@ export interface EntityConfig<Columns extends string = string> {
    */
   // `string & {}` keeps a path without placeholders next to the templates.
   readonly url?: `${string}{${Columns}}${string}` | (string & {});
-  /** `false` keeps the entity out of `config.subjects`. */
+  /** `false` keeps the entity out of `config.recordTypes`. */
   readonly subject?: false;
   /**
    * The record team of the subject the entity registers, as

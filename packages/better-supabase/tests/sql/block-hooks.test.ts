@@ -391,7 +391,7 @@ const WITH: Readonly<Record<string, readonly string[]>> = {
   comments: ["tasks"],
 };
 
-/** The `config.subjects` entries the entries above name. */
+/** The `config.recordTypes` entries the entries above name. */
 const SUBJECTS = { deal: { table: "public.deals" } };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;

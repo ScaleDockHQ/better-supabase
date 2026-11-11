@@ -964,7 +964,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "Subject registry names a missing table or column",
     description:
-      "An entry in `config.subjects` names a table, or a column of it (`id`, `tenant`, `title`, `deletedAt`, the `url` placeholders, `rank` and `search`), that the snapshot lacks. `subject_title`, `subject_url`, `can_subject` and every module that falls back to the registry then fail when they run.",
+      "An entry in `config.recordTypes` names a table, or a column of it (`id`, `tenant`, `title`, `deletedAt`, the `url` placeholders, `rank` and `search`), that the snapshot lacks. `subject_title`, `subject_url`, `can_subject` and every module that falls back to the registry then fail when they run.",
     check: missingSubjectColumns,
   },
   {
@@ -972,7 +972,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Subject table without RLS",
     description:
-      "A table in `config.subjects` has row level security disabled. `can_subject` treats a row the caller can read as visible, so without RLS every signed-in user passes the visibility half of the check for every row.",
+      "A table in `config.recordTypes` has row level security disabled. `can_subject` treats a row the caller can read as visible, so without RLS every signed-in user passes the visibility half of the check for every row.",
     check: subjectsWithoutRls,
   },
   {

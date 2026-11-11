@@ -1,6 +1,6 @@
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:5cbf01ff8828580db8d37bf0c6c4bf09d741b9fa89c27fcd31e6bcfd1ed8c5ef
+-- @bsb-hash sha256:39c50dd973b6d569803ac340f8d9caf5e88a0d9a58fc8069a1ff22826dc4d979
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,7 @@ create policy bsb_funding_products_read on "better_supabase"."funding_products"
 create table "better_supabase"."funding_awards" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the award is for, a type in config.subjects.
+  -- The record the award is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   -- The contacts company or person that pays, holding the funder role.

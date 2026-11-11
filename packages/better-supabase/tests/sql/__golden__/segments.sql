@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:557e1eaa45c2d9b59d3e966e6d70c5470c56399ada80a9d3ddbb1b6014f916c4
+-- @bsb-hash sha256:c3f560434808c7f129e75ce643ebea444d56d9ba0bbdf1a62c734bdc74504dbb
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -275,7 +275,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -414,7 +414,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:05b66a01fa5588fc678018fc6dcc21e34f33b091d79993939a3b3435ebe7eb8a
+-- @bsb-hash sha256:c14474e9d57a9d3de03b210c8e13abafd569b7b299d2432ae62be5c201685d28
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -503,7 +503,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -715,7 +715,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -857,7 +857,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:c976a6630af5da89170a56e8e6d2ebed9490f0e00267a74a23a5b35c1ad9fc54
+-- @bsb-hash sha256:6079f19b300f21c2d226249aae62b73554919271dea052150ac6927a1b8b79a5
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -951,7 +951,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -1136,7 +1136,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -1275,7 +1275,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:a0eec1653e4c6580ddb4072e8c1e86de11b6498766e7e7ec9c8e494ec91e40bd
+-- @bsb-hash sha256:a1ec1264b8059f7f436b9ad5c0409116ceea5f04c11f29d60abe34bc9cf458b7
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1364,7 +1364,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -1549,7 +1549,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -1768,7 +1768,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:1d27ed7cb95b9dfce124382511716e8cff4f16c5228b9b9bd5808b47b89903e6
+-- @bsb-hash sha256:569c272b9e4a1acfbebd344f3c4782cb4c658dfc1c635295561032fe0553be5e
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1852,7 +1852,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -2037,7 +2037,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;
@@ -2176,7 +2176,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:cb6779a847c46473b30b76adb683e895f4fe2c9ba803187b30add3f690d65503
+-- @bsb-hash sha256:1557ea8f5335f6aa9b58640c8868b26f22540fbc967373adc52f59077ffad1b4
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2265,7 +2265,7 @@ begin
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
   if v_type is null or v_type not in (null) then
-    raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+    raise exception 'subjectType must be a type in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
   if v_name is null or length(v_name) > 200 then
@@ -2450,7 +2450,7 @@ begin
     return null;
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_row."subject_type");
-  raise exception 'The segment''s subject type is not registered in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
+  raise exception 'The segment''s subject type is not registered in config.recordTypes' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   if cardinality(v_ids) > 10000 then
     raise exception 'A segment holds at most 10000 records; narrow its conditions' using errcode = '54000', hint = 'SEGMENT_TOO_LARGE';
   end if;

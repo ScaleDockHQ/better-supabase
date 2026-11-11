@@ -851,7 +851,7 @@ as $$
 $$;
 ${userGrant(`${fn("search_normalize")}(text)`)}
 
--- Reads one registered subject row (config.subjects.<type>.search) into the
+-- Reads one registered subject row (config.recordTypes.<type>.search) into the
 -- index, or drops it when the row is gone or soft-deleted (deletedAt).
 create or replace function ${fn("search_refresh")}(subject_type text, subject_id text)
 returns boolean
@@ -875,7 +875,7 @@ begin
   case search_refresh.subject_type
 ${cases}
     else
-      ${fail("SEARCH_SUBJECT_UNKNOWN", "this subject type has no search entry in config.subjects", "22023")}
+      ${fail("SEARCH_SUBJECT_UNKNOWN", "this subject type has no search entry in config.recordTypes", "22023")}
   end case;
   if not v_found then
     delete from ${docs}
@@ -1089,7 +1089,7 @@ export const SEARCH: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Search",
   description:
-    "A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
+    "A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
   requires: ["memberships", "permissions", "subjects"],
   integrates: ["share-links", "vector-search"],
   target: "schema",

@@ -320,7 +320,7 @@ ${userGrant(`${fn("purchase_order_tax_lines")}(uuid)`)}
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
 -- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
--- supplier_type and supplier_id name a config.subjects record, or are both null.
+-- supplier_type and supplier_id name a config.recordTypes record, or are both null.
 ${numbered ? `drop function if exists ${fn("save_purchase_order")}(${ctx.idType}, uuid, uuid, text, text, text, timestamptz, jsonb, text);\n` : ""}create or replace function ${fn("save_purchase_order")}(tenant ${ctx.idType}, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text${numbered ? ", number text default null" : ""})
 returns jsonb
 language plpgsql

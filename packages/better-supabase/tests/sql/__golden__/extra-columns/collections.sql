@@ -1,14 +1,14 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:11827c1417f2f7b2223db7bf5ee1ad435ea64384cbc287faf9c6c96bbab6c0fc
+-- @bsb-hash sha256:41db3d8cff3ac2745cca0274a2ea37390e3f186110e62904f9d7b5ac75ab4b72
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Favorites (a member's starred records, ranked for a sidebar), lists (named,
 -- static collections of one subject type) and saved items (a member's records
--- to come back to, with a reminder) on config.subjects records.
+-- to come back to, with a reminder) on config.recordTypes records.
 
 create table "better_supabase"."subject_collections" (
   "id" uuid primary key default gen_random_uuid(),
@@ -136,7 +136,7 @@ begin
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
   if create_collection.subject_type is null or not (create_collection.subject_type = any ('{}'::text[])) then
-    raise exception 'not a subject type in config.subjects' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
+    raise exception 'not a subject type in config.recordTypes' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
     raise exception 'a name is required' using errcode = '23502', hint = 'COLLECTION_NAME_REQUIRED';

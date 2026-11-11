@@ -22,7 +22,7 @@ export interface ItemTemplate {
   readonly icon?: string;
 }
 
-/** One `on.<type>.<field>` entry, checked against `config.subjects`. */
+/** One `on.<type>.<field>` entry, checked against `config.recordTypes`. */
 export interface OptionBinding {
   readonly type: string;
   readonly subject: RegisteredSubject;
@@ -176,13 +176,13 @@ export function optionBindings(ctx: BlockSqlContext): readonly OptionBinding[] {
 
     if (subject === undefined) {
       throw new TypeError(
-        `blocks.${ctx.instance}.on.${type}: register "${type}" in config.subjects first`,
+        `blocks.${ctx.instance}.on.${type}: register "${type}" in config.recordTypes first`,
       );
     }
 
     if (subject.tenant === undefined) {
       throw new TypeError(
-        `blocks.${ctx.instance}.on.${type}: config.subjects.${type} needs a tenant column`,
+        `blocks.${ctx.instance}.on.${type}: config.recordTypes.${type} needs a tenant column`,
       );
     }
 

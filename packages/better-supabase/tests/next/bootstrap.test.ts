@@ -288,6 +288,7 @@ describe("bsb.bootstrap()", () => {
       endReason: null,
       tenant: null,
       subject: null,
+      subjectTenant: null,
       permissions: null,
       teamIdsTruncated: false,
       data: { unread: 3 },

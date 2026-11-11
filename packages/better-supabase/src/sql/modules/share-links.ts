@@ -251,7 +251,7 @@ function singleRevoke(ctx: BlockSqlContext): string {
 /**
  * Whether the subject a new link names exists in the link's tenant and the
  * caller may share it. Block-owned types come first; registered subjects
- * (`config.subjects` or `on`) check the row's tenant and the subject's read
+ * (`config.recordTypes` or `on`) check the row's tenant and the subject's read
  * permission. Any other type fails.
  */
 function allowedTypes(ctx: BlockSqlContext): readonly string[] | undefined {

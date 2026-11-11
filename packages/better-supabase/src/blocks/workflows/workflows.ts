@@ -33,7 +33,7 @@ import {
 export type WorkflowRunStatus = Exclude<RunState, "cancel_requested">;
 
 /**
- * The record a run belongs to: a subject type from `config.subjects` and its
+ * The record a run belongs to: a subject type from `config.recordTypes` and its
  * id.
  */
 export interface WorkflowSubject {

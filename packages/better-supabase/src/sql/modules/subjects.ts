@@ -457,7 +457,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const fn = (name: string): string => ctx.fn(name);
 
   return `${schemaPreamble(ctx)}${recordTeamTable(ctx)}
--- The app's subject registry (config.subjects, ADR 0020). Each function runs
+-- The app's subject registry (config.recordTypes, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
 create or replace function ${fn("subject_types")}()
 returns text[]
@@ -545,7 +545,7 @@ $$;
 ${userGrant(`${fn("subject_titles")}(jsonb)`)}
 
 -- True when the caller can see the subject row and, for an action with a
--- key in config.subjects.<type>.permissions, holds that key in the
+-- key in config.recordTypes.<type>.permissions, holds that key in the
 -- subject's tenant (or on the record, through the subject's scope), and the
 -- action's check function, when it names one, returns true for the row.
 create or replace function ${fn("can_subject")}(subject_type text, subject_id text, action text)
@@ -616,7 +616,7 @@ ${userGrant(`${fn("record_summary")}(text, text, text[], timestamptz)`)}
 
 -- can_subject for another user, for server code that decides who receives
 -- an event. It reads the row past its policies and asks can_user for the
--- action's key in config.subjects.<type>.permissions, so an action without
+-- action's key in config.recordTypes.<type>.permissions, so an action without
 -- a key is false and a share-link grant never counts. A provider that
 -- can't answer for others (no idsWithFor) gives false.
 create or replace function ${fn("can_subject_for")}(member uuid, subject_type text, subject_id text, action text)
@@ -734,7 +734,7 @@ export const SUBJECTS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.",
+    "The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.",
   requires: ["permissions"],
   integrates: ["teams", "memberships", "audit", "relations"],
   target: "schema",

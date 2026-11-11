@@ -318,7 +318,7 @@ grant execute on function ${ctx.fn("request_subject_export")}(text, text, text) 
       : `case request_subject_export.subject_type
     ${types.map((type) => recordBranch(ctx, type, omits)).join("\n    ")}
     else
-      ${fail("DATA_EXPORT_SUBJECT", "subject_type is not a record type in config.subjects", "22023")}
+      ${fail("DATA_EXPORT_SUBJECT", "subject_type is not a record type in config.recordTypes", "22023")}
   end case;`;
 
   const managed = ctx.installed("subjects")

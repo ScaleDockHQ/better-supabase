@@ -39,9 +39,9 @@ export interface RankRebalancePayload {
 
 export interface Rank {
   /**
-   * Moves a ranked subject (a `rank` entry in `config.subjects`) as the caller,
-   * so the table's policies and any state-machine trigger on the group column
-   * apply. Resolves to the row's new key.
+   * Moves a ranked subject (a `rank` entry in `config.recordTypes`) as the
+   * caller, so the table's policies and any state-machine trigger on the group
+   * column apply. Resolves to the row's new key.
    */
   move(input: {
     subjectType: string;

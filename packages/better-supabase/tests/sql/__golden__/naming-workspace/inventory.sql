@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:c88ddf540c2a6d8d4a621e8fe0d742d80734635f37afe4c9f43aec08eb9e3e82
+-- @bsb-hash sha256:6b37e2f7633e624276633a2f310f56eba29d1e64694c8ef9c258131fde5ec90c
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2738,7 +2738,7 @@ grant execute on function "better_supabase"."cancel_transfer"(uuid) to authentic
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
 -- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
--- supplier_type and supplier_id name a config.subjects record, or are both null.
+-- supplier_type and supplier_id name a config.recordTypes record, or are both null.
 
 create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
 returns jsonb

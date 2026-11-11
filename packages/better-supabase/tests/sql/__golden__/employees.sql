@@ -786,7 +786,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:b76e11df09729bbbc7ad72fe860d5988b9ee6aeda9922fbc3ae8ddc509d955c4
+-- @bsb-hash sha256:d67a1d394f5b60f7e4288f684845195f8c6480cebcd81123504d733fc6c5aa3a
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1368,7 +1368,7 @@ revoke execute on function "better_supabase"."reports_of"(uuid, boolean) from pu
 grant execute on function "better_supabase"."reports_of"(uuid, boolean) to authenticated, service_role;
 
 -- The employee for a hired application, in preboarding: the name comes from
--- the candidate's record in config.subjects, and the job title, team and
+-- the candidate's record in config.recordTypes, and the job title, team and
 -- employment type from the job. attrs overrides any of them. Calling it
 -- again returns the same employee, and with the relations module the
 -- employee is created_from the application.

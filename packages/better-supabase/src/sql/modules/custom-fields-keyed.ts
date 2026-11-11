@@ -141,7 +141,7 @@ function keyCheck(
 
 /**
  * The subjects whose field values follow record reads: `readAccess` on the
- * record type (`config.subjects.<type>` or `on.<type>`), else the module's
+ * record type (`config.recordTypes.<type>` or `on.<type>`), else the module's
  * `options.readAccess`.
  */
 export function recordReadSubjects(

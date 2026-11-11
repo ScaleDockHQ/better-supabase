@@ -89,7 +89,10 @@ export type KnowledgeScope =
   | "user"
   | "subject";
 
-/** The record subject knowledge is about: a `config.subjects` type and its id. */
+/**
+ * The record subject knowledge is about: a `config.recordTypes` type and its
+ * id.
+ */
 export interface KnowledgeSubject {
   readonly type: string;
   readonly id: string;

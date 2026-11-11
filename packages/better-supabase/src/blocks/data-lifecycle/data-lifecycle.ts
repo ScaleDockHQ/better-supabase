@@ -63,11 +63,11 @@ export type DataExportFormat = "ndjson" | "csv";
 
 export interface DataExport {
   readonly id: string;
-  /** `record` is one `config.subjects` record, from `requestSubjectExport`. */
+  /** `record` is one `config.recordTypes` record, from `requestSubjectExport`. */
   readonly subject: "user" | "organization" | "record";
   readonly userId: string | undefined;
   readonly organizationId: string | undefined;
-  /** Subject `record`: its `config.subjects` type and id. */
+  /** Subject `record`: its `config.recordTypes` type and id. */
   readonly subjectType: string | undefined;
   readonly subjectId: string | undefined;
   /** The file format the export asked for; `undefined` uses the export job's. */
@@ -184,7 +184,7 @@ export interface DataLifecycle {
     readonly organizationId?: string;
   }): AsyncResult<DataExport>;
   /**
-   * Exports one `config.subjects` record: its row, with encrypted columns
+   * Exports one `config.recordTypes` record: its row, with encrypted columns
    * decrypted as the caller (and audited when the table audits reads), and
    * every installed block's rows attached to it. Needs `data_lifecycle.export`
    * in the record's tenant or the record's `manage` action.

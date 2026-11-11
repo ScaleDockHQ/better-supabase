@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:aad3f7350e7ddb54f4a0c4f8c055d679e942d31fd06412842988dbba398ea240
+-- @bsb-hash sha256:6f66ba5388d9d2eb1bc588d515182405adcb14fcdecde0402b8b60d1ae6a5bcd
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -65,7 +65,7 @@ create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- A supplier invited to quote. supplier_type and supplier_id name a contacts
--- party (or another config.subjects record without the contacts block).
+-- party (or another config.recordTypes record without the contacts block).
 create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -962,7 +962,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:613da6edd0f905a216b27b7bc4d06d04f7a977700ee369664cdfd4f7ff689c71
+-- @bsb-hash sha256:16a18850901667ef24351935fd406262e1957a34d89539aa8cce8bc94103433f
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1026,7 +1026,7 @@ create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- A supplier invited to quote. supplier_type and supplier_id name a contacts
--- party (or another config.subjects record without the contacts block).
+-- party (or another config.recordTypes record without the contacts block).
 create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -2014,7 +2014,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:5388daadae539431e46ea653680c25fcbf550aafe3758bdb7469a5a724e82746
+-- @bsb-hash sha256:9caf752816eac9ad0898a01577125ec71a890324f1198fa2021d28053b41bd26
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2083,7 +2083,7 @@ create policy bsb_rfq_lines_read on "app_private"."rfq_lines"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- A supplier invited to quote. supplier_type and supplier_id name a contacts
--- party (or another config.subjects record without the contacts block).
+-- party (or another config.recordTypes record without the contacts block).
 create table "app_private"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -2980,7 +2980,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:e505f046b63fcc68b4dd5c1bbc355b1f721be1de1df55f87f93dea8289872927
+-- @bsb-hash sha256:eef3cdd164f1355962153fa334aadf8f941a5fa0f44084532ebe6f26d56c76ee
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3044,7 +3044,7 @@ create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- A supplier invited to quote. supplier_type and supplier_id name a contacts
--- party (or another config.subjects record without the contacts block).
+-- party (or another config.recordTypes record without the contacts block).
 create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -4065,7 +4065,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:dbfd60c522ec7167cabf4b2b32ba8d9d76365aa19c0ab570e34e8e2434a97b85
+-- @bsb-hash sha256:30471d2ebb48cb72e20dac46e5a97377e848f0d4b7158a53d225c62d4ba81d9c
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4125,7 +4125,7 @@ create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- A supplier invited to quote. supplier_type and supplier_id name a contacts
--- party (or another config.subjects record without the contacts block).
+-- party (or another config.recordTypes record without the contacts block).
 -- better_supabase.rfq_suppliers is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."rfq_suppliers" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."rfq_suppliers" add column if not exists "tenant_id" uuid;
@@ -5016,7 +5016,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:13770fefa6092f990d4ecd4eeebacaf6faf4df31934c4b15d2335f6acc885df6
+-- @bsb-hash sha256:f40c73844fcdb49d30ca27ec8d3ff187c3e35433d20f09988965b081ce24ae84
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5080,7 +5080,7 @@ create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   using ("org_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- A supplier invited to quote. supplier_type and supplier_id name a contacts
--- party (or another config.subjects record without the contacts block).
+-- party (or another config.recordTypes record without the contacts block).
 create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,

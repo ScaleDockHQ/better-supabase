@@ -6,7 +6,7 @@ import { sqlString } from "../core/template.ts";
 
 /**
  * Whether the caller holds the `write` key a registered subject type names
- * (`config.subjects.<type>.permissions.write`) in `tenant`. `true` for types
+ * (`config.recordTypes.<type>.permissions.write`) in `tenant`. `true` for types
  * without one, so a module's own check decides.
  */
 export function subjectWritable(

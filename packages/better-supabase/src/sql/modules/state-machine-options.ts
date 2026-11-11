@@ -139,7 +139,7 @@ export function machines(ctx: BlockSqlContext): readonly Machine[] {
 }
 
 /**
- * The table keys of `config.subjects.<name>`, used when the machine names no
+ * The table keys of `config.recordTypes.<name>`, used when the machine names no
  * table.
  */
 function registered(
@@ -156,7 +156,7 @@ function registered(
 
   if (entry.tenant === false) {
     throw new TypeError(
-      `${where}: config.subjects.${name} has no tenant column, which a machine needs`,
+      `${where}: config.recordTypes.${name} has no tenant column, which a machine needs`,
     );
   }
 
@@ -312,7 +312,7 @@ function machine(
 
   if (tenantColumn === undefined) {
     throw new TypeError(
-      `${where}: ${table} has no tenant column in config.subjects, which a machine needs`,
+      `${where}: ${table} has no tenant column in config.recordTypes, which a machine needs`,
     );
   }
 

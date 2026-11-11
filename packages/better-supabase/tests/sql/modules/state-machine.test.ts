@@ -175,7 +175,7 @@ describe("state machine", () => {
     );
   });
 
-  it("takes the tenant column of a named table from config.subjects", () => {
+  it("takes the tenant column of a named table from config.recordTypes", () => {
     const sql = renderBlocks(["state-machine"], {
       modules: { "state-machine": { options: { machines: { quote } } } },
       subjects: { offer: { table: "quotes", tenant: "org_id" } },
@@ -188,7 +188,7 @@ describe("state machine", () => {
     expect(sql).not.toContain('new."tenant_id"');
   });
 
-  it("follows the tenant rename for a table config.subjects leaves out", () => {
+  it("follows the tenant rename for a table config.recordTypes leaves out", () => {
     const sql = sqlOf(
       {
         memberships: { entities: { organization: "workspace" } },
@@ -214,7 +214,7 @@ describe("state machine", () => {
     );
   });
 
-  it("falls back to config.subjects for a machine without a table", () => {
+  it("falls back to config.recordTypes for a machine without a table", () => {
     const sql = renderBlocks(["state-machine"], {
       subjects: {
         deal: { table: "crm.deals", idType: "uuid", tenant: "org_id" },
@@ -401,7 +401,7 @@ describe("state machine", () => {
           },
         },
       }),
-    ).toThrow("config.subjects.note has no tenant column");
+    ).toThrow("config.recordTypes.note has no tenant column");
   });
 
   it("reads custom id, tenant and history columns", () => {

@@ -680,8 +680,8 @@ function pageFrom<T extends { readonly id: string; readonly name: string }>(
 
 /**
  * The parties block: companies and people an organization works with. Register
- * them in `config.subjects` with `partiesSubjects()` so comments, tags, files,
- * pipelines and deals can point at them.
+ * them in `config.recordTypes` with `partiesSubjects()` so comments, tags,
+ * files, pipelines and deals can point at them.
  */
 export function createContacts<
   S extends StandardSchemaV1 | undefined = undefined,

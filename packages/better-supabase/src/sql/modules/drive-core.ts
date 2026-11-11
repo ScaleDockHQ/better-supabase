@@ -313,7 +313,7 @@ $$;
 ${userGrant(`${fn("drive_can")}(uuid, text)`)}
 
 -- Whether the caller may read the node: the read role on it, so a check
--- function in config.subjects can follow drive grants.
+-- function in config.recordTypes can follow drive grants.
 create or replace function ${fn("drive_node_readable")}(node uuid)
 returns boolean
 language sql

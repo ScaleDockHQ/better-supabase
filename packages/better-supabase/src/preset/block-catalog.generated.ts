@@ -1455,7 +1455,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "state-machine",
       "title": "State machine",
       "category": "Work management",
-      "description": "Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.",
+      "description": "Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.recordTypes type.",
       "requires": [
         "memberships",
         "permissions"
@@ -1597,7 +1597,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "subjects",
       "title": "Subjects",
       "category": "Identity & access",
-      "description": "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.",
+      "description": "The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.",
       "requires": [
         "permissions"
       ],
@@ -1626,7 +1626,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "rank",
       "title": "Rank",
       "category": "Database primitives",
-      "description": "Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.",
+      "description": "Fractional rank keys: rank_between, move() for every config.recordTypes entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.",
       "requires": [
         "permissions",
         "subjects"
@@ -1726,7 +1726,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "search",
       "title": "Search",
       "category": "Work management",
-      "description": "A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
+      "description": "A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
       "requires": [
         "memberships",
         "permissions",
@@ -2787,7 +2787,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "hiring",
       "title": "Hiring",
       "category": "People",
-      "description": "Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.",
+      "description": "Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.",
       "requires": [
         "memberships",
         "permissions",

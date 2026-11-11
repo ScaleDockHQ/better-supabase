@@ -397,7 +397,7 @@ export interface Funding<F extends object = Record<never, never>> {
   products(
     input: { organizationId: string } & { readonly includeExpired?: boolean },
   ): AsyncResult<readonly FundingProduct[]>;
-  /** Records an award for a record registered in `config.subjects`. */
+  /** Records an award for a record registered in `config.recordTypes`. */
   createAward(input: {
     organizationId: string;
     subject: RecordRef;
@@ -785,8 +785,8 @@ const signalOf = (options: {
 
 /**
  * The funding block: products a funder pays for, awards of units on any record
- * registered in `config.subjects`, the care delivered against them, and claims
- * to the funder in its own format.
+ * registered in `config.recordTypes`, the care delivered against them, and
+ * claims to the funder in its own format.
  */
 export function createFunding<
   S extends StandardSchemaV1 | undefined = undefined,

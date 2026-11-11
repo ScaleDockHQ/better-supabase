@@ -241,9 +241,9 @@ const INTEGRATES = [
  */
 
 /**
- * Access requests on nodes, when config.subjects gives the node type a team: an
- * approved request becomes a node grant, and the members who may share the node
- * approve it.
+ * Access requests on nodes, when config.recordTypes gives the node type a team:
+ * an approved request becomes a node grant, and the members who may share the
+ * node approve it.
  */
 function accessRequests(
   own: BlockSqlContext,

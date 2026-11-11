@@ -25,7 +25,7 @@ export interface SearchOptions extends Pick<
   readonly logger?: Logger;
 }
 
-/** One match, with the title and URL from `config.subjects`. */
+/** One match, with the title and URL from `config.recordTypes`. */
 export interface SearchHit {
   readonly organizationId: string;
   readonly subjectType: string;

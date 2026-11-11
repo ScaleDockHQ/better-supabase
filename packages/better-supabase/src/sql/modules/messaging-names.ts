@@ -255,7 +255,8 @@ export interface MessagingSql {
   readonly can: (tenant: string, action: Action) => string;
   /**
    * Whether the caller holds the action's key on the record itself, through
-   * `config.subjects.<type>.scope`; `undefined` when no subject sets a scope.
+   * `config.recordTypes.<type>.scope`; `undefined` when no subject sets a
+   * scope.
    */
   readonly onRecord: (
     type: string,
@@ -264,8 +265,8 @@ export interface MessagingSql {
   ) => string | undefined;
   /**
    * Whether a record conversation's type follows the record's own checks: its
-   * `config.subjects` entry declares `comment`, so `can_subject` decides read,
-   * send (`comment`) and moderate (`moderate`, when declared, besides the
+   * `config.recordTypes` entry declares `comment`, so `can_subject` decides
+   * read, send (`comment`) and moderate (`moderate`, when declared, besides the
    * tenant key). `undefined` when no type declares `comment`.
    */
   readonly followsRecord: (type: string, id: string) => string | undefined;

@@ -162,6 +162,34 @@ const renameChecks = naming.renames
     ] as const;
   });
 
+// `config.<former key>` in a comment, a string or a docs page. The code
+// property of the resolved config can keep its name, so a `.ts` line only
+// counts when the match sits in a `//` or `*` comment or inside a quote.
+const configKeyChecks = naming.renames
+  .filter((rename) => rename.kind === "configKey")
+  .map(
+    (rename) =>
+      [
+        rename,
+        new RegExp(`\\bconfig\\.${escaped(rename.from)}\\b`, "g"),
+      ] as const,
+  );
+
+const COMMENT_LINE = /^\s*(?:\/\/|\/?\*|--)/;
+
+function inCommentOrString(line: string, index: number): boolean {
+  const before = line.slice(0, index);
+  const quotes = (mark: string): number => before.split(mark).length - 1;
+
+  return (
+    COMMENT_LINE.test(line) ||
+    before.includes("//") ||
+    quotes("`") % 2 === 1 ||
+    quotes('"') % 2 === 1 ||
+    quotes("'") % 2 === 1
+  );
+}
+
 const ENV_READ = /\b(?:process\.env|env)\.([A-Z][A-Z0-9_]{3,})\b/g;
 const TYPE_DECLARATION = /\bexport\s+(?:interface|type)\s+(\w+)/g;
 const LOWERCASE_CODE = /(?<!#)\bbs\d{3}\b/;
@@ -177,6 +205,22 @@ for (const file of checked) {
         found.rename.push(
           `${file}:${String(index + 1)} ${rename.from} is ${rename.to}`,
         );
+      }
+    }
+  }
+
+  const prose = /\.(?:md|mdx)$/.test(file);
+
+  if (prose || /\.(?:ts|tsx|mts)$/.test(file)) {
+    for (const [index, line] of lines.entries()) {
+      for (const [rename, pattern] of configKeyChecks) {
+        for (const match of line.matchAll(pattern)) {
+          if (prose || inCommentOrString(line, match.index)) {
+            found.rename.push(
+              `${file}:${String(index + 1)} config.${rename.from} is config.${rename.to}`,
+            );
+          }
+        }
       }
     }
   }

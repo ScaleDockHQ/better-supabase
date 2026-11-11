@@ -18,8 +18,8 @@ const zeroUuid = "'00000000-0000-0000-0000-000000000000'::uuid";
 
 /**
  * The subject types field definitions can name: `blocks.custom-fields.on`, else
- * `config.subjects` with the entities of the installed blocks. Empty when the
- * app registers none, and then an entity stays free text.
+ * `config.recordTypes` with the entities of the installed blocks. Empty when
+ * the app registers none, and then an entity stays free text.
  */
 function registeredEntities(ctx: BlockSqlContext): readonly string[] {
   return fieldSubjects(ctx).map(([type]) => type);

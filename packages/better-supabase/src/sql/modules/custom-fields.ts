@@ -240,7 +240,7 @@ ${keyedFields(
 
   if (readAccess === "record" && subjects.length === 0) {
     throw new TypeError(
-      'blocks.custom-fields.options.readAccess "record" needs record types in config.subjects or blocks.custom-fields.on',
+      'blocks.custom-fields.options.readAccess "record" needs record types in config.recordTypes or blocks.custom-fields.on',
     );
   }
 

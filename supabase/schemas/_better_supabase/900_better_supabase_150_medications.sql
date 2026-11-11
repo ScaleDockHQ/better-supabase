@@ -1,6 +1,6 @@
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:5db5bba49c8f525723f910cb188c6847684e5c843973f10561067feb02951f81
+-- @bsb-hash sha256:174c07f5021edda986ce879601b9c1ad5540b8f6e790c197a64f4ad3816697d2
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,7 +36,7 @@ grant all on "better_supabase"."medications" to service_role;
 create table "better_supabase"."medication_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  -- The record the order is for, a type in config.subjects.
+  -- The record the order is for, a type in config.recordTypes.
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,

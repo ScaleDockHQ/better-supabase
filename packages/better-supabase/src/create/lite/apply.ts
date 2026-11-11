@@ -37,7 +37,17 @@ export async function applyFiles(
   const issues: Issue[] = [];
   const skipped = new Map<string, string>();
 
-  for (const file of files) {
+  // A data file repeats the event triggers the unscoped schema file creates,
+  // with a drop before each, so it runs after every schema file.
+  const isData = (file: PresetMigrationFile): boolean =>
+    file.path.includes("/better-supabase-data/");
+
+  const ordered = [
+    ...files.filter((file) => !isData(file)),
+    ...files.filter((file) => isData(file)),
+  ];
+
+  for (const file of ordered) {
     if (file.path.includes("/tests/") || skipped.has(file.module)) {
       continue;
     }

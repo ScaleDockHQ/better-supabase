@@ -976,7 +976,7 @@ export const topics = {
 type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<typeof createdByExtension>, ReturnType<typeof trashExtension>, ReturnType<typeof membershipsExtension>];
 const extensions: Extensions = [updatedAtExtension(), createdByExtension(), trashExtension(), membershipsExtension()];
 
-/** The app's subject types, from `config.subjects`. */
+/** The app's subject types, from `config.recordTypes`. */
 export const subjectTypes = ["change_request", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */

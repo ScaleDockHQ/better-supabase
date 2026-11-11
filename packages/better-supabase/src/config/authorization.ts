@@ -90,8 +90,8 @@ export interface AuthorizationFunctions {
    * `{resource}` is a resource name as the provider spells it in SQL (such as
    * `file_node`), unquoted, so it can be part of a function name; `{ids}` is a
    * `text[]` of the candidate ids, which a provider may use to limit the work.
-   * `can_subject` calls it for a `config.subjects.<type>.permissions.<action>`
-   * entry with `rows`.
+   * `can_subject` calls it for a
+   * `config.recordTypes.<type>.permissions.<action>` entry with `rows`.
    */
   readonly rowsWith?: string;
   /**

@@ -1,7 +1,7 @@
 -- better-supabase module: rank
 -- @bsb-block rank@1 managed
--- @bsb-hash sha256:05a64ed55e708c5aa2084becf25640886d5414dbaae1aa36312c0cc4a5139a8e
--- Fractional rank keys: rank_between, move() for every config.subjects entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
+-- @bsb-hash sha256:458dcba8f2a00260b2e6567533d2dadc25704ab7ebf228fcaafcb03cdfd1a00f
+-- Fractional rank keys: rank_between, move() for every config.recordTypes entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -305,7 +305,7 @@ begin
         raise exception 'not allowed to move this row' using errcode = '42501', hint = 'RANK_FORBIDDEN';
       end if;
     else
-      raise exception 'this subject type has no rank column in config.subjects' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no rank column in config.recordTypes' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
   end case;
   if length(v_key) > 24 then
     perform "better_supabase"."enqueue_job"(queue => 'rank.rebalance', payload => jsonb_build_object('subjectType', move.subject_type, 'tenant', v_tenant, 'group', v_group), dedupe_key => 'rank:' || move.subject_type || ':' || coalesce(v_tenant, '') || ':' || coalesce(v_group, ''), dedupe_running => false);
@@ -394,7 +394,7 @@ begin
       where t."id" = o.row_id;
       get diagnostics v_count = row_count;
     else
-      raise exception 'this subject type has no rank column in config.subjects' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no rank column in config.recordTypes' using errcode = '22023', hint = 'RANK_SUBJECT_UNKNOWN';
   end case;
   return v_count;
 end;

@@ -11,7 +11,7 @@ const sqlOf = (layout: Layout = {}): string =>
     .join("\n");
 
 describe("trash module", () => {
-  it("reads deletedAt and title from config.subjects and skips types without deletedAt", () => {
+  it("reads deletedAt and title from config.recordTypes and skips types without deletedAt", () => {
     const sql = sqlOf({
       subjects: {
         doc: {

@@ -664,7 +664,7 @@ end;
 $$;
 ${userGrant(`${fn("save_job")}(${ctx.idType}, uuid, jsonb)`)}
 
--- An application of a candidate (a record in config.subjects, a person by
+-- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.${appExtras.length > 0 ? "\n-- fields sets the applicationExtraColumns by name." : ""}
 ${appFields.drop(fn("apply_to_job"), "uuid, jsonb, text, uuid")}
 create or replace function ${fn("apply_to_job")}(job uuid, candidate jsonb, source text, owner uuid${appFields.param})
@@ -1040,7 +1040,7 @@ export const HIRING: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Hiring",
   description:
-    "Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.",
+    "Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.",
   requires: ["memberships", "permissions", "subjects", "pipelines"],
   // The pipelines module binds the applications table, so the table comes first.
   before: "pipelines",

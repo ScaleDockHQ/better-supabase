@@ -2564,7 +2564,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:d8f0d200e1a2dd025cba77062a6ac09942a8ca461ce5d4e15c220b06d09e2fe0
+-- @bsb-hash sha256:e65a7d7e8d6f0e1a3130ed8e31de0a67c0cf8a19144cc81fa8a43992256b8429
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4387,7 +4387,7 @@ grant execute on function "better_supabase"."list_order_variants"(uuid) to authe
 
 -- A draft purchase order for an order's lines, shipped by the supplier
 -- straight to the order's shipping address (drop ship): the supplier is a
--- config.subjects record (a contacts company by default), the location the
+-- config.recordTypes record (a contacts company by default), the location the
 -- one the order's lines were reserved at or the first active one, the unit
 -- cost the variant's average cost in the order's currency (0 without one;
 -- edit the draft before placing it). Needs inventory.purchase.

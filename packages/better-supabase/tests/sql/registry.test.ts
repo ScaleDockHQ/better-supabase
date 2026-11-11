@@ -379,9 +379,7 @@ describe("rls-guard", () => {
     const file = files.find((entry) => entry.module === "unscoped");
     expect(module!.path).toMatch(/_rls_guard\.sql$/);
     expect(module!.contents).not.toMatch(/^create event trigger/m);
-    expect(file!.contents).toContain(
-      "drop event trigger if exists bsb_ensure_rls;",
-    );
+    expect(file!.contents).not.toContain("drop event trigger");
     expect(file!.contents).toContain(
       "create event trigger bsb_ensure_rls on ddl_command_end",
     );

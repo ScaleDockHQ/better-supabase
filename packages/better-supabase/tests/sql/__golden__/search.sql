@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:c328562bbcfeca2cb4e00ed1091b80919fbf60680325e83a93a729b15907f72f
--- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-hash sha256:d131099787faa751cb5f7d10871b6865c9a275af3c51fe98ee744034fca854c8
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -47,7 +47,7 @@ $$;
 revoke execute on function "better_supabase"."search_normalize"(text) from public, anon;
 grant execute on function "better_supabase"."search_normalize"(text) to authenticated, service_role;
 
--- Reads one registered subject row (config.subjects.<type>.search) into the
+-- Reads one registered subject row (config.recordTypes.<type>.search) into the
 -- index, or drops it when the row is gone or soft-deleted (deletedAt).
 create or replace function "better_supabase"."search_refresh"(subject_type text, subject_id text)
 returns boolean
@@ -75,7 +75,7 @@ begin
   case search_refresh.subject_type
     when '' then null;
     else
-      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no search entry in config.recordTypes' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
   if not v_found then
     delete from "better_supabase"."search_documents"
@@ -463,8 +463,8 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:108820c557843dc1f855418633cea054c5a52b5664a4ac7561a49d8d0727ab12
--- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-hash sha256:3c6cae593cc8653360009b87a3c04e1b91f16a2408b2f55ad18da8d10091251f
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -509,7 +509,7 @@ $$;
 revoke execute on function "better_supabase"."search_normalize"(text) from public, anon;
 grant execute on function "better_supabase"."search_normalize"(text) to authenticated, service_role;
 
--- Reads one registered subject row (config.subjects.<type>.search) into the
+-- Reads one registered subject row (config.recordTypes.<type>.search) into the
 -- index, or drops it when the row is gone or soft-deleted (deletedAt).
 create or replace function "better_supabase"."search_refresh"(subject_type text, subject_id text)
 returns boolean
@@ -537,7 +537,7 @@ begin
   case search_refresh.subject_type
     when '' then null;
     else
-      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no search entry in config.recordTypes' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
   if not v_found then
     delete from "better_supabase"."search_documents"
@@ -937,8 +937,8 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:4bef24316d6650f4930a7fc3a807fa744c8cc9b8dc593c50bc2b443df190ea1d
--- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-hash sha256:fdf001de00e4490713faaaa0a0d944393aa68fedcfacbfaa55fdfc13c401c1d5
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -988,7 +988,7 @@ $$;
 revoke execute on function "app_private"."search_normalize"(text) from public, anon;
 grant execute on function "app_private"."search_normalize"(text) to authenticated, service_role;
 
--- Reads one registered subject row (config.subjects.<type>.search) into the
+-- Reads one registered subject row (config.recordTypes.<type>.search) into the
 -- index, or drops it when the row is gone or soft-deleted (deletedAt).
 create or replace function "app_private"."search_refresh"(subject_type text, subject_id text)
 returns boolean
@@ -1016,7 +1016,7 @@ begin
   case search_refresh.subject_type
     when '' then null;
     else
-      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no search entry in config.recordTypes' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
   if not v_found then
     delete from "app_private"."search_documents"
@@ -1404,8 +1404,8 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:b0e237e095677fd61a3023652fc3c4c4073930cb4ae64959085b40326e5b3c7b
--- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-hash sha256:44848446dc3fef47c1f326c7db10885d12bae7a057b0c2219052199bd004b96d
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1450,7 +1450,7 @@ $$;
 revoke execute on function "better_supabase"."search_normalize"(text) from public, anon;
 grant execute on function "better_supabase"."search_normalize"(text) to authenticated, service_role;
 
--- Reads one registered subject row (config.subjects.<type>.search) into the
+-- Reads one registered subject row (config.recordTypes.<type>.search) into the
 -- index, or drops it when the row is gone or soft-deleted (deletedAt).
 create or replace function "better_supabase"."search_refresh"(subject_type text, subject_id text)
 returns boolean
@@ -1478,7 +1478,7 @@ begin
   case search_refresh.subject_type
     when '' then null;
     else
-      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no search entry in config.recordTypes' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
   if not v_found then
     delete from "better_supabase"."search_documents"
@@ -1948,8 +1948,8 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:740b9ef807adebb5683af26f9af1ca2b522a3c599b63faf82fc76bda7489b7f7
--- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-hash sha256:cab80e44dfd64f72f7adcf59cd9006b97863682ec40b71658046dbcf0af542cf
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1991,7 +1991,7 @@ $$;
 revoke execute on function "better_supabase"."search_normalize"(text) from public, anon;
 grant execute on function "better_supabase"."search_normalize"(text) to authenticated, service_role;
 
--- Reads one registered subject row (config.subjects.<type>.search) into the
+-- Reads one registered subject row (config.recordTypes.<type>.search) into the
 -- index, or drops it when the row is gone or soft-deleted (deletedAt).
 create or replace function "better_supabase"."search_refresh"(subject_type text, subject_id text)
 returns boolean
@@ -2019,7 +2019,7 @@ begin
   case search_refresh.subject_type
     when '' then null;
     else
-      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no search entry in config.recordTypes' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
   if not v_found then
     delete from "better_supabase"."search_documents"
@@ -2407,8 +2407,8 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:bd53dee11b36611e519ff4a33b8277c04cdd88a6d5b56ffe1b10796496c5d699
--- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-hash sha256:1117008e3c1dd31debc24fea0a8aed8d89323e10dae229796c1046b64bcad74c
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2453,7 +2453,7 @@ $$;
 revoke execute on function "better_supabase"."search_normalize"(text) from public, anon;
 grant execute on function "better_supabase"."search_normalize"(text) to authenticated, service_role;
 
--- Reads one registered subject row (config.subjects.<type>.search) into the
+-- Reads one registered subject row (config.recordTypes.<type>.search) into the
 -- index, or drops it when the row is gone or soft-deleted (deletedAt).
 create or replace function "better_supabase"."search_refresh"(subject_type text, subject_id text)
 returns boolean
@@ -2481,7 +2481,7 @@ begin
   case search_refresh.subject_type
     when '' then null;
     else
-      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no search entry in config.recordTypes' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
   if not v_found then
     delete from "better_supabase"."search_documents"
@@ -2869,8 +2869,8 @@ on conflict (name) do update
 -- ==== searched subject: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:9492f7fc821524604a7b6fac75e3cfdf7ce5c303996a695ef5edcfbd47125d6c
--- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-hash sha256:3a89b5c43c9656d5a12fd765e0abff6074dbea5bd3933a6998335c7c0ddd2f21
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2915,7 +2915,7 @@ $$;
 revoke execute on function "better_supabase"."search_normalize"(text) from public, anon;
 grant execute on function "better_supabase"."search_normalize"(text) to authenticated, service_role;
 
--- Reads one registered subject row (config.subjects.<type>.search) into the
+-- Reads one registered subject row (config.recordTypes.<type>.search) into the
 -- index, or drops it when the row is gone or soft-deleted (deletedAt).
 create or replace function "better_supabase"."search_refresh"(subject_type text, subject_id text)
 returns boolean
@@ -2950,7 +2950,7 @@ begin
         and f."customer_id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     else
-      raise exception 'this subject type has no search entry in config.subjects' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
+      raise exception 'this subject type has no search entry in config.recordTypes' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
   end case;
   if not v_found then
     delete from "better_supabase"."search_documents"

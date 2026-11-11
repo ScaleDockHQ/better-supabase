@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:66b5c3f4933caec9daafbc07af36a80201a7700f1546b330a0fac7d9f079e74f
--- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
+-- @bsb-hash sha256:9a5e9ea0fcd87027dbaf9101f99f5a495bc8404aa0d9f92c83aa1ea1fb84f8da
+-- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -200,7 +200,7 @@ $$;
 revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
--- An application of a candidate (a record in config.subjects, a person by
+-- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
 
 create or replace function "better_supabase"."apply_to_job"(job uuid, candidate jsonb, source text, owner uuid)
@@ -545,8 +545,8 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:4b5405a9fe68d47f6ddad38ef3b789460ad5211328cf87fda839060ca2241c80
--- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
+-- @bsb-hash sha256:1231731327bb233460675cfb92618331d878e79c165106ebe9f9a9f27d3eaf05
+-- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -744,7 +744,7 @@ $$;
 revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
--- An application of a candidate (a record in config.subjects, a person by
+-- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
 
 create or replace function "better_supabase"."apply_to_job"(job uuid, candidate jsonb, source text, owner uuid)
@@ -1098,8 +1098,8 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:9ae52e4744b9d13557ea50d653ed06e28b799493e079f700f920baf3574e257a
--- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
+-- @bsb-hash sha256:5876031a174576b378d87cd6465ffae35b7c7e9213a19107ea9e5145aedba579
+-- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1302,7 +1302,7 @@ $$;
 revoke execute on function "app_private"."save_job"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "app_private"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
--- An application of a candidate (a record in config.subjects, a person by
+-- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
 
 create or replace function "app_private"."apply_to_job"(job uuid, candidate jsonb, source text, owner uuid)
@@ -1647,8 +1647,8 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:44ec99f3570bacf95a7dbd9f5b9df6e14e49314345243a76d76bd936b4db9002
--- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
+-- @bsb-hash sha256:27f23b8a616f738431c31e11f1abc2724e97ad0a58dda8ab1af766aa9b7f3ae2
+-- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1846,7 +1846,7 @@ $$;
 revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
--- An application of a candidate (a record in config.subjects, a person by
+-- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
 
 create or replace function "better_supabase"."apply_to_job"(job uuid, candidate jsonb, source text, owner uuid)
@@ -2280,8 +2280,8 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:4528eb411a039867b4ababe3b23c65976f2a14845e4ea53d31831270b146a481
--- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
+-- @bsb-hash sha256:ddea00031b5a37df67a0d8f69991e246aea2553e23426ac346652d5b17627842
+-- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2469,7 +2469,7 @@ $$;
 revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
--- An application of a candidate (a record in config.subjects, a person by
+-- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
 
 create or replace function "better_supabase"."apply_to_job"(job uuid, candidate jsonb, source text, owner uuid)
@@ -2821,8 +2821,8 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:4cb3b4b654a705553af07f34740861d260bf969142e4110aeb0175d376359055
--- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
+-- @bsb-hash sha256:07e4ed06384c8ba6af606dc15294aa9cceb8bf39e1f61e531c5115ac0732249f
+-- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3020,7 +3020,7 @@ $$;
 revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
--- An application of a candidate (a record in config.subjects, a person by
+-- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
 
 create or replace function "better_supabase"."apply_to_job"(job uuid, candidate jsonb, source text, owner uuid)

@@ -1,6 +1,6 @@
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:3c05e714eacc8fc3c1518fc8b5e6891ea54299aab9459bbfc2370089023f342d
+-- @bsb-hash sha256:ceaae422894d02576dc75b7201a6c52e3a50cb66a98f615def61bfd1a0cba168
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,7 +64,7 @@ create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
 -- A supplier invited to quote. supplier_type and supplier_id name a contacts
--- party (or another config.subjects record without the contacts block).
+-- party (or another config.recordTypes record without the contacts block).
 create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,

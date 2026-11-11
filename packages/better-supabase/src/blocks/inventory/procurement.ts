@@ -35,7 +35,7 @@ export interface RequisitionInput {
   /** Where the goods should arrive. */
   readonly locationId: string;
   readonly lines: readonly RequisitionLineInput[];
-  /** A `config.subjects` record for the preferred supplier. */
+  /** A `config.recordTypes` record for the preferred supplier. */
   readonly supplier?: { readonly type: string; readonly id: string };
   /** Required when a line names a `unitCost`. */
   readonly currency?: string;
