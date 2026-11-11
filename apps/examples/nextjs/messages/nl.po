@@ -27,6 +27,21 @@ msgctxt "approvals.csSfAQ"
 msgid "Requests that need a decision before the action runs."
 msgstr "Verzoeken waarover een besluit nodig is voordat de actie wordt uitgevoerd."
 
+#: src/app/[locale]/(app)/assets/[id]/page.tsx
+msgctxt "assets.P3IVGl"
+msgid "All assets"
+msgstr ""
+
+#: src/app/[locale]/(app)/assets/page.tsx
+msgctxt "assets.ow-pP7"
+msgid "Asset register"
+msgstr ""
+
+#: src/app/[locale]/(app)/assets/page.tsx
+msgctxt "assets.kqICnA"
+msgid "Equipment, vehicles and units, with who holds them and what they are worth."
+msgstr ""
+
 #: src/app/[locale]/(app)/assistant/[id]/page.tsx
 #: src/features/assistant/components/chat-table.tsx
 msgctxt "assistant.Ug9lgd"
@@ -1022,6 +1037,21 @@ msgctxt "projects.1eG-hs"
 msgid "One tasks table as a grid, a board, a calendar, a timeline and a Gantt chart."
 msgstr "Eén takentabel als raster, bord, agenda, tijdlijn en Gantt-diagram."
 
+#: src/app/[locale]/(app)/property/leases/[id]/page.tsx
+msgctxt "leases.Z63eLG"
+msgid "All leases"
+msgstr ""
+
+#: src/app/[locale]/(app)/property/leases/page.tsx
+msgctxt "leases.VdsWJi"
+msgid "Leases"
+msgstr ""
+
+#: src/app/[locale]/(app)/property/leases/page.tsx
+msgctxt "leases.Dq_Dzu"
+msgid "Rental agreements on your assets, with rent, deposit and balance due."
+msgstr ""
+
 #: src/app/[locale]/(app)/qualifications/page.tsx
 msgctxt "qualifications.9q2Nej"
 msgid "Qualifications"
@@ -1123,6 +1153,51 @@ msgctxt "shifts.-poPQI"
 msgid "Who works when this week, with the open places on each shift."
 msgstr "Wie wanneer werkt deze week, met de open plekken per dienst."
 
+#: src/app/[locale]/(app)/shop/checkout-sessions/[id]/page.tsx
+msgctxt "checkoutSessions.c5MPt6"
+msgid "All sessions"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/checkout-sessions/page.tsx
+msgctxt "checkoutSessions.GUOI_3"
+msgid "Checkout sessions"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/checkout-sessions/page.tsx
+msgctxt "checkoutSessions.3-KEBh"
+msgid "Purchases AI agents start on a cart, over ACP or UCP."
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/collections/[id]/page.tsx
+msgctxt "collections.IVgAw4"
+msgid "All collections"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/collections/page.tsx
+msgctxt "collections.ulh3kf"
+msgid "Collections"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/collections/page.tsx
+msgctxt "collections.ePaipZ"
+msgid "Named lists of customers, personal or shared with the organization."
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/donations/[id]/page.tsx
+msgctxt "donations.XdCZD_"
+msgid "All gifts"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/donations/page.tsx
+msgctxt "donations.3qfpG8"
+msgid "Donations"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/donations/page.tsx
+msgctxt "donations.Yrrusn"
+msgid "Gifts to your funds and campaigns, with their status and receipts."
+msgstr ""
+
 #: src/app/[locale]/(app)/shop/inventory/page.tsx
 #: src/app/[locale]/(app)/shop/page.tsx
 msgctxt "shop.MlzEfB"
@@ -1183,6 +1258,51 @@ msgstr "Winkel"
 msgctxt "shop.fVeBAB"
 msgid "The products your organization sells, with their prices."
 msgstr "De producten die je organisatie verkoopt, met hun prijzen."
+
+#: src/app/[locale]/(app)/shop/passes/[id]/page.tsx
+msgctxt "passes.D7aHeS"
+msgid "All passes"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/passes/page.tsx
+msgctxt "passes.zt_qs3"
+msgid "Passes"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/passes/page.tsx
+msgctxt "passes.VJ8-g7"
+msgid "Entry passes and class credits, with their holders, uses and scans."
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/reviews/[id]/page.tsx
+msgctxt "reviews.kPKIxP"
+msgid "All reviews"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/reviews/page.tsx
+msgctxt "reviews.dUxyza"
+msgid "Reviews"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/reviews/page.tsx
+msgctxt "reviews.ynDYCq"
+msgid "Moderate what customers wrote about your products."
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/warranty/[id]/page.tsx
+msgctxt "warranty.0nGdiz"
+msgid "All claims"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/warranty/page.tsx
+msgctxt "warranty._JFTDQ"
+msgid "Warranty claims"
+msgstr ""
+
+#: src/app/[locale]/(app)/shop/warranty/page.tsx
+msgctxt "warranty.KCA7VS"
+msgid "Claims on your assets, from draft to decision."
+msgstr ""
 
 #: src/app/[locale]/(app)/templates/page.tsx
 msgctxt "templates.A3ptul"
@@ -3216,6 +3336,205 @@ msgstr "Annuleren"
 msgctxt "approvals.PoX2HN"
 msgid "Send request"
 msgstr "Verzoek versturen"
+
+#: src/features/assets/components/asset-actions-bar.tsx
+msgctxt "assets.S7kM2a"
+msgid "Asset updated"
+msgstr ""
+
+#: src/features/assets/components/asset-actions-bar.tsx
+msgctxt "assets.E8zzIG"
+msgid "Release"
+msgstr ""
+
+#: src/features/assets/components/asset-actions-bar.tsx
+msgctxt "assets.iIhd9w"
+msgid "Send to maintenance"
+msgstr ""
+
+#: src/features/assets/components/asset-actions-bar.tsx
+msgctxt "assets.3SfdR4"
+msgid "Return to service"
+msgstr ""
+
+#: src/features/assets/components/asset-actions-bar.tsx
+msgctxt "assets.CNpEW_"
+msgid "Retire"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.oBtgwy"
+msgid "Assignments"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.l2FGXN"
+msgid "Who held the asset, newest first."
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.iE2ADx"
+msgid "Nobody has held this asset yet."
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.dzaWVo"
+msgid "held now"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.gdXSEV"
+msgid "Depreciation"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.dHITlz"
+msgid "The months the asset has depreciated, oldest first."
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.cudMtb"
+msgid "No depreciation booked."
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.b5da4z"
+msgid "{kind}, not placed at a location"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.GufXy5"
+msgid "Value"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+#: src/features/assets/components/asset-record-list.tsx
+msgctxt "assets.fBG_Ge"
+msgid "Cost"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.rUTmNM"
+msgid "Book value"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+msgctxt "assets.U5BYsX"
+msgid "Depreciated"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets.P8I4q9"
+msgid "Serial number"
+msgstr ""
+
+#: src/features/assets/components/asset-detail.tsx
+#: src/features/assets/components/asset-record-list.tsx
+msgctxt "assets.rIAJlE"
+msgid "Added"
+msgstr ""
+
+#: src/features/assets/components/asset-list.tsx
+msgctxt "assets.zQdivZ"
+msgid "Pick an organization to see its assets."
+msgstr ""
+
+#: src/features/assets/components/asset-record-list.tsx
+msgctxt "assets.WKCp0D"
+msgid "Asset"
+msgstr ""
+
+#: src/features/assets/components/asset-record-list.tsx
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets.e5x8FT"
+msgid "Kind"
+msgstr ""
+
+#: src/features/assets/components/asset-record-list.tsx
+msgctxt "assets.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/assets/components/asset-record-list.tsx
+msgctxt "assets.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/assets/components/asset-record-list.tsx
+msgctxt "assets.tgiFx0"
+msgid "Search by name, tag or serial number"
+msgstr ""
+
+#: src/features/assets/components/asset-record-list.tsx
+msgctxt "assets.twDMDX"
+msgid "No assets found"
+msgstr ""
+
+#: src/features/assets/components/asset-record-list.tsx
+msgctxt "assets.JmTf-8"
+msgid "Add an asset, or change the filters."
+msgstr ""
+
+#: src/features/assets/components/asset-record-list.tsx
+msgctxt "assets.gzp6xc"
+msgid "Change the filters to see more."
+msgstr ""
+
+#: src/features/assets/components/asset-status.tsx
+msgctxt "assets.lAgDmm"
+msgid "In service"
+msgstr ""
+
+#: src/features/assets/components/asset-status.tsx
+msgctxt "assets.PP8NmA"
+msgid "In maintenance"
+msgstr ""
+
+#: src/features/assets/components/asset-status.tsx
+msgctxt "assets.2yjlZf"
+msgid "Retired"
+msgstr ""
+
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets.nNYeAO"
+msgid "Asset added"
+msgstr ""
+
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets.HDxDWl"
+msgid "New asset"
+msgstr ""
+
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets.5FWGyM"
+msgid "Add equipment, a vehicle or a unit to the register."
+msgstr ""
+
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets.HAlOn1"
+msgid "Name"
+msgstr ""
+
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets._jAllh"
+msgid "Lowercase letters, digits and underscores, such as vehicle or forklift."
+msgstr ""
+
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets.18HJlm"
+msgid "Tag"
+msgstr ""
+
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/assets/components/create-asset-dialog.tsx
+msgctxt "assets.JIzSgd"
+msgid "Add asset"
+msgstr ""
 
 #: src/features/assistant/components/agent-activity.tsx
 msgctxt "assistant.kjUNOW"
@@ -5687,6 +6006,108 @@ msgctxt "chat.IQWhFZ"
 msgid "Summarize"
 msgstr "Samenvatten"
 
+#: src/features/checkout-sessions/components/session-actions-bar.tsx
+msgctxt "checkoutSessions.06Cl8B"
+msgid "Session canceled"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-actions-bar.tsx
+msgctxt "checkoutSessions.7b6RRJ"
+msgid "Cancel session"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-detail.tsx
+msgctxt "checkoutSessions.9gQTBW"
+msgid "Session {id}"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-detail.tsx
+msgctxt "checkoutSessions.Lv0zJu"
+msgid "Details"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-detail.tsx
+#: src/features/checkout-sessions/components/session-record-list.tsx
+msgctxt "checkoutSessions.0QLzxo"
+msgid "Protocol"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-detail.tsx
+#: src/features/checkout-sessions/components/session-record-list.tsx
+msgctxt "checkoutSessions.TDUfVk"
+msgid "Started"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-detail.tsx
+msgctxt "checkoutSessions.xhQMeQ"
+msgid "Expires"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-detail.tsx
+msgctxt "checkoutSessions.XPruqs"
+msgid "Order"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-list.tsx
+msgctxt "checkoutSessions.P5a5OK"
+msgid "Pick an organization to see its checkout sessions."
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-record-list.tsx
+msgctxt "checkoutSessions.zJOi3I"
+msgid "Buyer not given yet"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-record-list.tsx
+msgctxt "checkoutSessions.sGT01a"
+msgid "Buyer"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-record-list.tsx
+msgctxt "checkoutSessions.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-record-list.tsx
+msgctxt "checkoutSessions.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-record-list.tsx
+msgctxt "checkoutSessions.HGPvrc"
+msgid "No checkout sessions found"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-record-list.tsx
+msgctxt "checkoutSessions.F1rQn9"
+msgid "Agents that buy through ACP or UCP open a session on a cart."
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-status.tsx
+msgctxt "checkoutSessions.JfG49w"
+msgid "Open"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-status.tsx
+msgctxt "checkoutSessions.IZFEUg"
+msgid "Ready"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-status.tsx
+msgctxt "checkoutSessions.95stPq"
+msgid "Completed"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-status.tsx
+msgctxt "checkoutSessions.PFtMy9"
+msgid "Canceled"
+msgstr ""
+
+#: src/features/checkout-sessions/components/session-status.tsx
+msgctxt "checkoutSessions.RahCRH"
+msgid "Expired"
+msgstr ""
+
 #: src/features/clinical-decision-support/components/care-alerts.tsx
 msgctxt "care-alerts.2pzTGC"
 msgid "Critical"
@@ -5791,6 +6212,150 @@ msgstr "Opnieuw controleren"
 msgctxt "care-alerts.wJrzbz"
 msgid "Read the decision support guide"
 msgstr "Lees de gids over beslissingsondersteuning"
+
+#: src/features/collections/components/collection-actions-bar.tsx
+#: src/features/collections/components/collection-entries.tsx
+msgctxt "collections.E2uiWk"
+msgid "Collection updated"
+msgstr ""
+
+#: src/features/collections/components/collection-actions-bar.tsx
+msgctxt "collections.zz6ObK"
+msgid "Restore"
+msgstr ""
+
+#: src/features/collections/components/collection-actions-bar.tsx
+msgctxt "collections.hrgo-E"
+msgid "Archive"
+msgstr ""
+
+#: src/features/collections/components/collection-detail.tsx
+msgctxt "collections.TkYZBT"
+msgid "Customers"
+msgstr ""
+
+#: src/features/collections/components/collection-entries.tsx
+msgctxt "collections.yTRjtL"
+msgid "Add a customer"
+msgstr ""
+
+#: src/features/collections/components/collection-entries.tsx
+msgctxt "collections.19tXhc"
+msgid "Nothing in this collection yet."
+msgstr ""
+
+#: src/features/collections/components/collection-entries.tsx
+msgctxt "collections.G5e8UX"
+msgid "Remove {title}"
+msgstr ""
+
+#: src/features/collections/components/collection-list.tsx
+msgctxt "collections.-C3pui"
+msgid "Pick an organization to see its collections."
+msgstr ""
+
+#: src/features/collections/components/collection-record-list.tsx
+msgctxt "collections.phAZoj"
+msgid "Collection"
+msgstr ""
+
+#: src/features/collections/components/collection-record-list.tsx
+msgctxt "collections.kHR5oM"
+msgid "Holds"
+msgstr ""
+
+#: src/features/collections/components/collection-record-list.tsx
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections._wa1Sd"
+msgid "Shared with"
+msgstr ""
+
+#: src/features/collections/components/collection-record-list.tsx
+msgctxt "collections.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/collections/components/collection-record-list.tsx
+msgctxt "collections.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/collections/components/collection-record-list.tsx
+msgctxt "collections.Yw-9F7"
+msgid "No collections found"
+msgstr ""
+
+#: src/features/collections/components/collection-record-list.tsx
+msgctxt "collections.U-1FUy"
+msgid "Create a collection, or change the filters."
+msgstr ""
+
+#: src/features/collections/components/collection-record-list.tsx
+msgctxt "collections.gzp6xc"
+msgid "Change the filters to see more."
+msgstr ""
+
+#: src/features/collections/components/collection-status.tsx
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections.NDx-B0"
+msgid "Personal"
+msgstr ""
+
+#: src/features/collections/components/collection-status.tsx
+msgctxt "collections.wsUmh9"
+msgid "Team"
+msgstr ""
+
+#: src/features/collections/components/collection-status.tsx
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections.K56Dim"
+msgid "Organization"
+msgstr ""
+
+#: src/features/collections/components/collection-status.tsx
+msgctxt "collections.3a5wL8"
+msgid "Active"
+msgstr ""
+
+#: src/features/collections/components/collection-status.tsx
+msgctxt "collections.0HT-Ib"
+msgid "Archived"
+msgstr ""
+
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections.6LqbaB"
+msgid "Collection created"
+msgstr ""
+
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections.36dp_F"
+msgid "New collection"
+msgstr ""
+
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections.BQYlsR"
+msgid "A named list of customers you can come back to."
+msgstr ""
+
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections.HAlOn1"
+msgid "Name"
+msgstr ""
+
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections.Q8Qw5B"
+msgid "Description"
+msgstr ""
+
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/collections/components/create-collection-dialog.tsx
+msgctxt "collections.9lnhZ4"
+msgid "Create collection"
+msgstr ""
 
 #: src/features/community/components/post-board.tsx
 msgctxt "community.yUcWBK"
@@ -9057,6 +9622,155 @@ msgstr ""
 #: src/features/domains/components/domain-record-list.tsx
 msgctxt "domains.gzp6xc"
 msgid "Change the filters to see more."
+msgstr ""
+
+#: src/features/donations/components/gift-detail.tsx
+msgctxt "donations.5c1Fil"
+msgid "Gift from {donor}"
+msgstr ""
+
+#: src/features/donations/components/gift-detail.tsx
+msgctxt "donations.Lv0zJu"
+msgid "Details"
+msgstr ""
+
+#: src/features/donations/components/gift-detail.tsx
+#: src/features/donations/components/gift-record-list.tsx
+msgctxt "donations.z_wUXE"
+msgid "Received"
+msgstr ""
+
+#: src/features/donations/components/gift-detail.tsx
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations.Ctmnwu"
+msgid "Fund"
+msgstr ""
+
+#: src/features/donations/components/gift-detail.tsx
+msgctxt "donations.W-1MOm"
+msgid "Method"
+msgstr ""
+
+#: src/features/donations/components/gift-detail.tsx
+msgctxt "donations.D0tozv"
+msgid "Receipt"
+msgstr ""
+
+#: src/features/donations/components/gift-detail.tsx
+msgctxt "donations.3-19Kb"
+msgid "Issued"
+msgstr ""
+
+#: src/features/donations/components/gift-detail.tsx
+msgctxt "donations.qMePPG"
+msgid "Note"
+msgstr ""
+
+#: src/features/donations/components/gift-list.tsx
+msgctxt "donations.LHidat"
+msgid "Pick an organization to see its gifts."
+msgstr ""
+
+#: src/features/donations/components/gift-record-list.tsx
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations.EizkPn"
+msgid "Donor"
+msgstr ""
+
+#: src/features/donations/components/gift-record-list.tsx
+msgctxt "donations.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/donations/components/gift-record-list.tsx
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations._0TOL5"
+msgid "Amount"
+msgstr ""
+
+#: src/features/donations/components/gift-record-list.tsx
+msgctxt "donations.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/donations/components/gift-record-list.tsx
+msgctxt "donations.oC1rmr"
+msgid "No gifts found"
+msgstr ""
+
+#: src/features/donations/components/gift-record-list.tsx
+msgctxt "donations.87m3g7"
+msgid "Record a gift, or change the filters."
+msgstr ""
+
+#: src/features/donations/components/gift-record-list.tsx
+msgctxt "donations.gzp6xc"
+msgid "Change the filters to see more."
+msgstr ""
+
+#: src/features/donations/components/gift-status.tsx
+msgctxt "donations.eKEL_g"
+msgid "Pending"
+msgstr ""
+
+#: src/features/donations/components/gift-status.tsx
+msgctxt "donations.QYYHH3"
+msgid "Posted"
+msgstr ""
+
+#: src/features/donations/components/gift-status.tsx
+msgctxt "donations.vXCeIi"
+msgid "Failed"
+msgstr ""
+
+#: src/features/donations/components/gift-status.tsx
+msgctxt "donations.Gs86nL"
+msgid "Refunded"
+msgstr ""
+
+#: src/features/donations/components/issue-receipt-button.tsx
+msgctxt "donations.W8O-nR"
+msgid "Receipt {number} issued"
+msgstr ""
+
+#: src/features/donations/components/issue-receipt-button.tsx
+msgctxt "donations.iqFlZ_"
+msgid "Issue receipt"
+msgstr ""
+
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations.CIv0AB"
+msgid "Gift recorded"
+msgstr ""
+
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations.eECjGH"
+msgid "Record a gift"
+msgstr ""
+
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations.PbZJK6"
+msgid "The gift posts on the ledger at once."
+msgstr ""
+
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations.QoaLp8"
+msgid "Pick a customer"
+msgstr ""
+
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations.PnWIj4"
+msgid "No fund"
+msgstr ""
+
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/donations/components/record-gift-dialog.tsx
+msgctxt "donations.9T6WqS"
+msgid "Record gift"
 msgstr ""
 
 #: src/features/drive/components/document-register.tsx
@@ -12550,6 +13264,229 @@ msgctxt "knowledge.yzXrXW"
 msgid "Score relative to the best hit"
 msgstr ""
 
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.r_piHy"
+msgid "Lease drafted"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.Z5PQxA"
+msgid "New lease"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.4JzQf-"
+msgid "A draft lease starts when you activate it."
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.xkB-8Z"
+msgid "Unit"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.d30bz5"
+msgid "Pick an asset"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.lgMEj0"
+msgid "Tenant"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.QoaLp8"
+msgid "Pick a customer"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.nwnCWi"
+msgid "Starts on"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.jAiS90"
+msgid "Monthly rent"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+#: src/features/leases/components/lease-detail.tsx
+msgctxt "leases.dIgBOz"
+msgid "Deposit"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/leases/components/create-lease-dialog.tsx
+msgctxt "leases.gpXaC0"
+msgid "Draft lease"
+msgstr ""
+
+#: src/features/leases/components/lease-actions-bar.tsx
+msgctxt "leases._UP7ld"
+msgid "Lease updated"
+msgstr ""
+
+#: src/features/leases/components/lease-actions-bar.tsx
+msgctxt "leases.AcxDgz"
+msgid "Activate"
+msgstr ""
+
+#: src/features/leases/components/lease-actions-bar.tsx
+msgctxt "leases.vE-6Uc"
+msgid "Terminate today"
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+msgctxt "leases.GVnjf9"
+msgid "Rent periods"
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+msgctxt "leases.UdFvmn"
+msgid "The periods posted on the ledger, newest first."
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+msgctxt "leases.6N02vt"
+msgid "No rent posted yet."
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+msgctxt "leases.bnL41w"
+msgid "{start} to {end}"
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+msgctxt "leases.w-qgxO"
+msgid "open end"
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+msgctxt "leases.xkr-zo"
+msgid "Terms"
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.tmmKme"
+msgid "Rent"
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.eROcDW"
+msgid "Balance due"
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+msgctxt "leases.JMJlD8"
+msgid "Deposit held"
+msgstr ""
+
+#: src/features/leases/components/lease-detail.tsx
+msgctxt "leases.Gqt6i5"
+msgid "Ended for"
+msgstr ""
+
+#: src/features/leases/components/lease-list.tsx
+msgctxt "leases.J5j46S"
+msgid "Pick an organization to see its leases."
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.SRmbMn"
+msgid "a week"
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.FJKno2"
+msgid "a month"
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.Xh9F07"
+msgid "a quarter"
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.aLOXqo"
+msgid "a year"
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.zIqjpO"
+msgid "Lease"
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.qTy5se"
+msgid "Term"
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.E2_VjS"
+msgid "No leases found"
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.p-jsL9"
+msgid "Draft a lease, or change the filters."
+msgstr ""
+
+#: src/features/leases/components/lease-record-list.tsx
+msgctxt "leases.gzp6xc"
+msgid "Change the filters to see more."
+msgstr ""
+
+#: src/features/leases/components/lease-status.tsx
+msgctxt "leases.W6nwjo"
+msgid "Draft"
+msgstr ""
+
+#: src/features/leases/components/lease-status.tsx
+msgctxt "leases.3a5wL8"
+msgid "Active"
+msgstr ""
+
+#: src/features/leases/components/lease-status.tsx
+msgctxt "leases.TP_cMX"
+msgid "Ended"
+msgstr ""
+
+#: src/features/leases/components/lease-status.tsx
+msgctxt "leases.c8NRYr"
+msgid "Terminated"
+msgstr ""
+
+#: src/features/leases/components/record-payment-form.tsx
+msgctxt "leases.jdTej-"
+msgid "Payment recorded"
+msgstr ""
+
+#: src/features/leases/components/record-payment-form.tsx
+msgctxt "leases.NmK6zy"
+msgid "Payment"
+msgstr ""
+
+#: src/features/leases/components/record-payment-form.tsx
+msgctxt "leases.ldCcj1"
+msgid "Record payment"
+msgstr ""
+
 #: src/features/leave/components/leave-decision.tsx
 msgctxt "people.yPz9pN"
 msgid "Leave approved"
@@ -14193,6 +15130,54 @@ msgstr "Offerteaanvragen"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.3qfpG8"
+msgid "Donations"
+msgstr ""
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.oJTnoi"
+msgid "Warranty"
+msgstr ""
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.dUxyza"
+msgid "Reviews"
+msgstr ""
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.ulh3kf"
+msgid "Collections"
+msgstr ""
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.GUOI_3"
+msgid "Checkout sessions"
+msgstr ""
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.zt_qs3"
+msgid "Passes"
+msgstr ""
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.VdsWJi"
+msgid "Leases"
+msgstr ""
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.ow-pP7"
+msgid "Asset register"
+msgstr ""
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.CKpmLI"
 msgid "Tills"
 msgstr "Kassa's"
@@ -15229,6 +16214,180 @@ msgstr "Beheerder"
 msgctxt "organization.7L86Z5"
 msgid "Member"
 msgstr "Lid"
+
+#: src/features/passes/components/issue-pass-dialog.tsx
+msgctxt "passes.50nz8Z"
+msgid "Pass issued"
+msgstr ""
+
+#: src/features/passes/components/issue-pass-dialog.tsx
+msgctxt "passes.BNEYvH"
+msgid "Issue a pass"
+msgstr ""
+
+#: src/features/passes/components/issue-pass-dialog.tsx
+msgctxt "passes.Rs_YA6"
+msgid "The holder gets a signed QR token that staff scan at the door."
+msgstr ""
+
+#: src/features/passes/components/issue-pass-dialog.tsx
+msgctxt "passes.ESsDk9"
+msgid "Holder name"
+msgstr ""
+
+#: src/features/passes/components/issue-pass-dialog.tsx
+msgctxt "passes.sy-pv5"
+msgid "Email"
+msgstr ""
+
+#: src/features/passes/components/issue-pass-dialog.tsx
+#: src/features/passes/components/pass-detail.tsx
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.Vb-qQ4"
+msgid "Uses"
+msgstr ""
+
+#: src/features/passes/components/issue-pass-dialog.tsx
+msgctxt "passes.9IPBEF"
+msgid "Leave empty for unlimited entries."
+msgstr ""
+
+#: src/features/passes/components/issue-pass-dialog.tsx
+msgctxt "passes.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/passes/components/issue-pass-dialog.tsx
+msgctxt "passes.h4wnyq"
+msgid "Issue pass"
+msgstr ""
+
+#: src/features/passes/components/pass-actions-bar.tsx
+msgctxt "passes.BBZ5do"
+msgid "Checked in"
+msgstr ""
+
+#: src/features/passes/components/pass-actions-bar.tsx
+msgctxt "passes.YYE_Mx"
+msgid "The pass was turned away"
+msgstr ""
+
+#: src/features/passes/components/pass-actions-bar.tsx
+msgctxt "passes.02BMf4"
+msgid "Pass revoked"
+msgstr ""
+
+#: src/features/passes/components/pass-actions-bar.tsx
+msgctxt "passes.XEotoJ"
+msgid "Check in"
+msgstr ""
+
+#: src/features/passes/components/pass-actions-bar.tsx
+msgctxt "passes.tnRDuU"
+msgid "Revoke"
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+msgctxt "passes.JpDr3g"
+msgid "Check-ins"
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+msgctxt "passes.wWLk6M"
+msgid "Every scan of this pass, newest first."
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+msgctxt "passes.0gYHlj"
+msgid "Not scanned yet."
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+msgctxt "passes.w2m5Lv"
+msgid "Admitted"
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+msgctxt "passes.NT-3fY"
+msgid "Refused"
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+msgctxt "passes.3JQG0v"
+msgid "Pass without a holder"
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+msgctxt "passes.otSjIT"
+msgid "Validity"
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+msgctxt "passes.Gyn5kJ"
+msgid "Valid from"
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.C3Fz7P"
+msgid "Valid until"
+msgstr ""
+
+#: src/features/passes/components/pass-detail.tsx
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.GwMpla"
+msgid "No end"
+msgstr ""
+
+#: src/features/passes/components/pass-list.tsx
+msgctxt "passes.dbxyZ7"
+msgid "Pick an organization to see its passes."
+msgstr ""
+
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.FoPi55"
+msgid "No holder"
+msgstr ""
+
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.Lckebo"
+msgid "Holder"
+msgstr ""
+
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.iUZYc_"
+msgid "No passes found"
+msgstr ""
+
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.rLs16z"
+msgid "Issue a pass, or change the filters."
+msgstr ""
+
+#: src/features/passes/components/pass-record-list.tsx
+msgctxt "passes.gzp6xc"
+msgid "Change the filters to see more."
+msgstr ""
+
+#: src/features/passes/components/pass-status.tsx
+msgctxt "passes.3a5wL8"
+msgid "Active"
+msgstr ""
+
+#: src/features/passes/components/pass-status.tsx
+msgctxt "passes.f0W26f"
+msgid "Revoked"
+msgstr ""
 
 #: src/features/payables/components/payables-aging.tsx
 msgctxt "payables.zEOJmf"
@@ -17012,6 +18171,166 @@ msgstr "Status"
 msgctxt "qualifications.xhQMeQ"
 msgid "Expires"
 msgstr "Verloopt"
+
+#: src/features/reviews/components/review-actions-bar.tsx
+msgctxt "reviews.sr0ajW"
+msgid "Review published"
+msgstr ""
+
+#: src/features/reviews/components/review-actions-bar.tsx
+msgctxt "reviews.syEQFE"
+msgid "Publish"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+msgctxt "reviews.GzKBSX"
+msgid "Review by {author}"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+#: src/features/reviews/components/review-record-list.tsx
+msgctxt "reviews.R-J5ox"
+msgid "Review"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+msgctxt "reviews.ytv6-t"
+msgid "No text, a rating only."
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+#: src/features/reviews/components/review-record-list.tsx
+msgctxt "reviews.tWkQ2J"
+msgid "Author"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+msgctxt "reviews.LLtKhp"
+msgid "Subject"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+msgctxt "reviews.24emac"
+msgid "Verified purchase"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+msgctxt "reviews.a5msuh"
+msgid "Yes"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+msgctxt "reviews.oUWADl"
+msgid "No"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+#: src/features/reviews/components/review-record-list.tsx
+msgctxt "reviews.0niZgE"
+msgid "Written"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.AkCxS_"
+msgid "Reason"
+msgstr ""
+
+#: src/features/reviews/components/review-detail.tsx
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.9HU8vw"
+msgid "Reply"
+msgstr ""
+
+#: src/features/reviews/components/review-list.tsx
+msgctxt "reviews.G_udvx"
+msgid "Pick an organization to see its reviews."
+msgstr ""
+
+#: src/features/reviews/components/review-record-list.tsx
+msgctxt "reviews.yMbwL1"
+msgid "Rating only"
+msgstr ""
+
+#: src/features/reviews/components/review-record-list.tsx
+msgctxt "reviews.ETRyBL"
+msgid "Rating"
+msgstr ""
+
+#: src/features/reviews/components/review-record-list.tsx
+msgctxt "reviews.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/reviews/components/review-record-list.tsx
+msgctxt "reviews.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/reviews/components/review-record-list.tsx
+msgctxt "reviews.DoCCfp"
+msgid "No reviews found"
+msgstr ""
+
+#: src/features/reviews/components/review-record-list.tsx
+msgctxt "reviews.okuUUw"
+msgid "Reviews written on the store show here for moderation."
+msgstr ""
+
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.EVPFSW"
+msgid "Review updated"
+msgstr ""
+
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.VzIOKf"
+msgid "Reject"
+msgstr ""
+
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.zH9MCQ"
+msgid "Reject the review"
+msgstr ""
+
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.Tl13Mj"
+msgid "Reply to the review"
+msgstr ""
+
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.ebXQKP"
+msgid "The author sees the reason."
+msgstr ""
+
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.vPueMd"
+msgid "The reply shows under the review on the store."
+msgstr ""
+
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/reviews/components/review-response-dialog.tsx
+msgctxt "reviews.R4RAjX"
+msgid "Send reply"
+msgstr ""
+
+#: src/features/reviews/components/review-status.tsx
+msgctxt "reviews.eKEL_g"
+msgid "Pending"
+msgstr ""
+
+#: src/features/reviews/components/review-status.tsx
+msgctxt "reviews.w7tf2z"
+msgid "Published"
+msgstr ""
+
+#: src/features/reviews/components/review-status.tsx
+msgctxt "reviews.5qaD7s"
+msgid "Rejected"
+msgstr ""
 
 #: src/features/rfqs/components/rfqs.tsx
 msgctxt "rfqs.W6nwjo"
@@ -22827,6 +24146,182 @@ msgstr "Reserveer voorraad voor een document en maak er een picklijst van om een
 msgctxt "warehouse.r7AyZt"
 msgid "Read the warehouse guide"
 msgstr "Lees de magazijngids"
+
+#: src/features/warranty/components/claim-actions-bar.tsx
+#: src/features/warranty/components/decide-claim-dialog.tsx
+msgctxt "warranty.nvyoau"
+msgid "Claim updated"
+msgstr ""
+
+#: src/features/warranty/components/claim-actions-bar.tsx
+msgctxt "warranty.wSZR47"
+msgid "Submit"
+msgstr ""
+
+#: src/features/warranty/components/claim-actions-bar.tsx
+msgctxt "warranty.rbrahO"
+msgid "Close"
+msgstr ""
+
+#: src/features/warranty/components/claim-detail.tsx
+msgctxt "warranty.Lv0zJu"
+msgid "Details"
+msgstr ""
+
+#: src/features/warranty/components/claim-detail.tsx
+#: src/features/warranty/components/claim-record-list.tsx
+#: src/features/warranty/components/create-claim-dialog.tsx
+msgctxt "warranty.WKCp0D"
+msgid "Asset"
+msgstr ""
+
+#: src/features/warranty/components/claim-detail.tsx
+#: src/features/warranty/components/create-claim-dialog.tsx
+msgctxt "warranty.VI_-Qx"
+msgid "Manufacturer"
+msgstr ""
+
+#: src/features/warranty/components/claim-detail.tsx
+#: src/features/warranty/components/decide-claim-dialog.tsx
+msgctxt "warranty.vYLLLG"
+msgid "Decision"
+msgstr ""
+
+#: src/features/warranty/components/claim-detail.tsx
+msgctxt "warranty.R0YuTC"
+msgid "Decided"
+msgstr ""
+
+#: src/features/warranty/components/claim-list.tsx
+msgctxt "warranty.FFst5y"
+msgid "Pick an organization to see its claims."
+msgstr ""
+
+#: src/features/warranty/components/claim-record-list.tsx
+msgctxt "warranty.6Sj2lN"
+msgid "Claim"
+msgstr ""
+
+#: src/features/warranty/components/claim-record-list.tsx
+msgctxt "warranty.tzMNF3"
+msgid "Status"
+msgstr ""
+
+#: src/features/warranty/components/claim-record-list.tsx
+msgctxt "warranty._0TOL5"
+msgid "Amount"
+msgstr ""
+
+#: src/features/warranty/components/claim-record-list.tsx
+msgctxt "warranty.MeKajs"
+msgid "Newest first"
+msgstr ""
+
+#: src/features/warranty/components/claim-record-list.tsx
+msgctxt "warranty.60pzGc"
+msgid "No claims found"
+msgstr ""
+
+#: src/features/warranty/components/claim-record-list.tsx
+msgctxt "warranty.rCnMmk"
+msgid "File a claim, or change the filters."
+msgstr ""
+
+#: src/features/warranty/components/claim-record-list.tsx
+msgctxt "warranty.gzp6xc"
+msgid "Change the filters to see more."
+msgstr ""
+
+#: src/features/warranty/components/claim-status.tsx
+msgctxt "warranty.W6nwjo"
+msgid "Draft"
+msgstr ""
+
+#: src/features/warranty/components/claim-status.tsx
+msgctxt "warranty.raexxM"
+msgid "Submitted"
+msgstr ""
+
+#: src/features/warranty/components/claim-status.tsx
+msgctxt "warranty.6XFO_C"
+msgid "Approved"
+msgstr ""
+
+#: src/features/warranty/components/claim-status.tsx
+msgctxt "warranty.5kp1Ie"
+msgid "Denied"
+msgstr ""
+
+#: src/features/warranty/components/claim-status.tsx
+msgctxt "warranty.Fv1ZSz"
+msgid "Closed"
+msgstr ""
+
+#: src/features/warranty/components/create-claim-dialog.tsx
+msgctxt "warranty.C8_4RI"
+msgid "Claim filed"
+msgstr ""
+
+#: src/features/warranty/components/create-claim-dialog.tsx
+msgctxt "warranty.WEcJHf"
+msgid "File a claim"
+msgstr ""
+
+#: src/features/warranty/components/create-claim-dialog.tsx
+msgctxt "warranty.rEmh57"
+msgid "A draft claim is sent to the maker when you submit it."
+msgstr ""
+
+#: src/features/warranty/components/create-claim-dialog.tsx
+msgctxt "warranty.9a9-ww"
+msgid "Title"
+msgstr ""
+
+#: src/features/warranty/components/create-claim-dialog.tsx
+msgctxt "warranty.d30bz5"
+msgid "Pick an asset"
+msgstr ""
+
+#: src/features/warranty/components/create-claim-dialog.tsx
+msgctxt "warranty.AEGRCT"
+msgid "Covered amount"
+msgstr ""
+
+#: src/features/warranty/components/create-claim-dialog.tsx
+#: src/features/warranty/components/decide-claim-dialog.tsx
+msgctxt "warranty.47FYwb"
+msgid "Cancel"
+msgstr ""
+
+#: src/features/warranty/components/create-claim-dialog.tsx
+msgctxt "warranty.zsu88m"
+msgid "File claim"
+msgstr ""
+
+#: src/features/warranty/components/decide-claim-dialog.tsx
+msgctxt "warranty.WCaf5C"
+msgid "Approve"
+msgstr ""
+
+#: src/features/warranty/components/decide-claim-dialog.tsx
+msgctxt "warranty.htvX-Z"
+msgid "Deny"
+msgstr ""
+
+#: src/features/warranty/components/decide-claim-dialog.tsx
+msgctxt "warranty.EJPbW9"
+msgid "Approve the claim"
+msgstr ""
+
+#: src/features/warranty/components/decide-claim-dialog.tsx
+msgctxt "warranty.L_hKP7"
+msgid "Deny the claim"
+msgstr ""
+
+#: src/features/warranty/components/decide-claim-dialog.tsx
+msgctxt "warranty.z2u4Lg"
+msgid "The decision is stored with the claim and shown to the filer."
+msgstr ""
 
 #: src/features/webhooks/components/webhook-endpoint-controls.tsx
 msgctxt "webhooks.KK_nq1"
