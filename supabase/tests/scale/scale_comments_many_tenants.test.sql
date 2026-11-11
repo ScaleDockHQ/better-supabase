@@ -1,14 +1,15 @@
 -- Comment reads for a member of many tenants (ADR 0675): bsb.scale_tenants
 -- tenants (default 50) with three projects each, every project with a record
 -- conversation and one comment, so the caller reads about 150 record
--- conversations. list_comments on one record and comment_counts over one
--- tenant's records print SCALE_MS; they read the record's conversation by key
--- and inline the subject check, so neither grows with the other conversations.
+-- conversations. list_comments on one record, messaging_messages_json over a
+-- 50-comment thread and comment_counts over one tenant's records print
+-- SCALE_MS; they check each conversation once and read its messages by key,
+-- so none grows with the other conversations or with the thread's length.
 -- A user outside the tenants reads nothing, and the inlined policy sees the
 -- same conversations as can_subject per row. SCALE_CALLS counts the
 -- can_subject calls of each read.
 begin;
-select plan(9);
+select plan(13);
 
 select set_config('bsb.tenants', coalesce(nullif(current_setting('bsb.scale_tenants', true), ''), '50'), true);
 
@@ -74,11 +75,21 @@ update t0 set calls = pg_temp.can_subject_calls();
 
 update t0 set t = clock_timestamp(), calls = pg_temp.can_subject_calls();
 select jsonb_array_length(better_supabase.list_comments(:'tenant', 'project', :'thread')) as thread_count \gset
+select pg_temp.can_subject_calls() - (select calls from t0) as thread_calls \gset
 select diag('SCALE_MS list_comments_thread_50=' || round(extract(epoch from clock_timestamp() - (select t from t0)) * 1000) || ' SCALE_CALLS ' || (pg_temp.can_subject_calls() - (select calls from t0)));
 update t0 set calls = pg_temp.can_subject_calls();
 
 update t0 set t = clock_timestamp(), calls = pg_temp.can_subject_calls();
+select jsonb_array_length(better_supabase.messaging_messages_json(array(
+  select m.id from better_supabase.messages m where m.conversation_id = :'thread'
+))) as json_count \gset
+select pg_temp.can_subject_calls() - (select calls from t0) as json_calls \gset
+select diag('SCALE_MS messages_json_thread_50=' || round(extract(epoch from clock_timestamp() - (select t from t0)) * 1000) || ' SCALE_CALLS ' || (pg_temp.can_subject_calls() - (select calls from t0)));
+update t0 set calls = pg_temp.can_subject_calls();
+
+update t0 set t = clock_timestamp(), calls = pg_temp.can_subject_calls();
 select better_supabase.comment_counts(:'tenant', 'project', :'ids'::text[]) as counts \gset
+select pg_temp.can_subject_calls() - (select calls from t0) as counts_calls \gset
 select diag('SCALE_MS comment_counts_tenant=' || round(extract(epoch from clock_timestamp() - (select t from t0)) * 1000) || ' SCALE_CALLS ' || (pg_temp.can_subject_calls() - (select calls from t0)));
 update t0 set calls = pg_temp.can_subject_calls();
 
@@ -94,7 +105,11 @@ where c.id in (select id from scale_projects)
 select is(:one_count, 1, 'a member reads the one comment on a record');
 select cmp_ok(:one_calls::bigint, '<', 10::bigint, 'reading one comment checks its own conversation, not every conversation the member reads');
 select is(:thread_count, 50, 'a member reads every comment of a thread');
+select cmp_ok(:thread_calls::bigint, '<', 10::bigint, 'reading a 50-comment thread checks its conversation a fixed number of times');
+select is(:json_count, 50, 'messaging_messages_json returns every message of the thread');
+select cmp_ok(:json_calls::bigint, '<', 6::bigint, 'messaging_messages_json checks the one conversation of 50 ids a fixed number of times');
 select is(:'counts'::jsonb ->> :'thread', '50', 'comment_counts counts the thread');
+select cmp_ok(:counts_calls::bigint, '<=', 8::bigint, 'comment_counts checks each of the tenant''s three conversations, not every message');
 select is(:by_policy::bigint, current_setting('bsb.tenants')::bigint * 3, 'the member reads every record conversation');
 select is(:by_function::bigint, :by_policy::bigint, 'can_subject per row sees the same conversations');
 

@@ -28,7 +28,11 @@ import {
 } from "../subjects.ts";
 import { followersSql, watchSql } from "../watch-sql.ts";
 import { messagingSql } from "./messaging-names.ts";
-import { messagingTableDdl } from "./messaging-tables.ts";
+import {
+  conversationReadable,
+  messagingTableDdl,
+  noteReadable,
+} from "./messaging-tables.ts";
 import { appUniqueIndex } from "./over-app.ts";
 import { myWorkTenant } from "./subjects.ts";
 
@@ -335,6 +339,47 @@ function build(ctx: BlockSqlContext): string {
     union select g.${sqlIdent(groups.member)} from ${quotedTable(groups.table)} g where g.${sqlIdent(groups.group)} = any (v_raw)${groups.tenant === undefined ? "" : ` and g.${sqlIdent(groups.tenant)} = create_comment.tenant`}`;
 
   const sent = afterSend(ctx);
+  const mq = messagingSql(m);
+
+  // A page of a conversation's sent comments for the arguments of function f.
+  const pageIds = (
+    conversation: string,
+    f: string,
+    notes: string,
+  ): string => `array(
+    select x.${ms("id")} from ${m.table("messages")} x
+    where x.${ms("conversation")} = ${conversation} and x.${ms("sentAt")} is not null${notes}
+      and (coalesce(${f}.include_deleted, true) or x.${ms("deletedAt")} is null)
+      and (${f}.after is null
+        or (x.${ms("sentAt")}, x.${ms("id")}) > (${f}.after, coalesce(${f}.after_id, ${MAX_UUID})))
+    order by x.${ms("sentAt")}, x.${ms("id")}
+    limit ${pageSize(`${f}.max_rows`, 100, 500)}
+    offset greatest(coalesce(${f}.skip, 0), 0)
+  )`;
+
+  // The comments of message ids, read through messagesJson.
+  const commentsOf = (messagesJson: string, ids: string): string => `(
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements(${messagesJson}(${ids})) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c.${cv("id")} as id, c.${cv("subjectType")} as subject_type, c.${cv("subjectId")} as subject_id
+      from ${m.table("conversations")} c
+      where c.${cv("id")} = any (array(select distinct (e.row ->> ${key(ms("conversation"))})::uuid from e))
+    ),
+    t as materialized (
+      select t.${k("message")} as message, t.${k("task")} as task from ${tasks} t
+      where t.${k("message")} = any (${ids})
+    )
+    select coalesce(jsonb_agg(e.row || jsonb_build_object(
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
+    ) order by e.n), '[]'::jsonb)
+    from e
+    join c on c.id = (e.row ->> ${key(ms("conversation"))})::uuid
+    left join t on t.message = (e.row ->> ${key(ms("id"))})::uuid
+  )`;
 
   return `${schemaPreamble(ctx)}
 -- Comments are a record's conversation (kind subject) on the messaging core:
@@ -407,31 +452,39 @@ security invoker
 set search_path = ''
 as $$
 begin
-  return (
-    with e as materialized (
-      select x.row, x.n from jsonb_array_elements(${m.fn("messaging_messages_json")}(comments_json.ids)) with ordinality x(row, n)
-    ),
-    c as materialized (
-      select c.${cv("id")} as id, c.${cv("subjectType")} as subject_type, c.${cv("subjectId")} as subject_id
-      from ${m.table("conversations")} c
-      where c.${cv("id")} = any (array(select distinct (e.row ->> ${key(ms("conversation"))})::uuid from e))
-    ),
-    t as materialized (
-      select t.${k("message")} as message, t.${k("task")} as task from ${tasks} t
-      where t.${k("message")} = any (comments_json.ids)
-    )
-    select coalesce(jsonb_agg(e.row || jsonb_build_object(
-      'subject_type', c.subject_type,
-      'subject_id', c.subject_id,
-      'task_id', t.task
-    ) order by e.n), '[]'::jsonb)
-    from e
-    join c on c.id = (e.row ->> ${key(ms("conversation"))})::uuid
-    left join t on t.message = (e.row ->> ${key(ms("id"))})::uuid
-  );
+  return ${commentsOf(m.fn("messaging_messages_json"), "comments_json.ids")};
 end;
 $$;
 ${userGrant(`${fn("comments_json")}(uuid[])`)}
+
+-- A page of a record conversation's sent comment ids, as their owner, once
+-- the conversation passes the read check.
+create or replace function ${fn("comment_page")}(
+  conversation uuid,
+  after timestamptz default null,
+  max_rows integer default 100,
+  skip integer default 0,
+  after_id uuid default null,
+  include_deleted boolean default true
+)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from ${m.table("conversations")} c
+    where c.${cv("id")} = comment_page.conversation and c.${cv("kind")} = 'subject'
+      and (${SERVICE_CALLER} or ${conversationReadable(mq, "c")})
+  ) then
+    return '{}'::uuid[];
+  end if;
+  return ${pageIds("comment_page.conversation", "comment_page", noteReadable(mq, "x"))};
+end;
+$$;
+${userGrant(`${fn("comment_page")}(uuid, timestamptz, integer, integer, uuid, boolean)`)}
 
 -- One comment the caller reads, or null.
 create or replace function ${fn("get_comment")}(message uuid)
@@ -529,19 +582,45 @@ begin
   if v_conv is null then
     return '[]'::jsonb;
   end if;${readLine(ctx.read("list_comments.subject_type", "list_comments.subject_id", "list_comments"))}
-  return ${fn("comments_json")}(array(
-    select x.${ms("id")} from ${m.table("messages")} x
-    where x.${ms("conversation")} = v_conv and x.${ms("sentAt")} is not null
-      and (coalesce(list_comments.include_deleted, true) or x.${ms("deletedAt")} is null)
-      and (list_comments.after is null
-        or (x.${ms("sentAt")}, x.${ms("id")}) > (list_comments.after, coalesce(list_comments.after_id, ${MAX_UUID})))
-    order by x.${ms("sentAt")}, x.${ms("id")}
-    limit ${pageSize("list_comments.max_rows", 100, 500)}
-    offset greatest(coalesce(list_comments.skip, 0), 0)
-  ));
+  return ${fn("comments_json")}(${fn("comment_page")}(v_conv, list_comments.after, list_comments.max_rows, list_comments.skip, list_comments.after_id, list_comments.include_deleted));
 end;
 $$;
 ${userGrant(`${fn("list_comments")}(${id}, text, text, timestamptz, integer, integer, uuid, boolean)`)}
+
+-- list_comments without any check, as the owner. Only for the app's own
+-- security definer function after it checked that the caller reads the
+-- record and holds the comment read key in its tenant. Service role only.
+create or replace function ${fn("list_comments_unchecked")}(
+  tenant ${id},
+  subject_type text,
+  subject_id text,
+  after timestamptz default null,
+  max_rows integer default 100,
+  skip integer default 0,
+  after_id uuid default null,
+  include_deleted boolean default true
+)
+returns jsonb
+language plpgsql
+${ctx.readVolatility()}
+security definer
+set search_path = ''
+as $$
+declare
+  v_conv uuid;
+  v_ids uuid[];
+begin
+  select c.${cv("id")} into v_conv from ${m.table("conversations")} c
+  where c.${cv("tenant")} = list_comments_unchecked.tenant and c.${cv("kind")} = 'subject'
+    and c.${cv("subjectType")} = list_comments_unchecked.subject_type and c.${cv("subjectId")} = list_comments_unchecked.subject_id;
+  if v_conv is null then
+    return '[]'::jsonb;
+  end if;${readLine(ctx.read("list_comments_unchecked.subject_type", "list_comments_unchecked.subject_id", "list_comments_unchecked"))}
+  v_ids := ${pageIds("v_conv", "list_comments_unchecked", "")};
+  return ${commentsOf(m.fn("messaging_messages_json_unchecked"), "v_ids")};
+end;
+$$;
+${serviceGrant(`${fn("list_comments_unchecked")}(${id}, text, text, timestamptz, integer, integer, uuid, boolean)`)}
 
 -- The top-level comments anchored to a file, oldest first: on its pages,
 -- regions and moments, on any record the caller can read.
@@ -570,8 +649,32 @@ end;
 $$;
 ${userGrant(`${fn("list_file_comments")}(uuid, integer)`)}
 
+-- The number of sent, not deleted comments per conversation, as their
+-- owner, for the conversations of the list that pass the read check.
+create or replace function ${fn("comment_count_rows")}(conversations uuid[])
+returns table (id uuid, n bigint)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  select x.${ms("conversation")}, count(*) from ${m.table("messages")} x
+  where x.${ms("conversation")} = any (array(
+      select c.${cv("id")} from ${m.table("conversations")} c
+      where c.${cv("id")} = any (comment_count_rows.conversations) and c.${cv("kind")} = 'subject'
+        and (${SERVICE_CALLER} or ${conversationReadable(mq, "c")})
+    ))
+    and x.${ms("sentAt")} is not null and x.${ms("deletedAt")} is null${noteReadable(mq, "x")}
+  group by x.${ms("conversation")};
+end;
+$$;
+${userGrant(`${fn("comment_count_rows")}(uuid[])`)}
+
 -- Comments per record the caller can read, for counters in a list:
--- { subject_id: count }, deleted ones left out.
+-- { subject_id: count }, deleted ones left out. The records' conversations
+-- are read under the caller's policies, then counted by key.
 create or replace function ${fn("comment_counts")}(tenant ${id}, subject_type text, subject_ids text[])
 returns jsonb
 language plpgsql
@@ -581,17 +684,16 @@ set search_path = ''
 as $$
 begin
   return (
-    select coalesce(jsonb_object_agg(s.subject_id, s.n), '{}'::jsonb)
-    from (
-      select c.${cv("subjectId")} as subject_id, count(*) as n
+    with c as materialized (
+      select c.${cv("id")} as id, c.${cv("subjectId")} as subject_id
       from ${m.table("conversations")} c
-      join ${m.table("messages")} x on x.${ms("conversation")} = c.${cv("id")}
       where c.${cv("tenant")} = comment_counts.tenant and c.${cv("kind")} = 'subject'
         and c.${cv("subjectType")} = comment_counts.subject_type
         and c.${cv("subjectId")} = any (comment_counts.subject_ids)
-        and x.${ms("sentAt")} is not null and x.${ms("deletedAt")} is null
-      group by 1
-    ) s
+    )
+    select coalesce(jsonb_object_agg(c.subject_id, n.n), '{}'::jsonb)
+    from c
+    join ${fn("comment_count_rows")}(array(select c.id from c)) n on n.id = c.id
   );
 end;
 $$;
@@ -874,7 +976,14 @@ const CONTRIBUTES: BlockContributes = {
 
 export const COMMENTS: BlockSqlDefinition = {
   contributes: CONTRIBUTES,
-  internal: ["comment_message_readable", "comments_json", "comment_sent"],
+  internal: [
+    "comment_message_readable",
+    "comments_json",
+    "comment_sent",
+    "comment_page",
+    "comment_count_rows",
+    "list_comments_unchecked",
+  ],
   name: "comments",
   scopes: ["tenant"],
   title: "Comments",

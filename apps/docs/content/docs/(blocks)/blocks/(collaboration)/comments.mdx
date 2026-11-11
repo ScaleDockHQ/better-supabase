@@ -327,6 +327,42 @@ comments copied. `copy_comments` is for the service role only: call it from
 the code that duplicates the record, after that code checked the caller may
 read both.
 
+### Reading comments in your own function
+
+`list_comments` checks the record once: it reads the record's conversation
+under the caller's policies, then reads the page of comments by key. Its cost
+doesn't grow with the number of conversations the caller can see in other
+tenants or with the length of the thread. `comment_counts` reads each
+record's conversation the same way and counts its comments by key.
+
+A page payload that has already checked the record in its own
+`security definer` function can skip that check with
+`list_comments_unchecked`. It takes the same arguments as `list_comments` and
+returns the same rows, with every file and reaction on them. It is granted to
+`service_role` only and checks nothing, so call it only after your function
+has checked what `list_comments` checks: the caller reads the record and
+holds `comments.read` in its tenant. Inside a `security definer` function the
+record's row policies don't apply, so check the record with your own rule,
+not with `can_subject`.
+
+```sql
+create function app.task_page(tenant uuid, task uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+begin
+  if not exists (
+    select 1 from app.tasks t
+    where t.id = task_page.task and t.organization_id = task_page.tenant
+      and app.can_read_task(t.id)
+  ) or not better_supabase.can('tenant', task_page.tenant, 'messages.read') then
+    return null;
+  end if;
+  return jsonb_build_object(
+    'comments', better_supabase.list_comments_unchecked(task_page.tenant, 'task', task_page.task::text)
+  );
+end;
+$$;
+```
+
 ### Your own columns
 
 The extra columns are messaging's: add them to the messages table in your own schema files, then pass a Standard Schema for them

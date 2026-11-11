@@ -4,7 +4,7 @@
 -- on that one customer. The member (…00a2) can't manage guests and Globex
 -- (…0002) sees none of them.
 begin;
-select plan(17);
+select plan(19);
 
 insert into auth.users (id, email, email_confirmed_at, aud, role, instance_id) values
   ('00000000-0000-4000-8000-0000000000e1', 'client@example.test', now(), 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000'),
@@ -116,6 +116,16 @@ select lives_ok(
       '{"subjectType": "customer", "subjectId": "00000000-0000-4000-8000-00000000a001"}') ->> 'id')::uuid,
     'Thanks for the update')$$,
   'the guest comments on the record''s conversation'
+);
+select is(
+  jsonb_array_length(better_supabase.list_comments('00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001')),
+  1,
+  'the guest reads the comments on the customer they were granted'
+);
+select is(
+  better_supabase.comment_counts('00000000-0000-4000-8000-000000000001', 'customer', array['00000000-0000-4000-8000-00000000a001']) ->> '00000000-0000-4000-8000-00000000a001',
+  '1',
+  'the guest counts the comments on the customer they were granted'
 );
 select throws_ok(
   $$select better_supabase.open_conversation('00000000-0000-4000-8000-000000000001', 'subject',

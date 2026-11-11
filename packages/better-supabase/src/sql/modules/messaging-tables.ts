@@ -96,10 +96,16 @@ export function guestOnRecord(
     or (${alias}.${cv("kind")} = 'subject' and ${guest})`;
 }
 
-/** With the inbox: a note shows to the inbox's staff only. */
-function noteReadable(q: MessagingSql, conversation: string): string {
+/**
+ * With the inbox: a note shows to the inbox's staff only. `alias` qualifies the
+ * message's columns.
+ */
+export function noteReadable(q: MessagingSql, alias?: string): string {
+  const ms = q.cols("messages");
+  const at = alias === undefined ? "" : `${alias}.`;
+
   return q.ctx.installed("inbox")
-    ? `\n  and (${q.cols("messages")("kind")} = 'message' or ${q.ctx.of("inbox").fn("inbox_note_readable")}(${conversation}))`
+    ? `\n  and (${at}${ms("kind")} = 'message' or ${q.ctx.of("inbox").fn("inbox_note_readable")}(${at}${ms("conversation")}))`
     : "";
 }
 
@@ -350,7 +356,7 @@ ${renderPolicy(
     command: "select",
     roles: ["authenticated"],
     using: `(${ms("sentAt")} is not null or ${ms("author")} = (select auth.uid()))
-  and exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${ms("conversation")})${noteReadable(q, ms("conversation"))}`,
+  and exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${ms("conversation")})${noteReadable(q)}`,
   }),
   { target: t("messages") },
 )}
