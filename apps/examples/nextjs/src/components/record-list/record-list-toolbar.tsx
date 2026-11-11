@@ -88,7 +88,8 @@ export function RecordListToolbar({
   onSort,
 }: {
   q: string;
-  searchLabel: string;
+  /** Omit it for a list the block cannot search. */
+  searchLabel: string | undefined;
   sort: string;
   sorts: readonly RecordListSort[];
   filters: React.ReactNode;
@@ -99,7 +100,9 @@ export function RecordListToolbar({
 
   return (
     <search className="flex flex-wrap items-center gap-2">
-      <SearchInput value={q} label={searchLabel} onSearch={onSearch} />
+      {searchLabel === undefined ? null : (
+        <SearchInput value={q} label={searchLabel} onSearch={onSearch} />
+      )}
       {filters}
       {sorts.length > 1 ? (
         <Select

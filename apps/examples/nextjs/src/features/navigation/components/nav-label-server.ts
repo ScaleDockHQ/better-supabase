@@ -247,6 +247,18 @@ export async function getNavLabel(): Promise<(id: NavId) => string> {
         return t("Requests for quotation");
       }
 
+      case "passes": {
+        return t("Passes");
+      }
+
+      case "leases": {
+        return t("Leases");
+      }
+
+      case "assets": {
+        return t("Asset register");
+      }
+
       case "tills": {
         return t("Tills");
       }
