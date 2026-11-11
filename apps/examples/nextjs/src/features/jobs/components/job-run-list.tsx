@@ -2,7 +2,7 @@ import { forbidden } from "next/navigation";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 
-import { getJobRuns } from "../jobs-runs-queries";
+import { getJobRuns } from "../jobs-run-reads";
 import { JobRecordList } from "./job-record-list";
 
 /** Render inside `<Suspense>`; the fallback is `JobRunListSkeleton`. */
