@@ -962,47 +962,31 @@ providers compare against it
 Every field below is optional and additive. A config value you set always wins
 over the provider's.
 
-| Field                                                | What it fills                                                                                                 | Release    |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ---------- |
-| `functions.subject`                                  | the subject the sessions bootstrap returns and seeds, when an entry sets no `subject`                         | 0.58       |
-| `roleSources[].role.through` `tenant` and `where`    | `blocks.memberships.options.roleThrough`                                                                      | 0.58       |
-| `memberships[].disabledAt`                           | the memberships `disabledAt` column                                                                           | 0.58       |
-| `platformRoles`                                      | `blocks.invitations.options.platformRoles`                                                                    | 0.58       |
-| `personas`                                           | one access matrix file per persona (`providerPersonaTests`)                                                   | 0.58       |
-| `wildcards`                                          | the wildcard grants `permission_matches` honours (`all`, `prefix`, `none`)                                    | 0.58       |
-| `memberships[].userKey`, `suspension.userKey`        | the user key of the membership table and of `blocks.permissions.disabled`                                     | 0.58       |
-| `functions.subjectForTenant`                         | the bootstrap subject restricted to the page's tenant                                                         | 0.58       |
-| `functions.bootstrapPermissions`                     | the caller's permissions in the bootstrap, full or compact (`apiVersion: 1`)                                  | 0.58       |
-| `functions.approverFor`, `functions.managedUsers`    | the user sets for approver covers and manager chains. No module reads them yet                                | 0.58       |
-| `{tenant}` in `functions.managedUsers`               | the manager chain of one tenant, so a manager never reaches reports in another tenant                         | 0.58       |
-| `personas: 'roles'`, `fixtureRoles`                  | one access matrix file per fixture role                                                                       | 0.58       |
-| `permissions[].levels`                               | the levels of a permission (`<permission>@<level>` keys)                                                      | 0.58       |
-| `tokenHook.teamIdsTruncatedClaim`                    | the claim that marks a partial `team_ids`                                                                     | 0.58       |
-| `tokenHook.truncatedClaim`                           | the claim that marks a partial `permissions` list                                                             | 0.58       |
-| `versions`                                           | the function that returns the caller's authorization version                                                  | 0.58       |
-| `delegation`                                         | OAuth scopes mapped to permission keys                                                                        | 0.58       |
-| `operations`                                         | named operations and the permission key each one needs                                                        | 0.58       |
-| `AuthorizationProvider<Key>`                         | typed permission keys in `blocks.*.permissions`, `subjects.*.permissions` and the role lists                  | 0.58       |
-| `functions.canApprove`, `approvals.distinctApprover` | ignored. An API 1 provider that still sets them loads                                                         | next minor |
-| `suspension.user` as a column name                   | `userKey` matches that column when the provider's user is the one in use                                      | next minor |
-| Field                                                | What it fills                                                                                                 | Release    |
-| -------------------------------------------------    | --------------------------------------------------------------------------------------------                  | ---------- |
-| `functions.subject`                                  | the subject the sessions bootstrap returns and seeds, when an entry sets no `subject`                         | next minor |
-| `roleSources[].role.through` `tenant` and `where`    | `blocks.memberships.options.roleThrough`                                                                      | next minor |
-| `memberships[].disabledAt`                           | the memberships `disabledAt` column                                                                           | next minor |
-| `platformRoles`                                      | `blocks.invitations.options.platformRoles`                                                                    | next minor |
-| `personas`                                           | one access matrix file per persona (`providerPersonaTests`)                                                   | next minor |
-| `wildcards`                                          | the wildcard grants `permission_matches` honours (`all`, `prefix`, `none`)                                    | next minor |
-| `memberships[].userKey`, `suspension.userKey`        | the user key of the membership table and of `blocks.permissions.disabled`                                     | next minor |
-| `functions.subjectForTenant`                         | the bootstrap subject restricted to the page's tenant                                                         | next minor |
-| `functions.bootstrapPermissions`                     | the caller's permissions in the bootstrap, full or compact (`apiVersion: 1`)                                  | next minor |
-| `functions.canIn`                                    | the permission check the `@bsb access` tag renders into its policies; the tag falls back to `tenant_ids_with` | next minor |
-| `functions.approverFor`, `functions.managedUsers`    | the user sets for approver covers and manager chains                                                          | next minor |
-| `{tenant}` in `functions.managedUsers`               | the manager chain of one tenant, so a manager never reaches reports in another tenant                         | next minor |
-| `personas: 'roles'`, `fixtureRoles`                  | one access matrix file per fixture role                                                                       | next minor |
-| `permissions[].levels`                               | the levels of a permission (`<permission>@<level>` keys)                                                      | next minor |
-| `tokenHook.teamIdsTruncatedClaim`                    | the claim that marks a partial `team_ids`                                                                     | next minor |
-| `AuthorizationProvider<Key>`                         | typed permission keys in `blocks.*.permissions`, `subjects.*.permissions` and the role lists                  | next minor |
+| Field                                                | What it fills                                                                                                 | Release |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------- |
+| `functions.subject`                                  | the subject the sessions bootstrap returns and seeds, when an entry sets no `subject`                         | 0.58    |
+| `roleSources[].role.through` `tenant` and `where`    | `blocks.memberships.options.roleThrough`                                                                      | 0.58    |
+| `memberships[].disabledAt`                           | the memberships `disabledAt` column                                                                           | 0.58    |
+| `platformRoles`                                      | `blocks.invitations.options.platformRoles`                                                                    | 0.58    |
+| `personas`                                           | one access matrix file per persona (`providerPersonaTests`)                                                   | 0.58    |
+| `wildcards`                                          | the wildcard grants `permission_matches` honours (`all`, `prefix`, `none`)                                    | 0.58    |
+| `memberships[].userKey`, `suspension.userKey`        | the user key of the membership table and of `blocks.permissions.disabled`                                     | 0.58    |
+| `functions.subjectForTenant`                         | the bootstrap subject restricted to the page's tenant                                                         | 0.58    |
+| `functions.bootstrapPermissions`                     | the caller's permissions in the bootstrap, full or compact (`apiVersion: 1`)                                  | 0.58    |
+| `functions.approverFor`, `functions.managedUsers`    | the user sets for approver covers and manager chains. No module reads them yet                                | 0.58    |
+| `{tenant}` in `functions.managedUsers`               | the manager chain of one tenant, so a manager never reaches reports in another tenant                         | 0.58    |
+| `personas: 'roles'`, `fixtureRoles`                  | one access matrix file per fixture role                                                                       | 0.58    |
+| `permissions[].levels`                               | the levels of a permission (`<permission>@<level>` keys)                                                      | 0.58    |
+| `tokenHook.teamIdsTruncatedClaim`                    | the claim that marks a partial `team_ids`                                                                     | 0.58    |
+| `tokenHook.truncatedClaim`                           | the claim that marks a partial `permissions` list                                                             | 0.58    |
+| `versions`                                           | the function that returns the caller's authorization version                                                  | 0.58    |
+| `delegation`                                         | OAuth scopes mapped to permission keys                                                                        | 0.58    |
+| `operations`                                         | named operations and the permission key each one needs                                                        | 0.58    |
+| `AuthorizationProvider<Key>`                         | typed permission keys in `blocks.*.permissions`, `subjects.*.permissions` and the role lists                  | 0.58    |
+| `functions.canApprove`, `approvals.distinctApprover` | ignored. An API 1 provider that still sets them loads                                                         | 0.58    |
+| `suspension.user` as a column name                   | `userKey` matches that column when the provider's user is the one in use                                      | 0.58    |
+| `functions.canIn`                                    | the permission check the `@bsb access` tag renders into its policies; the tag falls back to `tenant_ids_with` | 0.58    |
+| `seed.tenant` (`AuthzSubjectSeed`)                   | the tenant a seeded subject belongs to, so `accessOf` and `testAuthorizer` keep it out of other tenants       | 0.58    |
 
 Doctor reports a config value equal to the provider's (BS426).
 
