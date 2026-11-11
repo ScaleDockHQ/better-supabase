@@ -390,6 +390,39 @@ export function declaredColumnTypes(
 ): ReadonlyMap<string, ReadonlyMap<string, string>> {
   const found = new Map<string, Map<string, string>>();
 
+  for (const { table, definitions } of createTables(files, schemas)) {
+    const columns = found.get(table) ?? new Map<string, string>();
+
+    for (const [name, rest] of definitions) {
+      const option = COLUMN_OPTION.exec(rest);
+
+      columns.set(
+        name,
+        typeName(option === null ? rest : rest.slice(0, option.index)),
+      );
+    }
+
+    found.set(table, columns);
+  }
+
+  return found;
+}
+
+interface CreateTable {
+  readonly table: string;
+  /** Each column's name and the text after it. */
+  readonly definitions: readonly (readonly [string, string])[];
+}
+
+/**
+ * Each `create table` in `schemas`.
+ *
+ * @yields {CreateTable} The table and its column definitions.
+ */
+function* createTables(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): Generator<CreateTable> {
   for (const file of files) {
     const text = withoutComments(file.text);
 
@@ -407,7 +440,7 @@ export function declaredColumnTypes(
         continue;
       }
 
-      const columns = found.get(table) ?? new Map<string, string>();
+      const definitions: (readonly [string, string])[] = [];
 
       for (const part of splitTopLevel(text.slice(open + 1, close))) {
         const definition = part.trim();
@@ -417,16 +450,49 @@ export function declaredColumnTypes(
           continue;
         }
 
-        const rest = definition.slice(first.length);
-        const option = COLUMN_OPTION.exec(rest);
-
-        columns.set(
-          unquote(first),
-          typeName(option === null ? rest : rest.slice(0, option.index)),
-        );
+        definitions.push([unquote(first), definition.slice(first.length)]);
       }
 
-      found.set(table, columns);
+      yield { table, definitions };
+    }
+  }
+}
+
+const SET_NOT_NULL = /* @__PURE__ */ new RegExp(
+  String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${TABLE_NAME})\s+alter\s+(?:column\s+)?(${NAME})\s+set\s+not\s+null\b`,
+  "gi",
+);
+
+/**
+ * The columns `files` make not null, as `schema.table` to unquoted names: a
+ * `create table` column with `not null` or `primary key`, or an `alter column
+ * ... set not null`. Only tables in `schemas` are kept.
+ */
+export function declaredNotNullColumns(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const found = new Map<string, Set<string>>();
+
+  const add = (table: string, column: string): void => {
+    found.set(table, (found.get(table) ?? new Set()).add(column));
+  };
+
+  for (const { table, definitions } of createTables(files, schemas)) {
+    for (const [name, rest] of definitions) {
+      if (/\b(?:not\s+null|primary\s+key)\b/i.test(rest)) {
+        add(table, name);
+      }
+    }
+  }
+
+  for (const file of files) {
+    for (const match of withoutComments(file.text).matchAll(SET_NOT_NULL)) {
+      const table = qualified(match[1]!);
+
+      if (schemas.includes(table.slice(0, table.indexOf(".")))) {
+        add(table, unquote(match[2]!));
+      }
     }
   }
 

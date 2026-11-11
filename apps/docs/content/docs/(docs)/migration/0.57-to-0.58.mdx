@@ -28,6 +28,8 @@ follows the [0.53 to 0.54 guide](/docs/migration/0.53-to-0.54) first. Each chang
 | [Database names](#database-names)                           | Run `codemod naming`, `upgrade`, then apply the migration                        |
 | [Declarative module files](#declarative-module-files)       | Run `upgrade` and commit the result                                              |
 | [Your own columns and tables](#your-own-columns-and-tables) | Run `codemod extra-columns`, `config` and `owned-columns`                        |
+| [Search watches](#search-watches)                           | List `columns` on each `watch` the search text reads                             |
+| [Your SQL functions](#your-sql-functions)                   | Rename block columns in your own function bodies by hand                         |
 | [Generated client code](#generated-client-code)             | Run `gen`, then `codemod table-modules`                                          |
 | [Browser client](#browser-client)                           | Import `better-supabase/server` or `/client/native` for the removed `db` methods |
 | [CLI](#cli)                                                 | Change scripts, CI and cron entries                                              |
@@ -341,11 +343,32 @@ a feature whose column your table lacks is off (ADR 0580). Before you run
 statements are the blocks' own, so a database that has the columns changes
 nothing, and a database that lacks one keeps the feature off until you declare
 it.
+The codemod keeps an optional column that the live database or the snapshot
+has. It reads the database when it can connect, the same way `gen` does, so run
+it with the local stack up or with `$DATABASE_URL` set.
 
 `blocks.memberships.options.sameTenant` defaults to the foreign keys your schema
 declares. `upgrade` writes a `bsb_same_tenant_<column>` trigger for each
 single-column key between two tenant tables; set `sameTenant: false` to write
-none.
+none. When the referenced table's tenant column may be null, as on a roles
+table with global rows, the derived trigger accepts a referenced row with no
+tenant, as 0.57 did. A column that is `not null` gets the strict check.
+
+## Search watches
+
+A `watch` entry without `columns` re-indexes the record only when its `key`
+changes, not on every update of the watched table. List the columns the title,
+body or description read from that table in `columns`, so an edit of one of
+them still re-indexes the record.
+
+## Your SQL functions
+
+`codemod naming` writes a migration that renames the block columns, but it does
+not rewrite your own schema files. A function body that reads a renamed column
+keeps the old name and fails when it runs, and a view in your files no longer
+matches the database. Search your `supabase/schemas` files for the old column
+names in [Database names](#database-names) and change them by hand before you
+apply the migration.
 
 ## Generated client code
 

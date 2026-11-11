@@ -87,7 +87,7 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
   const ID = (n: number): string =>
     `'00000000-0000-4000-8000-${String(n).padStart(12, "0")}'`;
 
-  it("refuses a row with no tenant unless that table opts in", async () => {
+  it("passes a row with no tenant when the tenant column may be null, unless an entry is listed", async () => {
     if (connection === undefined) {
       return;
     }
@@ -100,11 +100,9 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
       `insert into public.members values (${ID(12)}, ${ID(100)}, ${ID(2)})`,
     );
 
-    expect(
-      await fails(
-        `insert into public.members values (${ID(11)}, ${ID(100)}, ${ID(1)})`,
-      ),
-    ).toContain("must reference a row of");
+    await run(
+      `insert into public.members values (${ID(11)}, ${ID(100)}, ${ID(1)})`,
+    );
 
     expect(
       await fails(
@@ -122,7 +120,7 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
               {
                 table: "public.members",
                 column: "role_id",
-                references: { table: "public.roles", shared: true },
+                references: { table: "public.roles" },
               },
             ],
           },
@@ -138,9 +136,11 @@ describe("same_tenant on a database", { timeout: 60_000 }, () => {
       `drop trigger if exists "bsb_same_tenant_role_id" on public.members;\n${trigger}`,
     );
 
-    await run(
-      `insert into public.members values (${ID(14)}, ${ID(100)}, ${ID(1)})`,
-    );
+    expect(
+      await fails(
+        `insert into public.members values (${ID(14)}, ${ID(100)}, ${ID(1)})`,
+      ),
+    ).toContain("must reference a row of");
   });
 
   it("checks a deferrable key at commit, so the child can come first", async () => {

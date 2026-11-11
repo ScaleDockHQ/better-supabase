@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:dede4c534978b35cf6480dd16dd17c6d6388e02b3c9159542abeb6a9dbd3490b
+-- @bsb-hash sha256:a126d099f3056fac91cc62c5ea29de270580507c30832a4ef62387a1ce3e9103
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -115,9 +115,9 @@ create trigger "bsb_same_tenant_recipient_id" before insert or update of "recipi
 create trigger "bsb_same_tenant_destination_id" before insert or update of "destination_id", "organization_id" on "centrakit"."webhook_destination_secrets"
   for each row execute function better_supabase.same_tenant('destination_id', 'organization_id', '"centrakit"."webhook_destinations"', 'id', 'organization_id');
 create trigger "bsb_same_tenant_event_id" before insert or update of "event_id", "organization_id" on "centrakit"."webhook_deliveries"
-  for each row execute function better_supabase.same_tenant('event_id', 'organization_id', '"centrakit"."workflow_events"', 'id', 'organization_id');
+  for each row execute function better_supabase.same_tenant('event_id', 'organization_id', '"centrakit"."workflow_events"', 'id', 'organization_id', 'shared');
 create trigger "bsb_same_tenant_workflow_run_id" before insert or update of "workflow_run_id", "organization_id" on "centrakit"."webhook_deliveries"
-  for each row execute function better_supabase.same_tenant('workflow_run_id', 'organization_id', '"centrakit"."workflow_runs"', 'id', 'organization_id');
+  for each row execute function better_supabase.same_tenant('workflow_run_id', 'organization_id', '"centrakit"."workflow_runs"', 'id', 'organization_id', 'shared');
 create trigger "bsb_same_tenant_parent_id" before insert or update of "parent_id", "organization_id" on "centrakit"."file_node"
   for each row execute function better_supabase.same_tenant('parent_id', 'organization_id', '"centrakit"."file_node"', 'id', 'organization_id');
 create trigger "bsb_same_tenant_file_node_id" before insert or update of "file_node_id", "organization_id" on "centrakit"."file_node_grant"

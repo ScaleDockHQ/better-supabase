@@ -181,10 +181,13 @@ export function ownedColumnsCodemod(): Codemod {
           own.ownColumns ?? {},
         );
 
-        const present = await snapshotColumnTypes(
-          config,
-          columns.map((column) => column.table),
-        );
+        const tables = columns.map((column) => column.table);
+        const snapshot = await snapshotColumnTypes(config, tables);
+        const live = await project.liveColumns?.(tables);
+
+        const present = (table: string, column: string): boolean =>
+          snapshot.get(table)?.has(column) === true ||
+          live?.get(table)?.has(column) === true;
 
         const blocked = new Map<string, (typeof report.pins)[number]>();
 
@@ -214,10 +217,7 @@ export function ownedColumnsCodemod(): Codemod {
 
           const choice = optional.get(`${column.table}.${column.column}`);
 
-          if (
-            choice !== undefined &&
-            present.get(column.table)?.has(column.column) !== true
-          ) {
+          if (choice !== undefined && !present(column.table, column.column)) {
             review.push({
               message: `blocks.${choice.block}.columns.${choice.table}.${choice.logical} is optional, and the database or snapshot has no "${column.column}" column on ${column.table}. Set it to null to keep the feature off.`,
             });

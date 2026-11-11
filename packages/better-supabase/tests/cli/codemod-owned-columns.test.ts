@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { ownedColumnsCodemod } from "../../src/cli/codemod-owned-columns.ts";
+import { runCodemod } from "../../src/cli/commands/codemod.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 
 const APP = `create table public.reminders (id uuid primary key, organization_id uuid not null);
@@ -56,6 +57,47 @@ describe("the owned-columns codemod", () => {
     expect(reminders?.contents).toContain(
       'alter table "public"."reminders" add column if not exists',
     );
+  });
+
+  it("keeps an optional column the live database has, though the snapshot lacks it", async () => {
+    const result = await ownedColumnsCodemod().project!({
+      ...project([{ path: "/nowhere/supabase/schemas/app.sql", text: APP }]),
+      liveColumns: () =>
+        Promise.resolve(
+          new Map([
+            ["public.reminder_rules", new Set(["rrule"])],
+            ["public.reminders", new Set(["remind_at"])],
+          ]),
+        ),
+    });
+
+    const declared = result.files.map((file) => file.contents).join("\n");
+
+    expect(result.review).toEqual([]);
+    expect(declared).toContain('"remind_at"');
+    expect(declared).toContain('"rrule"');
+  });
+
+  it("tries the database from the command, and falls back when it is down", async () => {
+    const result = await runCodemod(
+      config,
+      { _: ["owned-columns"], "dry-run": true },
+      undefined,
+      undefined,
+      undefined,
+      { DATABASE_URL: "postgresql://postgres@127.0.0.1:1/postgres" },
+    );
+
+    expect(JSON.stringify(result)).toContain("rrule");
+  });
+
+  it("reads the snapshot alone when the database can't be read", async () => {
+    const result = await ownedColumnsCodemod().project!({
+      ...project([{ path: "/nowhere/supabase/schemas/app.sql", text: APP }]),
+      liveColumns: () => Promise.resolve(undefined),
+    });
+
+    expect(result.review).toHaveLength(2);
   });
 
   it("finds nothing once the files declare them, and ignores block files and migrations", async () => {

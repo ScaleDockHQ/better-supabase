@@ -5,6 +5,7 @@ import {
   NAME,
   TABLE,
   closingParen,
+  declaredNotNullColumns,
   declaredTableColumns,
   qualified,
   splitTopLevel,
@@ -277,7 +278,10 @@ export function sameTenantLayout(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
 ): Required<
-  Pick<BlockSqlLayout, "foreignKeys" | "declaredColumns" | "appTriggerColumns">
+  Pick<
+    BlockSqlLayout,
+    "foreignKeys" | "declaredColumns" | "notNullColumns" | "appTriggerColumns"
+  >
 > & {
   /**
    * The function body of each app trigger, `schema.table` to bodies (doctor
@@ -291,6 +295,12 @@ export function sameTenantLayout(
     appTriggerBodies: appTriggerBodies(files, schemas),
     declaredColumns: Object.fromEntries(
       [...declaredTableColumns(files, schemas)].map(([table, columns]) => [
+        table,
+        [...columns],
+      ]),
+    ),
+    notNullColumns: Object.fromEntries(
+      [...declaredNotNullColumns(files, schemas)].map(([table, columns]) => [
         table,
         [...columns],
       ]),

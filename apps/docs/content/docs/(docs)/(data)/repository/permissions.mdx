@@ -592,7 +592,8 @@ Every trigger calls the one function `better_supabase.same_tenant()` with the
 entry as its arguments. A null reference passes, so a nullable column stays
 optional, and the foreign key still reports a row that does not exist. A
 referenced row whose tenant is null is refused, unless the entry sets
-`shared: true` (a global role, for example). The
+`shared: true` (a global role, for example). A derived entry sets `shared`
+itself when the referenced table's tenant column may be null. The
 check runs on the referencing table only: it does not stop a change to the
 tenant column of a referenced row. Rows stored before you add an entry are
 checked when they change. The triggers are written in managed ownership,
