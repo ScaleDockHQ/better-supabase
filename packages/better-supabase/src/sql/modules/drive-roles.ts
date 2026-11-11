@@ -2,13 +2,23 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { isResourceName, providerRowCheck } from "../provider-rows.ts";
+import {
+  isResourceName,
+  providerRowCheck,
+  providerRowSet,
+} from "../provider-rows.ts";
 
 const QUALIFIED = /^[A-Za-z_][\w$]*\.[A-Za-z_][\w$]*$/;
 
 export interface DriveRoleHook {
   readonly label: string;
   readonly role: (id: string, user: string) => string;
+  /**
+   * The ids, out of `candidates` (a `text[]` expression), on which the caller
+   * holds some mapped role, as one set with one provider call per role. Only a
+   * `{ rows, roles }` hook has it; a named function answers per row.
+   */
+  readonly readable?: (candidates: string) => string;
 }
 
 export interface DriveRoleFunctions {
@@ -43,12 +53,17 @@ function providerRoles(
     .map((role) => ({
       role,
       check: providerRowCheck(ctx, at, rows, String(map[role])),
+      set: providerRowSet(ctx, at, rows, String(map[role])),
     }));
 
   return {
     label: `the authorization provider's grants on ${rows}`,
     role: (id, user) =>
       `case ${checks.map(({ role, check }) => `when ${check(id, user)} then ${sqlString(role)}`).join(" ")} end`,
+    readable: (candidates) =>
+      checks
+        .map(({ set }) => set(candidates))
+        .join("\n        union\n        "),
   };
 }
 

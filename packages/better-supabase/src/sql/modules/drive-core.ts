@@ -237,11 +237,24 @@ ${
     and ${rank(sqlString(roles.read))} > 0
     and d.${d("tenant")} in (select ${ctx.scope.ids(read)})
     and ${drivePrincipalMatch("dg", "auth.uid()", `d.${d("tenant")}`)}`
-    : `  select d.${d("id")} from ${D} d
+    : driveRole.readable === undefined
+      ? `  select d.${d("id")} from ${D} d
   where ${SERVICE_CALLER}
     or (auth.uid() is not null
       and d.${d("tenant")} in (select ${ctx.scope.ids(read)})
       and (${driveRole.role(`d.${d("id")}`, "auth.uid()")}) = any (${rolesArray}))`
+      : `  with candidates as materialized (
+    select coalesce(array_agg(d.${d("id")}::text), '{}'::text[]) as ids from ${D} d
+    where auth.uid() is not null
+      and d.${d("tenant")} in (select ${ctx.scope.ids(read)})
+  )
+  select d.${d("id")} from ${D} d
+  where ${SERVICE_CALLER}
+    or (auth.uid() is not null
+      and d.${d("tenant")} in (select ${ctx.scope.ids(read)})
+      and d.${d("id")}::text in (
+        ${driveRole.readable("(select c.ids from candidates c)")}
+      ))`
 }
 $$;
 ${userGrant(`${fn("drive_drive_readable_ids")}()`)}
@@ -372,11 +385,24 @@ ${
     and ${drivePrincipalMatch("dg", "auth.uid()", `x.${n("tenant")}`)}`
         : ""
     }`
-    : `  select x.${n("id")} from ${T} x
+    : nodeRole.readable === undefined
+      ? `  select x.${n("id")} from ${T} x
   where ${SERVICE_CALLER}
     or (auth.uid() is not null
       and x.${n("tenant")} in (select ${ctx.scope.ids(read)})
       and (${nodeRole.role(`x.${n("id")}`, "auth.uid()")}) = any (${rolesArray}))`
+      : `  with candidates as materialized (
+    select coalesce(array_agg(x.${n("id")}::text), '{}'::text[]) as ids from ${T} x
+    where auth.uid() is not null
+      and x.${n("tenant")} in (select ${ctx.scope.ids(read)})
+  )
+  select x.${n("id")} from ${T} x
+  where ${SERVICE_CALLER}
+    or (auth.uid() is not null
+      and x.${n("tenant")} in (select ${ctx.scope.ids(read)})
+      and x.${n("id")}::text in (
+        ${nodeRole.readable("(select c.ids from candidates c)")}
+      ))`
 }
 $$;
 ${userGrant(`${fn("drive_readable_ids")}()`)}

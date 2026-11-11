@@ -536,8 +536,9 @@ describe("drive module", () => {
       "authz.rows_drive('drive.manage', array[drive_drive_role.drive::text])",
     );
     expect(core).toContain(
-      `authz.rows_file_node('fileNode.read', array[x."id"::text])`,
+      "authz.rows_file_node('fileNode.read', (select c.ids from candidates c))",
     );
+    expect(core).not.toContain(`array[x."id"::text]`);
 
     const fails = (roles: unknown) => () =>
       sqlOf(["drive"], "drive", {
