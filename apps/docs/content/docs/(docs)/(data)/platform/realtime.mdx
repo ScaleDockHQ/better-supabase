@@ -311,6 +311,35 @@ skipped. So is a value with characters a topic doesn't allow (the check
 column, skips that topic, and the write goes through. The other topics
 still get the change.
 
+### One message per transaction
+
+A bulk write fires a row trigger once per row, so updating 500 rows sends 500
+messages, and so does a table such as an audit log that another trigger fills
+row by row. `dedupe: "transaction"` sends each message once per transaction:
+the function hashes the topic, the event and the payload, keeps the hashes in
+a transaction-local setting, and skips a row whose hash it has already sent.
+A commit or rollback clears the setting, so nothing carries over to the next
+transaction or to another client on a pooled connection, and a rolled-back
+transaction sends nothing. It writes no rows and holds no locks.
+
+`dedupeKey` names the payload fields that tell two messages apart, next to the
+topic and the event. Without it the whole payload counts, so leave out a
+field that differs per row, such as the default payload's `id`:
+
+```ts
+changesTopic.trigger("public.audit_logs", {
+  events: ["insert"],
+  event: "changed",
+  payload: { actor_id: "actor_id", category: "category", source: "source" },
+  dedupe: "transaction",
+});
+```
+
+Inserting 500 audit rows for one organization, actor and category in one
+transaction sends one message; a second actor or a second transaction sends
+another. A transaction that writes many thousands of distinct keys keeps a
+hash per key in the setting, so dedupe pays off when the keys repeat.
+
 ### Deletes and cascades
 
 A delete reads its values and lookups from the old row, so deleting a child
@@ -367,7 +396,8 @@ statement-level `track_realtime`) instead.
 output after the policies. Each entry names a topic that `from` exports by its
 template, and `upgrade` passes the rest to that topic's `trigger()` without
 `betterSupabase`, so the config writes the same SQL as the call. An entry
-takes `values`, `events`, `event`, `payload`, `topics`, `when` and `functionSchema`,
+takes `values`, `events`, `event`, `payload`, `topics`, `when`, `dedupe`, `dedupeKey` and
+`functionSchema`,
 with database names in values and lookups:
 
 ```ts title="better-supabase.config.ts"

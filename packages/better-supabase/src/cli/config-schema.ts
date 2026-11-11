@@ -748,6 +748,8 @@ const FLAT = {
               ),
             ),
             functionSchema: v.optional(v.string()),
+            dedupe: v.optional(v.picklist(["transaction"])),
+            dedupeKey: v.optional(v.pipe(v.array(v.string()), v.minLength(1))),
             when: v.optional(
               v.strictObject({
                 changed: v.pipe(v.array(v.string()), v.minLength(1)),

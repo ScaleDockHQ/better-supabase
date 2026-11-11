@@ -317,6 +317,19 @@ interface TriggerCommonOptions {
    * Data API does not expose.
    */
   readonly functionSchema?: string;
+  /**
+   * `"transaction"` sends each message once per transaction: a row whose topic,
+   * event and payload match one already sent in the same transaction is
+   * skipped, so a bulk write sends one message per key. A rollback sends
+   * nothing.
+   */
+  readonly dedupe?: "transaction";
+  /**
+   * The payload fields that tell two messages apart for `dedupe`, next to the
+   * topic and the event. Defaults to the whole payload. Leave out fields that
+   * differ per row, such as `id`.
+   */
+  readonly dedupeKey?: readonly string[];
 }
 
 /** `topic.trigger()` with the app's `betterSupabase`: typed columns and lookups. */
@@ -548,6 +561,8 @@ interface AnyTriggerOptions {
     | Readonly<Record<string, AnyTriggerValue | { readonly sql: string }>>;
   readonly topics?: readonly TriggerTopic<AnyTriggerValue>[];
   readonly functionSchema?: string;
+  readonly dedupe?: "transaction";
+  readonly dedupeKey?: readonly string[];
   readonly when?: { readonly changed: readonly string[] };
   readonly columns?: readonly string[];
 }
@@ -875,6 +890,16 @@ export function defineTopic<
 
     checkKeys(parsed.params, trigger.values, template);
 
+    if (trigger.dedupeKey !== undefined) {
+      if (trigger.dedupe === undefined) {
+        throw new TypeError(`${where}: dedupeKey needs dedupe`);
+      }
+
+      if (trigger.dedupeKey.length === 0) {
+        throw new TypeError(`${where}: dedupeKey lists no fields`);
+      }
+    }
+
     const columns = columnsOnly(trigger.values);
 
     if (
@@ -882,6 +907,7 @@ export function defineTopic<
       columns !== undefined &&
       extra.length === 0 &&
       typeof trigger.event !== "object" &&
+      trigger.dedupe === undefined &&
       (payload === undefined || typeof payload === "string") &&
       (changed === undefined || changed.when)
     ) {
@@ -1002,6 +1028,12 @@ export function defineTopic<
       payload: payloadSql,
       lookups: lookups.list,
       ...(changed ? { changed } : {}),
+      ...(trigger.dedupe === undefined
+        ? {}
+        : {
+            dedupe:
+              trigger.dedupeKey === undefined ? {} : { key: trigger.dedupeKey },
+          }),
     });
   };
 
