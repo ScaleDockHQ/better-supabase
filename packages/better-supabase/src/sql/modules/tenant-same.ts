@@ -60,6 +60,11 @@ function autoEntries(
   const hasTenant = (table: string): boolean =>
     columns[table]?.includes(tenant) === true;
 
+  // A referenced tenant column that may be null holds shared rows, such as
+  // global roles, which every tenant may reference.
+  const notNull = (table: string): boolean =>
+    layout.notNullColumns?.[table]?.includes(tenant) === true;
+
   const keys = layout.foreignKeys;
   const guarded = layout.appTriggerColumns ?? {};
 
@@ -104,7 +109,7 @@ function autoEntries(
         column,
         references: { table: key.references, column: referenced },
         ...(key.deferrable === true ? { deferrable: true } : {}),
-        shared: false,
+        shared: !notNull(key.references),
       },
     ];
   });
