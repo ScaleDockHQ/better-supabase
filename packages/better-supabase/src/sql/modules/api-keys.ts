@@ -249,6 +249,40 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     ${fail("API_KEY_FORBIDDEN", "Only a signed-in user may use this permission, so an API key cannot carry it")}
   end if;`;
 
+  // An API key, OAuth client or agent hands on at most its own scopes: a key's
+  // scopes (or *), or the keys the token's OAuth scopes map to.
+  const mapsScopes = ctx.of("permissions").mode !== "custom";
+
+  const withinToken = (scopes: string): string => `
+  if (auth.jwt() -> 'api_key' is not null
+      or coalesce(auth.jwt() ->> 'client_id', '') <> ''
+      or auth.jwt() -> 'act' is not null) and exists (
+    select 1 from unnest(coalesce(${scopes}, '{}')) s
+    where not case
+      when auth.jwt() -> 'api_key' is not null then
+        coalesce(auth.jwt() -> 'api_key' -> 'scopes', '[]'::jsonb) ?| array['*', s]
+      else exists (
+        select 1
+        from unnest(case jsonb_typeof(auth.jwt() -> 'scope')
+            when 'string' then regexp_split_to_array(btrim(auth.jwt() ->> 'scope'), '\\s+')
+            when 'array' then array(select jsonb_array_elements_text(auth.jwt() -> 'scope'))
+            else '{}'::text[]
+          end) t(scope)
+        where t.scope <> ''
+          and (t.scope = s${
+            mapsScopes
+              ? ` or exists (
+            select 1 from unnest(better_supabase.scope_permissions(t.scope)) k(key)
+            where better_supabase.permission_matches(k.key, s)
+          )`
+              : ""
+          })
+      )
+    end
+  ) then
+    ${fail("API_KEY_FORBIDDEN", "A token may only give a key the scopes it holds itself")}
+  end if;`;
+
   const state = (alias: string): string => `case
       when ${alias}.${c("revokedAt")} is not null and ${alias}.${c("revokedAt")} <= now() then 'revoked'
       when ${alias}.${c("expiresAt")} is not null and ${alias}.${c("expiresAt")} <= now() then 'expired'
@@ -429,7 +463,7 @@ begin
     ) then
       ${fail("API_KEY_FORBIDDEN", "Not allowed to create API keys for every tenant")}
     end if;
-  end if;${scopeCheck}${interactiveCheck}${wildcard}
+  end if;${scopeCheck}${interactiveCheck}${withinToken("scopes")}${wildcard}
   if expires_at is not null and expires_at <= now() then
     ${fail("API_KEY_EXPIRED", "expires_at is in the past", "22023")}
   end if;
@@ -504,7 +538,7 @@ begin
   select * into old from ${t} k where k.${c("id")} = rotate_api_key.key for update;
   if old.${c("id")} is null or not ${mayChange("old")} then
     ${fail("API_KEY_NOT_FOUND", "API key not found", "P0002")}
-  end if;
+  end if;${withinToken(`old.${c("scopes")}`)}
   if old.${c("revokedAt")} is not null and old.${c("revokedAt")} <= now() then
     ${fail("API_KEY_REVOKED", "A revoked API key cannot be rotated", "22023")}
   end if;

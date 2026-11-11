@@ -43,6 +43,16 @@ describe("api-keys module", () => {
     expect(render({})).not.toContain("Only a signed-in user");
   });
 
+  it("keeps keys a token creates or rotates within the token's own scopes", () => {
+    const sql = render({});
+
+    expect(
+      sql.split("A token may only give a key the scopes it holds itself"),
+    ).toHaveLength(3);
+    expect(sql).toContain("better_supabase.scope_permissions(t.scope)");
+    expect(sql).toContain("?| array['*', s]");
+  });
+
   it("adds the kind column, checks it against the kinds option and takes it on create", () => {
     const sql = render({ kinds: ["client", "admin", "export", "feed"] });
     expect(sql).toContain(

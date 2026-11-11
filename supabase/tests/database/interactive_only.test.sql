@@ -4,7 +4,7 @@
 -- say, and no API key may carry such a key as a scope. The admin owns Acme
 -- (…0001) and the member belongs to Acme (supabase/seed.sql).
 begin;
-select plan(17);
+select plan(23);
 
 create function pg_temp.as_claims(claims jsonb) returns void
 language sql as $$
@@ -76,6 +76,38 @@ select ok(
   'an agent never holds organization.delete'
 );
 
+-- An OAuth client allowed to create personal keys mints one no broader
+-- than its own scopes.
+select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","client_id":"app_1","scope":"api_keys.own members.read"}');
+select throws_ok(
+  $$select better_supabase.create_api_key('k', '0123456789abcde1', repeat('b', 64), '00000000-0000-4000-8000-000000000001', true, array['customers.write'])$$,
+  '42501',
+  'A token may only give a key the scopes it holds itself',
+  'an OAuth client cannot mint a key broader than its scopes'
+);
+select lives_ok(
+  $$select better_supabase.create_api_key('k', '0123456789abcde2', repeat('b', 64), '00000000-0000-4000-8000-000000000001', true, array['members.read'])$$,
+  'an OAuth client mints a key within its scopes'
+);
+
+-- An agent with the same scopes.
+select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","scope":"api_keys.own","act":{"sub":"agent-1","kind":"agent"}}');
+select throws_ok(
+  $$select better_supabase.create_api_key('k', '0123456789abcde3', repeat('b', 64), '00000000-0000-4000-8000-000000000001', true, array['*'])$$,
+  '42501',
+  'A token may only give a key the scopes it holds itself',
+  'an agent cannot mint a key with *'
+);
+
+-- An API key mints and rotates only within its own scopes.
+select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","api_key":{"id":"k3","scopes":["members.read"]}}');
+select throws_ok(
+  $$select better_supabase.create_api_key('k', '0123456789abcde4', repeat('b', 64), '00000000-0000-4000-8000-000000000001', true, array['members.read', 'customers.write'])$$,
+  '42501',
+  'A token may only give a key the scopes it holds itself',
+  'an API key cannot mint a broader key'
+);
+
 -- The owner's own session.
 select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}');
 select ok(
@@ -96,6 +128,18 @@ select lives_ok(
   $$select better_supabase.create_api_key('k', '0123456789abcdef', repeat('a', 64), '00000000-0000-4000-8000-000000000001', true, array['members.read'])$$,
   'an API key may still carry other scopes'
 );
+select ok(
+  set_config('test.broad_key', better_supabase.create_api_key('broad', '0123456789abcde5', repeat('c', 64), '00000000-0000-4000-8000-000000000001', true, array['customers.write']) ->> 'id', true) is not null,
+  'the owner''s own session creates a key with any scope'
+);
+select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","client_id":"app_1","scope":"api_keys.own"}');
+select throws_ok(
+  $$select better_supabase.rotate_api_key(current_setting('test.broad_key')::uuid, '0123456789abcde6', repeat('d', 64))$$,
+  '42501',
+  'A token may only give a key the scopes it holds itself',
+  'an OAuth client cannot rotate a key broader than its scopes'
+);
+select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}');
 select lives_ok(
   $$select better_supabase.transfer_ownership('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2')$$,
   'the owner transfers ownership from their own session'

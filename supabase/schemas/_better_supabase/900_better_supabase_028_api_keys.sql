@@ -1,6 +1,6 @@
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:ad07cb6bfc7fc072c05a1e97ab07ca30ee6ae55c95409832d8ad7337bfc442be
+-- @bsb-hash sha256:ebf2ae6c428121301597832e4f8d1ad44ce90a0edebe3b1c4a8fa4c2c1bb8436
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,6 +91,30 @@ begin
   end if;
   if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s = any ('{organization.delete,organization.transfer_ownership,platform.invite,sso.manage}'::text[])) then
     raise exception 'Only a signed-in user may use this permission, so an API key cannot carry it' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
+  end if;
+  if (auth.jwt() -> 'api_key' is not null
+      or coalesce(auth.jwt() ->> 'client_id', '') <> ''
+      or auth.jwt() -> 'act' is not null) and exists (
+    select 1 from unnest(coalesce(scopes, '{}')) s
+    where not case
+      when auth.jwt() -> 'api_key' is not null then
+        coalesce(auth.jwt() -> 'api_key' -> 'scopes', '[]'::jsonb) ?| array['*', s]
+      else exists (
+        select 1
+        from unnest(case jsonb_typeof(auth.jwt() -> 'scope')
+            when 'string' then regexp_split_to_array(btrim(auth.jwt() ->> 'scope'), '\s+')
+            when 'array' then array(select jsonb_array_elements_text(auth.jwt() -> 'scope'))
+            else '{}'::text[]
+          end) t(scope)
+        where t.scope <> ''
+          and (t.scope = s or exists (
+            select 1 from unnest(better_supabase.scope_permissions(t.scope)) k(key)
+            where better_supabase.permission_matches(k.key, s)
+          ))
+      )
+    end
+  ) then
+    raise exception 'A token may only give a key the scopes it holds itself' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
   end if;
   if expires_at is not null and expires_at <= now() then
     raise exception 'expires_at is in the past' using errcode = '22023', hint = 'API_KEY_EXPIRED';
@@ -282,6 +306,30 @@ begin
   select * into old from "better_supabase"."api_keys" k where k."id" = rotate_api_key.key for update;
   if old."id" is null or not ((old."tenant_id" is not null and coalesce(better_supabase.can('tenant', old."tenant_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
+  end if;
+  if (auth.jwt() -> 'api_key' is not null
+      or coalesce(auth.jwt() ->> 'client_id', '') <> ''
+      or auth.jwt() -> 'act' is not null) and exists (
+    select 1 from unnest(coalesce(old."scopes", '{}')) s
+    where not case
+      when auth.jwt() -> 'api_key' is not null then
+        coalesce(auth.jwt() -> 'api_key' -> 'scopes', '[]'::jsonb) ?| array['*', s]
+      else exists (
+        select 1
+        from unnest(case jsonb_typeof(auth.jwt() -> 'scope')
+            when 'string' then regexp_split_to_array(btrim(auth.jwt() ->> 'scope'), '\s+')
+            when 'array' then array(select jsonb_array_elements_text(auth.jwt() -> 'scope'))
+            else '{}'::text[]
+          end) t(scope)
+        where t.scope <> ''
+          and (t.scope = s or exists (
+            select 1 from unnest(better_supabase.scope_permissions(t.scope)) k(key)
+            where better_supabase.permission_matches(k.key, s)
+          ))
+      )
+    end
+  ) then
+    raise exception 'A token may only give a key the scopes it holds itself' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
   end if;
   if old."revoked_at" is not null and old."revoked_at" <= now() then
     raise exception 'A revoked API key cannot be rotated' using errcode = '22023', hint = 'API_KEY_REVOKED';
