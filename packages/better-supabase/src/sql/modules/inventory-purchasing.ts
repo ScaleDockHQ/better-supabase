@@ -243,6 +243,14 @@ export function purchaseOrderFunctions(
       audit: false,
     });
 
+  // Units a line gave up before they were received, when the table keeps them.
+  const canceledOn = ctx.has("purchaseOrderLines", "quantityCanceled");
+
+  const canceled = (alias: string): string =>
+    canceledOn ? ` - ${alias}.${pl("quantityCanceled")}` : "";
+
+  const numbered = ctx.has("purchaseOrders", "number");
+
   // Tax lines exist when the line carries a rate and the table is there.
   const taxLines =
     ctx.hasTable("purchaseOrderTaxLines") &&
@@ -313,14 +321,14 @@ ${userGrant(`${fn("purchase_order_tax_lines")}(uuid)`)}
 -- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.subjects record, or are both null.
-create or replace function ${fn("save_purchase_order")}(tenant ${ctx.idType}, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text)
+${numbered ? `drop function if exists ${fn("save_purchase_order")}(${ctx.idType}, uuid, uuid, text, text, text, timestamptz, jsonb, text);\n` : ""}create or replace function ${fn("save_purchase_order")}(tenant ${ctx.idType}, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text${numbered ? ", number text default null" : ""})
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_purchase_order.purchase_order;
+  v_id uuid := save_purchase_order.purchase_order;${numbered ? "\n  v_number text := nullif(btrim(save_purchase_order.number), '');" : ""}
 begin
   ${guard(names.scope, names.purchase, "save_purchase_order.tenant")}
   if not exists (select 1 from ${locations} x where x.${l("id")} = save_purchase_order.location and x.${l("tenant")} = save_purchase_order.tenant) then
@@ -329,15 +337,22 @@ begin
   if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
     ${fail("INVENTORY_SUPPLIER_INVALID", "supplier_type and supplier_id go together", "22023")}
   end if;${blocked("save_purchase_order.supplier_id", "save_purchase_order.tenant")}
-  if save_purchase_order.currency is null or ${currencyUnits}(save_purchase_order.currency) is null then
+${
+  numbered
+    ? `  if v_number is not null and length(v_number) > 50 then
+    ${fail("INVENTORY_PURCHASE_ORDER_NUMBER_INVALID", "a purchase order number is up to 50 characters", "22023")}
+  end if;
+`
+    : ""
+}  if save_purchase_order.currency is null or ${currencyUnits}(save_purchase_order.currency) is null then
     ${fail("INVENTORY_CURRENCY_INVALID", "the currency must be an ISO 4217 code", "22023")}
   end if;
   ${linesCheck("save_purchase_order.lines", "variantId", `\n        or coalesce(e ->> 'unitCost', '') !~ ${UNIT_COST}${taxLines ? `\n        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')\n        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)` : ""}`)}
   ${linesVariantCheck(ctx, "save_purchase_order.lines", "save_purchase_order.tenant")}
   if v_id is null then
-    insert into ${orders} (${po("tenant")}, ${po("location")}, ${po("supplierType")}, ${po("supplierId")}, ${po("currency")}, ${po("expectedAt")}, ${po("note")})
+    insert into ${orders} (${po("tenant")}, ${po("location")}, ${po("supplierType")}, ${po("supplierId")}, ${po("currency")}, ${po("expectedAt")}, ${po("note")}${numbered ? `, ${po("number")}` : ""})
     values (save_purchase_order.tenant, save_purchase_order.location, save_purchase_order.supplier_type, save_purchase_order.supplier_id,
-      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note)
+      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note${numbered ? ", v_number" : ""})
     returning ${po("id")} into v_id;
   else
     perform 1 from ${orders} x where x.${po("id")} = v_id and x.${po("tenant")} = save_purchase_order.tenant for update;
@@ -346,7 +361,7 @@ begin
     end if;
     update ${orders} x set ${po("location")} = save_purchase_order.location, ${po("supplierType")} = save_purchase_order.supplier_type,
       ${po("supplierId")} = save_purchase_order.supplier_id, ${po("currency")} = save_purchase_order.currency,
-      ${po("expectedAt")} = save_purchase_order.expected_at, ${po("note")} = save_purchase_order.note, ${po("updatedAt")} = now()
+      ${po("expectedAt")} = save_purchase_order.expected_at, ${po("note")} = save_purchase_order.note,${numbered ? ` ${po("number")} = coalesce(v_number, x.${po("number")}),` : ""} ${po("updatedAt")} = now()
     where x.${po("id")} = v_id and ${ctx.is("purchaseOrders", "status", `x.${po("status")}`, ["draft"])};
     if not found then
       ${fail("INVENTORY_PURCHASE_ORDER_LOCKED", "only a draft purchase order can change", "55000")}
@@ -356,12 +371,20 @@ begin
   insert into ${lines} (${pl("tenant")}, ${pl("order")}, ${pl("variant")}, ${pl("quantity")}, ${pl("unitCost")}${taxLines ? `, ${pl("taxRateBps")}${ctx.has("purchaseOrderLines", "taxCode") ? `, ${pl("taxCode")}` : ""}` : ""})
   select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint${taxLines ? `, (e ->> 'taxRateBps')::integer${ctx.has("purchaseOrderLines", "taxCode") ? ", nullif(trim(e ->> 'taxCode'), '')" : ""}` : ""}
   from jsonb_array_elements(save_purchase_order.lines) e;${taxLines ? rebuildTaxLines : ""}
-  return jsonb_build_object('id', v_id, 'status', 'draft');
+  return jsonb_build_object('id', v_id, 'status', 'draft'${numbered ? `, 'number', (select x.${po("number")} from ${orders} x where x.${po("id")} = v_id)` : ""});${
+    numbered
+      ? `
+exception when unique_violation then
+  ${fail("INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN", "another purchase order has this number", "23505")}`
+      : ""
+  }
 end;
 $$;
-${userGrant(`${fn("save_purchase_order")}(${ctx.idType}, uuid, uuid, text, text, text, timestamptz, jsonb, text)`)}
+${userGrant(`${fn("save_purchase_order")}(${ctx.idType}, uuid, uuid, text, text, text, timestamptz, jsonb, text${numbered ? ", text" : ""})`)}
 ${taxReader}
 -- Sends a draft purchase order: its quantities count as incoming at its location.
+-- An order without a number gets the next one: one more than the organization's
+-- highest all-digit number, under a transaction lock.
 create or replace function ${fn("place_purchase_order")}(purchase_order uuid)
 returns boolean
 language plpgsql
@@ -369,18 +392,28 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row record;
+  v_row record;${numbered ? "\n  v_number text;" : ""}
 begin
   ${load("place_purchase_order")}
   if v_row.status <> 'draft' then
     ${statusError}
-  end if;${blocked("v_row.supplier_id", "v_row.tenant")}
+  end if;${blocked("v_row.supplier_id", "v_row.tenant")}${
+    numbered
+      ? `
+  select x.${po("number")} into v_number from ${orders} x where x.${po("id")} = place_purchase_order.purchase_order;
+  if v_number is null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row.tenant::text || ':inventory:purchase_order', 0));
+    select (coalesce(max(case when y.${po("number")} ~ '^[0-9]{1,15}$' then y.${po("number")}::bigint end), 0) + 1)::text into v_number
+    from ${orders} y where y.${po("tenant")} = v_row.tenant;
+  end if;`
+      : ""
+  }
   insert into ${levels} as x (${lv("tenant")}, ${lv("variant")}, ${lv("location")}, ${lv("incoming")})
   select v_row.tenant, y.${pl("variant")}, v_row.location, y.${pl("quantity")}
   from ${lines} y where y.${pl("order")} = place_purchase_order.purchase_order
   on conflict (${lv("variant")}, ${lv("location")}) do update
     set ${lv("incoming")} = x.${lv("incoming")} + excluded.${lv("incoming")}, ${lv("updatedAt")} = now();
-  update ${orders} x set ${po("status")} = ${ctx.value("purchaseOrders", "status", "ordered")}, ${po("placedAt")} = now(), ${po("updatedAt")} = now()
+  update ${orders} x set ${po("status")} = ${ctx.value("purchaseOrders", "status", "ordered")}, ${po("placedAt")} = now(),${numbered ? ` ${po("number")} = v_number,` : ""} ${po("updatedAt")} = now()
   where x.${po("id")} = place_purchase_order.purchase_order;
   ${event("purchase_order.placed", "place_purchase_order", "'ordered'")}
   return true;
@@ -412,7 +445,7 @@ begin
   end if;
   ${linesCheck("receive_purchase_order.lines", "lineId")}${receipt.start}
   for v_line in
-    select y.${pl("id")} as id, y.${pl("variant")} as variant, y.${pl("quantity")} as ordered,
+    select y.${pl("id")} as id, y.${pl("variant")} as variant, y.${pl("quantity")}${canceled("y")} as ordered,
       y.${pl("received")} as received, (e ->> 'quantity')::numeric as quantity, y.${pl("unitCost")} as unit_cost,
       jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials', 'country', e -> 'country', 'netMassKg', e -> 'netMassKg')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
@@ -429,7 +462,7 @@ begin
     where x.${lv("variant")} = v_line.variant and x.${lv("location")} = v_row.location;
     perform ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_line.variant", location: "v_row.location", quantity: "v_line.quantity", reason: "'receipt'", referenceType: "'purchase_order'", referenceId: "receive_purchase_order.purchase_order::text", detail: "v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text)" })};${receipt.line}
   end loop;
-  select coalesce(sum(y.${pl("quantity")} - y.${pl("received")}), 0) into v_backordered
+  select coalesce(sum(y.${pl("quantity")}${canceled("y")} - y.${pl("received")}), 0) into v_backordered
   from ${lines} y where y.${pl("order")} = receive_purchase_order.purchase_order;
   v_status := case when v_backordered = 0 then 'received' else 'partially_received' end;
   update ${orders} x set ${po("status")} = ${ctx.cast("purchaseOrders", "status", "v_status")}, ${po("updatedAt")} = now()
@@ -440,6 +473,63 @@ end;
 $$;
 ${userGrant(`${fn("receive_purchase_order")}(uuid, jsonb)`)}
 
+
+${
+  canceledOn
+    ? `
+-- Gives up part of what is still owed on some lines of a placed order, for a
+-- supplier that can't deliver it all. lines: [{ "lineId": uuid, "quantity": n }];
+-- each quantity is at most what the line still owes. The units stop counting as
+-- incoming. An order with nothing left owed becomes received, or cancelled when
+-- nothing was received. Returns the new status and the quantity still on
+-- backorder.
+create or replace function ${fn("cancel_purchase_order_quantity")}(purchase_order uuid, lines jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row record;
+  v_line record;
+  v_backordered numeric;
+  v_received numeric;
+  v_status text;
+begin
+  ${load("cancel_purchase_order_quantity")}
+  if v_row.status not in ('ordered', 'partially_received') then
+    ${statusError}
+  end if;
+  ${linesCheck("cancel_purchase_order_quantity.lines", "lineId")}
+  for v_line in
+    select y.${pl("id")} as id, y.${pl("variant")} as variant,
+      y.${pl("quantity")} - y.${pl("quantityCanceled")} - y.${pl("received")} as owed, (e ->> 'quantity')::numeric as quantity
+    from jsonb_array_elements(cancel_purchase_order_quantity.lines) e
+    left join ${lines} y on y.${pl("id")} = (e ->> 'lineId')::uuid and y.${pl("order")} = cancel_purchase_order_quantity.purchase_order
+  loop
+    if v_line.id is null then
+      ${fail("INVENTORY_LINE_NOT_FOUND", "a line isn't on this purchase order", "P0002")}
+    end if;
+    if v_line.quantity > v_line.owed then
+      ${fail("INVENTORY_OVER_CANCEL", "a line would cancel more than it still owes", "22023")}
+    end if;
+    update ${lines} y set ${pl("quantityCanceled")} = y.${pl("quantityCanceled")} + v_line.quantity where y.${pl("id")} = v_line.id;
+    update ${levels} x set ${lv("incoming")} = greatest(x.${lv("incoming")} - v_line.quantity, 0), ${lv("updatedAt")} = now()
+    where x.${lv("variant")} = v_line.variant and x.${lv("location")} = v_row.location;
+  end loop;
+  select coalesce(sum(y.${pl("quantity")} - y.${pl("quantityCanceled")} - y.${pl("received")}), 0), coalesce(sum(y.${pl("received")}), 0)
+  into v_backordered, v_received from ${lines} y where y.${pl("order")} = cancel_purchase_order_quantity.purchase_order;
+  v_status := case when v_backordered > 0 then v_row.status when v_received > 0 then 'received' else 'cancelled' end;
+  update ${orders} x set ${po("status")} = ${ctx.cast("purchaseOrders", "status", "v_status")}, ${po("updatedAt")} = now()
+  where x.${po("id")} = cancel_purchase_order_quantity.purchase_order;
+  ${event("purchase_order.line_cancelled", "cancel_purchase_order_quantity", "v_status")}
+  return jsonb_build_object('status', v_status, 'backordered', v_backordered);
+end;
+$$;
+${userGrant(`${fn("cancel_purchase_order_quantity")}(uuid, jsonb)`)}
+`
+    : ""
+}
 -- Cancels a purchase order that isn't fully received; what's still on
 -- backorder stops counting as incoming.
 create or replace function ${fn("cancel_purchase_order")}(purchase_order uuid)
@@ -456,7 +546,7 @@ begin
     ${statusError}
   end if;
   if v_row.status <> 'draft' then
-    update ${levels} x set ${lv("incoming")} = greatest(x.${lv("incoming")} - (y.${pl("quantity")} - y.${pl("received")}), 0), ${lv("updatedAt")} = now()
+    update ${levels} x set ${lv("incoming")} = greatest(x.${lv("incoming")} - (y.${pl("quantity")}${canceled("y")} - y.${pl("received")}), 0), ${lv("updatedAt")} = now()
     from ${lines} y
     where y.${pl("order")} = cancel_purchase_order.purchase_order
       and x.${lv("variant")} = y.${pl("variant")} and x.${lv("location")} = v_row.location;

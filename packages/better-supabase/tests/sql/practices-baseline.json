@@ -261,7 +261,7 @@
     "row-triggers": 1
   },
   "inventory": {
-    "security-definer-functions": 313
+    "security-definer-functions": 331
   },
   "invitations": {
     "security-definer-functions": 72,

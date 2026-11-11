@@ -406,6 +406,30 @@ purchase order: saving or placing one fails with
 `PURCHASE_ORDER_SUPPLIER_BLOCKED`. Without contacts the module stores the pair
 and doesn't check it.
 
+### Numbers and canceled quantities
+
+An order can carry a number of its own, up to 50 characters and unique per
+organization, through `number` on `savePurchaseOrder` (a repeat is
+`INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN`). Placing an order that has none gives
+it the next all-digit number: one more than the organization's highest,
+assigned under a transaction lock, so the numbers don't skip.
+
+`cancelPurchaseOrderQuantity` gives up part of what a placed order still owes,
+for a supplier that can't deliver it all:
+
+```ts
+await inventory
+  .cancelPurchaseOrderQuantity(order.id, [{ lineId, quantity: 40 }])
+  .orThrow();
+// { status: "partially_received", backordered: 0 }
+```
+
+Each quantity is at most what the line still owes (`INVENTORY_OVER_CANCEL`).
+The units stop counting as incoming, receipts and the backorder count leave
+them out, and an order with nothing left owed becomes `received`, or
+`cancelled` when nothing was received. It records `purchase_order.line_cancelled`.
+It needs `inventory.purchase`.
+
 ### Tax lines
 
 Give a line a `taxRateBps` (2100 is 21 percent) and an optional `taxCode`,
@@ -554,6 +578,7 @@ const history = await db.$blocks.inventory
 | `allocation.created`, `allocation.filled`, `allocation.released`               | `allocate`, a backorder filled, a release        |
 | `transfer.shipped`, `transfer.received`, `transfer.cancelled`                  | A transfer step                                  |
 | `purchase_order.placed`, `purchase_order.received`, `purchase_order.cancelled` | A purchase order step                            |
+| `purchase_order.line_cancelled`                                                | `cancelPurchaseOrderQuantity`                    |
 | `purchase_requisition.created`, `purchase_requisition.approved`                | `requestPurchase`, an approval                   |
 | `inventory_receipt.created`                                                    | A receipt of a purchase order                    |
 

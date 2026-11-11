@@ -276,6 +276,67 @@ describe("inventory block", () => {
     });
   });
 
+  it("sends a purchase order number and cancels part of what is owed", async () => {
+    const { calls, transport } = recorder(
+      { id: "po1", status: "draft", number: "PO-100" },
+      { id: "po2", status: "draft", number: null },
+      { status: "ordered", backordered: 6 },
+      { status: "lost", backordered: 0 },
+    );
+
+    const inventory = createInventory({ transport });
+
+    expect(
+      await inventory
+        .savePurchaseOrder({
+          organizationId: "org",
+          input: {
+            locationId: "l1",
+            currency: "EUR",
+            number: "PO-100",
+            lines: [
+              { variantId: "v1", quantity: 10, unitCost: money(100n, "EUR") },
+            ],
+          },
+        })
+        .orThrow(),
+    ).toEqual({ id: "po1", number: "PO-100" });
+    expect(calls[0]?.args).toMatchObject({ number: "PO-100" });
+
+    await inventory
+      .savePurchaseOrder({
+        organizationId: "org",
+        input: {
+          locationId: "l1",
+          currency: "EUR",
+          lines: [
+            { variantId: "v1", quantity: 1, unitCost: money(100n, "EUR") },
+          ],
+        },
+      })
+      .orThrow();
+    expect(calls[1]?.args).not.toHaveProperty("number");
+
+    expect(
+      await inventory
+        .cancelPurchaseOrderQuantity({
+          purchaseOrderId: "po1",
+          lines: [{ lineId: "x1", quantity: 4 }],
+        })
+        .orThrow(),
+    ).toEqual({ status: "ordered", backordered: 6 });
+    expect(calls[2]).toEqual({
+      fn: "cancel_purchase_order_quantity",
+      args: { purchase_order: "po1", lines: [{ lineId: "x1", quantity: 4 }] },
+    });
+    expect(
+      await inventory.cancelPurchaseOrderQuantity({
+        purchaseOrderId: "po1",
+        lines: [{ lineId: "x1", quantity: 1 }],
+      }),
+    ).toMatchObject({ ok: false });
+  });
+
   it("maps a partial receipt and refuses an unknown status", async () => {
     const { transport } = recorder(
       { status: "partially_received", backordered: 4 },

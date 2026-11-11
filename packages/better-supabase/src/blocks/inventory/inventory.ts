@@ -189,6 +189,11 @@ export interface PurchaseOrderTaxLine {
 
 export interface PurchaseOrderInput {
   readonly id?: string;
+  /**
+   * The order's number, up to 50 characters and unique per organization. An
+   * order without one gets the next number when it is placed.
+   */
+  readonly number?: string;
   /** Where the goods arrive. */
   readonly locationId: string;
   /** A `config.subjects` record for the supplier, such as a company. */
@@ -311,7 +316,7 @@ export interface Inventory<F extends object = Record<never, never>>
   savePurchaseOrder(input: {
     organizationId: string;
     input: PurchaseOrderInput;
-  }): AsyncResult<{ readonly id: string }>;
+  }): AsyncResult<{ readonly id: string; readonly number?: string }>;
   /**
    * The order's tax per code and rate, rebuilt each time the draft is saved
    * from the lines that carry a `taxRateBps`.
@@ -326,6 +331,20 @@ export interface Inventory<F extends object = Record<never, never>>
     purchaseOrderId: string;
     lines: readonly ReceiptLine[];
   }): AsyncResult<Receipt>;
+  /**
+   * Gives up part of what a placed order still owes, line by line, for a
+   * supplier that can't deliver it all. The units stop counting as incoming; an
+   * order with nothing left owed becomes `received`, or `cancelled` when
+   * nothing was received.
+   */
+  cancelPurchaseOrderQuantity(input: {
+    purchaseOrderId: string;
+    lines: readonly { readonly lineId: string; readonly quantity: number }[];
+  }): AsyncResult<{
+    readonly status: PurchaseOrderStatus;
+    /** Units still owed across the order. */
+    readonly backordered: number;
+  }>;
   cancelPurchaseOrder(purchaseOrderId: string): AsyncResult<boolean>;
   /** The handler for a scheduled job that runs `expireReservations`. */
   readonly job: JobHandler<unknown>;
@@ -355,6 +374,16 @@ function idOf(fn: string) {
   return (value: unknown): { readonly id: string } => ({
     id: textOf(recordOf(value, fn)["id"]),
   });
+}
+
+function savedOrderOf(value: unknown): {
+  readonly id: string;
+  readonly number?: string;
+} {
+  const row = recordOf(value, "save_purchase_order");
+  const number = optionalText(row["number"]);
+
+  return { id: textOf(row["id"]), ...(number ? { number } : {}) };
 }
 
 function maxRowsOf(payload: unknown): number | undefined {
@@ -594,10 +623,31 @@ export function createInventory<
           expected_at: instantArg(input.expectedAt) ?? null,
           lines,
           note: input.note ?? null,
+          ...(input.number === undefined ? {} : { number: input.number }),
         },
-        idOf("save_purchase_order"),
+        savedOrderOf,
       );
     },
+    cancelPurchaseOrderQuantity: ({ purchaseOrderId, lines }) =>
+      call(
+        "cancel_purchase_order_quantity",
+        {
+          purchase_order: purchaseOrderId,
+          lines: lines.map(({ lineId, quantity }) => ({ lineId, quantity })),
+        },
+        (value) => {
+          const row = recordOf(value, "cancel_purchase_order_quantity");
+
+          return {
+            status: enumOrThrow(
+              row["status"],
+              PURCHASE_ORDER_STATUSES,
+              "purchase order status",
+            ),
+            backordered: Number(row["backordered"]),
+          };
+        },
+      ),
     purchaseOrderTaxLines: (purchaseOrderId) =>
       call(
         "purchase_order_tax_lines",

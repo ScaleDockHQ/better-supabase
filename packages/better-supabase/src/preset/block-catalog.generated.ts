@@ -2092,6 +2092,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "allocation.transferred",
         "inventory_receipt.created",
         "purchase_order.cancelled",
+        "purchase_order.line_cancelled",
         "purchase_order.placed",
         "purchase_order.received",
         "purchase_requisition.approved",
