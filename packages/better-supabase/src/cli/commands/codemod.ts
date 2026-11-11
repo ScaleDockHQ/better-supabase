@@ -6,11 +6,12 @@ import type { TenantColumnSkip } from "../codemod-naming-pins.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
 import type { FilePlan, PlannedFile } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
+import type { CliEnv } from "../env.ts";
 import type { Paint } from "../style.ts";
 
 import { SQL_MODULES } from "../../sql/index.ts";
 import { applyCodemod, CODEMODS } from "../codemod.ts";
-import { loadConfig } from "../config.ts";
+import { databaseUrl, loadConfig } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import {
@@ -20,6 +21,7 @@ import {
   planResult,
 } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { connect } from "../db.ts";
 import { migrationsDir, writtenByBlocks } from "../sql-layout.ts";
 import { migrationFile } from "../sql/migration-names.ts";
 import { plain } from "../style.ts";
@@ -252,12 +254,57 @@ async function loadRewritten(
   }
 }
 
+/**
+ * The columns of `tables` in the project's database, or undefined when there is
+ * no database to read, so the codemod falls back to the snapshot.
+ */
+export async function liveColumns(
+  config: ResolvedConfig,
+  env: CliEnv,
+  tables: readonly string[],
+  open: typeof connect = connect,
+): Promise<ReadonlyMap<string, ReadonlySet<string>> | undefined> {
+  if (tables.length === 0) {
+    return undefined;
+  }
+
+  let db: Awaited<ReturnType<typeof connect>>;
+
+  try {
+    db = await open(await databaseUrl(config, env));
+  } catch {
+    return undefined;
+  }
+
+  try {
+    const { rows } = await db.client.query<{ name: string; column: string }>(
+      `select table_schema || '.' || table_name as name, column_name as column
+      from information_schema.columns
+      where table_schema || '.' || table_name = any($1::text[])`,
+      [[...new Set(tables)]],
+    );
+
+    const found = new Map<string, Set<string>>();
+
+    for (const row of rows) {
+      found.set(row.name, (found.get(row.name) ?? new Set()).add(row.column));
+    }
+
+    return found;
+  } catch {
+    return undefined;
+  } finally {
+    await db.close().catch(() => undefined);
+  }
+}
+
 export async function runCodemod(
   loadedConfig: ResolvedConfig,
   args: CodemodOptions,
   paint: Paint = plain,
   configFile?: string,
   loadError?: CliError,
+  env?: CliEnv,
 ): Promise<CommandResult> {
   const [name, ...paths] = args._ ?? [];
 
@@ -320,6 +367,12 @@ export async function runCodemod(
     config,
     configLoaded: configError === undefined,
     sql: await projectSqlFiles(config.root),
+    ...(env === undefined
+      ? {}
+      : {
+          liveColumns: (tables: readonly string[]) =>
+            liveColumns(config, env, tables),
+        }),
     ...(configFile === undefined
       ? {}
       : { configFile, configText: await readFile(configFile, "utf-8") }),
@@ -514,13 +567,14 @@ export function codemodCommand(name: string): AnyCommand {
     meta: commandMeta(`codemod ${name}`),
     args: CODEMOD_ARGS,
     runsWithInvalidConfig: true,
-    run: (args, { config, configFile, configError, paint }) =>
+    run: (args, { config, configFile, configError, paint, env }) =>
       runCodemod(
         config,
         { ...args, _: [name, ...args._] },
         paint,
         configFile,
         configError,
+        env,
       ),
   });
 }
