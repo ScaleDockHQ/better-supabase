@@ -547,10 +547,22 @@ ${indent}end if;`;
     ? `\n    or exists (select 1 from ${decisions} x where x.${d("request")} = q.${c("id")} and x.${d("step")} = ${stepOf("q")} and x.${d("decision")} = 'delegated' and x.${d("delegateTo")} = q.bsb_me)`
     : "";
 
+  const stepApprovers = escalates
+    ? `case when ${escalatedSet} then ${approversIn("escalateTo")} else ${approversIn("approvers")} end`
+    : approversIn("approvers");
+
+  const providerSet = approverCheck(ctx, layout, {
+    kind: { sql: `q.${c("subjectType")} || '.' || q.${c("action")}` },
+    subject: `q.${c("subjectId")}::text`,
+    tenant: `q.${c("tenant")}`,
+    requester: `q.${c("requestedBy")}`,
+    approvers: `(coalesce(${stepApprovers}, '{}'::jsonb) || jsonb_build_object('required', coalesce(q.bsb_step -> 'required', '1'::jsonb)))`,
+  });
+
   const providerFallback =
-    provider === undefined
+    providerSet === undefined
       ? ""
-      : `\n    or ${fn("approval_eligible")}(q.${c("id")})`;
+      : `\n    or (q.bsb_me is distinct from q.${c("requestedBy")} and coalesce((${providerSet.sql}), false))`;
 
   const linkedSet = linked.flatMap((each) =>
     each.approvable === undefined

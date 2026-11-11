@@ -86,8 +86,16 @@ records: {
       exclude: "archived_at",
       from: { view: "public.customer_search_sources", key: "customer_id" },
       watch: [
-        { table: "public.customer_contacts", key: "customer_id" },
-        { table: "public.customer_locations", key: "customer_id" },
+        {
+          table: "public.customer_contacts",
+          key: "customer_id",
+          columns: ["name", "email"],
+        },
+        {
+          table: "public.customer_locations",
+          key: "customer_id",
+          columns: ["city"],
+        },
       ],
     },
   },
@@ -98,7 +106,14 @@ records: {
       title: "label",
       description: "customer_name",
       from: { view: "public.asset_search_sources", key: "asset_id" },
-      watch: [{ table: "public.products", key: "id", via: "product_id" }],
+      watch: [
+        {
+          table: "public.products",
+          key: "id",
+          via: "product_id",
+          columns: ["name"],
+        },
+      ],
     },
   },
 },
@@ -107,7 +122,9 @@ records: {
 A source view is ordinary schema of the app: it expresses how a record is
 labelled (a number and a title joined, a related name) without the block
 knowing the shape. Changes to the record's own columns still re-index it;
-`watch` covers the tables behind the view.
+`watch` covers the tables behind the view. A `watch` without `columns`
+re-indexes only when its `key` changes, so list the columns the view reads from
+that table.
 
 ## Imports
 

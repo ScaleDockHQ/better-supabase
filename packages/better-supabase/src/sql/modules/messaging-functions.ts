@@ -35,7 +35,7 @@ function messagesJson(q: MessagingSql): string {
     table: t("messages"),
     id: ms("id"),
     user: ms("author"),
-    visible: `exists (select 1 from ${t("conversations")} c where c.${q.cols("conversations")("id")} = y.${ms("conversation")} and ${conversationReadable(q, "c")})`,
+    visible: `y.${ms("conversation")} = any (array(select c.${q.cols("conversations")("id")} from ${t("conversations")} c where c.${q.cols("conversations")("id")} = any (array(select distinct v.${ms("conversation")} from ${t("messages")} v where v.${ms("id")} = any ($1))) and ${conversationReadable(q, "c")}))`,
     what: "The name and avatar of each message's author, keyed by message id,\n-- for the messages of ids the caller may read.",
   });
 

@@ -31,6 +31,13 @@ export interface CodemodProject {
   readonly configText?: string;
   /** False when the config did not load and `config` is the default one. */
   readonly configLoaded?: boolean;
+  /**
+   * The columns of `tables` (`schema.table`) in the live database, by table, or
+   * undefined when no database could be read.
+   */
+  readonly liveColumns?: (
+    tables: readonly string[],
+  ) => Promise<ReadonlyMap<string, ReadonlySet<string>> | undefined>;
 }
 
 /** What a codemod's migration knows about the project's config. */

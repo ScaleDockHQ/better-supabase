@@ -12,6 +12,7 @@ import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { instanceProperty } from "../../src/core/instance-property.ts";
 import { err, ok } from "../../src/core/result.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 /** A block whose client reports the tenant it acts in. */
@@ -205,6 +206,35 @@ describe("block instances on db", () => {
     expect(typeof db.customers.list).toBe("function");
     expect(db.$blocks.customers.tenant()).toBeUndefined();
     expect(Object.keys(db.$blocks)).toEqual(["customers"]);
+  });
+
+  it("leaves a lazily loaded table its property", () => {
+    const { customers, ...rest } = schema.meta.tables;
+
+    if (!customers) {
+      throw new Error("the fixture has no customers table");
+    }
+
+    const clash = createSupabase(
+      defineSchema({
+        ...schema.meta,
+        tables: rest,
+        lazyTables: true,
+        tableLoaders: { customers: () => Promise.resolve(customers) },
+      }),
+    ).blocks(
+      defineBlocks(
+        {
+          customers: { block: "probe", schema: "better_supabase", options: {} },
+        },
+        { customers: probe },
+      ),
+    );
+
+    const db = clash.connect(executor, {});
+
+    expect(typeof db["customers"]?.list).toBe("function");
+    expect(db.$blocks.customers.tenant()).toBeUndefined();
   });
 
   it("types the instances by property", () => {

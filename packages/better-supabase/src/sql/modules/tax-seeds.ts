@@ -18,11 +18,6 @@ interface CountryCode {
  * organization has no single country.
  */
 const COUNTRIES: Readonly<Record<string, readonly CountryCode[]>> = {
-  en: [
-    { code: "STD", name: "Standard VAT", type: "sales" },
-    { code: "RED", name: "Reduced VAT", type: "sales" },
-    { code: "ZERO", name: "Zero rate", type: "zero" },
-  ],
   nl: [
     { code: "NL21", name: "BTW hoog 21%", type: "sales", rateBps: 2100 },
     { code: "NL9", name: "BTW laag 9%", type: "sales", rateBps: 900 },

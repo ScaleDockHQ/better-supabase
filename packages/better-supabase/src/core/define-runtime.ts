@@ -376,10 +376,12 @@ class Connector {
 
     this.#build = build;
 
-    for (const key of new Set([
+    const keys = new Set([
       ...Object.keys(this.meta.tables),
       ...Object.keys(this.meta.tableLoaders ?? {}),
-    ])) {
+    ]);
+
+    for (const key of keys) {
       this.#defineTable(tables, key);
     }
 
@@ -388,13 +390,7 @@ class Connector {
     this.#tables =
       blocks === undefined
         ? tables
-        : blocksPrototype(
-            blocks,
-            tables,
-            Object.keys(this.meta.tables),
-            this.events,
-            temporal,
-          );
+        : blocksPrototype(blocks, tables, [...keys], this.events, temporal);
 
     return this.#tables;
   }

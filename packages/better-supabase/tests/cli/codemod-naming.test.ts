@@ -348,6 +348,30 @@ describe("BS260", () => {
   });
 });
 
+describe("BS260 argument names", () => {
+  const rule = NAMING_RENAME_RULES[0]!;
+
+  const check = (text: string) =>
+    rule.check({
+      config: { blocks: {} },
+      sources: [{ path: "a.ts", text }],
+    } as never);
+
+  it("leaves a local variable of an old argument name alone", async () => {
+    expect(
+      await check(
+        "const workItemId = row.id;\ncall(a, workItemId, b);\nawait tasks.move({ taskId: workItemId });\n",
+      ),
+    ).toEqual([]);
+  });
+
+  it("reports the old name where the codemod renames it, on its line", async () => {
+    expect(
+      await check("const id = 1;\nawait tasks.move({ workItemId: id });\n"),
+    ).toMatchObject([{ location: { file: "a.ts", line: 2 } }]);
+  });
+});
+
 describe("argument renames", () => {
   const codemod = namingCodemod();
 

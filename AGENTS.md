@@ -558,7 +558,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0670: Read run steps, versions, applications, templates and care plans in batches.
 - 0673: Raise two next-build raw baselines after draft orders and purchase order numbers.
 - 0674: Raise the customers first load and server raw baselines after the list extras.
-- 0675: Move server importers onto the core and shell block sets, and ask read set gates in one wave.
+- 0675: Read comment conversations by key, ask isApprover in the approval set, read usage plans once.
+- 0676: Move server importers onto the core and shell block sets, and ask read set gates in one wave.
 
 ## Pre-release pins
 

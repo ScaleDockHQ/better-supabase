@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:f27e48a0651bdec1de5259ff472b290694bdfa25003f01803a489b8e5e608a51
+-- @bsb-hash sha256:74a457f02dc55edba14ed96731245a3360268a954c4b0c4570915db0ddcd7063
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,14 +85,26 @@ set search_path = ''
 as $$
 begin
   return (
+    with e as materialized (
+      select x.row, x.n from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality x(row, n)
+    ),
+    c as materialized (
+      select c."id" as id, c."subject_type" as subject_type, c."subject_id" as subject_id
+      from "better_supabase"."conversations" c
+      where c."id" = any (array(select distinct (e.row ->> 'conversation_id')::uuid from e))
+    ),
+    t as materialized (
+      select t."message_id" as message, t."task_id" as task from "better_supabase"."comment_tasks" t
+      where t."message_id" = any (comments_json.ids)
+    )
     select coalesce(jsonb_agg(e.row || jsonb_build_object(
-      'subject_type', c."subject_type",
-      'subject_id', c."subject_id",
-      'task_id', t."task_id"
+      'subject_type', c.subject_type,
+      'subject_id', c.subject_id,
+      'task_id', t.task
     ) order by e.n), '[]'::jsonb)
-    from jsonb_array_elements("better_supabase"."messaging_messages_json"(comments_json.ids)) with ordinality e(row, n)
-    join "better_supabase"."conversations" c on c."id" = (e.row ->> 'conversation_id')::uuid
-    left join "better_supabase"."comment_tasks" t on t."message_id" = (e.row ->> 'id')::uuid
+    from e
+    join c on c.id = (e.row ->> 'conversation_id')::uuid
+    left join t on t.message = (e.row ->> 'id')::uuid
   );
 end;
 $$;

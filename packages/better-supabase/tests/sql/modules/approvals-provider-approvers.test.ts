@@ -170,6 +170,22 @@ describe("the approvals block and the provider's isApprover", BOOT, () => {
     );
   });
 
+  it("asks isApprover in approval_eligible_ids per request, not approval_eligible", () => {
+    const sql = coverFiles()
+      .map((file) => file.contents)
+      .join("\n");
+
+    const body =
+      /function "better_supabase"."approval_eligible_ids"[\s\S]*?\$\$;/u.exec(
+        sql,
+      )?.[0];
+
+    expect(body).toContain(
+      `authz.is_approver(q."subject_type" || '.' || q."action", q."subject_id"::text, q."tenant_id", q."requested_by",`,
+    );
+    expect(body).not.toContain("approval_eligible(q.");
+  });
+
   it("lets a cover decide for an approver the current step names, and nowhere else", async () => {
     await expect(
       run(
@@ -191,6 +207,9 @@ begin
   end if;
   if better_supabase.approval_eligible(v_other) then
     raise exception 'the cover decides a step that does not name the absent approver';
+  end if;
+  if array(select better_supabase.approval_eligible_ids()) <> array[v_named] then
+    raise exception 'approval_eligible_ids differs from approval_eligible for the cover';
   end if;
 end;
 $$;`,

@@ -305,6 +305,41 @@ alter table public.notes add constraint notes_task_fk foreign key (task_id) refe
     expect(body(undefined)).not.toContain("bsb_same_tenant");
   });
 
+  it("passes shared rows when the referenced tenant column may be null", () => {
+    const text = `
+create table public.roles (id uuid primary key, organization_id uuid);
+create table public.stages (id uuid primary key, organization_id uuid);
+alter table public.stages alter column organization_id set not null;
+create table public.invitations (
+  id uuid primary key,
+  organization_id uuid not null,
+  role_id uuid references public.roles (id),
+  stage_id uuid references public.stages (id)
+);`;
+
+    const sql = moduleBody("memberships", {
+      modules: { memberships: {} },
+      ...sameTenantLayout([{ text }], ["public"]),
+    })!;
+
+    expect(sql).toBe(
+      body([
+        {
+          table: "public.invitations",
+          column: "role_id",
+          references: { table: "public.roles", column: "id" },
+          shared: true,
+        },
+        {
+          table: "public.invitations",
+          column: "stage_id",
+          references: { table: "public.stages", column: "id" },
+        },
+      ]),
+    );
+    expect(sql).toContain("'shared'");
+  });
+
   it("skips a key a composite pair on the tenant column already covers", () => {
     const text = `
 create table public.parents (id uuid, organization_id uuid not null, unique (organization_id, id));

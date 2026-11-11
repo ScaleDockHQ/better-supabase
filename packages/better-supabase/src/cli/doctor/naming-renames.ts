@@ -1,5 +1,7 @@
+import type { NamingRename } from "../codemod-naming.ts";
 import type { Rule } from "./rules.ts";
 
+import { renameArguments } from "../codemod-arguments.ts";
 import { NAMING_RENAMES } from "../codemod-naming.ts";
 import { lineOf } from "./shared.ts";
 
@@ -81,19 +83,47 @@ export const NAMING_RENAME_RULES: readonly Rule[] = [
     check: (context) => {
       const kept = renamedEntityArguments(context.config.blocks);
 
+      // An argument name counts only where the codemod renames it, as a key or
+      // member, so a local variable of the same name is left alone.
+      const argumentAt = (text: string, rename: NamingRename): number => {
+        const renamed = renameArguments(text, [rename]);
+        let at = 0;
+
+        while (at < text.length && text[at] === renamed[at]) {
+          at += 1;
+        }
+
+        return at === text.length && renamed.length === text.length ? -1 : at;
+      };
+
       return context.sources.flatMap((file) =>
-        OLD_NAMES.filter(
-          ({ rename, pattern }) =>
-            !(rename.kind === "argument" && kept.has(rename.from)) &&
-            pattern.test(file.text),
-        ).map(({ rename, pattern }) => ({
-          message: `${file.path} uses \`${rename.from}\`, which ${rename.since} renamed \`${rename.to}\`. Run \`better-supabase codemod naming\`.`,
-          target: file.path,
-          location: {
-            file: file.path,
-            line: lineOf(file.text, new RegExp(pattern.source)) ?? 1,
-          },
-        })),
+        OLD_NAMES.flatMap(({ rename, pattern }) => {
+          let line: number | undefined;
+
+          if (rename.kind === "argument") {
+            const at = kept.has(rename.from)
+              ? -1
+              : argumentAt(file.text, rename);
+
+            if (at === -1) {
+              return [];
+            }
+
+            line = file.text.slice(0, at).split("\n").length;
+          } else if (pattern.test(file.text)) {
+            line = lineOf(file.text, new RegExp(pattern.source)) ?? 1;
+          } else {
+            return [];
+          }
+
+          return [
+            {
+              message: `${file.path} uses \`${rename.from}\`, which ${rename.since} renamed \`${rename.to}\`. Run \`better-supabase codemod naming\`.`,
+              target: file.path,
+              location: { file: file.path, line },
+            },
+          ];
+        }),
       );
     },
   },

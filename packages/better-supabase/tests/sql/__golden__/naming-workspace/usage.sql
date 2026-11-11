@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:5719753888bd30239b1e49dcff64ca65947de382a0c27686e428b0f1dffda536
+-- @bsb-hash sha256:ed0a301c0c6ce89b0fd3270480bea7d0fef3fd9cf29bc962d03c5e4d2a080132
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -342,8 +342,9 @@ begin
 end;
 $$;
 
--- One row per meter: the quota resolved once, the window once per distinct
--- period, and the counters summed in one grouped join. The catalog is read once.
+-- One row per meter: the tenant's plans and entitlements read once, the quota
+-- resolved once, the window once per distinct period, and the counters summed
+-- in one grouped join. The catalog is read once.
 create or replace function "better_supabase"."usage_overview"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -356,12 +357,15 @@ begin
     raise exception 'Not allowed to read usage in this tenant' using errcode = '42501', hint = 'USAGE_FORBIDDEN';
   end if;
   return (
-    with meters as (
-      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
-      union
-      select q."meter" from "better_supabase"."usage_quotas" q
+    with scoped as materialized (
+      select q.* from "better_supabase"."usage_quotas" q
       where q."tenant_id" = usage_overview.tenant
         or (q."tenant_id" is null and (q."plan" = '*'))
+    ),
+    meters as (
+      select jsonb_object_keys("better_supabase"."usage_meters"()) as meter
+      union
+      select q."meter" from scoped q
       union
       select distinct c."meter" from "better_supabase"."usage_counters" c
       where c."tenant_id" = usage_overview.tenant
@@ -371,10 +375,8 @@ begin
         q."meter" as meter,
         q."limit" as quota_limit,
         q."period" as period
-      from "better_supabase"."usage_quotas" q
+      from scoped q
       join meters m on m.meter = q."meter"
-      where q."tenant_id" = usage_overview.tenant
-        or (q."tenant_id" is null and (q."plan" = '*'))
       order by q."meter", (q."tenant_id" is not null) desc, q."limit" desc nulls first
     ),
     chosen as (
