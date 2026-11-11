@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:e82f015a98b31ed2e4e0be68d66d84aa229b72ec60af28e59910d014389c4d41
+-- @bsb-hash sha256:512feaf5e5ca86f614e3a0e009eb723c241fc71ad214a26f2eae9a1f5276cae9
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -255,7 +255,7 @@ begin
     when 'work_item' then
       return (select '/work' from "better_supabase"."work_items" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
-      return (select '/people' from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
+      return (select '/people/' || s."id"::text from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
     when 'product' then
       return (select '/shop' from "better_supabase"."products" s where s."id" = (subject_url.subject_id)::uuid);
     when 'customer' then
@@ -367,7 +367,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'employee', 'id', s."id"::text,
-      'title', s."name"::text, 'url', '/people'))
+      'title', s."name"::text, 'url', '/people/' || s."id"::text))
     from "better_supabase"."employees" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'employee')::uuid[])), '[]'::jsonb);
   found := found || coalesce((

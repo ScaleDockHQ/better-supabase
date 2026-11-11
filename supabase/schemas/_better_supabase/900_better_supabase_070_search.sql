@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:2e0bde324b6510164abb4d832abf3cd36ef74e825c72abe786588c76ac000aaf
+-- @bsb-hash sha256:42580c7a92691cb84464c58f602f01b8ce7b9affac2d0dd3a17d817409ce6f65
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,7 +130,7 @@ begin
         and s."archived_at" is null;
       v_found := found;
     when 'employee' then
-      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."email"::text, s."job_title"::text), ''), '/people'
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."email"::text, s."job_title"::text), ''), '/people/' || s."id"::text
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."employees" s
         where s."id" = (search_refresh.subject_id)::uuid;

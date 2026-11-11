@@ -464,7 +464,7 @@ export default defineConfig({
     "bulk-actions": {},
     trash: {},
     relations: {},
-    employees: { names: { employee: { url: "/people" } } },
+    employees: { names: { employee: { url: "/people/{id}" } } },
     hiring: {},
     // Time off behind /people/leave: types, requests approved through the
     // approvals block, and balances on the ledger.

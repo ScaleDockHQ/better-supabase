@@ -83,7 +83,8 @@ export async function readLeaveRows(
 }
 
 export interface LeaveOverviewData {
-  readonly types: readonly LeaveType[];
+  /** Plain fields only: a cached value cannot hold the block's Temporal dates. */
+  readonly types: readonly { readonly id: string; readonly name: string }[];
   readonly balances: readonly LeaveBalance[];
   readonly rows: readonly LeaveRow[];
 }
@@ -103,7 +104,7 @@ async function loadLeave(): Promise<LeaveOverviewData | null> {
     db.leave.balances({ organizationId }).orThrow(),
   ]);
 
-  return { types, balances, rows };
+  return { types: types.map(({ id, name }) => ({ id, name })), balances, rows };
 }
 
 export function getLeave(): Promise<Loaded<LeaveOverviewData>> {

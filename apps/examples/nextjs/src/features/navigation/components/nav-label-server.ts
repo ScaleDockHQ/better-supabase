@@ -47,6 +47,22 @@ export async function getNavLabel(): Promise<(id: NavId) => string> {
         return t("Hiring");
       }
 
+      case "leave": {
+        return t("Leave");
+      }
+
+      case "onboarding": {
+        return t("Onboarding");
+      }
+
+      case "deadlines": {
+        return t("Deadlines");
+      }
+
+      case "documentTemplates": {
+        return t("Document templates");
+      }
+
       case "time": {
         return t("Time");
       }
