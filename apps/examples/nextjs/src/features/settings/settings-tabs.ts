@@ -18,6 +18,11 @@ export type SettingsTabId =
   | "incomingWebhooks"
   | "domains"
   | "optionSets"
+  | "flags"
+  | "numbering"
+  | "securityEvents"
+  | "oauthApps"
+  | "searchSettings"
   | "signingKeys"
   | "sso"
   | "customFields"
@@ -68,6 +73,23 @@ export const settingsTabs: readonly SettingsTab[] = [
     href: "/settings/option-sets",
     requires: "option_sets.read",
   },
+  { id: "flags", href: "/settings/flags", requires: "flags.manage" },
+  {
+    id: "numbering",
+    href: "/settings/numbering",
+    requires: "numbering.assign",
+  },
+  {
+    id: "securityEvents",
+    href: "/settings/security/events",
+    requires: "audit.read",
+  },
+  {
+    id: "oauthApps",
+    href: "/settings/oauth-apps",
+    requires: "settings.manage",
+  },
+  { id: "searchSettings", href: "/settings/search", requires: "settings.read" },
   {
     id: "signingKeys",
     href: "/settings/signing-keys",

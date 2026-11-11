@@ -8557,6 +8557,66 @@ msgctxt "flags.OvzONl"
 msgid "Off"
 msgstr "Uit"
 
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.Zh-5A6"
+msgid "On"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.OvzONl"
+msgid "Off"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.0HT-Ib"
+msgid "Archived"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.EcglP9"
+msgid "Key"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.Q8Qw5B"
+msgid "Description"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.5zi9LO"
+msgid "Default variant"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.rdE5Ca"
+msgid "Rollout"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.ORGv1Q"
+msgid "Created"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.JSUPVj"
+msgid "Search flags"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.iwaCLw"
+msgid "No flags found"
+msgstr ""
+
+#: src/features/flags/components/flags-record-list.tsx
+msgctxt "flagAdmin.vbUE6F"
+msgid "Platform staff define flags in the database; change the filters to see more."
+msgstr ""
+
 #: src/features/flags/components/pricing-card.tsx
 msgctxt "pricing.5Wwopw"
 msgid "Pricing"
@@ -12453,6 +12513,101 @@ msgctxt "notifications.94cCzv"
 msgid "{count, number} unread"
 msgstr "{count, number} ongelezen"
 
+#: src/features/numbering/components/numbering-record-list.tsx
+msgctxt "numbering.wmirkP"
+msgid "Document"
+msgstr ""
+
+#: src/features/numbering/components/numbering-record-list.tsx
+msgctxt "numbering.jCNpEL"
+msgid "Period"
+msgstr ""
+
+#: src/features/numbering/components/numbering-record-list.tsx
+msgctxt "numbering.jacjUG"
+msgid "Last number"
+msgstr ""
+
+#: src/features/numbering/components/numbering-record-list.tsx
+msgctxt "numbering.xrk6zg"
+msgid "Updated"
+msgstr ""
+
+#: src/features/numbering/components/numbering-record-list.tsx
+msgctxt "numbering.kr7xJ0"
+msgid "Search sequences"
+msgstr ""
+
+#: src/features/numbering/components/numbering-record-list.tsx
+msgctxt "numbering.tZxXu6"
+msgid "No number sequences yet"
+msgstr ""
+
+#: src/features/numbering/components/numbering-record-list.tsx
+msgctxt "numbering.bENWJJ"
+msgid "A sequence appears when the first document number is assigned."
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.HAlOn1"
+msgid "Name"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.-U6ozc"
+msgid "Type"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.qv7ied"
+msgid "Registration"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.WFdOHZ"
+msgid "Redirect URIs"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.ORGv1Q"
+msgid "Created"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.uhu5aG"
+msgid "Public"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.o0hn4A"
+msgid "Confidential"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.DXmeDy"
+msgid "Dynamic"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.M59JhX"
+msgid "Manual"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.RiUFXT"
+msgid "Search apps"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.0v7y2a"
+msgid "No OAuth apps found"
+msgstr ""
+
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.czyFa0"
+msgid "Register an OAuth client in the Supabase Auth settings, or change the filters."
+msgstr ""
+
 #: src/features/observations/components/observation-chart.tsx
 msgctxt "observations.isSzws"
 msgid "The vital signs didn't load"
@@ -15241,6 +15396,41 @@ msgctxt "rules.OvzONl"
 msgid "Off"
 msgstr "Uit"
 
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.9a9-ww"
+msgid "Title"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.QbUmZX"
+msgid "Record type"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.JBWS0c"
+msgid "Link"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.IMS6rI"
+msgid "Indexed"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.6I1bwN"
+msgid "Search the index"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.XMHNwr"
+msgid "No indexed records found"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.LG-5un"
+msgid "Records join the search index when they are saved; change the filters to see more."
+msgstr ""
+
 #: src/features/search/components/command-search-lazy.tsx
 #: src/features/search/components/command-search.tsx
 msgctxt "search.xmcVZ0"
@@ -15286,6 +15476,71 @@ msgstr "Typ om te zoeken."
 msgctxt "search.wLCEuv"
 msgid "No matches."
 msgstr "Geen resultaten."
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.V52jNn"
+msgid "Enabled"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.C2iTEH"
+msgid "Paused"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.tthToS"
+msgid "Disabled"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.GN9UDB"
+msgid "Push"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.h1gtUi"
+msgid "Poll"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.Xd735s"
+msgid "Receiver"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.drqP2L"
+msgid "Delivery"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.ZvKSfJ"
+msgid "Events"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.Z8971h"
+msgid "Verified"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.dB811t"
+msgid "Search receivers"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.EkHtzj"
+msgid "No streams found"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.UpBMGK"
+msgid "Receivers register a stream to get security event tokens; change the filters to see more."
+msgstr ""
 
 #: src/features/sequences/components/sequence-builder.tsx
 msgctxt "sequences.xiZz44"
@@ -15894,6 +16149,31 @@ msgstr ""
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.7lS5o3"
 msgid "Option sets"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Ed112w"
+msgid "Flags"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.GlHclO"
+msgid "Numbering"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.kpuV4y"
+msgid "Security events"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.EN-bsf"
+msgid "OAuth apps"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.iiCETl"
+msgid "Search index"
 msgstr ""
 
 #: src/features/settings/components/settings-nav-links.tsx

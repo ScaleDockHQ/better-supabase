@@ -261,3 +261,9 @@ insert into better_supabase.work_item_checklist_items (tenant_id, work_item_id, 
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f101', 'Three customer quotes', false, null, null, 'X', '00000000-0000-4000-8000-0000000000a1'),
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f105', 'Day 1: welcome', false, null, null, 'V', '00000000-0000-4000-8000-0000000000a2'),
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f105', 'Day 3: invite your team', false, null, null, 'W', '00000000-0000-4000-8000-0000000000a2');
+
+-- The numbering page shows these sequences (finding EX-502).
+insert into better_supabase.number_sequences (tenant_id, entity, period, last_number) values
+  ('00000000-0000-4000-8000-000000000001', 'invoice', to_char(now(), 'YYYY'), 41),
+  ('00000000-0000-4000-8000-000000000001', 'quote', to_char(now(), 'YYYY'), 17)
+on conflict do nothing;
