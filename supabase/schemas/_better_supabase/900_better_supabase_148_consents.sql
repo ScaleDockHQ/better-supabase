@@ -1,6 +1,7 @@
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
 -- @bsb-hash sha256:eb4f25b704b59ea45a158bdcf532cba80674d79da55217b412f28610ab996696
+-- @bsb-hash sha256:9401a1234516517362c5d3e51b54f39ef0cb349ed8e21c87917fd29b2a9fd600
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -412,6 +413,7 @@ begin
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (record_consent.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (record_consent.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (record_consent.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (record_consent.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (record_consent.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (record_consent.subject_id)::uuid)
@@ -772,6 +774,7 @@ declare
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (consent_active.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (consent_active.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (consent_active.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (consent_active.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (consent_active.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (consent_active.subject_id)::uuid)
@@ -881,6 +884,7 @@ declare
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (list_consents.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (list_consents.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (list_consents.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (list_consents.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (list_consents.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (list_consents.subject_id)::uuid)
@@ -1117,6 +1121,7 @@ declare
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (record_consent_signal.subject_id)::uuid)
@@ -1266,6 +1271,7 @@ declare
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (list_consent_signals.subject_id)::uuid)
@@ -1437,6 +1443,7 @@ declare
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (list_consent_receipts.subject_id)::uuid)
@@ -1581,6 +1588,7 @@ declare
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (requires_consent.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (requires_consent.subject_id)::uuid)

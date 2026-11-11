@@ -515,6 +515,11 @@ export default defineConfig({
     leases: {},
     expenses: {},
     donations: {},
+    // Product reviews with pre-moderation, public replies and a rating summary.
+    reviews: {},
+    collections: {},
+    warranty: {},
+    "agent-checkout": {},
     dispatch: {},
     shipments: {},
     // Contracts send for signature with signatures and remind owners of the

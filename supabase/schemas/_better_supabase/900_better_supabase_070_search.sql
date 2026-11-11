@@ -1,6 +1,7 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
 -- @bsb-hash sha256:42580c7a92691cb84464c58f602f01b8ce7b9affac2d0dd3a17d817409ce6f65
+-- @bsb-hash sha256:b5ca672f2169424d49d9f21a77d9d715e98686116210a3657360e91bd55db472
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -151,6 +152,12 @@ begin
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."description"::text, s."location"::text), ''), null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."calendar_events" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'warranty_claim' then
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."manufacturer"::text, s."decision"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."warranty_claims" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'risk' then
@@ -371,6 +378,13 @@ begin
   if search_reindex.subject_type is null or search_reindex.subject_type = 'calendar_event' then
     for v_id in select s."id"::text from "better_supabase"."calendar_events" s loop
       if "better_supabase"."search_refresh"('calendar_event', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'warranty_claim' then
+    for v_id in select s."id"::text from "better_supabase"."warranty_claims" s loop
+      if "better_supabase"."search_refresh"('warranty_claim', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;

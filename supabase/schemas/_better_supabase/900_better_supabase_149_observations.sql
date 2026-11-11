@@ -1,6 +1,7 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
 -- @bsb-hash sha256:a75914b001fdd286020530ec4359d7a7c485d79967beb322ea6bc1c793bab042
+-- @bsb-hash sha256:99258a4fc7665353929341b1b0d2f2b260e581f3367a05fed3b80634c5c03f4e
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -677,6 +678,7 @@ begin
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (record_observation.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (record_observation.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (record_observation.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (record_observation.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (record_observation.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (record_observation.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (record_observation.subject_id)::uuid)
@@ -738,6 +740,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (record_observation.subject_id)::uuid and s."tenant_id"::text = record_observation.tenant::text)
@@ -842,6 +845,7 @@ begin
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -903,6 +907,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = record_observations.tenant::text)
@@ -1019,6 +1024,7 @@ begin
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (v_item ->> 'subjectId')::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (v_item ->> 'subjectId')::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (v_item ->> 'subjectId')::uuid)
@@ -1080,6 +1086,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (v_item ->> 'subjectId')::uuid and s."tenant_id"::text = ingest_observations.tenant::text)
@@ -1182,6 +1189,7 @@ begin
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (v_old."subject_id")::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (v_old."subject_id")::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (v_old."subject_id")::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (v_old."subject_id")::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (v_old."subject_id")::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (v_old."subject_id")::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (v_old."subject_id")::uuid)
@@ -1243,6 +1251,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (v_old."subject_id")::uuid and s."tenant_id"::text = v_old."tenant_id"::text)
@@ -1386,6 +1395,7 @@ begin
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (v_row."subject_id")::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (v_row."subject_id")::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (v_row."subject_id")::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (v_row."subject_id")::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (v_row."subject_id")::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (v_row."subject_id")::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (v_row."subject_id")::uuid)
@@ -1447,6 +1457,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -1769,6 +1780,7 @@ begin
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (v_sub."subject_id"::text)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (v_sub."subject_id"::text)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (v_sub."subject_id"::text)::uuid)
@@ -1830,6 +1842,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (v_sub."subject_id"::text)::uuid and s."tenant_id"::text = v_sub."tenant_id"::text)

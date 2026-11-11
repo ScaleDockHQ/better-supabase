@@ -1,6 +1,7 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
 -- @bsb-hash sha256:1adb4a62bab762a46084c6b1116d0835befa3fded08d9ac0e80ccec68d5c8f55
+-- @bsb-hash sha256:dd745a682a365055cd3e30dedc634ff7bbfd9c58d1ca5f87e75cca20d07917f3
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -246,6 +247,7 @@ declare
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (start_sla_clocks.subject_id)::uuid)
@@ -318,6 +320,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
@@ -424,6 +427,7 @@ declare
       when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'warranty_claim' then (select s."tenant_id"::text from "better_supabase"."warranty_claims" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = (record_sla_event.subject_id)::uuid)
@@ -496,6 +500,7 @@ begin
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)

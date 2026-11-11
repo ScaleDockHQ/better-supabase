@@ -1,6 +1,7 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
 -- @bsb-hash sha256:b16cdfe03082e39c5fe46b1069aeeb29407967d41df542dce00e25b397c6ccbf
+-- @bsb-hash sha256:9f8d35d94e9b90edaa062f0b09efb6fe2f7748837f504f77789f70549d83bd98
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -126,6 +127,9 @@ as $$
     when 'activities.read' then 'activities.read'
     when 'activities.readRestricted' then 'activities.read_restricted'
     when 'activities.write' then 'activities.write'
+    when 'agent-checkout.manage' then 'agent_checkout.manage'
+    when 'agent-checkout.read' then 'agent_checkout.read'
+    when 'agent-checkout.write' then 'agent_checkout.write'
     when 'agents.create' then 'agents.write'
     when 'agents.moderate' then 'agents.moderate'
     when 'agents.publish' then 'agents.publish'
@@ -198,6 +202,9 @@ as $$
     when 'clinical-decision-support.manage' then 'clinical_decision_support.manage'
     when 'clinical-decision-support.read' then 'clinical_decision_support.read'
     when 'clinical-decision-support.write' then 'clinical_decision_support.write'
+    when 'collections.read' then 'collections.read'
+    when 'collections.share' then 'collections.share'
+    when 'collections.write' then 'collections.write'
     when 'comments.create' then 'messages.send'
     when 'comments.moderate' then 'messages.moderate'
     when 'comments.read' then 'messages.read'
@@ -422,6 +429,7 @@ as $$
     when 'relations.read' then 'relations.read'
     when 'reminders.manage' then 'reminders.manage'
     when 'reminders.read' then 'reminders.read'
+    when 'reviews.manage' then 'reviews.manage'
     when 'rfqs.manage' then 'rfqs.manage'
     when 'rfqs.read' then 'rfqs.read'
     when 'rfqs.write' then 'rfqs.write'
@@ -500,6 +508,9 @@ as $$
     when 'webhooks-in.delete' then 'webhooks.manage'
     when 'webhooks-in.read' then 'webhooks.read'
     when 'webhooks-in.update' then 'webhooks.manage'
+    when 'warranty.decide' then 'warranty.decide'
+    when 'warranty.read' then 'warranty.read'
+    when 'warranty.write' then 'warranty.write'
     when 'webhooks-out.manage' then 'webhooks.manage'
     when 'webhooks-out.read' then 'webhooks.read'
     when 'workflow-editor.manage' then 'workflow_editor.manage'

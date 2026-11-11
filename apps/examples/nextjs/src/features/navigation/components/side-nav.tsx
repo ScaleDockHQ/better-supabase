@@ -172,6 +172,7 @@ const ICONS = {
   rfqs: FileQuestionMarkIcon,
   donations: HeartHandshakeIcon,
   passes: TicketIcon,
+  warranty: ShieldCheckIcon,
   leases: KeyRoundIcon,
   assets: BoxesIcon,
   tills: CoinsIcon,

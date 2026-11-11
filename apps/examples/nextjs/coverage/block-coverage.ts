@@ -184,7 +184,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   funding: at("/funding"),
   "payroll-export": at("/payroll"),
   maintenance: at("/maintenance"),
-  warranty: later("p8"),
+  warranty: at("/shop/warranty"),
   dam: at("/dam"),
   tax: later("p7"),
   "document-templates": at("/documents/templates"),

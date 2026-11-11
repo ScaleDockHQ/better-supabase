@@ -1,6 +1,7 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
 -- @bsb-hash sha256:512feaf5e5ca86f614e3a0e009eb723c241fc71ad214a26f2eae9a1f5276cae9
+-- @bsb-hash sha256:3487b4ed85e06c8d3ce6080c352e8de2d8d38906a93764015af968cec6147410
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -99,6 +100,7 @@ immutable
 set search_path = ''
 as $$
   select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -166,6 +168,8 @@ begin
       return (select s."description"::text from "better_supabase"."expense_lines" s where s."id" = (subject_title.subject_id)::uuid);
     when 'donation_fund' then
       return (select s."name"::text from "better_supabase"."donation_funds" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'warranty_claim' then
+      return (select s."title"::text from "better_supabase"."warranty_claims" s where s."id" = (subject_title.subject_id)::uuid);
     when 'work_order' then
       return (select s."title"::text from "better_supabase"."work_orders" s where s."id" = (subject_title.subject_id)::uuid);
     when 'shipment' then
@@ -460,6 +464,12 @@ begin
       'title', s."name"::text, 'url', null::text))
     from "better_supabase"."donation_funds" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'donation_fund')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'warranty_claim', 'id', s."id"::text,
+      'title', s."title"::text, 'url', null::text))
+    from "better_supabase"."warranty_claims" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'warranty_claim')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'work_order', 'id', s."id"::text,
@@ -946,6 +956,17 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'donations.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'donations.manage'), false)
+          else true
+        end)
+      );
+    when 'warranty_claim' then
+      return exists (
+        select 1 from "better_supabase"."warranty_claims" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'warranty.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'warranty.write'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'warranty.write'), false)
           else true
         end)
       );
@@ -1615,6 +1636,17 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'donations.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'donations.manage'), false)
+          else false
+        end
+      );
+    when 'warranty_claim' then
+      return exists (
+        select 1 from "better_supabase"."warranty_claims" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'warranty.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'warranty.write'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'warranty.write'), false)
           else false
         end
       );

@@ -46,4 +46,5 @@ export { riskRecord } from "./risk.ts";
 export { taskRecord } from "./task.ts";
 export { taxCodeRecord } from "./tax-code.ts";
 export { tillRecord } from "./till.ts";
+export { warrantyClaimRecord } from "./warranty-claim.ts";
 export { workCenterRecord } from "./work-center.ts";
