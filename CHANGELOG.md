@@ -1,5 +1,732 @@
 # Changelog
 
+## 0.58.0 (2026-11-11)
+
+- The servers no longer have `deleteAccount`, `suspendAccount`, `endSessions` or `lastSignIns` methods, so a route or proxy that never calls them doesn't bundle their code. Import the functions from the new `better-supabase/server/account` and pass the server first. Run `better-supabase codemod account-calls`.
+
+  | Old                               | New                                                                     |
+  | --------------------------------- | ----------------------------------------------------------------------- |
+  | `bsb.deleteAccount(id, options)`  | `deleteAccount(bsb, id, options)` from `better-supabase/server/account` |
+  | `bsb.suspendAccount(id, options)` | `suspendAccount(bsb, id, options)`                                      |
+  | `bsb.endSessions(id)`             | `endSessions(bsb, id)`                                                  |
+  | `bsb.lastSignIns(ids)`            | `lastSignIns(bsb, ids)`                                                 |
+
+  `createNext` still drops the user's cached reads and session memo after each of them.
+- `bsb.action(options, fn, map)` takes a third argument that maps the data of a successful call to another type, so `ActionResult<Row>` can become `ActionResult<ViewModel>`. The mapper may be async, runs after the `invalidates` tags drop and turns a thrown `DbException` into the action's error. `ActionMapper` is exported from `better-supabase/next`.
+- `bsb.action` takes `invalidates`, a list of tables whose cache tags drop after a successful call (until now only `bsb.blockAction` did), and its `result` mapper may be async.
+- Engagements are activities everywhere: the `engagement_subjects`, `engagement_recordings`, `engagement_notes` and `engagement_transcript_segments` tables are `activity_*`, the `Engagement*` types are `Activity*`, hint codes start with `ACTIVITY_`, and the mail-sync option `engagementType` is `activityType`. Three events use the lifecycle verbs. Run `better-supabase codemod naming`, then `upgrade`; no data moves.
+
+  | Old                                              | New                                                                                          |
+  | ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+  | `engagement_subjects` and the other three tables | `activity_subjects`, `activity_recordings`, `activity_notes`, `activity_transcript_segments` |
+  | `EngagementInput`, `EngagementEventData`         | `ActivityInput`, `ActivityEventData`                                                         |
+  | `ENGAGEMENT_NO_TRANSCRIBER`                      | `ACTIVITY_NO_TRANSCRIBER`                                                                    |
+  | `blocks.mail-sync.options.engagementType`        | `blocks.mail-sync.options.activityType`                                                      |
+  | `vex_statement.saved`                            | `vex_statement.updated`                                                                      |
+  | `team_member.removed`                            | `team_member.deleted`                                                                        |
+  | `reaction.removed`                               | `reaction.deleted`                                                                           |
+- A column your own schema file adds to a block's table (`alter table ... add column`) is a field of that block: its functions read and write it, and the block adds none of it. `better-supabase codemod extra-columns` moves `blocks.<name>.options.extraColumns` (and the `*ExtraColumns` options) into the file that already alters the table, or into `<table>.ext.sql`, and removes the options from the config.
+- `upgrade` writes module and data files only. Under pg-delta, the forward steps a schema diff can't express (renames, backfills, expression changes) go into `<stamp>_better_supabase_reviewed_upgrade_<hash>.sql`, marked `-- destructive: reviewed`; the migra workflow keeps `<stamp>_better_supabase_block_upgrade_<hash>.sql`. `blocks.memberships.options.sameTenant.auto` emits no trigger for a column that an app trigger already reads or writes through `new.<column>`, and `codemod` never rewrites a block file, even when a path names it. If you reference the old migration name in scripts, use the new one.
+- A block that adds columns to your own table now adds a column before the columns whose checks read it, so applying the generated file no longer fails with `column "user_id" does not exist` on the contacts block over an existing table.
+- Approval items take the columns your schema files add to `approval_items` as fields. Pass them as `fields` on an item in `approvals.request({ items })` and read them from `fields` on each item `get` returns. Upgrade: nothing to change for an app without such columns; run `better-supabase upgrade` to render the new reads and writes after you add one.
+- Approval requests gain a `consumed` status. `consume_approval` (`consume()` in TypeScript) now sets the status to `consumed` as well as `consumed_at`, `ApprovalStatus` includes `consumed`, and a check keeps `consumed_at` set exactly when the status is `consumed`. `is_approved` still answers true for a consumed request.
+
+  The approvals module moves to version 6. `better-supabase upgrade` writes a reviewed migration that allows the new status, moves requests consumed before (with `consumed_at` set and status `approved`) to `consumed`, and adds the check. Over a requests table of your own, `consume` keeps setting only `consumed_at` and leaves the status alone, so the app's status check or enum keeps working.
+
+  Code with an exhaustive map over `ApprovalStatus`, such as a `Record<ApprovalStatus, string>` of labels, needs an entry for `consumed`.
+- Exported `*Args` and `*Settings` types are `*Options`, with no alias. `better-supabase codemod naming` renames them in your code. `RateLimitSettings` and `IdempotencySettings` are part of `RateLimitOptions` and `IdempotencyOptions`, `AccountingSettings` is `AccountingSetup` and `BucketSettings` is `StorageBucketOptions`.
+
+  | Old                        | New                           |
+  | -------------------------- | ----------------------------- |
+  | `AgentPassthroughSettings` | `AgentPassthroughOptions`     |
+  | `AddArgs`                  | `AddOptions`                  |
+  | `AggregateArgs`            | `AggregateOptions`            |
+  | `AssistantRunArgs`         | `AssistantRunOptions`         |
+  | `BoundArgs`                | `BoundOptions`                |
+  | `BulkActionArgs`           | `BulkActionOptions`           |
+  | `CodemodArgs`              | `CodemodOptions`              |
+  | `CountArgs`                | `CountOptions`                |
+  | `DataListArgs`             | `DataListOptions`             |
+  | `DeleteArgs`               | `DeleteOptions`               |
+  | `DurableTurnAgentArgs`     | `DurableTurnAgentOptions`     |
+  | `EveDispatchArgs`          | `EveDispatchOptions`          |
+  | `EveScheduleArgs`          | `EveScheduleOptions`          |
+  | `GenerationRunArgs`        | `GenerationRunOptions`        |
+  | `GetArgs`                  | `GetOptions`                  |
+  | `GuardsFindArgs`           | `GuardsFindOptions`           |
+  | `IncludeArgs`              | `IncludeOptions`              |
+  | `InitArgs`                 | `InitOptions`                 |
+  | `KeysArgs`                 | `KeysOptions`                 |
+  | `ManyWriteArgs`            | `ManyWriteOptions`            |
+  | `MembershipsFindArgs`      | `MembershipsFindOptions`      |
+  | `MigrateSchemaFirstArgs`   | `MigrateSchemaFirstOptions`   |
+  | `OffsetPageArgs`           | `OffsetPageOptions`           |
+  | `OffsetRangeArgs`          | `OffsetRangeOptions`          |
+  | `OverloadArgs`             | `OverloadOptions`             |
+  | `PresetSubjectSettings`    | `PresetSubjectOptions`        |
+  | `QueuePurgeArgs`           | `QueuePurgeOptions`           |
+  | `ReadArgs`                 | `ReadOptions`                 |
+  | `RemoveArgs`               | `RemoveOptions`               |
+  | `TanStackStartHandlerArgs` | `TanStackStartHandlerOptions` |
+  | `TanStackStartServerArgs`  | `TanStackStartServerOptions`  |
+  | `TrashDeleteArgs`          | `TrashDeleteOptions`          |
+  | `TrashFindArgs`            | `TrashFindOptions`            |
+  | `UpdateArgs`               | `UpdateOptions`               |
+  | `UpsertArgs`               | `UpsertOptions`               |
+  | `UpsertManyArgs`           | `UpsertManyOptions`           |
+  | `WriteArgs`                | `WriteOptions`                |
+  | `WriteManyArgs`            | `WriteManyOptions`            |
+  | `AccountingSettings`       | `AccountingSetup`             |
+  | `BucketSettings`           | `StorageBucketOptions`        |
+  | `RateLimitSettings`        | `RateLimitOptions`            |
+  | `IdempotencySettings`      | `IdempotencyOptions`          |
+- An asset due check stores the check type, the last completion, the result and a service-plan interval in days. The next due date is the last completion plus that interval. A repeat import updates the same check.
+- An asset import stores the make, model, model year, ownership and product. Identifiers import by type and value, and a repeat updates the asset that holds that value.
+- The attachments insert policy checks the upload permission with the tenant sets instead of one `can()` call per row, so no block policy of any module calls `can()` per row any more (a registry test holds it for `using` and `with check`).
+
+  `better-supabase upgrade` rewrites the attachments module and the next schema migration replaces one policy. No data migration is needed.
+- The attachments read and insert policies check the subject inline instead of calling `attachment_subject_readable` once per row. A member counting 40,000 attachments over 200,000 customers waits 8.7 to 15.6 seconds instead of 32 seconds, and counting 12,000 over 60,000 customers takes 73 ms once the tenant permission is also checked as a set. The function stays for callers that pass values.
+
+  `better-supabase upgrade` rewrites the `attachments` module and the next schema migration replaces two policies. No data migration is needed.
+- `blocks.audit.options.exempt` takes `{ class: "no-tenant-column", reason }`, which leaves out every table that has no tenant column, in place of one entry per table. Doctor BS315 asks for the reason, as it does for a table glob.
+- The audit log and the notification inbox read in index order on logs of millions of rows. After `better-supabase upgrade` and a migration:
+
+  - `list_audit_events` takes `entry_fields` (`summary` leaves out the old and new record, `changed` and `metadata`), and `audit.list` takes `fields`. `count_audit_events` takes `cap`, and `audit.list` takes `countCap`. New: `get_audit_event` (`audit.get`) and `audit_event_types` (`audit.eventTypes`). The organization index gains the `id` tiebreaker, and the log gets `(tenant, actor, occurred_at, id)` and `(tenant, event_type, occurred_at, id)` indexes.
+  - `list_notifications` and `notification_page` add only the filters you pass, so the default inbox query reads the partial inbox index. `notification_page` takes `before`, `before_id` and `total_cap`, and returns `hasMore` and `totalCapped`.
+  - Behavior change: `notification_page` counts at most 10,000 matches (`totalCap: null` counts all), and `notification_counts` stops each count at 100 (`cap: null` counts all). Show "99+" for a capped badge.
+- With `blocks.audit.options.partitioned` on, `upgrade` writes `better_supabase.convert_audit_log_to_partitioned(batch_size, drop_old)`. Call it as the service role, outside a transaction block, to move an existing audit log onto monthly partitions while it keeps taking writes. It copies in committed batches, takes a short lock that blocks writes but not reads for the last rows and the swap, and keeps the old table as `audit_events_unpartitioned`.
+- Row audit triggers skip the rows of an import that runs with `imports.audit: summary` before the audit function starts. The trigger has a `when` clause that reads the import session, so a 20-row insert and update batch now starts `audit_row_change` zero times instead of once per row. A user who sets the flag without an import session is still audited.
+
+  `better-supabase upgrade` rewrites every module with block-table audit triggers, and the next schema migration drops and creates each `bsb_audit` trigger. No data migration is needed.
+- Bank accounts take a `holder` and a `primary` flag. `saveAccount` accepts both, and `BankAccount` returns them. Setting `primary: true` clears the flag on the organization's other accounts in the same currency, so each organization has at most one primary account per currency. Run `better-supabase upgrade` to add the `holder` and `is_primary` columns to `better_supabase.bank_accounts`.
+- Five block clients read many rows in one call, so a page no longer sends one request per row. Run `better-supabase upgrade` and apply the new migration to add the functions.
+
+  | Block        | New method                               | Replaces a loop of        |
+  | ------------ | ---------------------------------------- | ------------------------- |
+  | `ai-chat`    | `runs.steps.listFor({ runIds, limit })`  | `runs.steps.list(runId)`  |
+  | `versions`   | `getMany(ids)`                           | `get(id)`                 |
+  | `hiring`     | `applicationsForJobs({ jobIds, state })` | `applications({ jobId })` |
+  | `templates`  | `getMany(ids)`                           | `get(id)`                 |
+  | `care-plans` | `getMany(planIds)`                       | `get(planId)`             |
+
+  Results keep the order of the ids you pass. An id that is missing or that the caller cannot read has no entry instead of failing the batch.
+- `blocks.<name>.indexes.skip` lists `create index` names the module should not create, when the app's own index already covers them. `invoices` can skip `invoices_tenant_status_idx`. A name the module does not create is an error. Doctor BS390 still reports an index that is a prefix of another.
+
+  `better-supabase upgrade` rewrites a module whose config sets `indexes.skip`, and the next schema migration drops the skipped index if it was already created. No data migration is needed.
+- `gen.blockModules: true` writes `blocks/slices.ts`, one config slice per installed block instance (`commentsConfig`), and `blocks/permissions.ts` with the permission keys. `blocks.config.ts` composes `blockConfig` from the slices for server code, and a generated record file imports only the slices of the blocks it binds instead of `blockConfig`. A client passes the slices it uses to `createClient({ blocks })`, and a record's own slices fill in the blocks the client leaves out. Run `better-supabase gen` to write the files.
+- The sessions bootstrap returns the caller's permissions when the authorization provider sets `functions.bootstrapPermissions`. The value is a versioned (`apiVersion: 1`), provider-neutral contract with a full form (keys per tenant) and a compact form (a key index and one bitset per tenant), read into `Bootstrap.permissions`; another `apiVersion` or a damaged value gives `null`. `compactBootstrapPermissions` and `expandBootstrapPermissions` come from `better-supabase/server`, and the types from `better-supabase/contract`. At 150 tenants and 300 keys the compact form is 21,314 bytes against 737,192. `permissions: false` on a bootstrap entry leaves them out. `better-supabase upgrade` rewrites the `sessions` module only for an app whose provider sets the template; no data migration is needed.
+- A soft-deleted row of the drive, memory and messaging blocks carries `archived_at` where it carried `deleted_at`. Run `better-supabase codemod naming` to write the migration that renames the three columns of an installed app, then `upgrade`. The `deletedAt` option and Row field keep their names. `auth.users.deleted_at`, the organizations block's `deleted_at` and the column an app table gets from `softDelete` stay.
+
+  | Old                                                                    | New                              |
+  | ---------------------------------------------------------------------- | -------------------------------- |
+  | `drive_nodes.deleted_at`, `memories.deleted_at`, `messages.deleted_at` | `archived_at` on the same tables |
+- Every check constraint a block adds is named `bsb_<table>_<column>_check` (`bsb_<table>_check` when it reads more than one column), where Postgres used to choose the name. Run `better-supabase codemod naming` to write the migration that renames the checks of an installed app; no data moves.
+
+  | Old                                              | New                                |
+  | ------------------------------------------------ | ---------------------------------- |
+  | checks of block tables, `<table>_<column>_check` | the same name with `bsb_` in front |
+  | checks a module named, `<table>_<name>`          | the same name with `bsb_` in front |
+- Every policy a block generates is named `bsb_<name>`, shortened with a hash past 63 bytes. Run `better-supabase codemod naming` to write the migration that renames them in an installed app (`alter policy ... rename to`); no data moves. `bsbPolicyName()` in `better-supabase/sql` returns the generated name for a module's name.
+
+  | Old                                          | New                                |
+  | -------------------------------------------- | ---------------------------------- |
+  | policies of block tables, `<table>_read` etc | the same name with `bsb_` in front |
+- A column that references a user is named by its role, `<role>_id`, instead of `<role>_user_id`. Run `better-supabase codemod naming` to write the migration that renames the columns of an installed app, then `upgrade`; no data moves. SQL function parameters take the same names. `scim_group_members.scim_user_id` stays because it references `scim_users`.
+
+  | Old                                                             | New                                            |
+  | --------------------------------------------------------------- | ---------------------------------------------- |
+  | `owner_user_id`                                                 | `owner_id`                                     |
+  | `customer_user_id`, `reviewer_user_id`, `host_user_id`          | `customer_id`, `reviewer_id`, `host_id`        |
+  | `holder_user_id`, `assignee_user_id`, `speaker_user_id`         | `holder_id`, `assignee_id`, `speaker_id`       |
+  | `hiring_manager_user_id`, `referred_user_id`, `actor_user_id`   | `hiring_manager_id`, `referred_id`, `actor_id` |
+  | `from_user_id`, `to_user_id`                                    | `from_id`, `to_id`                             |
+  | `subject_user_id` (appraisals), `decided_user_id` (quotes)      | `appraisee_id`, `decider_id`                   |
+  | `given_by_user_id` (consents), `paused_by_user_id` (lifecycles) | `grantor_id`, `paused_by`                      |
+- `stream_kv` is `stream_entries`, `invoice_e_endpoints` is `e_invoice_endpoints` (table and function) and `workflow_step_library` is `workflow_step_templates`. Run `better-supabase codemod naming` to write the migration that renames the tables of an installed app with their constraints, indexes and policies, then `upgrade`; no data moves. The `set_config` keys of generated triggers moved from `bsb.<key>` to `better_supabase.<key>` and last one transaction.
+
+  | Old                             | New                                                     |
+  | ------------------------------- | ------------------------------------------------------- |
+  | `stream_kv`                     | `stream_entries`                                        |
+  | `invoice_e_endpoints`           | `e_invoice_endpoints`                                   |
+  | `workflow_step_library`         | `workflow_step_templates`                               |
+  | `bsb.recorded`, `bsb.lane_move` | `better_supabase.recorded`, `better_supabase.lane_move` |
+- Every block table names its tenant column `tenant_id` where 63 used `organization_id`. Run `better-supabase codemod naming` to write the migration that renames the columns of an installed app, then `upgrade`; no data moves. Apps that adopt their own tables keep their column names and map `tenant` in `columns`. `memberships.organization_id`, the default tenant column of an app table and the JSON keys of the SQL API stay.
+
+  | Old                                                                                                        | New         |
+  | ---------------------------------------------------------------------------------------------------------- | ----------- |
+  | `organization_id` on `audit_events`, `outbox_events`, `api_keys`, `invitations` and the other block tables | `tenant_id` |
+- Every timestamp column a block adds ends in `_at`, with one explicit new name per column. Run `better-supabase codemod naming` to write the migration that renames the columns of an installed app; no data moves, and the `upgrade` after it replaces the functions that read them. `recurrence_rules.dtstart` and `maintenance_plans.dtstart` keep the name RFC 5545 gives them.
+
+  | Old                                                   | New                                                                  |
+  | ----------------------------------------------------- | -------------------------------------------------------------------- |
+  | `locked_until`                                        | `lock_expires_at`                                                    |
+  | `leased_until`, `lease_until`                         | `lease_expires_at`                                                   |
+  | `snoozed_until`, `paused_until`, `claimed_until`      | `snooze_expires_at`, `pause_expires_at`, `claim_expires_at`          |
+  | `dispatch_until`, `publish_until`, `legal_hold_until` | `dispatch_expires_at`, `publish_expires_at`, `legal_hold_expires_at` |
+  | `scheduled_for`                                       | `scheduled_at`                                                       |
+  | `window_start`, `bucket_start`, `original_start`      | `window_started_at`, `bucket_started_at`, `original_starts_at`       |
+  | `purge_after`, `not_before`, `effective_from`         | `purge_at`, `not_before_at`, `effective_at`                          |
+  | `failing_since`, `missing_since`                      | `first_failed_at`, `went_missing_at`                                 |
+  | `subject_updated_at_at_import`                        | `subject_imported_updated_at`                                        |
+  | `valid_from`, `valid_until` on passes and prices      | `starts_at`, `expires_at`                                            |
+  | `valid_until` on consents                             | `expires_at`                                                         |
+- Generated triggers are named `bsb_*`, unique constraints end in `_key` and exclusion constraints in `_excl`. Run `better-supabase codemod naming` to write the migration that renames them in an installed app; no data moves.
+
+  | Old                                                                                                                                                                                                                               | New                                        |
+  | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+  | triggers `conversations_broadcast`, `inbox_conversation_events_broadcast`, `inbox_message_deliveries_broadcast`, `bookings_engagement`, `passes_credit_refund`, `calendar_attendees_auto_decline`, `calendar_events_auto_decline` | the same names with a `bsb_` prefix        |
+  | indexes `bsb_rate_limit_rules_scope_global`, `bsb_rate_limit_rules_scope_org`                                                                                                                                                     | the same names ending in `_key`            |
+  | constraints `flag_overrides_unique`, `flag_revisions_unique`                                                                                                                                                                      | `flag_overrides_key`, `flag_revisions_key` |
+  | constraints `<table>_no_overlap` (bookings, time entries, shift assignments, leases, passes, calendar events)                                                                                                                     | `<table>_no_overlap_excl`                  |
+- The `bulk` block is `bulk-actions`. Import from `better-supabase/blocks/bulk-actions`, name it `blocks["bulk-actions"]`, and use `db.$blocks.bulkActions`. Run `better-supabase codemod naming` to rewrite imports and the config key, then `upgrade`; the migration renames the block's registry row and its permission keys in place, so roles and overrides keep their grants. The run keeps its names: the `bulk_runs` table, `start_bulk`, `BulkRun` and the `BULK_*` hints.
+
+  | Old                                     | New                                                          |
+  | --------------------------------------- | ------------------------------------------------------------ |
+  | `better-supabase/blocks/bulk`           | `better-supabase/blocks/bulk-actions`                        |
+  | `blocks.bulk`                           | `blocks["bulk-actions"]`                                     |
+  | `createBulk`, `bulkBlock`, `bulkEvents` | `createBulkActions`, `bulkActionsBlock`, `bulkActionsEvents` |
+  | `Bulk`, `BulkOptions`, `BulkEvents`     | `BulkActions`, `BulkActionsOptions`, `BulkActionsEvents`     |
+  | `bulk.run`, `bulk.*`                    | `bulk_actions.run`, `bulk_actions.*`                         |
+- `createBulkSelectionController` (from `better-supabase/blocks/bulk-actions`) keeps the checked rows of a table and runs a bulk action on them, with background progress. `createBoardController` (from `better-supabase/blocks/pipelines`) moves cards between lanes at once, saves each move and puts the card back when the save fails.
+- `bsb.cached()` and `bsb.bootstrap()` take `stage: "prefetch" | "navigation"`, which awaits `prefetch()` or `navigation()` from `next/cache` before the entry's context resolves, and `life: "max"`, the profile `{ stale: 300, revalidate: 2592000, expire: 31536000 }`. Without the gates, or inside a `"use cache"` scope where they throw, `stage` is skipped and development logs it once.
+- Search joins and watch lookups compare keys on their own type, and a watch update fires only when `key` or `watch.columns` changed. Doctor BS632 reports a pair whose live types differ.
+
+  An unbounded `list` that PostgREST cuts at `maxRows` returns a `truncated` error after a probe finds another row. `truncation: "warn"` keeps the previous warning. Set `maxRows` to the project's `[api] max_rows`.
+
+  `usage_overview` reads every meter in one statement. `usage.remaining()` calls `usage_remaining` and does not load the meter catalog.
+
+  The server schema loads each table module on first use and function metadata on the first `rpc` call. `gen.serverTables: "eager"` imports every table up front.
+
+  Statement-level audit triggers skip an import that audits one summary per entity.
+
+  `finish_import_run` treats a run as completed with issues only when a `conflicted` count is above zero.
+
+  `better-supabase/client/lite` is an Auth and Realtime client. Install `@supabase/auth-js` and `@supabase/realtime-js` to use it. Cookie sessions stay on `better-supabase/client`.
+- `classifyParty` splits a person, keeps initials, and treats a legal suffix as a company. `auto` is the default. Pass `person` or `company` to decide yourself.
+- CLI contract 3 follows the Vercel CLI guidelines. Exit code 3 is gone: a missing input, a login and a confirmation exit 2. A failed `--json` run prints one error document line on stderr (`status`, `reason`, `message`, `next`, `data`, `userActionRequired`, `retryable`) and leaves stdout empty; a success or a report prints `cli-result-v2` on stdout. Next steps print on stderr under `Next steps:` and carry an `argv` array. `--yes --effects-digest <digest>` replaces `--confirm <token>` (`consent_required` is now `confirmation_required`, and the MCP tools take `effectsDigest`), and `--non-interactive` is a global option. `--help --json` prints `cli-commands-v2`. A removed flag exits 2 with `flag_renamed` and its replacement, with no alias.
+
+  | Old                                          | New                                          |
+  | -------------------------------------------- | -------------------------------------------- |
+  | exit code 3                                  | exit code 2, `userActionRequired: true`      |
+  | `--confirm <token>`                          | `--yes --effects-digest <digest>`            |
+  | `consent_required`, `error.token`            | `confirmation_required`, `data.digest`       |
+  | `error.code`, `error.detail` on stdout       | `reason`, `message` on stderr                |
+  | `cli-result-v1.json`, `cli-commands-v1.json` | `cli-result-v2.json`, `cli-commands-v2.json` |
+- Adds `better-supabase db squash`, which replaces the migrations with one baseline of the declarative schema and carries over the module extensions and the data migrations `--keep` names, and the `tooling.env.map` config key, which adds variables under the names your app reads to what `dev env` and `dev run` set.
+- Five CLI flags are renamed to the ones contract 3 names, and the old ones exit 2 with `flag_renamed` and the replacement. Update scripts and CI that pass them.
+
+  | Old                 | New                                  |
+  | ------------------- | ------------------------------------ |
+  | `db seed --apply`   | `db seed --yes`                      |
+  | `doctor --fix`      | `doctor --yes`                       |
+  | `dev env --write`   | `dev env --out`                      |
+  | `gen --emit <file>` | `gen --metadata <doc> --only <file>` |
+  | `gen --out-dir`     | `gen --metadata <doc> --out <dir>`   |
+- `better-supabase/react` gets `useOptimisticAction`, `useAction` over React's `useOptimistic` with `optimistic` and `confirmed` values. `useSessionWatch` takes `onEnded` for an ended session, a ban or a sign-out, and `useBroadcast` takes `onRejoin` and `rejoinOnLoad` to refetch after a realtime reconnect.
+- `better-supabase codemod` no longer reads the SQL files the blocks wrote (module, data and test files). It writes a rename migration only for names your own SQL uses, because `upgrade` rewrites the block files.
+- `better-supabase codemod config` removes the `columns` entries the render refuses: a `null` for an optional column the view a block runs over lacks anyway, and a `tenant` that repeats `sql.tenantColumn`. Doctor BS379 reports those entries as errors and names the codemod.
+- Config keys have one spelling each. Rename them in `better-supabase.config.ts` (or run `better-supabase codemod naming`, which rewrites the same-parent keys); a config that keeps an old key is refused, with the new name in the message.
+
+  | Old                                                                                                | New                                                                                        |
+  | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+  | `subjects`                                                                                         | `recordTypes`                                                                              |
+  | `gen.recordTypes`                                                                                  | `gen.records`                                                                              |
+  | `gen.output`                                                                                       | `gen.file`                                                                                 |
+  | `database.seed.output`, `database.seed.sample.output`, `database.realtime.policies.output`         | `database.seed.file`, `database.seed.sample.file`, `database.realtime.policies.file`       |
+  | `tooling.env.output`, `tooling.keys.output`, `tooling.doctor.output`, `api.specs.outputs[].output` | `tooling.env.file`, `tooling.keys.file`, `tooling.doctor.file`, `api.specs.outputs[].file` |
+  | `integrations` (flat), `organization` (flat)                                                       | `adapters`, `auth.tenant`                                                                  |
+  | the `integrations` field of a preset                                                               | `adapters`                                                                                 |
+- Three core hint codes carry the noun they belong to, and the policy helper functions live in `better_supabase`. `better-supabase codemod naming` renames the hints in your code and writes a hand migration that moves the helper functions.
+
+  | Old                   | New                               |
+  | --------------------- | --------------------------------- |
+  | `CHAIN_SIGNER`        | `AUDIT_CHAIN_SIGNER`              |
+  | `APPEND_ONLY`         | `TABLE_APPEND_ONLY`               |
+  | `FISCAL_YEAR_CLOSED`  | `PERIOD_CLOSED`                   |
+  | `bsb.uid()`           | `better_supabase.uid()`           |
+  | `bsb.owns(uuid)`      | `better_supabase.owns(uuid)`      |
+  | `bsb.is_member(uuid)` | `better_supabase.is_member(uuid)` |
+  | `bsb.can(uuid, text)` | `better_supabase.can(uuid, text)` |
+
+  The naming table gains the `hint`, `event` and `sqlFunction` kinds, and doctor BS260 reports a source file that still compares against an old hint code.
+- Breaking default: `count()`, `page({ withCount: true })`, the keyset total and the server resource list count in the `estimated` mode. The total is exact up to 1,000 rows and the planner's estimate above it, so a page of a large table no longer scans every matching row (an exact count over 200,000 rows took 12 ms, the capped form 1 ms). Pass `count: "exact"` or `count({ mode: "exact" })` where an exact total matters.
+
+  `better-supabase upgrade` rewrites no module and no data migration is needed. Returning `{ count, capped }` is not part of this change.
+- Counts say whether the planner answered. `page.capped` is true when an offset page's `total` is the planner's estimate, `repository.counted()` returns `{ count, capped }`, and `formatPageTotal(page)` prints `12,300` or `~12,300` (pass `capped: (n) => ...` for another wording). `count()` still returns a number.
+
+  `better-supabase upgrade` rewrites no module and no data migration is needed.
+- The custom-fields block sets, changes and removes a value by itself. `setValue` replaces a value that exists instead of failing on the key of record and field, and an encrypted value is sealed once. New `updateValue({ id, value })` and `deleteValue(id)` call the SQL functions `update_field_value(value_id, value)` and `delete_field_value(value_id)`, which the normalized and inline layouts now have (the keyed layout had them). They replace the app SQL that updated or deleted `field_values` rows. Run `better-supabase upgrade` and generate a migration with `supabase db schema declarative sync`.
+- `better-supabase db partition audit` moves an audit log created before `options.partitioned` onto monthly partitions without stopping writes. It calls the generated `convert_audit_log_to_partitioned` procedure, which copies in committed batches and swaps the tables under one short lock. Pass `--batch-size`, `--drop-old` or `--dry-run`.
+- `better-supabase db verify` reads row level security, grants, policies and definer `search_path` from the database, reports the findings and exits 1 on an error. `--write-tests` also writes the access matrix as one pgTAP file per persona.
+- The declarative base layer release gives every name one spelling and makes the files better-supabase writes declarative. The renames ship without aliases. This is a minor release; below 1.0 a minor version may carry breaking changes. Follow the [0.57 to 0.58 guide](https://bettersupabase.com/docs/migration/0.57-to-0.58); this entry lists what breaks, by area.
+
+  Run the codemods in this order, then `gen`, `upgrade` and your SQL workflow's sync:
+
+  ```bash
+  better-supabase codemod owned-columns
+  better-supabase codemod extra-columns
+  better-supabase codemod config
+  better-supabase codemod generators
+  better-supabase codemod naming
+  better-supabase codemod table-modules
+  better-supabase gen
+  better-supabase upgrade
+  ```
+
+  **Config.** Keys have one spelling each. A config that keeps an old key is refused with the new name. `codemod naming` rewrites the keys that stay under the same parent. Move the flat `organization` key to `auth.tenant` by hand; the codemod reports it and leaves it. `extraColumns` and its prefixed forms are removed from every block (`codemod extra-columns`), and a `columns` entry for a column the view lacks, or a `tenant` that repeats `sql.tenantColumn`, is an error (`codemod config`).
+
+  **Exports and types.** The renames of `api/naming.json` apply (`codemod naming`). `better-supabase/config` no longer exports the generators; import them from `better-supabase/generators/<name>` (`codemod generators`). Generators are plugins at `apiVersion: 2`. Every exported `*Args`, `*Settings` and `*Failure` type has a name from its noun.
+
+  **Blocks.** `time-tracking` is `time-entries` and `bulk` is `bulk-actions`, with their imports, config keys, clients and permission keys. The tasks block's default entity is `task`. Engagements are activities. The `rank` block keeps its name.
+
+  **Database.** Block tables name their tenant column `tenant_id`, user references `<role>_id`, soft-deleted rows `archived_at` and timestamps `*_at`. Generated policies, triggers and check constraints carry a `bsb_` prefix. Three tables are renamed, and the policy helper functions live in `better_supabase`. `codemod naming` writes the rename migrations for an installed app; no data moves.
+
+  **Module files.** The files `upgrade` writes are declarative DDL, with shared helpers in one prelude file and unscoped triggers in one file. Row audit triggers are static statements. Migrations the CLI writes are named by stamp and content hash. `powersync streams` declares the `powersync` publication in `supabase/schemas` when that folder exists.
+
+  **Generated client code.** `gen` writes one module per table and one slice per block. The server's schema is in `generated-schema.ts` (`codemod table-modules`). Frameworks are registrations through `defineFramework`.
+
+  **CLI.** CLI contract 3 follows the Vercel CLI guidelines: exit code 3 is gone, the result documents are `cli-result-v2` and `cli-commands-v2`, and five flags are renamed with `flag_renamed` as the error. `gen --watch` is `dev`, and `db prune-workflows` is `workflows prune`.
+
+  **Removed.** The 0.46 and 0.47 rename shims, the module upgrades for tables 0.47 renamed (upgrades start at 0.53), `$apiResult`, the `triggerSql` overload, the module `version` option and the `openapi` config key.
+
+  **Deferred.** The generated file layout, reads through a view named after a block instance, child PowerSync streams and the owned-column default flip are not in this release (ADR 0393). Cloud design URLs that were saved earlier carry the old `integrations` field.
+
+  | Old                                                                     | New                                                                |
+  | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+  | `subjects`, `gen.recordTypes`                                           | `recordTypes`, `gen.records`                                       |
+  | `gen.output` and the other `output` file keys                           | `gen.file` and the other `file` keys                               |
+  | `integrations`, `organization` (flat)                                   | `adapters`, `auth.tenant`                                          |
+  | `better-supabase/blocks/time-tracking`, `blocks["time-tracking"]`       | `better-supabase/blocks/time-entries`, `blocks["time-entries"]`    |
+  | `better-supabase/blocks/bulk`, `blocks.bulk`                            | `better-supabase/blocks/bulk-actions`, `blocks["bulk-actions"]`    |
+  | `organization_id` on block tables                                       | `tenant_id`                                                        |
+  | `owner_user_id` and the other `<role>_user_id` columns                  | `owner_id` and the other `<role>_id` columns                       |
+  | `deleted_at` on `drive_nodes`, `memories`, `messages`                   | `archived_at`                                                      |
+  | `locked_until`, `scheduled_for`, `purge_after` and the other timestamps | `lock_expires_at`, `scheduled_at`, `purge_at` and so on            |
+  | `engagement_*` tables, `Engagement*` types, `ENGAGEMENT_*` hints        | `activity_*`, `Activity*`, `ACTIVITY_*`                            |
+  | `stream_kv`, `invoice_e_endpoints`, `workflow_step_library`             | `stream_entries`, `e_invoice_endpoints`, `workflow_step_templates` |
+  | `bsb.uid()`, `bsb.owns()`, `bsb.is_member()`, `bsb.can()`               | the same functions in `better_supabase`                            |
+  | `work_item` (default entity of tasks)                                   | `task`                                                             |
+  | `defineSupabase`, `getBetterSupabase` (Svelte)                          | `createSupabase`, `betterSupabase`                                 |
+  | `BSB_STACK`, `BSB_CLOUD_URL`                                            | `BETTER_SUPABASE_STACK`, `BETTER_SUPABASE_CLOUD_URL`               |
+  | `db seed --apply`, `doctor --fix`, `dev env --write`                    | `db seed --yes`, `doctor --yes`, `dev env --out`                   |
+  | `gen --emit`, `gen --out-dir`, `gen --watch`                            | `gen --metadata <doc> --only`, `gen --metadata <doc> --out`, `dev` |
+  | `--confirm <token>`, exit code 3                                        | `--yes --effects-digest <digest>`, exit code 2                     |
+  | `better-supabase db prune-workflows`                                    | `better-supabase workflows prune`                                  |
+- Module files are declarative DDL. They no longer write `drop policy if exists`, `drop function if exists` or `drop trigger if exists`, `if not exists` on tables and indexes, or `if not exists` on the columns of tables the block owns, so a schema diff reads each file as the end state. Run `better-supabase upgrade` and commit the result. The migrations workflow still writes statements that can run again. `renderPolicy` no longer takes a `drop` option.
+- `db.$decode(table)` decodes relations embedded in a raw row (`select=*,tag(*)`) at every depth, with a codec failure reported as `invalid_value`. `createFakeClient` answers `.single()` over no data like PostgREST: `PGRST116` with the row count in `details`, also for `.maybeSingle()` over several rows. Doctor reports a hand-merged `settings` JSON blob as BS620.
+- `better-supabase dev` replaces `gen --watch`: it listens for file events on the config, `supabase/schemas` and the task inputs, prints `Ready` once on stderr, and reruns only the tasks a change affects. `gen --watch` and `gen --interval` exit 2 with `flag_renamed`. `better-supabase cache purge [--dry-run]` deletes the CLI cache. A warm `upgrade` on a large project drops from about 1.4 s to 0.4 s because the adoption scan is memoized in `node_modules/.cache/better-supabase/memo`, and `upgrade` no longer renders the modules twice to plan renames. `upgrade --json` reports `data.cache.rendered`, the module files a fresh render produced.
+
+  | Old                          | New                  |
+  | ---------------------------- | -------------------- |
+  | `gen --watch --interval 500` | `dev --interval 500` |
+- The CLI keeps what each SQL file declares in `node_modules/.cache/better-supabase/parse/files.json`, so `doctor`, `upgrade` and `sync` parse only the files that changed since an earlier run. `--no-cache` skips it and `cache purge` deletes it.
+- `better-supabase doctor` reads `supabase db advisors` output that prints one lint per line as well as a list or an object with `lints`, and falls back to splinter for any other shape. A saved CLI document is now part of the tests. No module or data changes.
+- `better-supabase doctor` reads the bodies of your own triggers for the same-tenant check. BS340 no longer lists a foreign key column that an app trigger reads or writes, matching what `sameTenant.auto` leaves to the app, and the new BS398 warns when that trigger never mentions the tenant column, so the generated check is off and nothing replaces it. `better-supabase upgrade` rewrites no module and no data moves.
+- Doctor adds BS375 (two policies that decide the same way) and BS376 and BS377 (objects a migration creates and no schema file declares, and the reverse, under pg-delta) and BS378 (the `extraColumns` options). `upgrade --check` also fails on `transaction=false`, a top-level `insert`, an object two block files declare and duplicate policies; its result data reports them as `problems`, not `duplicated`.
+- Doctor has four rules for declarative schema files. BS371 reports an object two schema files both declare, and names the prelude when a module file still pastes one of its helpers. BS372 reports a `do` block in an app file that creates objects, BS373 reports `if not exists` on an app table or index, and BS374 reports an insert in a block module file. `better-supabase upgrade --check` also fails while a module file declares a function the prelude defines.
+- Doctor BS107 counts a restrictive `with check (false)` policy as the denial of insert for a tenant table. An insert policy has no `using`, so the rule could not be satisfied for insert before.
+- `better-supabase doctor` adds four checks. BS394 holds a function that overrides a block function against the module's current text: write `-- @bsb-override-of <schema.fn> <hash>` above your own `create function`, and doctor prints the new hash when the module changes (BS369 no longer reports a tagged function). BS395 flags `verify_jwt = false` for an Edge Function that uses `auth: 'user'`, except `mcp`. BS396 flags ten or more single-row inserts into one table in a seed file. BS397 flags an `insert`, `update` or `delete` in a schema file for a table a migration or block data file also writes. `better-supabase upgrade` rewrites no module and no data moves.
+- Doctor BS381 flags `createNativeClient`, `powersyncEngine`, `attachmentQueueRoute` or `queryEngine` when it names a block table that one of your views projects, and BS382 fails a `subjects.<type>` config entry that disagrees with the table's `@bsb subject` comment.
+
+  `better-supabase powersync streams` now reads your schema files. A table you project through a view streams the view's columns (under the view's names) and its `where` rows, the authorization provider's version column (`authz_version`, `permissions_version`) is left out of every stream, a bigint `id` syncs as text, and the `membership_roles` stream covers the roles of every member of the user's organizations instead of the user's own.
+- `better-supabase doctor` checks scale practices. BS386 flags a volatile or PL/pgSQL function called per row in a policy, BS387 a table with six or more row-level `bsb_*` triggers, BS388 a search trigger on an import target without the import guard, BS389 an audit log nothing purges, BS390 a redundant index, BS391 a `param is null or col = any(param)` filter in a function, and BS392 a searched table without a trigram or time index. BS227 also reports `count()` without a `mode`. `better-supabase upgrade` rewrites no module and no data moves.
+- Doctor checks the app's own schema files against four Supabase and Postgres practices. BS365 warns about an update policy with no select policy, BS366 reports a policy that decides on `user_metadata`, BS367 warns about a view without `security_invoker`, and BS368 reports `timestamp` and `serial` columns.
+
+  Doctor BS383 warns about a storage insert policy without select and update policies, BS384 about a policy that calls `auth.uid()`, `auth.jwt()` or `auth.role()` outside `(select ...)`, and BS385 about a policy column no index starts with. On a database on your machine, doctor reads `supabase db advisors` when the Supabase CLI is 2.81.3 or later and falls back to splinter otherwise. Token verification requires the audience `authenticated` unless `auth.audience` is set.
+- Doctor reports two more patterns that a declarative sync cannot keep stable. BS378 flags a `before` or `after` trigger aimed at a view, which never fires for the table under it. BS380 flags a check constraint that joins a `between` to other conditions with `and` or `or`, because Postgres reads it back as another expression and the next diff proposes the constraint again.
+- `entryContext(bsb, entry)` from `better-supabase/server` builds the same `ServerContext` from a request, a resolution, an auth state or a cron call. `cronHandler(bsb, { name, secret }, run)` is a guarded `GET` and `POST` route for a scheduler that runs `run(ctx, request)` as the service role.
+- `better-supabase codes --json` prints the stable codes functions raise and import warnings report. The catalog is `better-supabase/schemas/error-codes.json`. Doctor BS627 reports a raise that has no hint.
+- `options.on` of the time-tracking block lists the record types an entry can be tracked on (`TIME_SUBJECT_INVALID` for another type), replacing an app trigger that did the same. The tasks block takes `locked` as an optional column, so a table without a lock maps it to `null`. Run `better-supabase upgrade` and generate a migration with `supabase db schema declarative sync`.
+- A table comment `@bsb filled-by-trigger created_by owner_id` makes those columns optional on insert in the generated types, the same as `tables.<t>.insertOptional` in the config. A column the config lists too is kept once.
+
+  `better-supabase upgrade` rewrites no module and no data migration is needed.
+- Doctor BS260 no longer reports `workItemId` or `workItemIds` for an app that renamed the entity through `blocks.<name>.entities` (or `names`), such as `work_item`: the verb arguments follow the entity name there, so they are not the old ones. `codemod naming` still renames them in an app that keeps the default names.
+- The built CLI bundles `valibot` and `jsonpath-rfc9535`, which are also optional peers and were imported bare, so the CLI failed in an app that installs neither. Doctor BS330 reads `sql.tenantColumn` once `codemod config` removed the explicit entries, BS346 says `recordTypes`, and two new warnings report a block's unique index that one of your unique indexes repeats or makes redundant (BS623) and a block `updated_at` trigger next to your `track_updated_at` call (BS624). `gen` names the server schema `generated-schema.ts` when `gen.file` is `schema.ts`. The renamed-key messages say 0.58.
+- `codemod naming` no longer renames the column that `sql.tenantColumn` (or a `columns.<table>.tenant` entry) names, and leaves every column rename out, with a note, when the config did not load; before, an app with `sql.tenantColumn: "organization_id"` got `organization_id` renamed to `tenant_id` on 74 block tables, and the schema diff dropped the column. It also renames `job_schedules.locked_until`, the tasks verb arguments (`workItemId` to `taskId`), the former permission keys under `blocks.<name>.permissions` (`view`, `viewAll`, `viewSensitive`, `edit`, `admin`), `blocks["time-tracking"]` and `db.$blocks.timeTracking`, and keeps the keys of a renamed config object sorted. `codemod owned-columns`, `extra-columns` and `config` stop with `config_invalid` when the config does not load, instead of printing "Nothing to change". `codemod server-imports` splits `export { ... } from "better-supabase/server"` too, and `codemod generators` flags `apiVersion: 1` only inside a generator. Run `better-supabase codemod naming` first.
+- Fixes found while upgrading a production app to 0.58. `same_tenant()` refuses a reference to a row whose tenant is null unless the entry sets `shared: true`, and a deferrable foreign key gets a constraint trigger that runs at commit. The audit module's dynamic insert and the api-keys, flags, tenant switch, usage and knowledge results use the configured tenant column. `clone_task` copies taggings only when the tags block has the table. An `@bsb fields` tag in a multi-line table comment is read, so the feature it turns on stays on. `upgrade` renames the registry row of `time-tracking` and `bulk` instead of adding a second one. `schemaTexts` reads the migrations before the schema files, so an old migration no longer overwrites the final state of the audit tables. The config refuses the former permission keys and `invoices.options.uniqueNumber` with the new name or a way out, and the 0.57 to 0.58 guide has a query that finds duplicate invoice numbers before the migration adds the key.
+- `codemod naming` keeps working for apps that own a block table. It writes a `blocks.<name>.columns` entry that keeps the old name of a column your own table still has (`drive_nodes.deleted_at`, the actor columns of scorecards and status history), so the feature that reads it stays on, and it renames the block column names in your schema files and seeds, only in statements that name a `better_supabase` table and never in migrations. Blocks now leave out a unique index over the same columns as a unique key of yours, the invoices number key when your key is a subset of it, and their own `updated_at` trigger on a table your files track with `track_updated_at()`, so doctor BS623 and BS624 report only what a block can't decide.
+- `better-supabase init` detects SvelteKit, TanStack Start and React Router with their own framework bindings. It sets `gen.hooks` to `sveltekit`, `tanstack-start` or `react-router`, writes the server hook or middleware file the docs show unless it exists, and prints the server adapter to import. `gen.hooks` accepts the three names. Upgrade: nothing to change; a project that sets `hooks: "svelte"` or `"react"` keeps it.
+- Frameworks are registrations. `defineFramework` from the new `better-supabase/plugins` entry builds a binding (`name`, `tier`, `detect`, `integrations`, `hooksSubpath` or `hooksModule`, `hooksDirective`), and `frameworks: [binding]` in `gen` registers it. `gen.hooks` takes any registered name, the built-in `react`, `svelte`, `vue` and `solid` bindings use the same contract, and `init` writes `gen.hooks` for a detected framework that no adapter selects. `ResolvedConfig` gains `frameworks`, and `gen.hooks` naming a framework nothing registers is an error.
+- The generated hooks for Vue, Solid and Svelte read through the table module (`defineListHook` and `defineOneHook` take it as a third argument), as the React hooks do, so a client on `clientSchema` loads one table per page. `hooks.ts` exports `AppDb`, an interface over the app's `db`. Doctor BS621 warns when a `"use client"` file imports `generated-schema`, `blocks.generated` or `blocks.config`.
+- `init` writes the files a registered framework binding declares in `templates` and prints its `serverSubpath` adapter. `templates` receive `serverImport`, and `better-supabase/plugins` exports `frameworkFiles` and `serverImportOf`.
+- `gen.functions.<name>.returns` types the result of a function that returns `json` or `jsonb`: `{ schema: "./file.ts#name" }` takes a Standard Schema export and validates the result at runtime, `{ import: "./file.ts#Type" }` imports a type, and `{ type: "..." }` writes one. It does the same as the `@bsb returns` comment tag and wins over it.
+- `gen.constants: true` writes `enums.ts` and `columns.ts` next to the generated module. `enums.ts` holds every enum and CHECK value list as a constant array and a union type, and `columns.ts` maps each column's row name to its database name for every table. Neither imports anything, so a browser form or a script uses them without the runtime package.
+- `gen` types a jsonb column from the schema value that `standardSchema({ json })` names for it, so you no longer repeat the type in `gen.json`. An entry in `gen.json` still wins.
+- `better-supabase gen --offline` never connects: it reads `--snapshot <file>` or `source.snapshot` and fails with a usage error when neither exists, so `gen --check --offline` runs in CI without a database. It refuses `--db-url-stdin` and `--project-ref`.
+
+  `better-supabase upgrade` rewrites no module and no data migration is needed.
+- A column your own schema file adds with `generated always as` or `generated by default as identity` is no longer a field of the block's table. A block's functions inserted it with the other columns and failed at run time, because Postgres refuses a value for a generated column.
+- `better-supabase gen` writes `nullable` and `hasDefault` into `generated.meta.js` only for the columns where they are true, and leaves the `@bsb` tag block out of a table or column description. `ColumnMeta.nullable` and `ColumnMeta.hasDefault` are optional in the type, and an absent value means `false`. The metadata of a page's bundle shrinks and the OpenAPI documents stop showing the tags as text. Run `better-supabase gen` to rewrite the file.
+- Generators are plugins at `apiVersion: 2`. A generator declares `name`, `version`, `options`, `pure`, `workerSafe` and `provides`, and `generate` receives plain data: `config` is a view (`output`, `databaseTypesOutput`, `casing`, `json`) and `imports.runtime` replaces `runtimeImport`. `provides: ["validators"]` replaces the `validators` flag on a file, and two generators that provide it are an error (the zod, valibot and standard-schema generators take `validators: false`). `gen` caches a `pure` generator's files on its name, version, options and input. The new `better-supabase/generators` entry exports `defineGenerator`, `relativeImport` and the helpers the built-in generators use. `testGenerator` is now `testGeneratorPlugin`, and it also checks `structuredClone` safety and the cache round trip. A generator at `apiVersion: 1` fails with a message that names the change.
+- Each first-party generator has a subpath: `better-supabase/generators/zod`, `/valibot`, `/json-schema`, `/standard-schema`, `/factories` and `/nuqs`. `zod` (4.x) and `valibot` (1.x) are now optional peers with a tested range, like `nuqs`, and `gen` prints a notice when a configured generator's library is installed outside it. `better-supabase/config` still exports the generators.
+- `gen` runs generators that declare `workerSafe` and a `module` on worker threads once a schema has 1500 tables, and writes the same files as a single thread. The built-in generators declare their module; `Generator` gains `module` (`{ specifier, export }`) and `testGeneratorPlugin` checks that the generator rebuilds from it.
+- `better-supabase/config` no longer exports `zod`, `valibot`, `jsonSchema`, `toJsonSchema`, `standardSchema`, `factories` and `nuqs` or their option types. Import each from `better-supabase/generators/<name>`. Run `better-supabase codemod generators` to rewrite the imports; it also lists the lines of any generator that still uses the `apiVersion: 1` shape.
+- An imported accounting entry opens the fiscal year and its twelve periods when they are missing. Earlier open years close when the item asks, and an unbalanced opening set is refused.
+- An invoice import can set `settlement` to `row` and write a historical paid, partially paid or open state without a payment or a ledger entry. `suppliedOn` is stored and fills the issue date when `issuedOn` is empty. A line with a product is marked `product`. A payment term code and a single matching tax rate are resolved when those blocks are installed.
+- New sessions option `hook` renders `better_supabase.hook_plan(event)` for the app's access token hook. It returns `slim` for a token with a `client_id` (the MCP OAuth server's tokens, with `oauth: 'slim'`), `reuse` for a refresh whose `authz_ver` is still the user's current version, and `full` otherwise, so a fast refresh makes 0 membership reads instead of 1 and an OAuth client token reads nothing. `refresh: 'reuse'` needs `authzVersions` or a provider with `versions`. `better-supabase upgrade` rewrites the sessions module only for an app that sets `hook`, and `db diff` then adds the function; no data migration is needed. Call the plan first in your hook and return the event for `slim` and `reuse`.
+- `invoice_allocation` links an existing receipt to an invoice and moves the paid total without posting a ledger entry. `allocateExisting` is the same call from the invoices client. Row settlement still writes the paid state with no allocation.
+- An import target can name `batch: "schema.function"`, a function `(run uuid, items jsonb) returns jsonb` that writes the batch's items in set-based statements and answers one entry per item. When it raises, every item runs through `write` on its own, so one bad row costs only its own error, and counts, record map rows and errors match the row path (a pgTAP parity test holds it). On the local fixture it is no faster than `write` for customers, because the triggers dominate; it helps targets whose own function does the per-row work.
+
+  `better-supabase upgrade` rewrites the `imports` module and the next schema migration replaces `import_apply_batch`. No data migration is needed, and apps without `batch` keep the same generated SQL.
+- Two batches of one import run no longer wait on each other. `import_upsert_batch` reads the run without `for update`, and only the counts update at its end locks the run row. `imports.run` also adapts its batch size: a batch over `targetBatchMs` (default 30,000) halves the next one, `maxBatchSize` lets fast batches double it, a batch that hits the statement timeout is split in two and sent again, and the result carries `suggestedBatchSize`.
+
+  `better-supabase upgrade` rewrites the `imports` module and no data migration is needed.
+- `enqueue_import_chunks` puts its jobs on the queue `imports`. The name was passed with its own quotes, so the jobs went to a queue that no worker reads. `better-supabase upgrade` rewrites the `imports` module. No schema data migration is needed, but a chunk job queued under the quoted name before the upgrade stays there, so call `enqueue_import_chunks` again for a run that still has unprocessed chunks.
+- Large imports run in chunks from the library. The imports module has an `import_chunks` table and the service-role functions `store_import_chunk`, `claim_import_chunk`, `complete_import_chunk`, `process_import_chunk` and `import_chunk_progress`; `imports.chunks.{store, process, progress}`, `importChunkSchema`, `importChunkHandler` and `runImportWorker({ imports, queue })` drive them from the `imports` queue. `process` writes a chunk once even when its job is retried, a failure leaves the chunk pending, and a claim older than five minutes is taken over.
+
+  `better-supabase upgrade` rewrites the `imports` and `data-lifecycle` modules and the next schema migration creates the table and functions. No data migration is needed. An app's own chunk table and runner functions become removable once it calls these.
+- An import batch names the keys of its conflicted items (`conflictKeys`, the first 100), and a worker can mark a stored chunk failed with `imports.chunks.fail`, so a queue stops retrying it. `chunks.progress` counts `failed` chunks and `chunks.process` answers `{ status: "failed", message }` for one. Run `better-supabase upgrade` and generate the migration: it adds the `fail_import_chunk` function and the `failed` chunk status.
+
+  The subject cascade deletes of `approvals` and `relations` read an index. Approval requests get a `(subject_type, subject_id)` index, relations get a tenant-led source index, and the relations cascade filters on the subject row's tenant. The drive retention sweep asks the retention and hold policies once per tenant and statement.
+- A credit note import reads `resolved.original` as well as `originalId` and the original number. A negative invoice total becomes a credit note when that original resolves. Without an original it stays an invoice and returns `IMPORT_CREDIT_WITHOUT_ORIGINAL`. A row settlement with no original posts nothing and returns the same warning.
+- Doctor BS629 reports a migration that drops a `when '<entity>' then` arm the schema file still dispatches, and an `import_apply_batch` that omits an entity from `blocks.imports.options.targets`. `import_entities()` returns the entities the imports module dispatches, so an override can call the list instead of copying it.
+
+  `better-supabase upgrade` rewrites the imports module. The next schema migration adds `import_entities`.
+- An imported invoice, credit note, quote or order stays as imported unless `data.update` is `apply`. Apply writes the header and, when the line count is unchanged, the line title and tax. A different line count replaces the lines. A void or paid document keeps its postings unless `data.repost` is true.
+- A dry run keeps the counts and the first changed fields, and `list_import_diff` reads them. The subject rows are not written.
+- `import_ensure_ref` finds a reference row by kind and key, ignoring case, and creates it from `defaults` when it is missing. A created row returns the warning `IMPORT_REF_CREATED`.
+
+  `better-supabase upgrade` rewrites the imports module. The next schema migration adds `import_refs` and the function. No data migration is needed.
+- `import_integrity` reports duplicate import keys, unbalanced ledger entries, negative invoices that are not credit notes, issued documents without a number, and archived parties without a date. `integrityReport` reads that shape.
+- `start_import_run` stores `options.plan` (expected rows per entity) and takes a 30 second lease. `heartbeat_import_run` extends the lease. `finish_import_run` sets `outcome` to `completed`, `completed_with_issues` or `incomplete` when an entity is below its plan. `get_import_run` returns the plan, outcome and lease.
+
+  `better-supabase upgrade` rewrites the imports module. The next schema migration adds the columns and `heartbeat_import_run`. No data migration is needed.
+- `list_import_issues` and `list_import_diff` take a fifth argument, `after`, and return `next_cursor`. Pass the `next_cursor` of one page as `after` to read the next page by keyset. `row_offset` still works while `after` is null. The issues `total` is null on a keyset page, and is counted with a bound of 10,000 on an offset page.
+
+  Migration guide:
+
+  | Before                                     | After                                                           |
+  | ------------------------------------------ | --------------------------------------------------------------- |
+  | `list_import_issues(run, entity, 50, 100)` | Still works. Add `after => page.next_cursor` to page by keyset. |
+  | `rpc("list_import_issues", { ... })`       | Pass `after` as a fifth named argument when you want a cursor.  |
+  | Reading `total` on every page              | Read it on the first page, it is null on a keyset page.         |
+
+  Run `supabase db diff` to drop the old four-argument functions and to replace the `import_run_issues_run_idx` index.
+- An import run records the version of its mapping code (`runs.start({ mapperVersion })`, `ImportRun.mapperVersion`). `reapply_import_records(tenant, source, mapper_version, entity?)` makes the next run rewrite the records an older version wrote, and `export_import_hashes(tenant, source, entity?)` lists the record map's hashes.
+
+  `better-supabase upgrade` rewrites the `imports` module and the next schema migration adds one column and two functions. No data migration is needed.
+- An import target can name `naturalKey`, a function `(tenant, item jsonb) returns text`. When no import record exists and the function returns a subject, the write updates that row instead of inserting another.
+- An imported quote or invoice can ask for the next free number when its own is taken: put `onTaken: "next_free"` in the item's `data` and the import issues the next number and reports `IMPORT_NUMBER_REASSIGNED`. Without it a taken number still fails the item.
+
+  `better-supabase upgrade` rewrites the quotes and invoices modules and the next schema migration replaces two functions. No data migration is needed.
+- An import target can name `ownedHash`, a reader of the columns the importer writes. A newer subject stamp is a conflict only when that hash changed. When only the stamp moved, the library realigns it and applies the row. `rebase_import_records` copies the current stamp and hash onto the stored rows for a tenant, source and optional entities and keys.
+
+  `better-supabase upgrade` rewrites the imports module. The next schema migration adds `import_records.owned_hash` and `rebase_import_records`.
+- An import target can declare `refs`, a map from a field on `item.refs` to the entity that field points at. The batch resolves every such key in one query and passes the subject ids to the write as `resolved`. A key with no import record adds the warning `IMPORT_REF_MISSING`.
+- `runImport` reads `accessToken` before every batch and retries once when the request reports an auth failure. A dropped batch returns `resumeFrom`. Passing that as `resume` continues the same run from that chunk, so the earlier chunks are not sent again.
+- pgTAP helpers `tests.import_run_fixture`, `tests.age_import_run`, `tests.bulk_touch_subjects` and `tests.assert_override_dispatches_all` set up a run in a chosen state, move its lease into the past, age stored import stamps and check that an override still dispatches every import entity.
+- Import conflicts, errors and warnings are stored on `import_run_issues`. A later run that applies the same key sets `resolved_at`. `list_import_runs` includes open issue counts. `list_import_issues` pages one run, with the total capped at 10,000. `resolve_import_conflict` takes `keep`, which adopts the database stamp as the baseline, or `overwrite`, which clears the stamp and owned hash so the next batch can write the source.
+
+  `better-supabase upgrade` rewrites the imports module. The next schema migration adds `import_run_issues` and the two functions.
+- An import item can carry `sourceUpdatedAt`. Apply skips a row whose source time is not newer than the stored one, and `diffItems` reports created, changed and unchanged rows the same way.
+- `defineImportSource` and `runImportSource` read a multi-entity source, preview it, and write each dependency wave. A dry run stops after the preview.
+- `import_sources` is the registry an integration catalog reads. `list_import_source_runs` lists every run of the tenant, whether it was started from the CLI, an API or the UI.
+- An import can change a status the state machine would refuse. The transition check runs only outside an import.
+- An import target can set `replaces: true` to take the dispatch arm of a built-in entity, and `before` or `after` to adjust the item or the result. The batch loop stays the library's, so a later change to the hash or the record map still runs with the override installed.
+- `testImportTarget` builds the pgTAP checks for an import target: insert, unchanged, update, conflict, dry run, no events, and updatedAt. The testing skill documents it.
+- The default titles of imported quotes, invoices, opening balances and checkout invoices come from the new options `quotes.titleTemplate`, `invoices.titleTemplate`, `invoices.openingTitleTemplate` and `orders.titleTemplate`, with `{number}` for the number. The defaults are the old English texts, so nothing changes until you set one, such as `Offerte {number}`.
+
+  `better-supabase upgrade` rewrites the quotes, invoices and orders modules and the next schema migration replaces their functions. No data migration is needed.
+- Import targets can name `dependsOn`. `importWaves` orders them into waves and rejects a cycle. A batch whose earlier wave still has open chunks is refused unless the plan sets `unordered`.
+- `better_supabase.importing()` returns true while the transaction runs in an import session, so an app trigger or function can skip a side effect during an import with `if not better_supabase.importing() then ... end if;`. A user session always gets false.
+
+  `better-supabase upgrade` rewrites the prelude and the next schema migration creates one function. No data migration is needed.
+- `knowledge_search` sets `plan_cache_mode = force_custom_plan`, so the planner folds a null `collections` argument and uses the collection index. `mark_notifications_read` reads its `ids` argument through a union of the given ids and the user's unread rows instead of `ids is null or id = any(ids)`, and `list_notifications` and `notification_page` filter `types` with `type = any(coalesce(types, array[type]))`. `better-supabase upgrade` rewrites the knowledge and notifications modules; add the generated `create or replace function` migration. No data moves.
+- Config inference covers two more lines. The `notifications` block is installed when `gen.powersync.instances` or `gen.clientBlocks` names it, and `standardSchema({ settings: "./src/settings.ts#settings" })` gives the `settings` block its `defineSettings()` schemas, so `blocks.settings.options.schemas` can go. An option you set still wins.
+- A `columns.<table>.<column>: null` entry for an optional column the view you map a block over lacks anyway is now an error that names the entry, since the block already leaves that column out. A `columns.<table>.tenant` entry that repeats `sql.tenantColumn` is an error too. `add --adopt` no longer proposes the null entries for a view. Remove the entries the message names; a `null` entry for a column your view has, or for a table you own, still works.
+- The inventory client gets `releaseAllocation` and `transferAllocation`, and the SQL function `transfer_allocation` records the new `allocation.transferred` event, with the new document in `toDocumentType` and `toDocumentId`. Run `better-supabase upgrade` and generate a migration with `supabase db schema declarative sync`.
+- The inventory block gets the SQL functions `release_allocation(allocation)`, which releases one open allocation, and `transfer_allocation(allocation, document_type, document_id, line_id)`, which moves an open allocation to another document. They replace the app SQL that updated `stock_allocations` rows. Run `better-supabase upgrade` and generate a migration with `supabase db schema declarative sync`.
+- `inventory_levels` reads stock for the variants you pass, and `inventory_status_counts` and `list_inventory_movements` read the status totals and the stock ledger. A movement records its bin and lot. Open purchase orders still keep `incoming` on the stock level.
+- `inventory.levels` reads the stock levels of a list of variants in one call, and `inventory.movements` pages the ledger movements by variant, location, bin, lot or document. `releaseAllocation` and `transferAllocation` take an optional `quantity`: a release shrinks the allocation and a transfer splits it, moving held stock first into a new allocation on the new document. The SQL functions `release_allocation` and `transfer_allocation` take the same optional `quantity`.
+- The inventory block gets `stock_levels.reorder_quantity` with `setReorderQuantity`, the SQL function `pick_serials(variant, location, quantity, lot)` with `pickSerials`, which chooses the oldest serial numbers in stock, and a unique `(id, tenant_id)` on locations, reservations, transfers and purchase orders so your tables can reference them with a composite key. They replace app SQL that added the column, picked serials and added the constraint. Run `better-supabase upgrade` and generate a migration with `supabase db schema declarative sync`.
+- When tenant and platform invitations share one table, the table now gets one select policy that reads both. The declarative output dropped the platform clause, so platform invitations stayed unreadable.
+- The JWKS cache of a Supabase Auth key set (`/auth/v1/.well-known/jwks.json`) is capped at 600 seconds, whatever `cacheSeconds` says, and `purgeKeys(url?)` from `better-supabase/server` forgets a key set (or every set and imported secret) after you revoke a signing key. An unknown `kid` still refetches once per 30 second cooldown. `upgrade` rewrites no module and no data migration is needed.
+- The list functions of the risks, meetings, inspections and warranty blocks page by keyset. Pass `after` (the previous `nextCursor`) with `{ paged: true }` to get `{ items, hasMore, nextCursor }`, and `{ total: true }` for a total capped at `totalCap` (default 10,000). `offset` stays as an explicit option for callers that show page numbers, and a plain call still returns the array. `risks.page()` is the typed client, and each table gets a list index that ends in the id. Run `better-supabase upgrade` and `db diff` to write the new indexes.
+
+  The `access`, `list` and `idempotency` table tags render policies, a keyset list function with its indexes, and a unique index for retried writes: `better-supabase table <name> enable <tag>` reads the tag's arguments from the table comment. The authorization provider gains an optional `functions.canIn` template for the policies; without it the tag calls `better_supabase.tenant_ids_with`, so existing providers keep working and `apiVersion` stays 1.
+- Client sessions can omit JWT claims (`toSession(auth, { claims: false })`). `PermissionsProvider`, `can` and `useCan` read the compact bootstrap payload, and the roles and catalog models gain `better_supabase.bootstrap_permissions()`. Membership claims accept `claimFormat: "summary"`.
+
+  The verified-token memo is shared on `globalThis` and keyed by the raw token. A stale JWKS is served while it refreshes. Role-default and platform-role changes bump authorization versions in one statement, and `hook_plan` returns `full` when the active tenant changed. The browser client refreshes on `visibilitychange` inside the leeway.
+
+  Cursor pages count `estimated` unless `count` says otherwise. `defineInfiniteListHook` pages with `page()` and its cursor. Block list methods take an optional `limit` and return only that many rows. Facet counts can use a capped sample, and `countFacets` with `facetCacheKey` keeps that sample out of later pages. `OfflineBoundary` and `nativePermissions` cover React Native. A PowerSync reconnect refreshes server-backed reads only.
+- `client.queries.<table>` now works for a table that a `lazyTables` client registers after it was built. Before, `queries.customers` was `undefined` for a table registered later, so `queries.customers.list(...)` threw `Cannot read properties of undefined (reading 'list')`.
+- A write whose only `mutation` listener is the cache adapter no longer copies the returned rows: `MutationNotice.rows` is copied on the first read.
+- The browser client's `db` is smaller: `createClient` from `better-supabase/client` no longer carries `$many`, `$search`, `$stats`, `$decode` or `$decodeReadSet`, so `react` plus `query` ships 35.4 KB gzip instead of 43.1 KB. `client.db` is typed as `CoreDb`, so a call to a removed method fails at type-check time. The server, every adapter, `createNativeClient` and `better-supabase/testing` install the full `db` and are unchanged.
+
+  A filter tree (`FilterQuery`) passed to `where` needs `enableFilterTrees()` from `better-supabase/list` in a bundle that builds no server. The server installs it.
+
+  `gen` writes the composed block reads (`reads` and their argument and result types) to `blocks.reads.ts`, which imports no block, and `blocks.generated.ts` re-exports it. Define read sets over the app without blocks and import `reads` from `blocks.reads.ts`, so a route that runs a read set bundles only its own block set.
+
+  | Old                                                           | New                                                                      |
+  | ------------------------------------------------------------- | ------------------------------------------------------------------------ |
+  | `client.db.$many(...)` in a `"use client"` file               | Move the read to a server function, or call `$run` once per spec         |
+  | `client.db.$search`, `$stats`, `$decode` in the browser       | Call them on the server's `db`                                           |
+  | `where: filterTree` in a bundle without a server              | Call `enableFilterTrees()` from `better-supabase/list` once              |
+  | `import { reads } from "./blocks.generated.ts"` in a read set | `import { reads } from "./blocks.reads.ts"` (the old import still works) |
+
+  `createNativeClient` is now its own function with the full `db` type. `provideConnectionRuntime` moved to `core/define-runtime-full`, and `provideLeanConnectionRuntime` is the browser's.
+- Ledger entries store the transaction's effective time and are indexed by tenant and that time. `get_many` reads the entries whose ids you pass.
+- The new `better-supabase/list/export` subpath exports `exportListCsv`, which streams a cursor list as a CSV download page by page, and `pageFromIds`, which builds a cursor page from a page of ids and a function that loads rows by id. Text cells that a spreadsheet would run as a formula get a leading `'`. See the list page in the docs.
+- `defineListQuery` takes relation facets, a free multi-column sort and date buckets.
+
+  - A facet can be `{ relation: "notes", column: "kind" }` and filters on a related table (`some` for a to-many relation). It has no counts, so its `facetCounts` entry is empty.
+  - `freeSort` from `better-supabase/list/order` lets the caller send `order=status:desc,name` (up to three columns). `ListQuery.order` holds the terms, and `list.parsers.order` is the URL parser.
+  - The `@bsb buckets column=<column> filter=<columns>` tag renders `<table>_date_buckets`, and `listDateBuckets` from `better-supabase/list/buckets` calls it and narrows by the facet values of a list query.
+
+  Existing lists keep working: the new `ListQuery.order` field and the new `FacetInfo.relation` field are optional. The `./list` entry grew by 1.3 KB gzip. Run `better-supabase table <name> enable buckets` and `db diff` to add the function to a table.
+- Maintenance installs without the dispatch block. Work orders are opened only when dispatch is installed.
+- The authorization provider's `functions.managedUsers` template takes `{tenant}`, so a provider that keeps a manager chain per tenant can write `authz.managed_user_ids({tenant})` and a manager in one organization never reaches reports in another. `{tenant}` is optional: a template without placeholders still passes `testAuthorizationProvider`, and `apiVersion` stays 1. No module reads `managedUsers` yet, so nothing changes in the generated SQL and no migration is needed.
+- MCP `tools/list` decides every tool in one `evaluations` call when the authorizer has it, instead of one call per distinct permission. A list of 300 tools with 300 permissions makes 1 call instead of 300. `outcomesOfMany` in `better-supabase/core` is the helper behind it. An authorizer without `evaluations` is called once per tool as before, so nothing changes for it. `upgrade` rewrites no module and no data migration is needed.
+- Every purge asks the retention and legal-hold tables once per tenant and statement instead of once per row, through the new `retention_for_memo` and `is_held_memo`. `purge_outbox` on 100,000 expired events takes 540 ms instead of 2,343 ms. A hold or policy changed between two statements still applies. Run `better-supabase upgrade` and generate the migration.
+- Importing a meter reading that is below the previous reading of the same asset and unit stores the row with reason `import` and returns the warning `IMPORT_SERIES_DECREASE`. The guard still rejects a lower reading that has no reason. `tests.expect_import_warning` checks a batch result for a warning code.
+
+  `better-supabase upgrade` rewrites the assets module. The next schema migration adds `asset_meter_readings` and its functions. No data migration is needed.
+- Every migration the CLI writes is named `<stamp>_better_supabase_<name>_<hash>.sql`. The stamp is later than every migration in the folder, so `upgrade` never shares a version with another tool, and the hash of the statements lets a repeated run write nothing. Migrations from earlier releases are still found by their suffix.
+- `gen` writes one module per table and one slice module for the block config by default. The server's schema moves to `generated-schema.ts`, so `import { schema } from "./generated"` becomes `import { schema } from "./generated-schema"`; `gen.tableModules: false` and `gen.blockModules: false` keep the single module. `better-supabase codemod table-modules` rewrites the import and, in a `"use client"` file, reads `bsb.db.customers` as `bsb.table(customersTable)`. `init` writes the new import, and `gen --metadata` and the content mapper keep one module.
+- The tasks block's default entity noun is `task`, not `work_item`: its functions take a `task` argument, its events carry `taskId` and its subject paths start with `tasks/`. An app that names the entity `work_item` in `blocks.tasks.names` keeps its tables and functions; its event types follow the entity (`work_item.created`). The built-in goal metric is `tasks.completed`, so run `upgrade` and apply the migration that updates stored goals. `TABLE_RENAMES` and `spec.formerly` are gone: permission keys such as `tasks.read` keep their names when you rename the entity.
+
+  | Old                    | New               |
+  | ---------------------- | ----------------- |
+  | `work_item` (default)  | `task`            |
+  | `workItemId` (default) | `taskId`          |
+  | `bsb_work_item_guard`  | `bsb_task_guard`  |
+  | `work_items.completed` | `tasks.completed` |
+- `better-supabase/next/auth-gate` exports `AuthGate`, a Server Component for the app layout that renders a `<Suspense>` around one `bsb.user()` promise, and `useUser()` for Client Components. `bsb.user()` returns `{ id, email, name, organizationId }` or `null`, never the token or the session, and sets `cacheLife({ stale: 300 })` like `bsb.cached()`. `AuthGate` takes the loader as `user`, redirects or refuses a signed-out visitor, and keys the subtree on the user id.
+- The Next.js auth guide maps the Next.js authentication guide (`verifySession()`, the data access layer, DTOs, optimistic checks, actions and routes) onto `bsb.claims()`, `bsb.cached()`, `bsb.user()`, `bsb.proxy`, `bsb.require()`, `bsb.action()` and `bsb.route()`, and says what `createNext` already taints. The `better-supabase-auth` skill says the same in two sentences, and the `record-page` recipe loads the task form on first use.
+- `init` for Next.js writes the feature-sliced `app/`, `features/` and `components/` layout that `check:app-architecture` holds the example to (an `AuthGate` layout, a synchronous page that passes `params.then()` to a feature, `*-queries.ts`, `*-actions.ts` and `*-cache.ts` files, async components with skeletons), plus `app/manifest.ts`, `public/sw.js`, `public/offline.html` and the Web Push keys in `.env.example`. The proxy matcher skips `html` and `webmanifest`. Existing files are kept.
+- `useBlockQuery` and `useBlockMutation` from `better-supabase/next/client/offline` pause while `useOffline()` is true: a read keeps its last data and reports `offline: true` instead of an error and runs once on reconnect, and a write queues once and runs on reconnect. The block controllers gain `setOffline(offline)`, an `offline` option and an optional `offline` state field.
+- `better-supabase/next/proxy` exports `createProxy()`, the Next.js proxy without the Server Component side of `createNext`, and the proxy helpers `mutableResponse`, `overrideRequestHeaders`, `syncMiddlewareSetCookie` and `serverTimingValue`. `src/proxy.ts` imports it, so the proxy bundle carries no sign-in flows, record bindings or REST resources. `bsb.proxy()` is unchanged.
+- `createNext` taints the access token and the refresh token (`experimental_taintUniqueValue`) and the auth state, the server context and the `bsb.admin()` context (`experimental_taintObjectReference`), so React refuses to serialize them to a Client Component. It does nothing without `experimental.taint: true` or on a React build without the API. `createNextConfig()` turns the flag on.
+- `better-supabase/normalize` repairs imported text and shapes names, phones, postal codes, streets, IBANs, BICs and national ids. Locale rules are data, and the named repair packs are `utf8-as-latin1`, `windows-1252`, `cp437` and `cp850`.
+
+  `better_supabase.validate_iban` and `better_supabase.normalize_phone` are the SQL forms. `better-supabase upgrade` rewrites the prelude, and the next schema migration adds the two functions. No data migration is needed.
+- The notifications block deletes a subject's notifications and subscriptions when the subject row is deleted, for every app table in `config.subjects`, without a `blocks.notifications.on` entry. Set `on` to choose the types yourself.
+- A numbering entity needs less config: `column` defaults to `number` when `table` is set, and an entity that names only `column` numbers the table of the subject with the same name. The tenant column already comes from the subject. A `column` without a table or a matching subject fails with an error that names both fixes.
+- `observedFetch` from `better-supabase/server` wraps a `fetch` so each request reports its method, URL (without the query), status and duration to `onCall`. Pass it as `createServer({ fetch })` to count or trace the server's calls to Supabase. The observer can't change or fail a request.
+- The generated data hooks and `RecordProvider` pause while the app is offline: reads keep their last data and show `offline` instead of an error, and writes wait for the connection. Wrap the app in `OfflineBoundary` from `better-supabase/next/offline` to feed them `useOffline()`. `createDataList`, `createDataOne` and `createRecordController` take an `offline` option and expose `setOffline`.
+
+  `powersync streams` keeps only the files of an app subject's rows when a view keeps one `subject_type`, and `gen.powersync.children` streams an app table with its parent subject, such as `job_parties` under `jobs`.
+- `list_rfqs`, `list_samples`, `list_till_sessions` and `list_calibrations` page through the keyset list template of ADR 0637, with a list index that ends in the id. `rfqs.rfqPage`, `lims.samplePage`, `tills.sessionPage` and `maintenance.calibrationPage` return `{ items, hasMore, nextCursor }`, and `total` when asked. Doctor BS633 reports an app row trigger whose function never calls `better_supabase.importing()`.
+
+  Migration guide for the moved lists:
+
+  | Before                                        | After                                                                              |
+  | --------------------------------------------- | ---------------------------------------------------------------------------------- |
+  | `listSamples({ offset: 100 })`                | Still works. Keep it where you show page numbers.                                  |
+  | `listSamples({ offset, after })`              | Refused with an invalid error. Pass one of them.                                   |
+  | Deep paging with `offset`                     | `samplePage({ after: page.nextCursor })`, which reads from the index at any depth. |
+  | Rows with equal `performed_at` or `opened_at` | Come back in id order, the same order as before.                                   |
+
+  The same applies to `listRfqs` with `rfqPage`, `listSessions` with `sessionPage` and `listCalibrations` with `calibrationPage`. Run `supabase db diff` to pick up the new list indexes. The remaining offset lists keep their shape.
+- The renames of `api/naming.json` ship without aliases. Run `better-supabase codemod naming` to apply them, and `better-supabase doctor` (BS260) to find what is left.
+
+  | Old                                                                                                                                 | New                                                                              |
+  | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+  | `buildJsonSchema`, `buildApiModel`                                                                                                  | `toJsonSchema`, `defineApiModel`                                                 |
+  | `createRuleSink`, `workItemRecurrenceSink`                                                                                          | `automationSink`, `taskRecurrenceSink`                                           |
+  | `SessionEntryConfig`, `GuardEntryConfig`, `AgentPassthroughSettings`                                                                | `SessionEntryOptions`, `GuardEntryOptions`, `AgentPassthroughOptions`            |
+  | `ChainProofFailure`, `ParseScaledFailure`, `RefreshFailure`, `StorageFailure`, `SvelteKitFailure`, `TelemetryFailure`, `XhrFailure` | the same names ending in `Error`                                                 |
+  | `BSB_STACK`, `BSB_CLOUD_URL`                                                                                                        | `BETTER_SUPABASE_STACK`, `BETTER_SUPABASE_CLOUD_URL`                             |
+  | `AUTH_HOOK_SECRET`, `BEFORE_USER_CREATED_SECRET`                                                                                    | `BETTER_SUPABASE_AUTH_HOOK_SECRET`, `BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET` |
+  | `better-supabase/ai-sdk/workflow/react`                                                                                             | `better-supabase/ai-sdk/workflow-react`                                          |
+  | `defineSupabase`, `getBetterSupabase` (Svelte)                                                                                      | `createSupabase`, `betterSupabase`                                               |
+- Module files no longer paste the helpers they call. `better-supabase upgrade` writes one `900_better_supabase_000_prelude.sql` that defines the `better_supabase` schema, the `blocks` table, `actor_may_write`, `raise_actor_readonly`, `acting_member`, the column type helpers, `import_run`, `merge_subject_refs`, the memo functions and `replace_equivalent_triggers` once. Commit it with the module files. Without a memberships block, the prelude also defines an empty `member_organization_ids`, where each module used to create it in a `do` block.
+- `open_items_for_party` reads the invoice's stored `paid_total` when `as_of` is omitted or today, and still replays the ledger for a past date. An import batch applies items in `data.orderBy`, then `data.readAt`, then key order.
+
+  Gen treats a function body that returns `coalesce(...)` as not null when the catalog includes the body. A `functions` `notNull` entry or an `@notNull` tag still wins.
+
+  `better-supabase upgrade` rewrites the invoices and imports modules. The next schema migration replaces those functions. No data migration is needed.
+- `open_items_page` returns one page of today's open items and a total that stops at the count cap.
+- Today's open items are read from `invoice_open_items`, which a trigger keeps current and `rebuild_open_items` rebuilds after an import. A past date still replays the ledger.
+- An organization profile import writes the VAT number, registration, default rate, currency and payment accounts. A repeat matches accounts by IBAN, keeps the stored primary account, and skips a VAT number that is only a country prefix.
+- Blocks no longer add columns to a table you create: a feature whose column your table lacks is off. Upgrade: run `better-supabase codemod owned-columns` and commit the `*.block-columns.sql` files before `better-supabase upgrade`, then check doctor BS622. A database that has the columns changes nothing. The migration note is in the 0.57 to 0.58 guide.
+- `better-supabase codemod owned-columns` declares, in your schema files, the columns blocks add to tables you create, as `<table>.block-columns.sql`. Doctor BS622 warns for each such column. A later release stops adding columns to tables you own and turns the feature off instead, so run the codemod before you update.
+- The contacts block gets `people.mode` (`external` or `tenant`) and the company columns `legal_name`, `registration_id` and `phone`. Document lines get a `unit`, a `discount_kind` and an open-ended `periods` (null), shipments get a `direction` with `setDirection`, document-templates adds the `purchase_order` document type for inventory purchase orders and a `letterhead` text block seed for `nl`, `de` and `fr`. They replace app columns and app SQL that added the same. Invoices are unique by identifier, and `options.uniqueNumber` is removed. Run `better-supabase upgrade`, delete your own columns with these names on block-owned tables, and generate a migration with `supabase db schema declarative sync`.
+- The contacts block reads one record by id: `getCompany(id)` and `getPerson(id)` return the active company or person, or `null` when it is archived, missing or hidden from the caller. Run `better-supabase upgrade` to add `get_company` and `get_person`.
+
+  The read policies of field history, observations, SLA clocks, pipeline history, consents, medication orders and funding awards check the record inline, as reactions and attachments do, so a member reads 12,000 rows of 60,000 records in tens of milliseconds, where `can_subject` per row took seconds. A record type whose team holds the read action still lets the team in. `upgrade` replaces the policies.
+
+  An import batch notes the records it changes for search in 256 settings instead of one, so a 30,000-record batch spends 130 ms there, where it spent 5,451 ms.
+- A `party_discount_group` import puts one party in a customer discount group, or removes it when the group is empty. Quote and invoice lines still pass that party id as text when `discountMatrix` is on.
+- The contacts block imports a party, a party contact, a contact method, a location and a bank account. A party name falls back from the display name, and an invalid IBAN is refused.
+- `upgrade`, `sync` and `doctor` render each block module once per set of inputs it reads. A change to the config or to an app schema file renders only the modules that read what changed, and serves the others from `node_modules/.cache/better-supabase/modules/renders.json`. `--no-cache` skips it and `cache purge` deletes it.
+- `options.resolveAddress` of the notifications block names an app function that says where a member is reached on a channel, and deliveries, digests and bounce suppression use it. The Realtime triggers of `config.realtime.tables` and of block entities with `subject.realtime` are static `create trigger` statements in the schema file, so a schema diff sees them. `workflow_opt_outs` is an optional table. Run `better-supabase upgrade` and generate a migration with `supabase db schema declarative sync`; delete a `track_realtime` call you wrote for a configured table.
+- `createPostgres` takes `ssl` (`true` verifies the certificate, or `{ ca, rejectUnauthorized }`), and `better-supabase/postgres` exports `sharedPostgres`, which keeps one pool per process and connection string.
+- A product import writes the product and a default variant. The price falls back from the selling price to the list price, then to the last purchase price times a markup. A name that is mostly control characters is refused, and a sku already used by another product is refused.
+- Reads and cache tags follow the app's projection views. A generated block read (`reads.attachments.list`) also lists the typed key of each view your schema files project over a table it reads, so a block write invalidates a read served from the view. `hooks.ts` writes no hooks for a block table that a view projects, and doctor BS351 reports a write through such a view. `powersync streams` scopes an attachments view that keeps several subjects (`subject_type in ('job', 'quote')`) to the rows of each subject's own table, and the Lienlink fixture streams `job_parties` as a child of `jobs`.
+- The authorization provider accepts the fields an authorization library fills from one definition, all optional and additive (`apiVersion` stays 1, the hook topic stays `better_supabase:authz`): `functions.subjectForTenant`, `approverFor` and `managedUsers`, `memberships[].userKey`, `suspension.userKey`, `permissions[].levels` (level keys are `<permission>@<level>`), `tokenHook.teamIdsTruncatedClaim`, and `personas: "roles"` with `fixtureRoles`. A provider that lists `memberships` for the tenant scope no longer needs `functions.memberIds` and `memberIdsFor`: both are derived from the rows. `suspension.userKey` becomes `blocks.permissions.disabled.userKey`, and BS426 reports a `disabled` value equal to the provider's. A bootstrap call that names a tenant gets the subject restricted to it when the provider sets `subjectForTenant`. `better-supabase upgrade` rewrites the `sessions` module only for an app that sets `subjectForTenant`; no data migration is needed.
+- The 0.26 provider fields now have readers. `memberships[].userKey` is the column the derived `memberIds` and `memberIdsFor` templates match against `auth.uid()`. A level key (`file.read@team`) is never `sqlComplete`, so policies refuse it, and an unlisted level counts as missing. `tokenHook.teamIdsTruncatedClaim` (and `permissions_truncated` from `truncatedClaim`) feed the hook plan, and `Bootstrap.teamIdsTruncated` reports a partial `team_ids` claim. The sessions `hook` option takes `teamIdsTruncatedClaim`. `approverFor` and `managedUsers` stay accept-and-validate (ADR 0520). `better-supabase upgrade` rewrites the `sessions` module only for apps that set `hook`; no data migration is needed.
+- An authorization provider can set `wildcards` to `all`, `prefix` or `none`, and the generated `permission_matches` honours only those wildcard grants. Unset keeps today's function.
+- `protect` no longer runs when `before` returned a redirect. The redirect's target passes through the proxy again, so `protect` runs there. Before, a `protect` redirect won over a locale redirect from `before`: a signed-out visitor with `NEXT_LOCALE=nl` who opened `/projects` was sent to `/login` instead of `/nl/projects`. If you relied on `protect` answering first, return the redirect from `protect` and leave `before` out for that path.
+- The definition from `createSupabase()` no longer carries the code that turns it into a `db`. `definition.connect()` and `registerTable()` call a connection runtime that the client, the servers, the adapters and `better-supabase/testing` install when you import them, so a `next/proxy` consumer drops from 47.7 KB to 26.9 KB gzip (library code only). `createProxy()` no longer bundles the PostgREST executor, the query builder or the repositories.
+
+  Code that imports only `better-supabase` and calls `definition.connect()` now throws a `TypeError` until it imports a client or server entry. In a script or test, import `createClient`, `createServer` or a testing helper first.
+
+  `ProxyOptions.after` also receives the request as its third argument, so a proxy built with `createProxy()` no longer closes over the incoming request:
+
+  | Old                             | New                                      |
+  | ------------------------------- | ---------------------------------------- |
+  | `after: (response, auth) => {}` | `after: (response, auth, request) => {}` |
+
+  The first two arguments are unchanged, so existing `after` functions keep working.
+- A purchase order can carry a number and an exchange rate. A line can cancel a quantity and name a tax code. Receiving still posts stock with the receipt reason.
+- Purchase orders take a `number` on `savePurchaseOrder` (an order without one gets the next all-digit number when it is placed) and `cancelPurchaseOrderQuantity` gives up part of what a placed order still owes. The units stop counting as incoming, receipts and the backorder count leave them out, and the event is `purchase_order.line_cancelled`. The inventory block also contributes a `stock_allocation` import target, written by `import_stock_allocation`, for the stock a source system's documents held. Run `better-supabase upgrade` to replace `save_purchase_order` and add the new functions.
+- The UI recipes in the skill and the docs take plain ids and a `query` object instead of the `params` and `searchParams` promises, and read the clock behind `io()` from `next/cache` instead of `connection()`. The page resolves the route props with `params.then()`.
+- A composite foreign key that starts with the same column as a single-column key to the same table keeps that relation's name. The composite is an alias of the join. Doctor BS626 reports two keys to one table whose first columns differ.
+- The last 15 exported types that ended in `Args`, `Settings` or `Failure` have names from their noun, with no alias. `better-supabase codemod naming` renames them in your code.
+
+  | Old               | New                 |
+  | ----------------- | ------------------- |
+  | `ActionArgs`      | `ActionParams`      |
+  | `Args`            | `CallParams`        |
+  | `AuthFailure`     | `AuthLinkError`     |
+  | `BlockActionArgs` | `BlockActionParams` |
+  | `CliArgs`         | `CliValues`         |
+  | `CursorPageArgs`  | `CursorPageParams`  |
+  | `DoctorArgs`      | `DoctorValues`      |
+  | `HookArgs`        | `HookParams`        |
+  | `ListArgs`        | `ListParams`        |
+  | `ReactRouterArgs` | `ReactRouterParams` |
+  | `RequestArgs`     | `ApiRequestParams`  |
+  | `RpcArgs`         | `RpcParams`         |
+  | `SearchArgs`      | `TextSearchParams`  |
+  | `Settings`        | `SettingsClient`    |
+  | `TableArgs`       | `TableValues`       |
+- `list_checkout_sessions`, `list_agent_mandates`, `list_pick_lists`, `list_appraisals`, `list_usage_rights` and `list_maintenance_plans` page through the keyset list template, with list indexes that end in the id. `checkout.sessionPage`, `checkout.mandatePage`, `warehouse.pickListPage`, `appraisals.appraisalPage`, `dam.rightPage` and `maintenance.planPage` return `{ items, hasMore, nextCursor }`, and `total` when asked.
+
+  Migration guide:
+
+  | Before                                                             | After                                                                          |
+  | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+  | `listRights({ offset: 100 })`                                      | Still works. Keep it where you show page numbers.                              |
+  | `listRights({ offset, after })`                                    | Refused with an invalid error. Pass one of them.                               |
+  | Deep paging with `offset`                                          | `rightPage({ after: page.nextCursor })`.                                       |
+  | `listPlans({ due: true, limit: 20 })` returning fewer than 20 rows | The `due` filter now runs inside the query, so a page holds `limit` due plans. |
+
+  The same applies to the other five lists and their page methods. Run `supabase db diff` to pick up the new list indexes. `list_import_issues` and `list_import_diff` keep their positional arguments.
+- The 0.46 and 0.47 rename shims are gone. Permission keys, event types, hint codes, subject types and entity keys from before those releases no longer resolve, and `upgrade` no longer rewrites the stored permission keys, event types and subject types. This removes `currentPermissionKeys`, `isOldPermissionKey`, `PERMISSION_KEY_RENAMES`, `PERMISSION_KEY_SPLITS`, `RENAMES_CODEMOD`, `currentEventTypes`, `isOldEventType`, `legacyEventType`, `legacyHintOf`, `HINT_RENAMES`, `ENTITY_KEY_RENAMES`, `EVENT_TYPE_RENAMES`, `EVENT_TYPE_SPLITS`, `SUBJECT_TYPE_RENAMES` and `PROGRAM_EVENT_MOVES`, the `formerKeys` config types, the audit and support action names `view` and `viewAll` (use `read` and `readAll`), the `automationSink` relay of old trigger names, and doctor BS422 to BS425.
+- Module upgrades no longer rename the tables 0.47 renamed (`engagements` to `activities`, `work_items` to `tasks` and the others in ADR 0130). Upgrades start at 0.53, where those tables already carry their names. `codemod naming` also moves the `bsb.*` policy helper functions to `better_supabase`, and only when the project's SQL names them.
+- The `extraColumns` option and its prefixed forms (`lineExtraColumns`, `categoryExtraColumns` and about 40 more) are removed from every block, and the Create design's `extraColumns` key is gone. A column your own schema file adds to a block's table is a field of the block; for a table you create yourself, list the columns in its comment as `@bsb fields plan, seats`. A config that still sets an option fails with a message that names `better-supabase codemod extra-columns`, which moves the columns into your files. It replaces `blocks.<name>.options.extraColumns`, `lineExtraColumns`, `calendarExtraColumns` and the other prefixed options. Doctor BS378 is removed, and fifteen blocks have no options schema any more.
+- `renameBlock` follows a renamed client four object levels deep and no longer counts functions, promises and results as levels, so the types instantiate two levels earlier with the same result for every block. `better-supabase upgrade` rewrites no module and no data moves; a block type with more than four nested object levels below its methods keeps its original keys at the fifth.
+- With `gen.blockModules`, `gen` writes each instance that renames a block's entities to `blocks/<instance>-block.ts`, and the generated record types import their blocks from there instead of from `blocks.generated.ts`. A record import no longer pulls in every installed block. `blocks.generated.ts` still exports the same names. Run `better-supabase gen`.
+- `upgrade` and `sync` read rendered modules from a cache in `node_modules/.cache/better-supabase` when the block names, the layout and the CLI version match, and `--no-cache` renders them again. Checks in generated SQL write a range as `x >= a and x <= b`. Doctor gains BS369 (an app file and a block module both declare an object) and BS370 (a schema file asks for `transaction=false`).
+- The block render cache now keys on a hash of the generator's files as well as the version, so a checkout or a rebuilt `dist` never serves output an older generator wrote.
+- Three more `@bsb` tags render SQL through `better-supabase table <name> enable <tag>`: `rpc` writes `get_<table>_by_ids(ids)`, which returns rows in the order of the ids, `rollup stored` writes a trigger that keeps a count or a sum on a parent row, and `copy` writes `copy_<table>(source)`, which inserts a copy of one row. Each is written between `-- @bsb-tag <name> begin` and `end` markers, so a second run replaces it. See [Tags that render SQL](https://bettersupabase.com/docs/repository/rendered-tags).
+- A rerunnable render, the one a migration repeats, keeps a function a policy still calls instead of failing its `drop function`, drops the policy it creates on `realtime.messages` or `storage.objects` before creating it again, and keeps the empty `member_organization_ids` stand-in from replacing the function memberships defined. A declarative render declares a trigger or policy once when two entities of one block adopt the same app table.
+- Under an authorization provider, a block's default permission falls back from `<block>.<action>` to `<resource>.<action>` of its primary entity when the provider lists only the resource key, so a provider that names permissions after resources needs no `blocks.<name>.permissions` entries. An explicit entry still wins.
+- `revoke_ai_chat_share` no longer fails `supabase db lint` with an ambiguous `id` column: the lookup in `share_links` qualifies its columns. Run `better-supabase upgrade` to rewrite the function.
+- A function comment `@bsb returns=./file.ts#Schema` makes `db.$rpc` check the jsonb result with that Standard Schema. Zod and Valibot both work. A result that does not match throws.
+- `approvalWaiter.create(token)` registers the approval hook up front and returns a handle to `wait` on later, so a wake between steps is not lost. `resumeStreamResponse` takes `sse` (answers as `text/event-stream`) and `transform` (pipes the chunks through a `TransformStream`). `problem429` takes `{ extra, headers, format }` to add members to the 429 body.
+- `blocks.memberships.options.sameTenant` defaults to the foreign keys the schema files declare, so `upgrade` writes a `bsb_same_tenant_<column>` trigger for every single-column key between two tenant tables without a config entry. A composite key that pairs the column with the tenant column also counts as covering it. A list now adds entries to the derived ones, and `sameTenant: false` writes none. This replaces the `sameTenant: { auto: true }` line in app configs.
+- A subject's `search` takes `columns` next to `from`: the columns of the record's own table the source view reads. The indexing trigger then fires on an update of those columns only, instead of every update. The `drive_node` subject sets `["name"]`, so a move, a size change or a lock no longer re-indexes a file. Run `better-supabase upgrade` and generate the migration.
+- An import batch indexes each search record once. While `import_upsert_batch` runs, the search triggers note the records they touch and the batch indexes them when it ends, and a refresh that finds the same tenant, title, body, URL and description no longer rewrites the document. On a 1,000-row batch with an insert and a rename per row, `search_refresh` calls fall from 2,000 to 1,000 and the statement from 500 ms to 240 ms.
+
+  Watch triggers are plain `create trigger` statements instead of a `do` block, and `watch[].columns` limits the update trigger to named columns. `better-supabase upgrade` rewrites the `search` and `imports` modules and no data migration is needed. A watched table that is neither an app table nor a block table gets no trigger from the library, so create it in your own SQL.
+- Seeded letterheads and the shared tax keys `STD`, `RED` and `ZERO` now have English, Dutch and German text. `en` seeds those rows. The variant argument of a seed function is the brand.
+
+  `better-supabase upgrade` rewrites the document-templates and tax modules. No data migration is needed. Organizations already seeded keep their rows.
+- `better-supabase add --adopt` writes only the data statements that no data migration holds yet, and `add --adopt --check` and `upgrade --check` exit with 1 when one is missing. The `membership_roles` backfill moved out of the memberships schema file into its data file. Doctor gains BS357 (a data file insert without a key), BS358 (an app seed that writes a table a block seeds) and BS359 (a `seed_*_defaults` function without a locale).
+- `adapterBase(server, options)` from `better-supabase/server` returns the plumbing every framework adapter shares: `expose`, `flush`, `refuse` and `extend`. The eleven first-party adapters use it, and the write-an-adapter docs show it.
+- `gen.serverBlocks` writes `blocks.<name>.ts` with `<name>Instances` and `<name>Blocks`, a `defineBlocks` over only the instances you list, so a route that builds its server from the set bundles those blocks and not the rest of `blocks.generated.ts`. `gen` fails when a listed block requires a port no listed block provides. On the Next.js example the sign-in page, the customers API and the customers page lose 48, 54 and 50 percent of their server chunks. The key is optional and off by default: `better-supabase upgrade` rewrites no module, `gen` writes nothing new without it, and no data moves.
+- `defineBlocks` checks the port wiring of its blocks once and keeps the resolved providers, so building a block client or `serviceBlocks` no longer runs the blocks by ports by blocks loop again.
+- Recorded in ADR 0451: the `server-imports` codemod, and the server chunk and type gates that hold the server's cost. The generated file layout stays as ADRs 0262 to 0265 wrote it. Nothing else changes for apps.
+- `better-supabase codemod server-imports` moves the account, CSV and rate-limit helpers that `better-supabase/server` no longer exports to `better-supabase/server/accounts`, `better-supabase/server/csv` and `better-supabase/server/rate-limit`. Names that stayed on `server` keep their import, and an aliased or type-only import keeps its form.
+- A plugin's `afterMutation` event copies the returned rows on the first read of `rows`, so a hook that reads only `keys` pays no copy.
+- `AsyncResult.from` starts its run at once instead of one microtask later.
+- `createNext` resolves a request's auth once per read of `context()` or `claims()`: the extra snapshot pass is gone and the claims are derived from the one resolution.
+- `server.context(request)` resolves and builds the context directly when neither `tenant` nor `support` is configured; servers that configure either keep the composed path.
+- `better-supabase/server` is down to the core. Import the account and support helpers from `better-supabase/server/accounts`, the CSV helpers from `better-supabase/server/csv` and the rate-limit header helpers from `better-supabase/server/rate-limit`. The old names have no alias.
+
+  | Old import from `better-supabase/server`                                                                                   | New import                          |
+  | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+  | `deleteAccount`, `endSessions`, `suspendAccount`, `lastSignIns`, `supportSessions`, `supportStorage`, `sessionStatusRoute` | `better-supabase/server/accounts`   |
+  | `toCsv`, `csvColumns`, `csvResponse`                                                                                       | `better-supabase/server/csv`        |
+  | `rateLimitHeader`, `rateLimitPolicyHeader`, `isRateLimitPolicyName`, `periodSeconds`                                       | `better-supabase/server/rate-limit` |
+- `ServerOptions.sessions` takes `counters`, an object the verified-token memo counts its hits and misses on, so several servers in one process (a Next.js route handler is bundled apart from the pages) report one total. The memo's own `stats()` reads it. Nothing changes without the option. `upgrade` rewrites no module and no data migration is needed.
+- The organization settings insert policy checks the tenant with `tenant_ids_with` instead of one `can()` call per row. The attachments insert policy still calls `can()` because its permission depends on the subject type.
+
+  `better-supabase upgrade` rewrites the `settings` and `read-sets` modules (the second because counts are now estimated) and the next schema migration replaces one policy. No data migration is needed.
+- Orders take two staff states. Pass `draft: true` to `orders.fromLines` or `orders.fromQuote` to save an order that holds no stock, then `orders.confirmDraft` to allocate its stock and place it. `orders.hold` puts an order that waits for payment, or a confirmed one, on hold and `orders.releaseHold` returns it to the status it was held from; `Order` returns `heldAt` and `holdReason`, and the events are `order.drafted`, `order.hold_placed` and `order.hold_released`. Purchase order lines take `taxRateBps` and `taxCode`, `savePurchaseOrder` rebuilds the order's tax lines, and `inventory.purchaseOrderTaxLines` reads them. A historical quote import with `update: "apply"` now replaces the lines of a sent or decided quote and applies its stored tax lines and totals. Run `better-supabase upgrade` to add the `held_at`, `held_from`, `hold_reason` and `tax_rate_bps` columns and the `purchase_order_tax_lines` table.
+- `init` no longer enables pg-delta in a `supabase/config.toml` that lists `[db.migrations] schema_paths`. `upgrade` under the `migra` workflow keeps seeing the app's tables once its module files exist in `supabase/schemas`, so a second run no longer writes `create table` for them. The `profiles` block adds `active_organization_id` and `active_team_id` only next to `memberships` and `teams`, so an app with no organizations gets no tenant column. The generated `generated.ts` no longer imports `EnrichDatabase` when no table needs it, which failed `noUnusedLocals`.
+- The `state-machine` block gains three optional machine settings, and existing machines keep working unchanged.
+
+  - `state()` returns `next`, the statuses the caller may move the record to now: the edges from its status, without those whose guard the caller fails, and none while the record is paused. `status_state` returns it as `next`. `gen` also writes each machine's `transitions` to the block's generated options (`blockConfig["state-machine"].options.transitions`), so a UI, API or MCP tool reads the edges without a copy.
+  - `stamps` sets a column to `now()` when a record enters a status, such as `{ sent: "sent_at" }`, inside the same transition. An insert stamps an empty column, except during an import.
+  - `guards` checks a transition inside the trigger: `permission` is a key the caller must hold in the record's tenant (`STATE_TRANSITION_FORBIDDEN`, Postgres `42501`; the service role passes), and `check` is a function of the record's row that must return true (`STATE_GUARD_FAILED`, `23514`).
+- The generated schema files hold 4 top-level `do` blocks, down from 27. The catalog's row level security and audit triggers are plain statements, the `webhook-inbox` key is one `add constraint`, and the attachments path and storage status backfills, the legal-entities duplicate-number warning and the vector search index notice move to the module data files. The profiles username check stays `not valid` and is never validated for you; run `alter table ... validate constraint bsb_profiles_username_check` once no profile breaks it. `publish_webhook_event` builds an endpoint's held grants by the provider's `wildcards` setting. Installed apps run `better-supabase upgrade`, then the Supabase CLI sync, then `better-supabase add --adopt`.
+- Block schema files no longer contain a `do` block that creates objects. Policies on `realtime.messages` and `storage.objects`, the workflow World's types and row level security, and the flag and team upgrades are written as plain statements or moved to upgrade steps and data files. `teams` is at version 3: run `better-supabase upgrade` and `add --adopt`. `drive` and `ai-chat` each leave a function that `drive-files` and `share-links` declare, and doctor reports an object two block files declare. Lite and the Create check add the Realtime and Storage tables PGlite lacks.
+- The audit block's row triggers on block tables are static `create constraint trigger bsb_audit` statements in each block's schema file, whatever the install order, so a schema diff keeps them. Run `better-supabase upgrade` and then your SQL workflow's sync. Doctor and the audit test file read the deferrable trigger form.
+- Add `better-supabase/storage/client`: `defineBucket` without the SQL, `config.toml`, drift and admin code, for bundles that ship to the browser. `better-supabase/storage` is unchanged, and its `Bucket` is now an extension of the new exported `ClientBucket` type, which `defineBuckets`, `.buckets()` and `deleteAccount` accept. In the Next.js example, importing the client entry removes about 11 KB raw from every data route's first load.
+
+  `next` adapters now wait for `io()` before they read the clock in `bsb.resolve` and `bsb.contextFromSession`, so a Next.js runtime prefetch render no longer logs `Date.now()` prerender errors when the flags adapter or another caller resolves a request with cookies. A prerender never judges token expiry; the check runs when the request does.
+- `gen.tableModules: true` writes one module per table, `tables/<table>.ts`, and moves the server's schema to `generated-schema.ts`. The generated module exports `clientSchema` for a browser client that registers the tables it uses: `bsb.table(customersTable)` returns a table's repository, the generated hooks read through it, and `defineListQuery` accepts a table module in place of a table name. A page then ships only the tables it imports. `defineTable` and `TableModule` are new exports, `SchemaMeta.lazyTables` marks a schema whose tables register on use, and `BetterSupabase.registerTable` adds one. Generated record files import `permissions` from `blocks.config.ts` instead of `blocks.generated.ts`, so a record no longer loads every installed block in the browser; run `better-supabase gen` to rewrite them.
+- A work item can carry ordered specification lines and material lines. Specification lines store a description, quantity, unit and estimate. Material lines point at a catalog variant. `estimated_minutes` is an optional column on the item, and the columns and tables can be mapped.
+- With the employees block installed, teams hold employees next to users. `team_members` gains `employee_id` (`columns.members.employee`), `user_id` becomes nullable, and the `(team_id, user_id)` primary key becomes two partial unique indexes. `add_team_member` and `remove_team_member` take `employee` next to `member`; `addMember` and `removeMember` take `{ teamId, employeeId }`, `setMembers` takes `employeeIds`, and `list` returns `memberEmployeeIds` (`member_employee_ids`). `memberIds` lists only user ids. The user on an employee's rows follows the employee's account, so linking an account merges the user's own row, and unlinking it, deleting the auth user or removing the membership keeps the employee on the team. Setting `employees.team_id` adds the employee to that team. `team_member.added` and `team_member.deleted` carry `employeeId`, and `userId` can be `null`. Apps without employees see no change. An app that has both blocks runs `upgrade`, writes the migration, then `add --adopt` for the data file that backfills `employee_id` and the primary teams.
+- The tenant table can be a record type: set `recordTypes.<type>.tenant` to its id column, and each organization is its own tenant. The consents block then records a decision on the organization itself, such as an agreement it accepts, and a member can only record one for their own organization. `gen` no longer marks such a table as tenant-scoped, so the client keeps reading every organization the caller belongs to.
+- `better-supabase/testing` gets `createFakePostgrest`, a `fetch` that answers PostgREST requests from a handler so the real supabase-js client runs without a stack, and `asSignedInUser`, a test user that signs in through the stack's Auth and takes its claims from the token. The pgTAP module adds `tests.act_as(role, user_id, claims)` and `tests.visible_row_count(relation, filter)`; run `better-supabase upgrade` to rewrite the file.
+- The `time-tracking` block is `time-entries`. Import from `better-supabase/blocks/time-entries`, name it `blocks["time-entries"]`, and use `db.$blocks.timeEntries`. Run `better-supabase codemod naming` to rewrite imports and the config key, then `upgrade`; the migration renames the block's registry row and its permission keys in place, so roles and overrides keep their grants.
+
+  | Old                                                             | New                                                          |
+  | --------------------------------------------------------------- | ------------------------------------------------------------ |
+  | `better-supabase/blocks/time-tracking`                          | `better-supabase/blocks/time-entries`                        |
+  | `blocks["time-tracking"]`                                       | `blocks["time-entries"]`                                     |
+  | `createTimeTracking`, `timeTrackingBlock`, `timeTrackingEvents` | `createTimeEntries`, `timeEntriesBlock`, `timeEntriesEvents` |
+  | `TimeTracking`, `TimeTrackingOptions`, `TimeTrackingEvents`     | `TimeEntries`, `TimeEntriesOptions`, `TimeEntriesEvents`     |
+  | `time_tracking.read`, `.track`, `.approve`, `.manage`           | `time_entries.read`, `.track`, `.approve`, `.manage`         |
+- `defineTopic` takes `broadcast`, a list of tables whose row changes the topic sends, and `better-supabase upgrade` writes their triggers next to the topic's policies in the `realtime.policies` file. `gen.types.also` lists more files that get a copy of `database.types.ts`, for apps in a monorepo that share the types; `gen --check` fails when a copy is stale.
+- `gen.types.tables.only` lists the relations `database.types.ts` includes. A page that imports one table module does not bundle the other tables.
+- `upgrade` writes event triggers and triggers on `auth` tables to one file, `900_better_supabase_999_unscoped.sql`, instead of into six module files. The workflow-sdk module grants its sequences by name, not with `on all sequences`. Run `better-supabase upgrade`; the migrations workflow keeps each statement in its module.
+- `codemod naming` loads the config as it rewrites the renamed keys, and reads column pins without the options 0.58 removed (`extraColumns` and its prefixed forms, `uniqueNumber`), so a 0.57 config gets its column renames and pins in one run. It writes `{ taskId }` instead of `{ taskId: taskId }`, and renames the key of a `defineBlocks` entry with its block (`"time-entries": blocks["time-entries"]`). `codemod owned-columns` exits `config_invalid` when the blocks don't render, instead of exiting 0 with advice to run `upgrade`, and the 0.57 to 0.58 guide runs it after `extra-columns` and `config`. An `imports.options.targets` entry whose entity an installed block already imports now fails with a message that lists the entities and names `replaces: true`. Doctor BS330 skips an optional column the app's table lacks unless the config names it, and points to `codemod owned-columns` instead of `upgrade`. Doctor BS626 reads `audit_row_change()` trigger arguments. New doctor BS631 reports an app's `team_members` table that keeps employees while its user column is `not null`. The attachments data file gives a record a new path only while no object is stored at the old one. The split `blocks.config.ts` tags its `permissions` re-export `@public` for Knip. A written `upgrade` no longer reports the problems of the files it replaced.
+- `codemod naming` pins a state-machine history `actor` and columns reached through `config.instances`, and exits `config_invalid` when the config does not load or a block context refuses it, instead of skipping the column renames and exiting 0. `codemod owned-columns` skips a column that is the target of a pending pin, and declares an optional column only when the snapshot already has it. `codemod extra-columns` exits `config_invalid` when a block context throws. Argument renames stay inside `{`, `blockConfig["..."]` is renamed, and `renameSqlColumns` touches a block column only when it is qualified, listed, or set, including `audit` ignore and redact lists. A partial unique index whose `where` is `<column> is not null` counts as the full key. An expression unique index does not drop a block key. `same_tenant` refuses a referenced row with no tenant unless the entry sets `shared: true`. Doctor BS625 and BS626 report a pinned column added again and an old name left in SQL.
+- `upgrade` writes nothing when one block file was edited by hand, and the error includes the diff. `--force` overwrites that file and leaves the previous body at `.bak`. `--preserve <file>` leaves the hand edit and writes the new render beside it as `.new`.
+
+  An app table stays free of block grants when `database.sql.ownTablePolicies` is `"app"`.
+- Upgrades start at 0.53. An app on an older version upgrades to 0.53 first. This release removes `$apiResult`, the `triggerSql` overload, the module `version` option, the `openapi` config key (use `specs`), the `canApprove` template and `approvals.distinctApprover` (`isApprover` always refuses the requester), `BLOCK_EVENT_RENAMES`, the 0.15 block renames, the moved-command table, the codemods 0.4 to 0.53, the `better-supabase/codemods/*.json` export and doctor BS415, BS418 and BS509. The migration guides before 0.53 are gone.
+- The `vector-search` block installs itself for an app with a `vectorSearch` table or a `-- @bsb vector-search` tag, so the `blocks: ["vector-search"]` line is no longer needed. List the block only to set its `schema` option.
+- A warranty claim records the supplier or manufacturer, the asset, the covered amount, the status and the decision. Attachments hang off the claim, and an approval can make the decision.
+- `better-supabase db prune-workflows` is `better-supabase workflows prune`, in a `workflows` group with its own docs page. The flags are unchanged and the old command has no alias, so change the cron entries and scripts that run it.
+
+  | Old                                  | New                               |
+  | ------------------------------------ | --------------------------------- |
+  | `better-supabase db prune-workflows` | `better-supabase workflows prune` |
+- `upgrade` no longer renders every module that adds app columns to a block table when an app file adds a column to one table. A module now reads only the entry of its own table in the app's added columns, so adding the first column to a table re-renders 4 modules on the CentraKit fixture instead of 30. The generated SQL is the same.
+- An app table's reference to a tenant-scoped table is a foreign key on `(tenant, column)`. Its index now covers both columns, `(column, tenant)`, instead of `(column)` alone, so the foreign key checks and joins read an index and the Performance Advisor no longer reports the key as unindexed. Run `better-supabase upgrade` and generate the migration; the old single-column index is dropped.
+- The attachments read and insert policies compare the subject's tenant column with the attachment's tenant. For a subject table with its own `tenant_id` column, such as `drive_nodes`, the policy text compared the column with itself, so the subject check passed for any tenant. The policies now qualify the attachment's columns. Run `better-supabase upgrade` and apply the migration it plans.
+- A batch of permission checks (`tools/list` of many tools, say) clones and freezes the verified claims once for the batch instead of once per check.
+- With `blocks.sessions.options.authzVersions`, deleting an auth user who belongs to an organization no longer fails on `user_authz_versions_user_id_fkey`. The membership's cascade delete bumped the version of the user being deleted; `bump_authz_versions` now skips users that no longer exist. Run `upgrade` and write the migration.
+- `createVersionCache` keeps at most `maxEntries` users in process (default 10,000) and drops the least recently used one first, so a long-lived server no longer holds one entry per user it has ever seen. `BlockSet.client(db, key)` without options now shares one block builder per `db`, so repeated calls wire the port graph once.
+- A cursor page that asks for a count (`withCount`) reads its rows and its count at the same time instead of one after the other, so a later page costs one round trip of latency, not two.
+- BS405 names the estimated cookie chunks when the token's claims pass the limit, because the session cookie is split at 3,180 bytes and 50 memberships already need 4. Doctor output changes only in that message; `upgrade` rewrites no module and no data migration is needed.
+- `doctor` reports `BS399` (info) when `better_supabase.audit_events` is still a plain table with an estimated one million rows or more, and names `blocks.audit.options.partitioned` and `convert_audit_log_to_partitioned()`. It needs a database; saved snapshots skip it.
+- The trigger that freezes an issued invoice checks import mode in its `when` clause. The trigger is deferred and its function ran at commit, after an import had restored its flag, so an import of issued invoices froze every one of them (47,668 freezes, about 219 s on CentraKit's data). Run `better-supabase upgrade` and generate the migration.
+- `employee.offboarded` no longer carries the free-text `reason`, so outbox consumers and outbound webhooks never receive it. The reason stays on the employee (`offboard_reason`); a consumer that needs it reads the employee.
+- The error code catalog in `schemas/error-codes.json` now lists `INVENTORY_OVER_CANCEL`, `INVENTORY_PURCHASE_ORDER_NUMBER_INVALID` and `INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN`, and the message for `IMPORT_DOCUMENT_CHANGED` matches what the SQL modules scan to.
+- `field_seal` returns a value that already starts with `bsf1:` unchanged, so sealing it again does not wrap the ciphertext.
+- The provider contract stays additive at API version 1. A provider that still sets `functions.canApprove` or `approvals.distinctApprover` loads, and doctor notes that both are ignored. Doctor also reports a template placeholder the function does not take, including `approverFor` and `managedUsers`, which no module reads yet.
+
+  `Bootstrap.teamIdsTruncated` follows the provider's `teamIdsTruncatedClaim`, then the sessions hook option. A compact permissions bitset still decodes after Postgres wraps the base64. `claimFormat: "summary"` keeps every role when `roles.many` is on: each tenant is a sorted array of indexes. A provider `suspension.user` may be a column name, and its `userKey` applies only when that user setting is the one in use.
+
+  A cached JWKS is served for `maxStaleSeconds` after `cacheSeconds` (the same length by default) and then the request waits. A Supabase key set stays within 600 seconds. A former permission key throws `FormerPermissionKeyError` (`code: "former_permission_key"`), and doctor reports it instead of stopping.
+- Maps the AI SDK's `steering-message` UI part to a `ui.steering-message` data part that keeps its text and file parts, and lets `syncWithAuth` infer its connector type from the `connector` option, so PowerSync 2.5's overloaded `connect` no longer breaks it.
+- Moves `better-supabase/client/lite` to `src/client/lite/index.ts` like every other subpath, lists `@supabase/auth-js` and `@supabase/realtime-js` as the peers it needs, and widens the `@supabase/config` peer range to `>=0.9.0 <2` (1.x loads on the current effect). A read whose `in` list the executor splits into chunks is no longer reported as truncated because the chunks together hold `maxRows` rows or more.
+
+  `db.$table(name)` and `withBetterResult` accept the tables a server loads on first use (`gen.serverTables: "lazy"`, the default), so `withBetterResult(db).customers.get()` works over a lazy schema.
+- Fixes four functions that failed when they ran: `ensure_import_periods` computed a period end from a timestamp minus an integer, `import_ensure_ref` and `register_import_source` named columns their parameters shadow in `on conflict`, and `import_product` read and wrote a product price column the block's own table does not have when a prices table is installed. Doctor BS627 and BS628 skip migrations and the files the blocks write, which an app can't change.
+- `list_inbox_conversations` reads the contacts, inbox and read times of a page in one pass, so a page of 50 conversations takes about 30 ms and a search over 20,000 conversations about 35 ms instead of minutes. The result has the same fields. The inbox module adds the internal function `inbox_contacts_json`, so run `better-supabase upgrade` and apply the migration it writes.
+- The inline read policies of attachments, reactions and scores compare a subject whose id column your schema files declare as `uuid` on that type, so the subject table's primary key serves the lookup without setting `idType`. The cast sits in the subject's own branch behind a uuid shape check, so a malformed stored id reads as not found. Run `better-supabase upgrade` to pick it up.
+- The reaction and score read policies check the subject inline instead of calling `reaction_subject_visible` once per row. Counting 12,000 reactions as a member takes 20 ms instead of 4,863 ms. Run `better-supabase upgrade` and generate the migration.
+- Deal contacts, subject knowledge and deadlines read through inline subject policies, so a read of 12,000 rows on 60,000 customers takes tens of milliseconds instead of seconds. The retention, hold, approval and audit memos keep their keys in 256 settings per connection instead of one per statement, a reply adds to its thread root in place instead of recounting the thread, `messages` gains an index on `conversation_id` alone, and fifteen `(tenant_id, created_at desc)` indexes end in `id desc`. Run `better-supabase upgrade` and generate a migration.
+- Adds the JWT matrix bench (`pnpm --filter better-supabase bench:jwt`) and records its findings: the access token hook stays under 32 ms at 500 memberships, while the `memberships` claim grows 95 bytes per membership (27 cookie chunks at 500). The package ships no new runtime code, `upgrade` rewrites no module and no data migration is needed.
+- Accepts React Native 0.88's `AppState` in `autoRefreshOnForeground`, `startNativeAuthzRefresh` and the native query focus helper: `AppStateLike.currentState` is now optional and may be `null`.
+- `createProxy` from `better-supabase/next/proxy` no longer bundles the server's clients and query builder. It builds from the session runtime that `createServer` also uses, so a page and the proxy still share one JWKS cache and one session memo. The shipped proxy shrinks from 64.8 KB to 47.7 KB gzipped.
+- A line update recounts a document only when the quantity or unit amount changed, and once for that document.
+- The `notification-bell` recipe reads the unread count in the browser: it calls the `notification_counts` function on the `api` schema through `useBlockEnv().supabase`, so the bell no longer needs the `loadNotificationCounts` Server Action.
+- `better-supabase/postgres` opens a transaction and sets its claims, role and timeouts in one message, so a statement for a signed-in session costs three round trips instead of four. The values are written as escape string literals, which hold on a server with `standard_conforming_strings` on or off.
+- `better-supabase/next/proxy` exports `toSession`, `permissionsOf` and `postAuthPath`, the helpers a `protect` function uses, so a proxy can leave out the `better-supabase/next` entry.
+- `better_supabase.session_active()` parses the token claims once per call instead of three times: it reads `sub` from the claims it already parsed rather than calling `auth.uid()`. Restrictive session policies run it once for each table a statement reads, so a query over many tables with a large token spends about a third of the time it did on the check. Run `better-supabase upgrade` and generate a migration to pick it up. An ended, expired or foreign session is still refused.
+- Issuing an invoice with `options.lineRates: "percent"` now writes the rate of a line's tax code to the line as a percentage. Before, `issue_invoice_tax` wrote the code's rate in basis points into the percentage column, so a `numeric(5, 2)` rate column overflowed and the invoice could not be issued.
+- Deleting a subject row deletes its attachments, reactions, reviews and conversation rows through the tenant-led index instead of scanning the table: the cascade trigger passes the subject row's tenant. Run `better-supabase upgrade` and generate the migration.
+
 ## 0.57.0 (2026-11-08)
 
 - `deadlines` follows the read access of each deadline's subject, and `compute` clears the groups a newer rule version dropped. See ADR 0242.

@@ -1,5 +1,0 @@
----
-"better-supabase": minor
----
-
-With the employees block installed, teams hold employees next to users. `team_members` gains `employee_id` (`columns.members.employee`), `user_id` becomes nullable, and the `(team_id, user_id)` primary key becomes two partial unique indexes. `add_team_member` and `remove_team_member` take `employee` next to `member`; `addMember` and `removeMember` take `{ teamId, employeeId }`, `setMembers` takes `employeeIds`, and `list` returns `memberEmployeeIds` (`member_employee_ids`). `memberIds` lists only user ids. The user on an employee's rows follows the employee's account, so linking an account merges the user's own row, and unlinking it, deleting the auth user or removing the membership keeps the employee on the team. Setting `employees.team_id` adds the employee to that team. `team_member.added` and `team_member.deleted` carry `employeeId`, and `userId` can be `null`. Apps without employees see no change. An app that has both blocks runs `upgrade`, writes the migration, then `add --adopt` for the data file that backfills `employee_id` and the primary teams.

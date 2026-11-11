@@ -1,5 +1,0 @@
----
-"better-supabase": minor
----
-
-The authorization provider accepts the fields an authorization library fills from one definition, all optional and additive (`apiVersion` stays 1, the hook topic stays `better_supabase:authz`): `functions.subjectForTenant`, `approverFor` and `managedUsers`, `memberships[].userKey`, `suspension.userKey`, `permissions[].levels` (level keys are `<permission>@<level>`), `tokenHook.teamIdsTruncatedClaim`, and `personas: "roles"` with `fixtureRoles`. A provider that lists `memberships` for the tenant scope no longer needs `functions.memberIds` and `memberIdsFor`: both are derived from the rows. `suspension.userKey` becomes `blocks.permissions.disabled.userKey`, and BS426 reports a `disabled` value equal to the provider's. A bootstrap call that names a tenant gets the subject restricted to it when the provider sets `subjectForTenant`. `better-supabase upgrade` rewrites the `sessions` module only for an app that sets `subjectForTenant`; no data migration is needed.

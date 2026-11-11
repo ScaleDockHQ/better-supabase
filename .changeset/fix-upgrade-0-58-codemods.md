@@ -1,5 +1,0 @@
----
-"better-supabase": minor
----
-
-`codemod naming` no longer renames the column that `sql.tenantColumn` (or a `columns.<table>.tenant` entry) names, and leaves every column rename out, with a note, when the config did not load; before, an app with `sql.tenantColumn: "organization_id"` got `organization_id` renamed to `tenant_id` on 74 block tables, and the schema diff dropped the column. It also renames `job_schedules.locked_until`, the tasks verb arguments (`workItemId` to `taskId`), the former permission keys under `blocks.<name>.permissions` (`view`, `viewAll`, `viewSensitive`, `edit`, `admin`), `blocks["time-tracking"]` and `db.$blocks.timeTracking`, and keeps the keys of a renamed config object sorted. `codemod owned-columns`, `extra-columns` and `config` stop with `config_invalid` when the config does not load, instead of printing "Nothing to change". `codemod server-imports` splits `export { ... } from "better-supabase/server"` too, and `codemod generators` flags `apiVersion: 1` only inside a generator. Run `better-supabase codemod naming` first.
