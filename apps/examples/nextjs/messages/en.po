@@ -13061,6 +13061,93 @@ msgctxt "offline.qf5KUv"
 msgid "Waiting for connection"
 msgstr "Waiting for connection"
 
+#: src/features/onboarding/components/enroll-employee-form.tsx
+msgctxt "people.rcr0h1"
+msgid "Employee enrolled"
+msgstr "Employee enrolled"
+
+#: src/features/onboarding/components/enroll-employee-form.tsx
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.7ScoLI"
+msgid "Program"
+msgstr "Program"
+
+#: src/features/onboarding/components/enroll-employee-form.tsx
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.HlMWir"
+msgid "Employee"
+msgstr "Employee"
+
+#: src/features/onboarding/components/enroll-employee-form.tsx
+msgctxt "people.nz3jzj"
+msgid "Enroll"
+msgstr "Enroll"
+
+#: src/features/onboarding/components/onboarding-overview.tsx
+msgctxt "people.7n3KQt"
+msgid "Onboarding didn't load"
+msgstr "Onboarding didn't load"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.VEFdtk"
+msgid "{done} of {total} steps"
+msgstr "{done} of {total} steps"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.sIMS7i"
+msgid "Progress"
+msgstr "Progress"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.9anxhq"
+msgid "Starts"
+msgstr "Starts"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.3aEZlP"
+msgid "Least done"
+msgstr "Least done"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.SejFmF"
+msgid "Search onboarding"
+msgstr "Search onboarding"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.pTgQzH"
+msgid "No onboarding runs found"
+msgstr "No onboarding runs found"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.z_EEAK"
+msgid "Enroll an employee, or change the filters."
+msgstr "Enroll an employee, or change the filters."
+
+#: src/features/onboarding/components/onboarding-status.tsx
+msgctxt "people.q1WWIr"
+msgid "In progress"
+msgstr "In progress"
+
+#: src/features/onboarding/components/onboarding-status.tsx
+msgctxt "people.95stPq"
+msgid "Completed"
+msgstr "Completed"
+
+#: src/features/onboarding/components/setup-onboarding-button.tsx
+msgctxt "people.kT-0FF"
+msgid "New hire program created"
+msgstr "New hire program created"
+
+#: src/features/onboarding/components/setup-onboarding-button.tsx
+msgctxt "people.NjPctq"
+msgid "Set up the new hire program"
+msgstr "Set up the new hire program"
+
 #: src/features/option-sets/components/option-set-controls.tsx
 msgctxt "optionSets.2FTlRV"
 msgid "Priority options created"
@@ -13220,93 +13307,6 @@ msgstr "Create the task priorities, or change the filters."
 msgctxt "optionSets.gzp6xc"
 msgid "Change the filters to see more."
 msgstr "Change the filters to see more."
-
-#: src/features/onboarding/components/enroll-employee-form.tsx
-msgctxt "people.rcr0h1"
-msgid "Employee enrolled"
-msgstr "Employee enrolled"
-
-#: src/features/onboarding/components/enroll-employee-form.tsx
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.7ScoLI"
-msgid "Program"
-msgstr "Program"
-
-#: src/features/onboarding/components/enroll-employee-form.tsx
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.HlMWir"
-msgid "Employee"
-msgstr "Employee"
-
-#: src/features/onboarding/components/enroll-employee-form.tsx
-msgctxt "people.nz3jzj"
-msgid "Enroll"
-msgstr "Enroll"
-
-#: src/features/onboarding/components/onboarding-overview.tsx
-msgctxt "people.7n3KQt"
-msgid "Onboarding didn't load"
-msgstr "Onboarding didn't load"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.VEFdtk"
-msgid "{done} of {total} steps"
-msgstr "{done} of {total} steps"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.sIMS7i"
-msgid "Progress"
-msgstr "Progress"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.9anxhq"
-msgid "Starts"
-msgstr "Starts"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.fwIt1X"
-msgid "Newest"
-msgstr "Newest"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.3aEZlP"
-msgid "Least done"
-msgstr "Least done"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.SejFmF"
-msgid "Search onboarding"
-msgstr "Search onboarding"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.pTgQzH"
-msgid "No onboarding runs found"
-msgstr "No onboarding runs found"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.z_EEAK"
-msgid "Enroll an employee, or change the filters."
-msgstr "Enroll an employee, or change the filters."
-
-#: src/features/onboarding/components/onboarding-status.tsx
-msgctxt "people.q1WWIr"
-msgid "In progress"
-msgstr "In progress"
-
-#: src/features/onboarding/components/onboarding-status.tsx
-msgctxt "people.95stPq"
-msgid "Completed"
-msgstr "Completed"
-
-#: src/features/onboarding/components/setup-onboarding-button.tsx
-msgctxt "people.kT-0FF"
-msgid "New hire program created"
-msgstr "New hire program created"
-
-#: src/features/onboarding/components/setup-onboarding-button.tsx
-msgctxt "people.NjPctq"
-msgid "Set up the new hire program"
-msgstr "Set up the new hire program"
 
 #: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.lehIHr"

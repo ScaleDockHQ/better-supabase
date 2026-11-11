@@ -13061,6 +13061,93 @@ msgctxt "offline.qf5KUv"
 msgid "Waiting for connection"
 msgstr "Wacht op verbinding"
 
+#: src/features/onboarding/components/enroll-employee-form.tsx
+msgctxt "people.rcr0h1"
+msgid "Employee enrolled"
+msgstr "Medewerker ingeschreven"
+
+#: src/features/onboarding/components/enroll-employee-form.tsx
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.7ScoLI"
+msgid "Program"
+msgstr "Programma"
+
+#: src/features/onboarding/components/enroll-employee-form.tsx
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.HlMWir"
+msgid "Employee"
+msgstr "Medewerker"
+
+#: src/features/onboarding/components/enroll-employee-form.tsx
+msgctxt "people.nz3jzj"
+msgid "Enroll"
+msgstr "Inschrijven"
+
+#: src/features/onboarding/components/onboarding-overview.tsx
+msgctxt "people.7n3KQt"
+msgid "Onboarding didn't load"
+msgstr "De onboarding is niet geladen"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.VEFdtk"
+msgid "{done} of {total} steps"
+msgstr "{done} van {total} stappen"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.sIMS7i"
+msgid "Progress"
+msgstr "Voortgang"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.9anxhq"
+msgid "Starts"
+msgstr "Start"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.fwIt1X"
+msgid "Newest"
+msgstr "Nieuwste"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.3aEZlP"
+msgid "Least done"
+msgstr "Minst af"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.SejFmF"
+msgid "Search onboarding"
+msgstr "Onboarding zoeken"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.pTgQzH"
+msgid "No onboarding runs found"
+msgstr "Geen onboarding gevonden"
+
+#: src/features/onboarding/components/onboarding-record-list.tsx
+msgctxt "people.z_EEAK"
+msgid "Enroll an employee, or change the filters."
+msgstr "Schrijf een medewerker in of pas de filters aan."
+
+#: src/features/onboarding/components/onboarding-status.tsx
+msgctxt "people.q1WWIr"
+msgid "In progress"
+msgstr "Bezig"
+
+#: src/features/onboarding/components/onboarding-status.tsx
+msgctxt "people.95stPq"
+msgid "Completed"
+msgstr "Afgerond"
+
+#: src/features/onboarding/components/setup-onboarding-button.tsx
+msgctxt "people.kT-0FF"
+msgid "New hire program created"
+msgstr "Programma voor nieuwe medewerkers aangemaakt"
+
+#: src/features/onboarding/components/setup-onboarding-button.tsx
+msgctxt "people.NjPctq"
+msgid "Set up the new hire program"
+msgstr "Programma voor nieuwe medewerkers instellen"
+
 #: src/features/option-sets/components/option-set-controls.tsx
 msgctxt "optionSets.2FTlRV"
 msgid "Priority options created"
@@ -13220,93 +13307,6 @@ msgstr ""
 msgctxt "optionSets.gzp6xc"
 msgid "Change the filters to see more."
 msgstr ""
-
-#: src/features/onboarding/components/enroll-employee-form.tsx
-msgctxt "people.rcr0h1"
-msgid "Employee enrolled"
-msgstr "Medewerker ingeschreven"
-
-#: src/features/onboarding/components/enroll-employee-form.tsx
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.7ScoLI"
-msgid "Program"
-msgstr "Programma"
-
-#: src/features/onboarding/components/enroll-employee-form.tsx
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.HlMWir"
-msgid "Employee"
-msgstr "Medewerker"
-
-#: src/features/onboarding/components/enroll-employee-form.tsx
-msgctxt "people.nz3jzj"
-msgid "Enroll"
-msgstr "Inschrijven"
-
-#: src/features/onboarding/components/onboarding-overview.tsx
-msgctxt "people.7n3KQt"
-msgid "Onboarding didn't load"
-msgstr "De onboarding is niet geladen"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.VEFdtk"
-msgid "{done} of {total} steps"
-msgstr "{done} van {total} stappen"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.sIMS7i"
-msgid "Progress"
-msgstr "Voortgang"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.9anxhq"
-msgid "Starts"
-msgstr "Start"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.fwIt1X"
-msgid "Newest"
-msgstr "Nieuwste"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.3aEZlP"
-msgid "Least done"
-msgstr "Minst af"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.SejFmF"
-msgid "Search onboarding"
-msgstr "Onboarding zoeken"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.pTgQzH"
-msgid "No onboarding runs found"
-msgstr "Geen onboarding gevonden"
-
-#: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.z_EEAK"
-msgid "Enroll an employee, or change the filters."
-msgstr "Schrijf een medewerker in of pas de filters aan."
-
-#: src/features/onboarding/components/onboarding-status.tsx
-msgctxt "people.q1WWIr"
-msgid "In progress"
-msgstr "Bezig"
-
-#: src/features/onboarding/components/onboarding-status.tsx
-msgctxt "people.95stPq"
-msgid "Completed"
-msgstr "Afgerond"
-
-#: src/features/onboarding/components/setup-onboarding-button.tsx
-msgctxt "people.kT-0FF"
-msgid "New hire program created"
-msgstr "Programma voor nieuwe medewerkers aangemaakt"
-
-#: src/features/onboarding/components/setup-onboarding-button.tsx
-msgctxt "people.NjPctq"
-msgid "Set up the new hire program"
-msgstr "Programma voor nieuwe medewerkers instellen"
 
 #: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.lehIHr"
