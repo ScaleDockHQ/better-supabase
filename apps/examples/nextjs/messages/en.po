@@ -10852,6 +10852,7 @@ msgid "Customers"
 msgstr "Customers"
 
 #: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/side-nav.tsx
 #: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.GcPFLS"
 msgid "Work"
@@ -10882,6 +10883,7 @@ msgid "Rules"
 msgstr "Rules"
 
 #: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/side-nav.tsx
 #: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Tpy00S"
 msgid "People"
@@ -11140,6 +11142,7 @@ msgid "Shifts"
 msgstr "Shifts"
 
 #: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/side-nav.tsx
 #: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.Fm3M-y"
 msgid "Finance"
@@ -11302,9 +11305,29 @@ msgid "AI providers"
 msgstr "AI providers"
 
 #: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.rOZptg"
-msgid "Workspace"
-msgstr "Workspace"
+msgctxt "navigation.ejEGdx"
+msgid "Home"
+msgstr "Home"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.c8nvms"
+msgid "Sales"
+msgstr "Sales"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.n9zups"
+msgid "Commerce"
+msgstr "Commerce"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.MQbmj7"
+msgid "Operations"
+msgstr "Operations"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Jq3FDz"
+msgid "Content"
+msgstr "Content"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.y-7ihJ"
@@ -11312,9 +11335,19 @@ msgid "Quality"
 msgstr "Quality"
 
 #: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.K56Dim"
-msgid "Organization"
-msgstr "Organization"
+msgctxt "navigation.JlCBnp"
+msgid "Care"
+msgstr "Care"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.ijQrZ0"
+msgid "AI"
+msgstr "AI"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.iHN12u"
+msgid "Admin"
+msgstr "Admin"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.EFTSMc"

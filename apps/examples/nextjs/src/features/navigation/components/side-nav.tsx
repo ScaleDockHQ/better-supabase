@@ -82,16 +82,15 @@ import { getExtracted } from "next-intl/server";
 
 import {
   SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
 
-import type { NavId } from "../nav-items";
+import type { NavArea as NavAreaId, NavId } from "../nav-items";
 
-import { navItems } from "../nav-items";
+import { navAreas, navItems } from "../nav-items";
+import { NavArea } from "./nav-area";
 import { getNavLabel } from "./nav-label-server";
 import { NavLink } from "./nav-link";
 
@@ -181,17 +180,69 @@ export async function SideNav({ visible }: { visible: readonly NavId[] }) {
   const t = await getExtracted("navigation");
   const label = await getNavLabel();
 
-  const groups = [
-    { id: "workspace", label: t("Workspace") },
-    { id: "quality", label: t("Quality") },
-    { id: "organization", label: t("Organization") },
-  ] as const;
+  const areaLabel = (area: NavAreaId): string => {
+    switch (area) {
+      case "home": {
+        return t("Home");
+      }
+
+      case "sales": {
+        return t("Sales");
+      }
+
+      case "commerce": {
+        return t("Commerce");
+      }
+
+      case "operations": {
+        return t("Operations");
+      }
+
+      case "finance": {
+        return t("Finance");
+      }
+
+      case "people": {
+        return t("People");
+      }
+
+      case "work": {
+        return t("Work");
+      }
+
+      case "content": {
+        return t("Content");
+      }
+
+      case "quality": {
+        return t("Quality");
+      }
+
+      case "care": {
+        return t("Care");
+      }
+
+      case "ai": {
+        return t("AI");
+      }
+
+      case "admin": {
+        return t("Admin");
+      }
+
+      default: {
+        const unknown: never = area;
+
+        return unknown;
+      }
+    }
+  };
 
   return (
     <nav aria-label={t("Main")}>
-      {groups.map((group) => {
+      {navAreas.map((area) => {
         const items = navItems.filter(
-          (item) => item.group === group.id && visible.includes(item.id),
+          (item) => item.area === area && visible.includes(item.id),
         );
 
         if (items.length === 0) {
@@ -199,28 +250,29 @@ export async function SideNav({ visible }: { visible: readonly NavId[] }) {
         }
 
         return (
-          <SidebarGroup key={group.id}>
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {items.map((item) => {
-                  const Icon = ICONS[item.id];
+          <NavArea
+            key={area}
+            label={areaLabel(area)}
+            ids={items.map((item) => item.id)}
+          >
+            <SidebarMenu>
+              {items.map((item) => {
+                const Icon = ICONS[item.id];
 
-                  return (
-                    <SidebarMenuItem key={item.id}>
-                      <NavLink
-                        id={item.id}
-                        href={item.href}
-                        label={label(item.id)}
-                      >
-                        <Icon />
-                      </NavLink>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+                return (
+                  <SidebarMenuItem key={item.id}>
+                    <NavLink
+                      id={item.id}
+                      href={item.href}
+                      label={label(item.id)}
+                    >
+                      <Icon />
+                    </NavLink>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </NavArea>
         );
       })}
     </nav>
