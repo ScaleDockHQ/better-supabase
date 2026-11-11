@@ -3375,6 +3375,9 @@
             "policyHelperLimit": {
               "type": "number"
             },
+            "parallelReads": {
+              "type": "number"
+            },
             "sealTriggers": {
               "type": "array",
               "items": {

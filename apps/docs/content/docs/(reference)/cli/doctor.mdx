@@ -103,6 +103,9 @@ it sets `tokenHook.budget`, otherwise the limit for the whole token (default
 2048).
 `tooling.doctor.policyHelperLimit` (default 5) is how many policies a security definer
 helper may appear in before [BS206](#bs206) reports it.
+`tooling.doctor.parallelReads` (default 3) is how many database reads one
+`Promise.all` may await before [BS609](#bs609) suggests a read set. Raise it to
+quiet the hint on pages that load a few reads at once.
 
 ## Baseline
 
@@ -2565,7 +2568,66 @@ awaits at least three repository, block client or `$rpc` calls in one
 PostgREST. A read set compiles the same reads into one stable database
 function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
 and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
-See [read sets](/docs/repository/read-sets).
+See [read sets](/docs/repository/read-sets). `tooling.doctor.parallelReads`
+sets the count (default 3).
+
+### BS634
+
+**Warning: database read once per item (N+1).** A source file reads the
+database inside a `for ... of` loop or a `map`, `flatMap` or `forEach`
+callback, and the read's arguments use the loop variable (or a value derived
+from it), so a list of n items makes n requests:
+
+```ts
+const items = await Promise.all(
+  ids.map(async (id) => await db.customers.get(id)), // one request per id
+);
+```
+
+Doctor counts repository reads (`get`, `list`, `count`, `counted`,
+`aggregate`), `$rpc`, `$search`, `$run` and `$many`, block client calls,
+supabase-js `.from(...).select(...)` chains, and two kinds of indirect read:
+a function in the same file that only reads (followed through other such
+functions in that file), and a `get`, `list`, `load`, `find`, `fetch`,
+`count`, `read` or `search` method on a service object, one whose name ends
+in `Service`, `Services`, `Repository` or `Queries`, or one returned by a
+`create...Service(...)` factory. It doesn't follow calls into other files.
+
+The finding names the fix. When the loop runs over rows of an earlier read
+and the snapshot has a foreign key between the two tables, it names the
+include to add to that read, such as `include: { customer: true }` (or
+`include: { _count: { notes: true } }` for a count). Otherwise it suggests one
+read with an `in` filter (`where: { id: { in: ids } }`) grouped by key, an
+array parameter for an RPC, or a batched variant of the helper.
+
+To keep false positives low it skips a read already batched with `in` over
+the loop variable, a loop over `chunks`, `batches` or retry `attempts`, a loop
+over a literal array without a spread, `page` reads, and any loop that also
+writes (a repository or supabase-js write, an RPC, block or service method
+named for a write such as `create`, `update` or `assign`). Accept a deliberate
+case in the [baseline](#baseline), or turn the check off with
+`ignore: ["BS634"]`.
+
+### BS635
+
+**Warning: dependent read of a related table (waterfall).** An awaited read
+filters by rows that an earlier awaited read in the same scope returned, and
+the snapshot has a foreign key between the two tables on the column the
+filter uses. The second request waits for the first:
+
+```ts
+const orders = await db.orders.list({ limit: 20 }).orThrow();
+const customers = await db.customers
+  .list({ where: { id: { in: orders.map((order) => order.customerId) } } })
+  .orThrow();
+```
+
+Add the include the finding names to the first read, here
+`include: { customer: true }`, so one request returns both. Doctor follows
+the rows through `const` and `let` declarations, including the entries of a
+destructured `Promise.all`, and only within the block that declares them.
+Reads whose tables have no foreign key between them are left alone, because
+an include can't replace them; [BS609](#bs609) covers independent reads.
 
 ### BS610
 

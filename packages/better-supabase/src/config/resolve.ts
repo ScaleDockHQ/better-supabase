@@ -533,6 +533,8 @@ export function resolveConfig(
       policyHelperLimit:
         config.doctor?.policyHelperLimit ??
         CONFIG_DEFAULTS.doctor.policyHelperLimit,
+      parallelReads:
+        config.doctor?.parallelReads ?? CONFIG_DEFAULTS.doctor.parallelReads,
       sealTriggers: config.doctor?.sealTriggers ?? [],
       ...(config.doctor?.file === undefined
         ? {}

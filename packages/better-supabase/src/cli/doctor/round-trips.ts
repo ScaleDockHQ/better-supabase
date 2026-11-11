@@ -39,9 +39,6 @@ export function arrayEntries(text: string, open: number): string[] | undefined {
 const DATABASE_READ =
   /\b(?:db|ctx\.db|bsb\.db\(\)|blocks\.\w+)\b[\s\S]*?\(|\$rpc\s*\(/;
 
-/** Reads in one `Promise.all` before the hint (BS609). */
-const MIN_READS = 3;
-
 function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
   const findings: FindingInput[] = [];
 
@@ -52,7 +49,10 @@ function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
 
       const reads = entries?.filter((entry) => DATABASE_READ.test(entry));
 
-      if (reads === undefined || reads.length < MIN_READS) {
+      if (
+        reads === undefined ||
+        reads.length < context.config.doctor.parallelReads
+      ) {
         continue;
       }
 
