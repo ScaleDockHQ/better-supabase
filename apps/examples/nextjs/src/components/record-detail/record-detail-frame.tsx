@@ -45,16 +45,3 @@ export function RecordDetailFrame({
     </div>
   );
 }
-
-/** The frame while the record head loads: it keeps the two columns in place. */
-export function RecordDetailFrameSkeleton({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  return (
-    <div className="grid items-start gap-6 lg:grid-cols-3" aria-busy="true">
-      {children}
-    </div>
-  );
-}

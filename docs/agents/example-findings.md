@@ -49,13 +49,14 @@ you change the example, and add a line when you find something.
 
 ## React helpers
 
-| Id     | Found on        | Kind        | State              | Item                                                                                                                                                        |
-| ------ | --------------- | ----------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| EX-030 | Inbox, help     | improvement | open (phase 4)     | Conversation lists are hand-rolled `overflow-y-auto` containers; `MessageScroller`, `Message` and `Bubble` replace them                                     |
-| EX-031 | Customers       | improvement | fixed (this PR)    | The customers table filtered and searched the first page in the browser; it reads the list query from the URL and asks the list route for every other state |
-| EX-032 | Customer detail | improvement | deferred (phase 6) | The record sections (comments, attachments, relations, versions, timeline) still take `customerId`; contacts and deals need them generic over a subject     |
-| EX-033 | Customers       | improvement | open               | The grid sorts through a toolbar select because the lists have named sorts; header sorting needs a `freeSort` list                                          |
-| EX-034 | Customers       | improvement | open               | ReUI `Filters` drops an unfinished rule when the query is controlled from the URL, so the kit keeps the chips in local state and syncs on a URL change      |
+| Id     | Found on        | Kind        | State              | Item                                                                                                                                                                                                                                    |
+| ------ | --------------- | ----------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| EX-030 | Inbox, help     | improvement | open (phase 4)     | Conversation lists are hand-rolled `overflow-y-auto` containers; `MessageScroller`, `Message` and `Bubble` replace them                                                                                                                 |
+| EX-031 | Customers       | improvement | fixed (this PR)    | The customers table filtered and searched the first page in the browser; it reads the list query from the URL and asks the list route for every other state                                                                             |
+| EX-032 | Customer detail | improvement | deferred (phase 6) | The record sections (comments, attachments, relations, versions, timeline) still take `customerId`; contacts and deals need them generic over a subject                                                                                 |
+| EX-033 | Customers       | improvement | open               | The grid sorts through a toolbar select because the lists have named sorts; header sorting needs a `freeSort` list                                                                                                                      |
+| EX-034 | Customers       | improvement | open               | ReUI `Filters` drops an unfinished rule when the query is controlled from the URL, so the kit keeps the chips in local state and syncs on a URL change                                                                                  |
+| EX-035 | Customer detail | improvement | deferred (phase 6) | The detail frame has a head, a main column, an aside and `AfterNavigation`, but no tabs (overview, activity, related, files): the first detail that needs them (contacts or deals) adds them, because knip fails on an unused component |
 
 ## Design system
 

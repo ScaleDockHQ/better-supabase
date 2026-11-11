@@ -1,10 +1,10 @@
 import { tenantOf } from "better-supabase/next";
 import { getExtracted, getFormatter } from "next-intl/server";
-import { navigation } from "next/cache";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { AfterNavigation } from "@/components/record-detail/after-navigation";
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -60,8 +60,6 @@ async function ShareLinksSection({
   customerId: string;
   canCreate: boolean;
 }) {
-  await navigation();
-
   const links = await getShareLinks(customerId);
 
   return (
@@ -82,8 +80,6 @@ async function AttachmentsSection({
   canUpload: boolean;
   canRemove: boolean;
 }) {
-  await navigation();
-
   const files = await getAttachments(customerId);
 
   if (files.kind === "hidden") {
@@ -107,8 +103,6 @@ async function RelationsSection({
   customerId: string;
   canManage: boolean;
 }) {
-  await navigation();
-
   const relations = await getRelations(customerId);
 
   return (
@@ -129,8 +123,6 @@ async function VersionsSection({
   canSave: boolean;
   canRestore: boolean;
 }) {
-  await navigation();
-
   const versions = await getVersions(customerId);
 
   return (
@@ -150,8 +142,6 @@ async function SlaSection({
   customerId: string;
   canCreatePolicy: boolean;
 }) {
-  await navigation();
-
   const clocks = await getSlaClocks(customerId);
 
   return (
@@ -170,8 +160,6 @@ async function TimelineSection({
   customerId: string;
   authors: Readonly<Record<string, string>>;
 }) {
-  await navigation();
-
   const timeline = await getTimeline(customerId);
 
   return <CustomerTimeline timeline={timeline} authors={authors} />;
@@ -239,22 +227,28 @@ export async function CustomerDetail({ id }: { id: string }) {
       aside={
         <>
           <Suspense fallback={<CustomerTimelineSkeleton />}>
-            <TimelineSection customerId={customerId} authors={authors} />
+            <AfterNavigation>
+              <TimelineSection customerId={customerId} authors={authors} />
+            </AfterNavigation>
           </Suspense>
           {can(permissions, "sla.read") ? (
             <Suspense fallback={<SlaBadgesSkeleton />}>
-              <SlaSection
-                customerId={customerId}
-                canCreatePolicy={can(permissions, "sla.manage")}
-              />
+              <AfterNavigation>
+                <SlaSection
+                  customerId={customerId}
+                  canCreatePolicy={can(permissions, "sla.manage")}
+                />
+              </AfterNavigation>
             </Suspense>
           ) : null}
           {can(permissions, "share_links.read") ? (
             <Suspense fallback={<ShareLinkDialogSkeleton />}>
-              <ShareLinksSection
-                customerId={customerId}
-                canCreate={can(permissions, "share_links.create")}
-              />
+              <AfterNavigation>
+                <ShareLinksSection
+                  customerId={customerId}
+                  canCreate={can(permissions, "share_links.create")}
+                />
+              </AfterNavigation>
             </Suspense>
           ) : null}
           {teams ? (
@@ -345,31 +339,37 @@ export async function CustomerDetail({ id }: { id: string }) {
 
       {can(permissions, "attachments.read") ? (
         <Suspense fallback={<AttachmentsUploaderSkeleton />}>
-          <AttachmentsSection
-            customerId={customerId}
-            canUpload={can(permissions, "attachments.upload")}
-            canRemove={can(permissions, "attachments.manage")}
-          />
+          <AfterNavigation>
+            <AttachmentsSection
+              customerId={customerId}
+              canUpload={can(permissions, "attachments.upload")}
+              canRemove={can(permissions, "attachments.manage")}
+            />
+          </AfterNavigation>
         </Suspense>
       ) : null}
       {can(permissions, "relations.read") ? (
         <Suspense fallback={<RelatedItemsPanelSkeleton />}>
-          <RelationsSection
-            customerId={customerId}
-            canManage={can(permissions, "relations.manage")}
-          />
+          <AfterNavigation>
+            <RelationsSection
+              customerId={customerId}
+              canManage={can(permissions, "relations.manage")}
+            />
+          </AfterNavigation>
         </Suspense>
       ) : null}
       {can(permissions, "versions.read") ? (
         <Suspense fallback={<VersionHistorySkeleton />}>
-          <VersionsSection
-            customerId={customerId}
-            canSave={can(permissions, "versions.create")}
-            canRestore={
-              can(permissions, "versions.restore") &&
-              can(permissions, "customers.write")
-            }
-          />
+          <AfterNavigation>
+            <VersionsSection
+              customerId={customerId}
+              canSave={can(permissions, "versions.create")}
+              canRestore={
+                can(permissions, "versions.restore") &&
+                can(permissions, "customers.write")
+              }
+            />
+          </AfterNavigation>
         </Suspense>
       ) : null}
     </RecordDetailFrame>

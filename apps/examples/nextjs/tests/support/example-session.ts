@@ -24,7 +24,7 @@ export function openableRoutes(
 }
 
 /** Where a spec leaves the numbers `scripts/example-perf-report.ts` merges. */
-export const PERF_DIR = "test-results/example-perf";
+const PERF_DIR = "test-results/example-perf";
 
 /** Adds one measurement of a route to a JSON file under `PERF_DIR`. */
 export function recordPerf(

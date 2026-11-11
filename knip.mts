@@ -113,6 +113,20 @@ const config: KnipConfig = {
         "src/lib/supabase/blocks.api.ts",
         // Copied from the registry, which knip checks as entries.
         "src/hooks/use-*.ts",
+        // The shadcn code block's highlighter; the block is not on a page yet.
+        "src/lib/highlighter.tsx",
+      ],
+      // The shadcn CLI installed these for the parts under components/ui, which
+      // knip skips, and for the chat tests. Phases 1 to 4 of the example plan
+      // import them; drop an entry when a page imports its part.
+      ignoreDependencies: [
+        "@shadcn/helpers",
+        "@shadcn/react",
+        "cmdk",
+        "react-day-picker",
+        "react-resizable-panels",
+        "recharts",
+        "shiki",
       ],
       // The browser loads the service worker by URL. `tsc` checks the type tests,
       // which the vitest config's `include` leaves out.
