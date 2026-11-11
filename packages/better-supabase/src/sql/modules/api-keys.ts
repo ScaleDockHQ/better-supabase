@@ -241,47 +241,11 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const interactive = interactiveOnlyKeys(ctx, layout);
 
-  const interactiveCheck =
-    interactive.length === 0
-      ? ""
-      : `
-  if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s = any (${sqlString(`{${interactive.join(",")}}`)}::text[])) then
-    ${fail("API_KEY_FORBIDDEN", "Only a signed-in user may use this permission, so an API key cannot carry it")}
-  end if;`;
-
-  // An API key, OAuth client or agent hands on at most its own scopes: a key's
-  // scopes (or *), or the keys the token's OAuth scopes map to.
+  const interactiveCheck = interactiveScopeCheck(interactive);
   const mapsScopes = ctx.of("permissions").mode !== "custom";
 
-  const withinToken = (scopes: string): string => `
-  if (auth.jwt() -> 'api_key' is not null
-      or coalesce(auth.jwt() ->> 'client_id', '') <> ''
-      or auth.jwt() -> 'act' is not null) and exists (
-    select 1 from unnest(coalesce(${scopes}, '{}')) s
-    where not case
-      when auth.jwt() -> 'api_key' is not null then
-        coalesce(auth.jwt() -> 'api_key' -> 'scopes', '[]'::jsonb) ?| array['*', s]
-      else exists (
-        select 1
-        from unnest(case jsonb_typeof(auth.jwt() -> 'scope')
-            when 'string' then regexp_split_to_array(btrim(auth.jwt() ->> 'scope'), '\\s+')
-            when 'array' then array(select jsonb_array_elements_text(auth.jwt() -> 'scope'))
-            else '{}'::text[]
-          end) t(scope)
-        where t.scope <> ''
-          and (t.scope = s${
-            mapsScopes
-              ? ` or exists (
-            select 1 from unnest(better_supabase.scope_permissions(t.scope)) k(key)
-            where better_supabase.permission_matches(k.key, s)
-          )`
-              : ""
-          })
-      )
-    end
-  ) then
-    ${fail("API_KEY_FORBIDDEN", "A token may only give a key the scopes it holds itself")}
-  end if;`;
+  const withinToken = (scopes: string): string =>
+    tokenScopeCheck(scopes, mapsScopes);
 
   const state = (alias: string): string => `case
       when ${alias}.${c("revokedAt")} is not null and ${alias}.${c("revokedAt")} <= now() then 'revoked'
@@ -700,3 +664,49 @@ export const API_KEYS: BlockSqlDefinition = {
   ],
   build,
 };
+
+/** Refuses an interactive-only permission key as a key scope. */
+function interactiveScopeCheck(interactive: readonly string[]): string {
+  return interactive.length === 0
+    ? ""
+    : `
+  if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s = any (${sqlString(`{${interactive.join(",")}}`)}::text[])) then
+    ${fail("API_KEY_FORBIDDEN", "Only a signed-in user may use this permission, so an API key cannot carry it")}
+  end if;`;
+}
+
+/**
+ * An API key, OAuth client or agent hands on at most its own scopes: a key's
+ * scopes (or *), or the keys the token's OAuth scopes map to.
+ */
+function tokenScopeCheck(scopes: string, mapsScopes: boolean): string {
+  return `
+  if (auth.jwt() -> 'api_key' is not null
+      or coalesce(auth.jwt() ->> 'client_id', '') <> ''
+      or auth.jwt() -> 'act' is not null) and exists (
+    select 1 from unnest(coalesce(${scopes}, '{}')) s
+    where not case
+      when auth.jwt() -> 'api_key' is not null then
+        coalesce(auth.jwt() -> 'api_key' -> 'scopes', '[]'::jsonb) ?| array['*', s]
+      else exists (
+        select 1
+        from unnest(case jsonb_typeof(auth.jwt() -> 'scope')
+            when 'string' then regexp_split_to_array(btrim(auth.jwt() ->> 'scope'), '\\s+')
+            when 'array' then array(select jsonb_array_elements_text(auth.jwt() -> 'scope'))
+            else '{}'::text[]
+          end) t(scope)
+        where t.scope <> ''
+          and (t.scope = s${
+            mapsScopes
+              ? ` or exists (
+            select 1 from unnest(better_supabase.scope_permissions(t.scope)) k(key)
+            where better_supabase.permission_matches(k.key, s)
+          )`
+              : ""
+          })
+      )
+    end
+  ) then
+    ${fail("API_KEY_FORBIDDEN", "A token may only give a key the scopes it holds itself")}
+  end if;`;
+}
