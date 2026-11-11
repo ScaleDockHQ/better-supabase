@@ -42,3 +42,8 @@ Left on purpose:
 
 An app that tags a function payload names its tables once, next to the call. A wrong list gives a
 stale or an over-invalidated entry, the same as `bsb.tag`.
+
+The next-build server baselines rose by 20 to 118 bytes raw on 19 routes (and 800 bytes brotli on
+`/api/customers/list/route`) because the `tables` option adds the tag path to the shared `next/create`
+chunk. The numbers in `tests/next-build/server-baseline.json` are the measured values from the guard
+output.
