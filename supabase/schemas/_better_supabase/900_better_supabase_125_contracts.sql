@@ -1,6 +1,6 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:6dedc31367e68e8896fc5966609c875f7f6263c2d6587cf3c33e825110dfc859
+-- @bsb-hash sha256:aefee0cacf3adfac16a77ddb65632473ec25cec41f0abaa0bbc443b17c18d065
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -886,6 +886,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."contract_obligations
 create policy bsb_tenant_scope_delete on "better_supabase"."contract_obligations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_contract_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."contracts"
+  for each row execute function "better_supabase"."search_index_row"('contract', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.contracts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"contract","event_prefix":"contract"}');

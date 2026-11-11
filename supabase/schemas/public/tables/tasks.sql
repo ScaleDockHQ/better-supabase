@@ -109,4 +109,4 @@ alter table "public"."tasks" drop constraint if exists "tasks_project_id_fkey";
 
 alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key ("organization_id", "project_id") references "public"."projects" ("organization_id", id) on delete cascade;
 
-comment on table public.tasks is '@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include="status, project_id"';
+comment on table public.tasks is '@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include="status, project_id"';

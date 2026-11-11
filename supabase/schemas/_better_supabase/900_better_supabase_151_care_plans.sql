@@ -1,6 +1,6 @@
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:d8eecac43a103e4d09b535f49815e83f14ca2a47f1e42f9958f7166242c369e1
+-- @bsb-hash sha256:f3c1b8570e693ddcdddb48c792f819b226aaa1c55560059d87d2a5ff779a9fa3
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1808,6 +1808,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."care_plan_evaluation
 create policy bsb_tenant_scope_delete on "better_supabase"."care_plan_evaluations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_care_plan_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."care_plans"
+  for each row execute function "better_supabase"."search_index_row"('care_plan', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_plan","event_prefix":"care_plan"}');

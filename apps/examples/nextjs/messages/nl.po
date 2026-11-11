@@ -1102,6 +1102,18 @@ msgctxt "rules.S0Fieh"
 msgid "Conditions on customer fields, tested in the database when a customer is saved."
 msgstr "Voorwaarden op klantvelden, getest in de database wanneer een klant wordt opgeslagen."
 
+#: src/app/[locale]/(app)/search/page.tsx
+#: src/features/search/components/command-center.tsx
+#: src/features/search/components/command-search-trigger.tsx
+msgctxt "search.xmcVZ0"
+msgid "Search"
+msgstr "Zoeken"
+
+#: src/app/[locale]/(app)/search/page.tsx
+msgctxt "search.NfHs8W"
+msgid "One search over every record you can read, answered by the database."
+msgstr "Eén zoekopdracht over alle records die u mag lezen, beantwoord door de database."
+
 #: src/app/[locale]/(app)/settings/audit/error.tsx
 msgctxt "audit.HpZQZz"
 msgid "The audit log could not be read."
@@ -2150,6 +2162,27 @@ msgctxt "agents.FKlXAd"
 msgid "Delete agent"
 msgstr ""
 
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.rfC5Ra"
+msgid "Delete this agent?"
+msgstr "Deze agent verwijderen?"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.bYeKbe"
+msgid "The agent is removed for everyone who installed it. This cannot be undone."
+msgstr "De agent wordt verwijderd voor iedereen die hem heeft geïnstalleerd. Dit kan niet ongedaan worden gemaakt."
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/agents/components/agent-publish.tsx
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.K3r6DQ"
+msgid "Delete"
+msgstr "Verwijderen"
+
 #: src/features/agents/components/agent-table.tsx
 msgctxt "agents.V22724"
 msgid "Installed"
@@ -2295,12 +2328,6 @@ msgstr ""
 msgctxt "agents.PLLdyt"
 msgid "Memory saved"
 msgstr ""
-
-#: src/features/agents/components/agent-publish.tsx
-#: src/features/agents/components/memory-manager.tsx
-msgctxt "agents.K3r6DQ"
-msgid "Delete"
-msgstr "Verwijderen"
 
 #: src/features/agents/components/memory-manager.tsx
 msgctxt "agents.jvo0vs"
@@ -19044,46 +19071,6 @@ msgstr "Uit"
 msgctxt "sales.47FYwb"
 msgid "Cancel"
 msgstr ""
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.9a9-ww"
-msgid "Title"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.QbUmZX"
-msgid "Record type"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.JBWS0c"
-msgid "Link"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.IMS6rI"
-msgid "Indexed"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.6I1bwN"
-msgid "Search the index"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.XMHNwr"
-msgid "No indexed records found"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.LG-5un"
-msgid "Records join the search index when they are saved; change the filters to see more."
-msgstr ""
-
-#: src/features/search/components/command-search-lazy.tsx
-#: src/features/search/components/command-search.tsx
-msgctxt "search.xmcVZ0"
-msgid "Search"
-msgstr "Zoeken"
 
 #: src/features/sales/components/block-overview.tsx
 msgctxt "sales.qnf-Ea"
@@ -19139,75 +19126,6 @@ msgstr ""
 msgctxt "sales.ERnpdU"
 msgid "Scored"
 msgstr ""
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.V52jNn"
-msgid "Enabled"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.C2iTEH"
-msgid "Paused"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.tthToS"
-msgid "Disabled"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.GN9UDB"
-msgid "Push"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.h1gtUi"
-msgid "Poll"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.Xd735s"
-msgid "Receiver"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.ku-mDU"
-msgid "State"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.drqP2L"
-msgid "Delivery"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.ZvKSfJ"
-msgid "Events"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.Z8971h"
-msgid "Verified"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.dB811t"
-msgid "Search receivers"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.EkHtzj"
-msgid "No streams found"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.UpBMGK"
-msgid "Receivers register a stream to get security event tokens; change the filters to see more."
-msgstr ""
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.xiZz44"
-msgid "The sequences didn't load"
-msgstr "De reeksen zijn niet geladen"
 
 #: src/features/sales/components/contact-sales-panel.tsx
 msgctxt "sales.JrJ_if"
@@ -21023,45 +20941,535 @@ msgctxt "sales.Kraa93"
 msgid "Referrals appear when someone signs up with a code."
 msgstr ""
 
-#: src/features/search/components/command-search.tsx
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.9a9-ww"
+msgid "Title"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.QbUmZX"
+msgid "Record type"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.JBWS0c"
+msgid "Link"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.IMS6rI"
+msgid "Indexed"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.6I1bwN"
+msgid "Search the index"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.XMHNwr"
+msgid "No indexed records found"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.LG-5un"
+msgid "Records join the search index when they are saved; change the filters to see more."
+msgstr ""
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.k0So_A"
+msgid "New customer"
+msgstr "Nieuwe klant"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.8DzYt6"
+msgid "create add customer"
+msgstr "aanmaken toevoegen klant"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.BUx5CV"
+msgid "Create organization"
+msgstr "Organisatie aanmaken"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.JTVNHH"
+msgid "new organization workspace"
+msgstr "nieuwe organisatie werkruimte"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.ee1Wp5"
+msgid "Light theme"
+msgstr "Licht thema"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.vycAyB"
+msgid "theme appearance light"
+msgstr "thema weergave licht"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.Efqxns"
+msgid "Dark theme"
+msgstr "Donker thema"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.lrS5d3"
+msgid "theme appearance dark"
+msgstr "thema weergave donker"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.Vny4fL"
+msgid "System theme"
+msgstr "Systeemthema"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.L9ZKrI"
+msgid "theme appearance system"
+msgstr "thema weergave systeem"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.PGNc-r"
+msgid "Switch language to {language}"
+msgstr "Taal wijzigen naar {language}"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.6eGClL"
+msgid "language locale"
+msgstr "taal locale"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.W0mw0_"
+msgid "Find records, run an action or open a page. Press Escape to close."
+msgstr "Zoek records, voer een actie uit of open een pagina. Druk op Escape om te sluiten."
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.jBvMCq"
+msgid "Search records, actions and pages"
+msgstr "Zoek records, acties en pagina's"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.5dVh8D"
+msgid "Search failed"
+msgstr "Zoeken mislukt"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.0Bueza"
+msgid "Records could not load. Actions and pages still work."
+msgstr "Records konden niet worden geladen. Acties en pagina's werken nog."
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/search/components/command-center.tsx
 msgctxt "search.SMrXWc"
 msgid "Favorites"
 msgstr "Favorieten"
 
-#: src/features/search/components/command-search.tsx
+#: src/features/search/components/command-center.tsx
 msgctxt "search.iXpep1"
 msgid "Recent"
 msgstr "Recent"
 
-#: src/features/search/components/command-search.tsx
+#: src/features/search/components/command-center.tsx
+msgctxt "search.AgxEdc"
+msgid "Records"
+msgstr "Records"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.p2W4v1"
+msgid "See all results for {query}"
+msgstr "Alle resultaten voor {query} bekijken"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.xIoGG9"
+msgid "Go to"
+msgstr "Ga naar"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.wSAvhu"
+msgid "Assistant"
+msgstr "Assistent"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.Kg5rmE"
+msgid "Ask the assistant: {query}"
+msgstr "Vraag het de assistent: {query}"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search._Qqv2W"
+msgid "No records match. Ask the assistant or see all results."
+msgstr "Geen records gevonden. Vraag het de assistent of bekijk alle resultaten."
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.3V5uAe"
+msgid "to move"
+msgstr "om te bewegen"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.JViuKI"
+msgid "to open"
+msgstr "om te openen"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.cP4XVq"
+msgid "to close"
+msgstr "om te sluiten"
+
+#: src/features/search/components/organization-commands.tsx
+msgctxt "search.0lmKIf"
+msgid "Switch organization"
+msgstr "Van organisatie wisselen"
+
+#: src/features/search/components/organization-commands.tsx
+msgctxt "search.qQ6ahH"
+msgid "Switched to {name}"
+msgstr "Gewisseld naar {name}"
+
+#: src/features/search/components/search-form.tsx
+msgctxt "search.R2OwGQ"
+msgid "Search every record you can read"
+msgstr "Zoek in elk record dat u mag lezen"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.hAe_zr"
+msgid "Search every record"
+msgstr "Zoek in elk record"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.vj8p_i"
+msgid "Type a name, a number or a few words. Results cover every record you can read, grouped by type."
+msgstr "Typ een naam, een nummer of een paar woorden. De resultaten omvatten elk record dat u mag lezen, gegroepeerd per type."
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.dGqEN8"
+msgid "No records match {q}"
+msgstr "Geen records gevonden voor {q}"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.pK0fYg"
+msgid "Check the spelling, or search with fewer words. Records you cannot read never appear."
+msgstr "Controleer de spelling of zoek met minder woorden. Records die u niet mag lezen verschijnen nooit."
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.EaZlsM"
+msgid "Ask the assistant"
+msgstr "Vraag het de assistent"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.uAOtqE"
+msgid "Filter by type"
+msgstr "Filter op type"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.zQvVDJ"
+msgid "All"
+msgstr "Alles"
+
+#: src/features/search/components/search-results.tsx
+msgctxt "search.9UmdVU"
+msgid "Showing the best {count, number} matches. Narrow the search to see others."
+msgstr "De beste {count, number} resultaten worden getoond. Verfijn de zoekopdracht om andere te zien."
+
+#: src/features/search/components/semantic-search-note.tsx
+msgctxt "search.GZVYlO"
+msgid "Semantic search"
+msgstr "Semantisch zoeken"
+
+#: src/features/search/components/semantic-search-note.tsx
+msgctxt "search.M3t0pi"
+msgid "Matching by meaning needs an embedding model for the query. Set AI_GATEWAY_API_KEY to turn it on; text search covers every record today."
+msgstr "Zoeken op betekenis vraagt om een embeddingmodel voor de zoekopdracht. Stel AI_GATEWAY_API_KEY in om het aan te zetten; tekstzoeken dekt vandaag elk record."
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.hMzcSq"
+msgid "Messages"
+msgstr "Berichten"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.1udzha"
+msgid "Conversations"
+msgstr "Gesprekken"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.LUrJwE"
+msgid "Channels"
+msgstr "Kanalen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.3IInif"
+msgid "Companies"
+msgstr "Bedrijven"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.Tpy00S"
+msgid "People"
+msgstr "Personen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.CQa3R9"
+msgid "Deals"
+msgstr "Deals"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.R85gsW"
+msgid "Courses"
+msgstr "Cursussen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.eR3YIn"
+msgid "Posts"
+msgstr "Berichten op het bord"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.UmEsZF"
+msgid "Activities"
+msgstr "Activiteiten"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.epJ5ty"
+msgid "Quotes"
+msgstr "Offertes"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.zQ5vfB"
+msgid "Work items"
+msgstr "Werkitems"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.HHzdGS"
+msgid "Employees"
+msgstr "Medewerkers"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.6dqYnF"
+msgid "Invoices"
+msgstr "Facturen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.w46Kss"
+msgid "Ledger accounts"
+msgstr "Grootboekrekeningen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.7NFfmz"
+msgid "Products"
+msgstr "Producten"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.j9HJG_"
+msgid "Product variants"
+msgstr "Productvarianten"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.nkj_Ln"
+msgid "Requests for quotation"
+msgstr "Offerteaanvragen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.CKpmLI"
+msgid "Tills"
+msgstr "Kassa's"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.X7jl6w"
+msgid "Orders"
+msgstr "Bestellingen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.cNe7fb"
+msgid "Calendar events"
+msgstr "Agenda-items"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.uxvKKF"
+msgid "Bookings"
+msgstr "Boekingen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.d1uESJ"
+msgid "Assets"
+msgstr "Activa"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.VdsWJi"
+msgid "Leases"
+msgstr "Huurcontracten"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.NtQFQD"
+msgid "Expense reports"
+msgstr "Onkostendeclaraties"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search._VTdwj"
+msgid "Shipments"
+msgstr "Zendingen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.ZwpbZp"
+msgid "Contracts"
+msgstr "Contracten"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search._s79W_"
+msgid "Risks"
+msgstr "Risico's"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.TTLDST"
+msgid "Cases"
+msgstr "Dossiers"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.p7zCOV"
+msgid "Inspections"
+msgstr "Inspecties"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.yGsZm0"
+msgid "Forms"
+msgstr "Formulieren"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.dMaTpi"
+msgid "Meetings"
+msgstr "Vergaderingen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.cQfwTT"
+msgid "Maintenance plans"
+msgstr "Onderhoudsplannen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.vHs4z_"
+msgid "Laboratory samples"
+msgstr "Laboratoriummonsters"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.BEwAxd"
+msgid "Production orders"
+msgstr "Productieorders"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.y10hgk"
+msgid "Care plans"
+msgstr "Zorgplannen"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.mtr3R4"
+msgid "Incidents"
+msgstr "Incidenten"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.Jq3FDz"
+msgid "Content"
+msgstr "Content"
+
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.vBlT6y"
+msgid "Documents"
+msgstr "Documenten"
+
+#: src/features/search/use-subject-type-label.tsx
 msgctxt "search.TkYZBT"
 msgid "Customers"
 msgstr "Klanten"
 
-#: src/features/search/components/command-search.tsx
-msgctxt "search.sOh6hT"
-msgid "Find a customer by name, even with a typo."
-msgstr "Vind een klant op naam, ook met een typefout."
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.lRdUjp"
+msgid "Files and folders"
+msgstr "Bestanden en mappen"
 
-#: src/features/search/components/command-search.tsx
-msgctxt "search.bVjFta"
-msgid "Search customers"
-msgstr "Klanten zoeken"
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.UxTJRa"
+msgid "Projects"
+msgstr "Projecten"
 
-#: src/features/search/components/command-search.tsx
-msgctxt "search.mUocSC"
-msgid "Search failed. Try again."
-msgstr "Zoeken mislukt. Probeer het opnieuw."
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.yhU1et"
+msgid "Tasks"
+msgstr "Taken"
 
-#: src/features/search/components/command-search.tsx
-msgctxt "search.aiy3-p"
-msgid "Type to search."
-msgstr "Typ om te zoeken."
+#: src/features/search/use-subject-type-label.tsx
+msgctxt "search.izHU3r"
+msgid "Work orders"
+msgstr "Werkorders"
 
-#: src/features/search/components/command-search.tsx
-msgctxt "search.wLCEuv"
-msgid "No matches."
-msgstr "Geen resultaten."
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.V52jNn"
+msgid "Enabled"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.C2iTEH"
+msgid "Paused"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.tthToS"
+msgid "Disabled"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.GN9UDB"
+msgid "Push"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.h1gtUi"
+msgid "Poll"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.Xd735s"
+msgid "Receiver"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.drqP2L"
+msgid "Delivery"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.ZvKSfJ"
+msgid "Events"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.Z8971h"
+msgid "Verified"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.dB811t"
+msgid "Search receivers"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.EkHtzj"
+msgid "No streams found"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.UpBMGK"
+msgid "Receivers register a stream to get security event tokens; change the filters to see more."
+msgstr ""
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.xiZz44"
+msgid "The sequences didn't load"
+msgstr "De reeksen zijn niet geladen"
 
 #: src/features/sequences/components/sequence-builder.tsx
 msgctxt "sequences.162kF7"
@@ -25871,22 +26279,6 @@ msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
 msgctxt "errors.TM7s8X"
 msgid "The list was cut off. Ask for a page instead."
 msgstr "De lijst is afgekapt. Vraag in plaats daarvan een pagina op."
-
-#: src/features/agents/components/agent-publish.tsx
-msgctxt "agents.rfC5Ra"
-msgid "Delete this agent?"
-msgstr "Deze agent verwijderen?"
-
-#: src/features/agents/components/agent-publish.tsx
-msgctxt "agents.bYeKbe"
-msgid "The agent is removed for everyone who installed it. This cannot be undone."
-msgstr "De agent wordt verwijderd voor iedereen die hem heeft geïnstalleerd. Dit kan niet ongedaan worden gemaakt."
-
-#: src/features/agents/components/agent-publish.tsx
-msgctxt "agents.47FYwb"
-msgid "Cancel"
-msgstr "Annuleren"
-
 #: src/app/[locale]/(app)/inbox/page.tsx
 msgctxt "inbox.DRlmpk"
 msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
@@ -27589,3 +27981,4 @@ msgstr "Workflowbouwer"
 msgctxt "workflows.yW1OYL"
 msgid "No workflows yet. Members who can edit create one above."
 msgstr "Nog geen workflows. Leden die mogen bewerken maken er hierboven een aan."
+

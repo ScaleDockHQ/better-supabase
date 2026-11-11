@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:acf96d96be4a1c471db6a75fcc55f7e9c8ca9f3c7835fc9bea42e94d20ba63ff
+-- @bsb-hash sha256:66bf2fcef82b2866b26b217fb5617fadbba2d76de61a645f0114efe3be269879
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1125,6 +1125,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."maintenance_calibrat
 create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_calibrations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_maintenance_plan_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."maintenance_plans"
+  for each row execute function "better_supabase"."search_index_row"('maintenance_plan', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"maintenance_plan","event_prefix":"maintenance_plan"}');

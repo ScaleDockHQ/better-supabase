@@ -65,7 +65,11 @@ const NAMES: BlockSqlNames = {
       table: "documents",
       singular: "document",
       primary: true,
-      subject: { title: "name", permissions: { read: "read", write: "write" } },
+      subject: {
+        title: "name",
+        permissions: { read: "read", write: "write" },
+        search: { title: "name", body: [] },
+      },
     },
     document_suggestion: {
       table: "suggestions",

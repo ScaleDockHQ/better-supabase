@@ -26,12 +26,13 @@ import { Input } from "@/components/ui/input";
 import { createCustomer } from "@/features/customers-create/customers-create-actions";
 import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
+import { useNewParam } from "@/lib/use-new-param";
 
 export function CreateCustomerDialog() {
   const t = useExtracted("customers");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(useNewParam());
 
   const form = useActionForm(createCustomer, {
     onSuccess: (customer) => {

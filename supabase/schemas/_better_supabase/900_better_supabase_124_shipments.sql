@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:5d4753f7549824fba20fbe7dcec6674405deeed9e3671da1ce5096adbe3e720b
+-- @bsb-hash sha256:11a3fcb291243476f239049330877fef0eda8e4bb30d37be37b92c5eebc3f175
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1279,6 +1279,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."intrastat_lines" as 
 create policy bsb_tenant_scope_delete on "better_supabase"."intrastat_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_shipment_index"
+  after insert or delete or update of "id", "tenant_id", "reference" on "better_supabase"."shipments"
+  for each row execute function "better_supabase"."search_index_row"('shipment', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.shipments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shipment","event_prefix":"shipment"}');

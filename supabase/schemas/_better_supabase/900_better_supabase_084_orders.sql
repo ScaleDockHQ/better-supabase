@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:2b214ed9a5786cc414670fb444abcb01e6b570cde14b14e6fd805910812214b5
+-- @bsb-hash sha256:7e8069ff8bf6abf00eb748442618bb67462840f44bb5a76bc77979cd39edd631
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3217,6 +3217,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."order_refunds" as re
 create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_order_index"
+  after insert or delete or update of "id", "tenant_id", "number" on "better_supabase"."orders"
+  for each row execute function "better_supabase"."search_index_row"('order', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.orders deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"order","event_prefix":"order"}');

@@ -59,8 +59,8 @@ export const RECIPES: readonly RecipeSource[] = [
       "A search dialog over the search index, with favorites and recents before the user types.",
     hook: { name: "useCommandSearch", entry: "@/hooks/use-search" },
     web: {
-      file: `${WEB_APP}/src/features/search/components/command-search.tsx`,
-      components: ["button", "dialog", "input"],
+      file: `${WEB_APP}/src/features/search/components/command-center.tsx`,
+      components: ["button", "command", "dialog", "kbd"],
       glue: ["use-search"],
     },
     native: {

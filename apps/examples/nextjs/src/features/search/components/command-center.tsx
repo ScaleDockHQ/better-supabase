@@ -1,0 +1,438 @@
+// #region recipe:command-search
+"use client";
+
+import type { LucideIcon } from "lucide-react";
+
+import { useTheme } from "@wrksz/themes/client";
+import {
+  ArrowRightIcon,
+  BotIcon,
+  ClockIcon,
+  CompassIcon,
+  LanguagesIcon,
+  MonitorIcon,
+  MoonIcon,
+  PlusIcon,
+  RotateCwIcon,
+  SearchIcon,
+  StarIcon,
+  SunIcon,
+  UserPlusIcon,
+} from "lucide-react";
+import { hasLocale, useExtracted, useLocale } from "next-intl";
+import { useState } from "react";
+
+import type { CommandSearchItem } from "@/hooks/use-search";
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  CommandDialog,
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CreateOrganizationDialog } from "@/features/organization/components/create-organization-dialog";
+import { useCommandSearch } from "@/hooks/use-search";
+import { usePathname, useRouter, toAppHref } from "@/i18n/navigation";
+import { routing } from "@/i18n/routing";
+import { searchConfig } from "@/lib/supabase/blocks/slices";
+
+import { useSubjectTypeLabel } from "../use-subject-type-label";
+import { CommandSearchTrigger } from "./command-search-trigger";
+import { OrganizationCommands } from "./organization-commands";
+
+/** A page of the side menu the caller may open. */
+export interface CommandPage {
+  readonly id: string;
+  /** Without the locale prefix. */
+  readonly href: string;
+  readonly label: string;
+}
+
+/** The API schema `gen` wrote for the search block. */
+const API_SCHEMA = searchConfig.api;
+
+/** Pages listed before the user types; typing searches all of them. */
+const PAGES_WHEN_EMPTY = 6;
+
+const LOCALE_NAMES = { en: "English", nl: "Nederlands" } as const;
+
+/** Every word of `query` appears in one of the texts. */
+function matches(query: string, ...texts: readonly string[]): boolean {
+  const haystack = texts.join(" ").toLowerCase();
+
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word !== "")
+    .every((word) => haystack.includes(word));
+}
+
+interface CommandAction {
+  readonly id: string;
+  readonly label: string;
+  readonly keywords: string;
+  readonly icon: LucideIcon;
+  readonly run: () => void;
+}
+
+/**
+ * Cmd+K over the app: records from every subject the search block indexes (one
+ * call to `search(q)` per typing burst, answered by Postgres under the caller's
+ * access), recents and favorites, actions, and the pages of the menu. The code
+ * loads on the first intent (ADR 0483), so it stays out of every route's first
+ * load.
+ */
+export function CommandCenter({
+  pages,
+  canCreateCustomer,
+}: {
+  pages: readonly CommandPage[];
+  canCreateCustomer: boolean;
+}) {
+  const t = useExtracted("search");
+  const typeLabel = useSubjectTypeLabel();
+  const router = useRouter();
+  const pathname = usePathname();
+  const locale = useLocale();
+  const { setTheme } = useTheme();
+  const [creatingOrganization, setCreatingOrganization] = useState(false);
+  const search = useCommandSearch({ schema: API_SCHEMA, limit: 30 });
+  const query = search.query.trim();
+
+  const go = (href: string) => {
+    search.setOpen(false);
+    router.push(toAppHref(href));
+  };
+
+  const open = (item: CommandSearchItem) => {
+    if (item.url === null) {
+      return;
+    }
+
+    const href = item.url;
+    void search.select(item);
+    router.push(toAppHref(href));
+  };
+
+  const actions: readonly CommandAction[] = [
+    ...(canCreateCustomer
+      ? [
+          {
+            id: "new-customer",
+            label: t("New customer"),
+            keywords: t("create add customer"),
+            icon: UserPlusIcon,
+            run: () => {
+              go("/customers?new=1");
+            },
+          },
+        ]
+      : []),
+    {
+      id: "new-organization",
+      label: t("Create organization"),
+      keywords: t("new organization workspace"),
+      icon: PlusIcon,
+      run: () => {
+        search.setOpen(false);
+        setCreatingOrganization(true);
+      },
+    },
+    {
+      id: "theme-light",
+      label: t("Light theme"),
+      keywords: t("theme appearance light"),
+      icon: SunIcon,
+      run: () => {
+        setTheme("light");
+        search.setOpen(false);
+      },
+    },
+    {
+      id: "theme-dark",
+      label: t("Dark theme"),
+      keywords: t("theme appearance dark"),
+      icon: MoonIcon,
+      run: () => {
+        setTheme("dark");
+        search.setOpen(false);
+      },
+    },
+    {
+      id: "theme-system",
+      label: t("System theme"),
+      keywords: t("theme appearance system"),
+      icon: MonitorIcon,
+      run: () => {
+        setTheme("system");
+        search.setOpen(false);
+      },
+    },
+    ...routing.locales
+      .filter((option) => option !== locale)
+      .map((option) => ({
+        id: `locale-${option}`,
+        label: t("Switch language to {language}", {
+          language: LOCALE_NAMES[option],
+        }),
+        keywords: t("language locale"),
+        icon: LanguagesIcon,
+        run: () => {
+          search.setOpen(false);
+
+          if (hasLocale(routing.locales, option)) {
+            router.replace(pathname, { locale: option });
+          }
+        },
+      })),
+  ];
+
+  const shownActions =
+    query === ""
+      ? actions
+      : actions.filter((action) =>
+          matches(query, action.label, action.keywords),
+        );
+
+  const shownPages =
+    query === ""
+      ? pages.slice(0, PAGES_WHEN_EMPTY)
+      : pages.filter((page) => matches(query, page.label, page.href));
+
+  const waiting = search.loading && search.results.length === 0;
+  const noMatches = query !== "" && !search.loading;
+
+  return (
+    <>
+      <CommandSearchTrigger
+        onClick={() => {
+          search.setOpen(true);
+        }}
+      />
+      <CommandDialog
+        open={search.open}
+        onOpenChange={search.setOpen}
+        title={t("Search")}
+        description={t(
+          "Find records, run an action or open a page. Press Escape to close.",
+        )}
+        className="sm:max-w-xl"
+      >
+        <Command shouldFilter={false} loop>
+          <CommandInput
+            value={search.query}
+            onValueChange={search.setQuery}
+            placeholder={t("Search records, actions and pages")}
+            aria-label={t("Search records, actions and pages")}
+          />
+          <CommandList aria-live="polite">
+            {search.error === undefined ? null : (
+              <div className="p-1">
+                <Alert variant="destructive">
+                  <AlertTitle>{t("Search failed")}</AlertTitle>
+                  <AlertDescription className="flex items-center justify-between gap-2">
+                    {t("Records could not load. Actions and pages still work.")}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        // The controller queries again only when the trimmed text changes.
+                        const again = search.query;
+                        search.setQuery("");
+                        search.setQuery(again);
+                      }}
+                    >
+                      <RotateCwIcon />
+                      {t("Retry")}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+
+            {query === "" ? (
+              <>
+                {search.groups.map((group) => (
+                  <CommandGroup
+                    key={group.key}
+                    heading={
+                      group.key === "favorites" ? t("Favorites") : t("Recent")
+                    }
+                  >
+                    {group.items.map((item) => (
+                      <CommandItem
+                        key={`${group.key}:${item.subjectType}:${item.subjectId}`}
+                        value={`${group.key}:${item.subjectType}:${item.subjectId}`}
+                        disabled={item.url === null}
+                        onSelect={() => {
+                          open(item);
+                        }}
+                      >
+                        {group.key === "favorites" ? (
+                          <StarIcon />
+                        ) : (
+                          <ClockIcon />
+                        )}
+                        <span className="truncate">
+                          {item.title ?? item.subjectId}
+                        </span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {typeLabel(item.subjectType)}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ))}
+              </>
+            ) : (
+              <>
+                {search.groups.map((group) => (
+                  <CommandGroup key={group.key} heading={typeLabel(group.key)}>
+                    {group.items.map((item) => (
+                      <CommandItem
+                        key={`${item.subjectType}:${item.subjectId}`}
+                        value={`${item.subjectType}:${item.subjectId}`}
+                        disabled={item.url === null}
+                        onSelect={() => {
+                          open(item);
+                        }}
+                      >
+                        <span className="truncate">
+                          {item.title ?? item.subjectId}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ))}
+                {waiting ? (
+                  <CommandGroup heading={t("Records")}>
+                    <div className="flex flex-col gap-2 p-2" aria-busy="true">
+                      <Skeleton className="h-5 w-3/4" />
+                      <Skeleton className="h-5 w-1/2" />
+                      <Skeleton className="h-5 w-2/3" />
+                    </div>
+                  </CommandGroup>
+                ) : null}
+                <CommandGroup>
+                  <CommandItem
+                    value={`all:${query}`}
+                    onSelect={() => {
+                      go(`/search?q=${encodeURIComponent(query)}`);
+                    }}
+                  >
+                    <SearchIcon />
+                    {t("See all results for {query}", { query })}
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+
+            {shownActions.length === 0 ? null : (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t("Actions")}>
+                  {shownActions.map((action) => (
+                    <CommandItem
+                      key={action.id}
+                      value={`action:${action.id}`}
+                      onSelect={action.run}
+                    >
+                      <action.icon />
+                      {action.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            <OrganizationCommands
+              query={query}
+              onSwitched={() => {
+                search.setOpen(false);
+              }}
+            />
+
+            {shownPages.length === 0 ? null : (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t("Go to")}>
+                  {shownPages.map((page) => (
+                    <CommandItem
+                      key={page.id}
+                      value={`page:${page.id}`}
+                      onPointerEnter={() => {
+                        router.prefetch(toAppHref(page.href));
+                      }}
+                      onSelect={() => {
+                        go(page.href);
+                      }}
+                    >
+                      <CompassIcon />
+                      {page.label}
+                      <ArrowRightIcon className="ml-auto opacity-50" />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {query === "" ? null : (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t("Assistant")}>
+                  <CommandItem
+                    value="ask-assistant"
+                    onSelect={() => {
+                      go(`/assistant?ask=${encodeURIComponent(query)}`);
+                    }}
+                  >
+                    <BotIcon />
+                    {t("Ask the assistant: {query}", { query })}
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+
+            {noMatches &&
+            search.results.length === 0 &&
+            shownActions.length === 0 &&
+            shownPages.length === 0 ? (
+              <p className="px-3 py-4 text-center text-sm text-muted-foreground">
+                {t("No records match. Ask the assistant or see all results.")}
+              </p>
+            ) : null}
+          </CommandList>
+          <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <KbdGroup>
+                <Kbd>↑</Kbd>
+                <Kbd>↓</Kbd>
+              </KbdGroup>
+              {t("to move")}
+            </span>
+            <span className="flex items-center gap-1">
+              <Kbd>↵</Kbd>
+              {t("to open")}
+            </span>
+            <span className="flex items-center gap-1">
+              <Kbd>Esc</Kbd>
+              {t("to close")}
+            </span>
+          </div>
+        </Command>
+      </CommandDialog>
+      <CreateOrganizationDialog
+        open={creatingOrganization}
+        onOpenChange={setCreatingOrganization}
+      />
+    </>
+  );
+}
+// #endregion recipe:command-search

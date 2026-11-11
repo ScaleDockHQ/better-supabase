@@ -1,6 +1,6 @@
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:a9abb575e7beac6c43bec976f242948fdf23ca13cac513c9b0bba7c078cf31cb
+-- @bsb-hash sha256:276365e55ff3d18bd4f91cbf82bc5790fcb8eece78d0f97785f47e0d3c9a7d79
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -970,6 +970,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."work_order_parts" as
 create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_work_order_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."work_orders"
+  for each row execute function "better_supabase"."search_index_row"('work_order', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_orders deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_order","event_prefix":"work_order"}');

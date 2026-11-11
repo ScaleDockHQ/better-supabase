@@ -64,6 +64,7 @@ const NAMES: BlockSqlNames = {
       subject: {
         title: "customerName",
         permissions: { read: "read", write: "manage" },
+        search: { title: "customerName", body: [] },
       },
     },
   },
