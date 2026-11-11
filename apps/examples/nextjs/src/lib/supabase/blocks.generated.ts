@@ -13,6 +13,7 @@ import type { AccessRequestsEvents } from "better-supabase/blocks/access-request
 import type { AccountingEvents } from "better-supabase/blocks/accounting";
 import type { AgentsEvents } from "better-supabase/blocks/agents";
 import type { AiChatEvents } from "better-supabase/blocks/ai-chat";
+import type { AiGuardrailsEvents } from "better-supabase/blocks/ai-guardrails";
 import type { AiKeysEvents } from "better-supabase/blocks/ai-keys";
 import type { AnnouncementsEvents } from "better-supabase/blocks/announcements";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
@@ -156,7 +157,9 @@ import { accountingBlock as accountingBlockInstance } from "better-supabase/bloc
 import { agentsBlock as agentsBlockInstance } from "better-supabase/blocks/agents";
 import { aiCacheBlock as aiCacheBlockInstance } from "better-supabase/blocks/ai-cache";
 import { aiChatBlock as aiChatBlockInstance } from "better-supabase/blocks/ai-chat";
+import { aiEvalsBlock as aiEvalsBlockInstance } from "better-supabase/blocks/ai-evals";
 import { aiFilesBlock as aiFilesBlockInstance } from "better-supabase/blocks/ai-files";
+import { aiGuardrailsBlock as aiGuardrailsBlockInstance } from "better-supabase/blocks/ai-guardrails";
 import { aiKeysBlock as aiKeysBlockInstance } from "better-supabase/blocks/ai-keys";
 import { aiSchedulesBlock as aiSchedulesBlockInstance } from "better-supabase/blocks/ai-schedules";
 import { announcementsBlock as announcementsBlockInstance } from "better-supabase/blocks/announcements";
@@ -241,6 +244,7 @@ import { inboxBlock as inboxBlockInstance } from "better-supabase/blocks/inbox";
 import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
 import { invoicesBlock as invoicesBlockInstance } from "better-supabase/blocks/invoices";
 import { idempotencyBlock as idempotencyBlockInstance } from "better-supabase/blocks/queue";
+import { promptsBlock as promptsBlockInstance } from "better-supabase/blocks/prompts";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { rateLimitBlock as rateLimitBlockInstance } from "better-supabase/blocks/queue";
 import { webhookInboxBlock as webhookInboxBlockInstance } from "better-supabase/blocks/queue";
@@ -338,7 +342,9 @@ export const blocks = {
   agents: agentsBlockInstance,
   "ai-cache": aiCacheBlockInstance,
   "ai-chat": aiChatBlockInstance,
+  "ai-evals": aiEvalsBlockInstance,
   "ai-files": aiFilesBlockInstance,
+  "ai-guardrails": aiGuardrailsBlockInstance,
   "ai-keys": aiKeysBlockInstance,
   "ai-schedules": aiSchedulesBlockInstance,
   announcements: announcementsBlockInstance,
@@ -423,6 +429,7 @@ export const blocks = {
   inventory: inventoryBlockInstance,
   invoices: invoicesBlockInstance,
   idempotency: idempotencyBlockInstance,
+  prompts: promptsBlockInstance,
   queue: queueBlockInstance,
   "rate-limit": rateLimitBlockInstance,
   "webhook-inbox": webhookInboxBlockInstance,
@@ -506,7 +513,7 @@ export const appTableEventSchemas = {
 } as const;
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -836,6 +843,7 @@ export const blockEvents: Events<BlockEvents> = {
     "funding_claim.responded",
     "funding_claim.sent",
     "funding_delivery.registered",
+    "guardrail.blocked",
     "guest.accepted",
     "guest.invited",
     "guest.revoked",
@@ -1629,6 +1637,7 @@ export const blockEventSchemas = {
   "funding_claim.responded": true,
   "funding_claim.sent": true,
   "funding_delivery.registered": true,
+  "guardrail.blocked": true,
   "guest.accepted": true,
   "guest.invited": true,
   "guest.revoked": true,
