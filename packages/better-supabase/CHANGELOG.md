@@ -1,5 +1,15 @@
 # better-supabase
 
+## 0.58.2
+
+### Patch Changes
+
+- [#823](https://github.com/ScaleDockHQ/better-supabase/pull/823) [`3363b29`](https://github.com/ScaleDockHQ/better-supabase/commit/3363b2935b490ddcc801766be0541fa57990ea1e) Thanks [@mick340](https://github.com/mick340)! - With an authorization provider that defines `isApprover`, `approval_eligible_ids` asks it per pending request inside the set query instead of calling `approval_eligible` for every request no set rule matched, so a policy branch such as `id in (select better_supabase.approval_eligible_ids())` no longer re-runs every approver rule per request in every tenant. 2,000 pending requests in ten tenants: 349 ms before, 5.5 ms after. Run `better-supabase upgrade` and generate a migration.
+
+- [#823](https://github.com/ScaleDockHQ/better-supabase/pull/823) [`a07bc1b`](https://github.com/ScaleDockHQ/better-supabase/commit/a07bc1b153b94320f7d694bbe8391a603fc63d53) Thanks [@mick340](https://github.com/mick340)! - `list_comments`, `get_comment` and the other comment reads look up the record's conversation and work items by key, and `message_authors` checks only the conversations of the messages it was given, so a comment read no longer checks every conversation the caller can read. Reading one comment as a member of 50 tenants with 150 record conversations asks `can_subject` 5 times instead of 154. Run `better-supabase upgrade` and generate a migration.
+
+- [#823](https://github.com/ScaleDockHQ/better-supabase/pull/823) [`802c8cd`](https://github.com/ScaleDockHQ/better-supabase/commit/802c8cd5dc67ca1758c3274e01c577cd1e09a941) Thanks [@mick340](https://github.com/mick340)! - `usage_overview` reads the tenant's plans and entitlements once per call instead of once per quota row. Run `better-supabase upgrade` and generate a migration.
+
 ## 0.58.1
 
 ### Patch Changes

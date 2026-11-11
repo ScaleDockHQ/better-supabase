@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.58.2 (2026-11-11)
+
+- With an authorization provider that defines `isApprover`, `approval_eligible_ids` asks it per pending request inside the set query instead of calling `approval_eligible` for every request no set rule matched, so a policy branch such as `id in (select better_supabase.approval_eligible_ids())` no longer re-runs every approver rule per request in every tenant. 2,000 pending requests in ten tenants: 349 ms before, 5.5 ms after. Run `better-supabase upgrade` and generate a migration.
+- `list_comments`, `get_comment` and the other comment reads look up the record's conversation and work items by key, and `message_authors` checks only the conversations of the messages it was given, so a comment read no longer checks every conversation the caller can read. Reading one comment as a member of 50 tenants with 150 record conversations asks `can_subject` 5 times instead of 154. Run `better-supabase upgrade` and generate a migration.
+- `usage_overview` reads the tenant's plans and entitlements once per call instead of once per quota row. Run `better-supabase upgrade` and generate a migration.
+
 ## 0.58.1 (2026-11-11)
 
 - A table loaded lazily (`gen.serverTables: "lazy"`) keeps its property on `db` when a block instance has the same name, as an eager table already did; the block stays under `db.$blocks`. `codemod owned-columns` reads the live database when it can connect and keeps an optional column that the database or the snapshot has, instead of reading the snapshot alone. A derived `sameTenant` entry sets `shared` when the referenced table's tenant column may be null, so global rows such as shared roles pass again; a not-null tenant column keeps the strict check. The `en` tax seeds no longer create the `STD`, `RED` and `ZERO` codes without rates, and a seed table with no rows renders no empty `if`. Doctor BS260 reports an old argument name only where `codemod naming` renames it, so a local variable named `workItemId` passes, and the codemod no longer treats a value such as `{ taskId: workItemId }` as shorthand. The 0.57 to 0.58 guide covers search watches without `columns` and the column renames in your own SQL functions.
