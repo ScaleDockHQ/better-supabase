@@ -559,7 +559,12 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0673: Raise two next-build raw baselines after draft orders and purchase order numbers.
 - 0674: Raise the customers first load and server raw baselines after the list extras.
 - 0675: Read comment conversations by key, ask isApprover in the approval set, read usage plans once.
+<<<<<<< HEAD
 - 0676: Move server importers onto the core and shell block sets, and ask read set gates in one wave.
+||||||| bd8cb90772
+=======
+- 0676: Raise the next-build baselines after lazy server tables load their relation targets.
+>>>>>>> origin/main
 
 ## Pre-release pins
 

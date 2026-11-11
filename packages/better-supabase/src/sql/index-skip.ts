@@ -1,7 +1,11 @@
 import type { BlockSqlFile } from "./module-types.ts";
 
 import { isList, isRecord } from "../core/guards.ts";
-import { maskComments, statementSpans } from "./over-app-tables.ts";
+import {
+  leadingComments,
+  maskComments,
+  statementSpans,
+} from "./over-app-tables.ts";
 import { indexStatements } from "./schema-scan.ts";
 
 const INDEX_NAME = /^[a-z_][a-z0-9_]*$/;
@@ -94,7 +98,8 @@ export function withoutSkippedIndexes(
     }
 
     removed.push(...drop);
-    out += sql.slice(cursor, from);
+    out +=
+      sql.slice(cursor, from) + leadingComments(sql.slice(from, to), statement);
     cursor = to;
   }
 
