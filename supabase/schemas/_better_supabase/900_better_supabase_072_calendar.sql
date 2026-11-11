@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:76824577b8f93b61cbe42d340798cc7bfabba81242ff37754b455540b4049691
+-- @bsb-hash sha256:ea48a222bc672c19e6df3b8af5220e3ce8b0a08865df49a477de44074b19a09a
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -717,7 +717,24 @@ begin
     and not exists (
       select 1 from "better_supabase"."calendar_events" o
       where o."recurrence_id" = c.event_id and o."original_starts_at" = s.at
-    );
+    )
+  union all
+  select r."user_id", 'out_of_office'::text, t.s, t.en, null::uuid, true
+  from "better_supabase"."leave_requests" r
+  cross join lateral (select coalesce((select h."tz" from "better_supabase"."calendar_working_hours" h where h."tenant_id" = calendar_busy_blocks.tenant and h."user_id" = r."user_id" limit 1), 'UTC') as tz) z
+  cross join lateral (
+    select
+      (case when (case r."partial" when 'afternoon' then 'afternoon' when 'hours' then 'hours' else 'full' end) = 'afternoon' then r."starts_on" + time '12:00' else r."starts_on"::timestamp end) at time zone z.tz as s,
+      (case when (case r."partial" when 'morning' then 'morning' when 'hours' then 'hours' else 'full' end) = 'morning' then r."ends_on" + time '12:00' else (r."ends_on" + 1)::timestamp end) at time zone z.tz as en
+  ) t
+  where r."tenant_id" = calendar_busy_blocks.tenant
+    and r."user_id" = any (calendar_busy_blocks.user_ids)
+    and r."approved_at" is not null
+    and r."cancelled_at" is null
+    and (case r."partial" when 'afternoon' then 'afternoon' when 'hours' then 'hours' else 'full' end) <> 'hours'
+    and (case r."partial" when 'morning' then 'morning' when 'hours' then 'hours' else 'full' end) <> 'hours'
+    and t.s < calendar_busy_blocks.range_end
+    and t.en > calendar_busy_blocks.range_start;
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_busy_blocks"(uuid, uuid[], timestamptz, timestamptz) from public, anon, authenticated;

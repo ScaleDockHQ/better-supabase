@@ -1,6 +1,6 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:3a73d0c47e13db4b59eb7a1492768b57ad40cdf48e122c1a9dd97a5ba087c59e
+-- @bsb-hash sha256:1adb4a62bab762a46084c6b1116d0835befa3fded08d9ac0e80ccec68d5c8f55
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -86,8 +86,8 @@ create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('activities.read'))
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('quotes.read'))
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('tasks.read'))
-    when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
+    when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))
     when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
     when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
     when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('orders.read'))
@@ -231,8 +231,8 @@ declare
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (start_sla_clocks.subject_id)::uuid)
-      when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (start_sla_clocks.subject_id)::uuid)
@@ -303,8 +303,8 @@ begin
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
@@ -409,8 +409,8 @@ declare
       when 'quote' then (select s."tenant_id"::text from "better_supabase"."quotes" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = (record_sla_event.subject_id)::uuid)
-      when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'invoice' then (select s."tenant_id"::text from "better_supabase"."invoices" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'rfq' then (select s."tenant_id"::text from "better_supabase"."rfqs" s where s."id" = (record_sla_event.subject_id)::uuid)
@@ -481,8 +481,8 @@ begin
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
@@ -763,8 +763,8 @@ create policy bsb_tenant_scope_select on "better_supabase"."sla_clocks" as restr
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('activities.read'))
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('quotes.read'))
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('tasks.read'))
-    when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
+    when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))
     when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
     when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('catalog.read'))
     when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = ("better_supabase"."sla_clocks"."subject_id")::uuid and s."tenant_id" = "better_supabase"."sla_clocks"."tenant_id") and "better_supabase"."sla_clocks"."tenant_id" in (select better_supabase.tenant_ids_with('orders.read'))

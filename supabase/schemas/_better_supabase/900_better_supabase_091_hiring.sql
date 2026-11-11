@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:7b2879d2556c30fff6ed50c36a63b0ae19e2ae26f46a67f651a705fb9aa03ca4
+-- @bsb-hash sha256:2d1b65216ead351f910f21fdecd8251358fa78c486ff0652fd66cd4e031c3d4e
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -237,8 +237,8 @@ begin
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
-      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
+      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)

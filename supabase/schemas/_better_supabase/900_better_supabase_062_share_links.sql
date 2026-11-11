@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:a045e70527af4055e47631da2bb00124ef078e23912ce492decceeb9ed1a042d
+-- @bsb-hash sha256:25c1e54fc9b091ccc2db04bd1c076d609967052b8b6a3ac3f19102f5f7f1665a
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,6 +98,7 @@ begin
     when 'booking_service' then array['view']::text[]
     when 'drive_node' then array['view', 'download', 'upload']::text[]
     when 'form' then array['respond']::text[]
+    when 'leave_feed' then array['view']::text[]
     else array[coalesce(create_share_link.role, 'view')]
   end) then
     raise exception 'this subject type''s links can''t carry that role' using errcode = '22023', hint = 'SHARE_LINK_ROLE_INVALID';
@@ -109,6 +110,7 @@ begin
     when 'booking_service' then exists (select 1 from "better_supabase"."booking_services" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'drive_node' then "better_supabase"."drive_share_link_allowed"(create_share_link.subject_id::text, create_share_link.tenant::text, coalesce(create_share_link.role, 'view'))
     when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
+    when 'leave_feed' then (create_share_link.subject_id = create_share_link.tenant::text and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'leave.read'), false))
     else case create_share_link.subject_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'messages.read'), false)
@@ -122,8 +124,8 @@ begin
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'employees.read'), false)
-    when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'ledger.read'), false)
+    when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'invoices.read'), false)
     when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'catalog.read'), false)
     when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'catalog.read'), false)
     when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'rfqs.read'), false)
@@ -187,7 +189,7 @@ begin
       end if;
     end;
   end if;
-  if create_share_link.subject_type in ('calendar') then
+  if create_share_link.subject_type in ('calendar', 'leave_feed') then
     update "better_supabase"."share_links" x set "revoked_at" = now()
     where x."tenant_id" = create_share_link.tenant and x."subject_type" = create_share_link.subject_type
       and x."subject_id" = create_share_link.subject_id and x."created_by" is not distinct from auth.uid() and x."revoked_at" is null;

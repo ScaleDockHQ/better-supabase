@@ -133,7 +133,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   domains: later("p5"),
   moderation: later("p10"),
   reviews: later("p8"),
-  leave: later("p9"),
+  leave: at("/people/leave"),
   automations: at("/rules"),
   "vercel-marketplace": later("p5"),
   ledger: at("/finance"),
