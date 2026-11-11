@@ -5,6 +5,8 @@ import type { Page } from "@playwright/test";
 import { instant } from "@next/playwright";
 import { expect, test } from "@playwright/test";
 
+import { navLink } from "./support/example-session";
+
 // Each test states which content is visible before uncached work resolves
 // (under `instant()`'s lock) and which streams in after it. They need a `next
 // build` with the testing API exposed, like instant.spec.ts, and the local
@@ -23,7 +25,7 @@ test("the customers list paints its heading before the rows", async ({
 }) => {
   await signIn(page);
   await page.goto("/");
-  const link = page.getByRole("link", { name: "Customers", exact: true });
+  const link = await navLink(page, "Customers", "Sales");
 
   await expect(link.first()).toBeVisible();
 
@@ -103,7 +105,7 @@ test("the sign-up form is static and the sign-in link is instant", async ({
 test("the assistant paints its heading before the chats", async ({ page }) => {
   await signIn(page);
   await page.goto("/");
-  const link = page.getByRole("link", { name: "Assistant", exact: true });
+  const link = await navLink(page, "Assistant", "AI");
 
   await expect(link.first()).toBeVisible();
 
@@ -120,7 +122,7 @@ test("the assistant paints its heading before the chats", async ({ page }) => {
 test("the projects frame paints before the project data", async ({ page }) => {
   await signIn(page);
   await page.goto("/");
-  const link = page.getByRole("link", { name: "Projects", exact: true });
+  const link = await navLink(page, "Projects", "Work");
 
   await expect(link.first()).toBeVisible();
 
@@ -130,4 +132,21 @@ test("the projects frame paints before the project data", async ({ page }) => {
 
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
   });
+});
+
+test("a customer search keeps the grid and writes the URL", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/customers");
+
+  const search = page.getByRole("searchbox", { name: "Search customers" });
+  const row = page.getByRole("link", { name: "Road Runner Inc" });
+
+  await expect(row).toBeVisible();
+  await search.fill("Road");
+
+  await expect(page).toHaveURL(/[?&]q=Road/);
+  await expect(row).toBeVisible();
+  await expect(page.getByTestId("record-list")).toBeVisible();
 });

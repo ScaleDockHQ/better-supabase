@@ -5,6 +5,8 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
 
+import { navLink } from "./support/example-session";
+
 async function signIn(page: Page): Promise<void> {
   await page.goto("/login");
   await page.getByLabel("Email").fill("admin@acme.test");
@@ -21,7 +23,7 @@ test("home to customers renders the static shell under the lock", async ({
   page,
 }) => {
   await page.goto("/");
-  const link = page.getByRole("link", { name: "Customers", exact: true });
+  const link = await navLink(page, "Customers", "Sales");
 
   await expect(link.first()).toBeVisible();
 
