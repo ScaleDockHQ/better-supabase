@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:01a5f7fe0e5f2e516a1c272cad186866569a2d4d4f676056a21fbdc8e7198d82
+-- @bsb-hash sha256:aa0dac464295bbc1c06924f2eae5283350bdfe5f463315900e61dc59d380d18b
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5252,6 +5252,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."e_invoice_deliveries
 create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_invoice_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."invoices"
+  for each row execute function "better_supabase"."search_index_row"('invoice', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.invoices deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"invoice","event_prefix":"invoice"}');

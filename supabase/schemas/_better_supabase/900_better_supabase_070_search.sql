@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:6a8e42d28925f217f0dea400b4bb10cfeb9a275882d009d2daf3ea553c7a7495
+-- @bsb-hash sha256:992a4bce513a97edc8102e90a0a27b028587bcd2155d892ed0ee0dbf0969d00d
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -122,6 +122,12 @@ begin
         from "better_supabase"."activities" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
+    when 'quote' then
+      select s."tenant_id", s."title"::text, null, '/crm/quotes/' || s."id"::text
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."quotes" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'work_item' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."identifier"::text, s."body"::text), ''), '/work'
         into v_tenant, v_title, v_body, v_url
@@ -133,6 +139,18 @@ begin
       select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."email"::text, s."job_title"::text), ''), '/people/' || s."id"::text
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."employees" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'ledger_account' then
+      select s."tenant_id", s."name"::text, null, '/finance'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."ledger_accounts" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'invoice' then
+      select s."tenant_id", s."title"::text, null, '/finance/payables'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."invoices" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'product' then
@@ -147,16 +165,76 @@ begin
         from "better_supabase"."product_variants" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
+    when 'rfq' then
+      select s."tenant_id", s."title"::text, null, '/rfqs'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."rfqs" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'till' then
+      select s."tenant_id", s."name"::text, null, '/tills'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."tills" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'order' then
+      select s."tenant_id", s."number"::text, null, '/shop/orders/' || s."id"::text
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."orders" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'calendar_event' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."description"::text, s."location"::text), ''), null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."calendar_events" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
+    when 'booking' then
+      select s."tenant_id", s."customer_name"::text, null, '/calendar'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."bookings" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'asset' then
+      select s."tenant_id", s."name"::text, null, null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."assets" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'lease' then
+      select s."tenant_id", s."title"::text, null, null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."leases" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'expense_report' then
+      select s."tenant_id", s."title"::text, null, null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."expense_reports" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'warranty_claim' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."manufacturer"::text, s."decision"::text), ''), null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."warranty_claims" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'work_order' then
+      select s."tenant_id", s."title"::text, null, '/field/dispatch'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."work_orders" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'shipment' then
+      select s."tenant_id", s."reference"::text, null, '/field/shipments'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."shipments" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'contract' then
+      select s."tenant_id", s."title"::text, null, null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."contracts" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'risk' then
@@ -179,10 +257,28 @@ begin
         from "better_supabase"."inspections" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
+    when 'form' then
+      select s."tenant_id", s."title"::text, null, '/forms/' || s."id"::text
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."forms" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'meeting' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."location"::text, s."summary"::text), ''), null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."meetings" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'maintenance_plan' then
+      select s."tenant_id", s."title"::text, null, '/maintenance'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."maintenance_plans" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'lims_sample' then
+      select s."tenant_id", s."title"::text, null, '/lims'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."lims_samples" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'production_order' then
@@ -191,10 +287,28 @@ begin
         from "better_supabase"."production_orders" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
+    when 'care_plan' then
+      select s."tenant_id", s."title"::text, null, '/care-plans'
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."care_plans" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'incident' then
+      select s."tenant_id", s."title"::text, null, null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."incidents" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'content_entry' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."summary"::text), ''), null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."content_entries" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'document' then
+      select s."tenant_id", s."name"::text, null, '/documents/' || s."id"::text
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."documents" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'customer' then
@@ -219,6 +333,12 @@ begin
         from "public"."projects" s
         where s."id" = (search_refresh.subject_id)::uuid
         and s."deleted_at" is null;
+      v_found := found;
+    when 'task' then
+      select s."organization_id", s."title"::text, null, '/projects/' || s."project_id"::text
+        into v_tenant, v_title, v_body, v_url
+        from "public"."tasks" s
+        where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     else
       raise exception 'this subject type has no search entry in config.recordTypes' using errcode = '22023', hint = 'SEARCH_SUBJECT_UNKNOWN';
@@ -346,6 +466,13 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'quote' then
+    for v_id in select s."id"::text from "better_supabase"."quotes" s loop
+      if "better_supabase"."search_refresh"('quote', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'work_item' then
     for v_id in select s."id"::text from "better_supabase"."work_items" s loop
       if "better_supabase"."search_refresh"('work_item', v_id) then
@@ -356,6 +483,20 @@ begin
   if search_reindex.subject_type is null or search_reindex.subject_type = 'employee' then
     for v_id in select s."id"::text from "better_supabase"."employees" s loop
       if "better_supabase"."search_refresh"('employee', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'ledger_account' then
+    for v_id in select s."id"::text from "better_supabase"."ledger_accounts" s loop
+      if "better_supabase"."search_refresh"('ledger_account', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'invoice' then
+    for v_id in select s."id"::text from "better_supabase"."invoices" s loop
+      if "better_supabase"."search_refresh"('invoice', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
@@ -374,6 +515,27 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'rfq' then
+    for v_id in select s."id"::text from "better_supabase"."rfqs" s loop
+      if "better_supabase"."search_refresh"('rfq', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'till' then
+    for v_id in select s."id"::text from "better_supabase"."tills" s loop
+      if "better_supabase"."search_refresh"('till', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'order' then
+    for v_id in select s."id"::text from "better_supabase"."orders" s loop
+      if "better_supabase"."search_refresh"('order', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'calendar_event' then
     for v_id in select s."id"::text from "better_supabase"."calendar_events" s loop
       if "better_supabase"."search_refresh"('calendar_event', v_id) then
@@ -381,9 +543,58 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'booking' then
+    for v_id in select s."id"::text from "better_supabase"."bookings" s loop
+      if "better_supabase"."search_refresh"('booking', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'asset' then
+    for v_id in select s."id"::text from "better_supabase"."assets" s loop
+      if "better_supabase"."search_refresh"('asset', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'lease' then
+    for v_id in select s."id"::text from "better_supabase"."leases" s loop
+      if "better_supabase"."search_refresh"('lease', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'expense_report' then
+    for v_id in select s."id"::text from "better_supabase"."expense_reports" s loop
+      if "better_supabase"."search_refresh"('expense_report', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'warranty_claim' then
     for v_id in select s."id"::text from "better_supabase"."warranty_claims" s loop
       if "better_supabase"."search_refresh"('warranty_claim', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'work_order' then
+    for v_id in select s."id"::text from "better_supabase"."work_orders" s loop
+      if "better_supabase"."search_refresh"('work_order', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'shipment' then
+    for v_id in select s."id"::text from "better_supabase"."shipments" s loop
+      if "better_supabase"."search_refresh"('shipment', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'contract' then
+    for v_id in select s."id"::text from "better_supabase"."contracts" s loop
+      if "better_supabase"."search_refresh"('contract', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
@@ -409,9 +620,30 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'form' then
+    for v_id in select s."id"::text from "better_supabase"."forms" s loop
+      if "better_supabase"."search_refresh"('form', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'meeting' then
     for v_id in select s."id"::text from "better_supabase"."meetings" s loop
       if "better_supabase"."search_refresh"('meeting', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'maintenance_plan' then
+    for v_id in select s."id"::text from "better_supabase"."maintenance_plans" s loop
+      if "better_supabase"."search_refresh"('maintenance_plan', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'lims_sample' then
+    for v_id in select s."id"::text from "better_supabase"."lims_samples" s loop
+      if "better_supabase"."search_refresh"('lims_sample', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
@@ -423,9 +655,30 @@ begin
       end if;
     end loop;
   end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'care_plan' then
+    for v_id in select s."id"::text from "better_supabase"."care_plans" s loop
+      if "better_supabase"."search_refresh"('care_plan', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'incident' then
+    for v_id in select s."id"::text from "better_supabase"."incidents" s loop
+      if "better_supabase"."search_refresh"('incident', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'content_entry' then
     for v_id in select s."id"::text from "better_supabase"."content_entries" s loop
       if "better_supabase"."search_refresh"('content_entry', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'document' then
+    for v_id in select s."id"::text from "better_supabase"."documents" s loop
+      if "better_supabase"."search_refresh"('document', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
@@ -447,6 +700,13 @@ begin
   if search_reindex.subject_type is null or search_reindex.subject_type = 'project' then
     for v_id in select s."id"::text from "public"."projects" s loop
       if "better_supabase"."search_refresh"('project', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'task' then
+    for v_id in select s."id"::text from "public"."tasks" s loop
+      if "better_supabase"."search_refresh"('task', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
@@ -556,6 +816,9 @@ create trigger "bsb_search_drive_node_index"
 create trigger "bsb_search_project_index"
   after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
   for each row execute function "better_supabase"."search_index_row"('project', 'id');
+create trigger "bsb_search_task_index"
+  after insert or delete or update of "id", "organization_id", "title", "project_id" on "public"."tasks"
+  for each row execute function "better_supabase"."search_index_row"('task', 'id');
 -- A change in better_supabase.drive_node_texts re-indexes the drive_node it points at.
 create or replace function "better_supabase"."search_watch_drive_node_0"()
 returns trigger

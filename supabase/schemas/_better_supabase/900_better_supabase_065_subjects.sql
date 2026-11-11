@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:c93ad88ff106771b61813557fcb5b4a14438b904a4df2cc49292a5ba65fe8b54
+-- @bsb-hash sha256:a11ee34d43c879881475a20f295dbe5f23a6653ccfe45da4e015686cdb68e538
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -254,12 +254,40 @@ begin
       return (select '/crm/contacts/' || s."id"::text from "better_supabase"."people" s where s."id" = (subject_url.subject_id)::uuid);
     when 'deal' then
       return (select '/crm/deals' from "better_supabase"."deals" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
+    when 'quote' then
+      return (select '/crm/quotes/' || s."id"::text from "better_supabase"."quotes" s where s."id" = (subject_url.subject_id)::uuid);
     when 'work_item' then
       return (select '/work' from "better_supabase"."work_items" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
       return (select '/people/' || s."id"::text from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'ledger_account' then
+      return (select '/finance' from "better_supabase"."ledger_accounts" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'invoice' then
+      return (select '/finance/payables' from "better_supabase"."invoices" s where s."id" = (subject_url.subject_id)::uuid);
     when 'product' then
       return (select '/shop' from "better_supabase"."products" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'rfq' then
+      return (select '/rfqs' from "better_supabase"."rfqs" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'till' then
+      return (select '/tills' from "better_supabase"."tills" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'order' then
+      return (select '/shop/orders/' || s."id"::text from "better_supabase"."orders" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'booking' then
+      return (select '/calendar' from "better_supabase"."bookings" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'work_order' then
+      return (select '/field/dispatch' from "better_supabase"."work_orders" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'shipment' then
+      return (select '/field/shipments' from "better_supabase"."shipments" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'form' then
+      return (select '/forms/' || s."id"::text from "better_supabase"."forms" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'maintenance_plan' then
+      return (select '/maintenance' from "better_supabase"."maintenance_plans" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'lims_sample' then
+      return (select '/lims' from "better_supabase"."lims_samples" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'care_plan' then
+      return (select '/care-plans' from "better_supabase"."care_plans" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'document' then
+      return (select '/documents/' || s."id"::text from "better_supabase"."documents" s where s."id" = (subject_url.subject_id)::uuid);
     when 'customer' then
       return (select '/customers/' || s."id"::text from "public"."customers" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
     when 'application' then
@@ -357,7 +385,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'quote', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/crm/quotes/' || s."id"::text))
     from "better_supabase"."quotes" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'quote')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -375,13 +403,13 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'ledger_account', 'id', s."id"::text,
-      'title', s."name"::text, 'url', null::text))
+      'title', s."name"::text, 'url', '/finance'))
     from "better_supabase"."ledger_accounts" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'ledger_account')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'invoice', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/finance/payables'))
     from "better_supabase"."invoices" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'invoice')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -399,19 +427,19 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'rfq', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/rfqs'))
     from "better_supabase"."rfqs" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'rfq')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'till', 'id', s."id"::text,
-      'title', s."name"::text, 'url', null::text))
+      'title', s."name"::text, 'url', '/tills'))
     from "better_supabase"."tills" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'till')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'order', 'id', s."id"::text,
-      'title', s."number"::text, 'url', null::text))
+      'title', s."number"::text, 'url', '/shop/orders/' || s."id"::text))
     from "better_supabase"."orders" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'order')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -423,7 +451,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'booking', 'id', s."id"::text,
-      'title', s."customer_name"::text, 'url', null::text))
+      'title', s."customer_name"::text, 'url', '/calendar'))
     from "better_supabase"."bookings" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'booking')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -471,13 +499,13 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'work_order', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/field/dispatch'))
     from "better_supabase"."work_orders" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'work_order')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'shipment', 'id', s."id"::text,
-      'title', s."reference"::text, 'url', null::text))
+      'title', s."reference"::text, 'url', '/field/shipments'))
     from "better_supabase"."shipments" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'shipment')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -537,7 +565,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'form', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/forms/' || s."id"::text))
     from "better_supabase"."forms" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'form')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -555,7 +583,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'maintenance_plan', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/maintenance'))
     from "better_supabase"."maintenance_plans" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'maintenance_plan')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -567,7 +595,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'lims_sample', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/lims'))
     from "better_supabase"."lims_samples" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'lims_sample')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -597,7 +625,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'care_plan', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/care-plans'))
     from "better_supabase"."care_plans" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'care_plan')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -615,7 +643,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'document', 'id', s."id"::text,
-      'title', s."name"::text, 'url', null::text))
+      'title', s."name"::text, 'url', '/documents/' || s."id"::text))
     from "better_supabase"."documents" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'document')::uuid[])), '[]'::jsonb);
   found := found || coalesce((

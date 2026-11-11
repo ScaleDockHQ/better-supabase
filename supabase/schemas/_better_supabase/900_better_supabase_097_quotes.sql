@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:78f5be2ebfb2ac9eb9bd29fe94c9536b3f8a958c91f798fe402a5b9b4b1ee311
+-- @bsb-hash sha256:28672804c1c57d4ef1d4e29a0d022e32585600601de3faead7e6ae4df9516b54
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2004,6 +2004,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."quote_tax_lines" as 
 create policy bsb_tenant_scope_delete on "better_supabase"."quote_tax_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_quote_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."quotes"
+  for each row execute function "better_supabase"."search_index_row"('quote', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.quotes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"quote","event_prefix":"quote"}');
