@@ -80,7 +80,7 @@ export function RecordListView<Row extends RowData & { readonly id: string }>({
               counts={page?.facetCounts}
               capped={page?.facetCountsCapped === true}
               onChange={(patch) => {
-                list.set({ facets: patch });
+                list.set(patch);
               }}
             />
           ) : null
