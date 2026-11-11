@@ -276,6 +276,11 @@ export interface DoctorConfig {
    */
   readonly policyHelperLimit?: number;
   /**
+   * How many database reads one `Promise.all` may await before BS609 suggests a
+   * read set. Defaults to 3.
+   */
+  readonly parallelReads?: number;
+  /**
    * The app's own seal functions, as `schema.name`, such as
    * `['public.seal_secret_fields']`. BS352 skips a secret column that a
    * row-level `before` trigger running one of them assigns.

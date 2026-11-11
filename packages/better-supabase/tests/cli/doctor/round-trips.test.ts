@@ -8,8 +8,12 @@ function check(
   sources: readonly TextFile[],
 ): readonly { message: string; location?: { line: number } }[] {
   const [rule] = ROUND_TRIP_RULES;
-  // SAFETY: BS609 reads only `sources`.
-  const findings = rule?.check({ sources } as unknown as DoctorContext);
+
+  // SAFETY: BS609 reads only `sources` and `doctor.parallelReads`.
+  const findings = rule?.check({
+    sources,
+    config: { doctor: { parallelReads: 3 } },
+  } as unknown as DoctorContext);
 
   if (!Array.isArray(findings)) {
     throw new TypeError("BS609 runs synchronously");

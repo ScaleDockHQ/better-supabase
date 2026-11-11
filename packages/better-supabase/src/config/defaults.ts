@@ -38,6 +38,7 @@ export const CONFIG_DEFAULTS: {
     readonly format: "text";
     readonly sources: readonly string[];
     readonly policyHelperLimit: number;
+    readonly parallelReads: number;
   };
   readonly gen: { readonly watchInterval: number };
   readonly env: { readonly file: string };
@@ -64,6 +65,7 @@ export const CONFIG_DEFAULTS: {
     format: "text",
     sources: ["src/**/*.{ts,tsx}"],
     policyHelperLimit: 5,
+    parallelReads: 3,
   },
   gen: { watchInterval: 2000 },
   env: { file: ".env.local" },
