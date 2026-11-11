@@ -380,7 +380,8 @@ export function specTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   try {
     tables = readTables(meta, spec);
   } catch {
-    tables = [spec.table];
+    // Not cached: a lazy schema may load the missing table later.
+    return [spec.table];
   }
 
   if (key !== undefined) {
