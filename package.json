@@ -37,6 +37,7 @@
     "env:local": "node scripts/env-local.ts",
     "env:pull": "vercel env pull .env.local --environment=development --yes",
     "env:pull:production": "vercel env pull .env.production.local --environment=production --yes",
+    "example:perf-report": "node scripts/example-perf-report.ts",
     "fix": "ultracite fix",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
