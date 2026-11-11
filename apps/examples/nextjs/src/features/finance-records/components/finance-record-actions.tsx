@@ -52,8 +52,8 @@ import {
 type Action<I> = Parameters<typeof useAction<I, unknown>>[0];
 
 /**
- * A button that runs one action with fixed input, toasts the outcome and
- * leaves the refresh to the action (it expires the tags the lists carry).
+ * A button that runs one action with fixed input, toasts the outcome and leaves
+ * the refresh to the action (it expires the tags the lists carry).
  */
 function RunButton<I>({
   action,
@@ -113,7 +113,7 @@ function FormDialog<T>({
   submit,
   done,
   fields,
-  hidden = {},
+  hidden = NO_HIDDEN,
   variant = "outline",
 }: {
   action: Parameters<typeof useActionForm<T>>[0];
@@ -201,6 +201,8 @@ function FormDialog<T>({
 }
 
 const AMOUNT = String.raw`\d+(\.\d{1,2})?`;
+
+const NO_HIDDEN: Readonly<Record<string, string>> = {};
 
 /** What a person may do with an expense report in its status. */
 export function ExpenseActions({
@@ -487,12 +489,19 @@ export function CreateLegalEntityDialog() {
     <FormDialog
       action={createLegalEntity}
       title={t("New legal entity")}
-      description={t("The first entity of an organization becomes its default.")}
+      description={t(
+        "The first entity of an organization becomes its default.",
+      )}
       trigger={t("New legal entity")}
       submit={t("Create entity")}
       done={t("Legal entity created")}
       fields={[
-        { name: "code", label: t("Code"), placeholder: "ACME-NL", maxLength: 32 },
+        {
+          name: "code",
+          label: t("Code"),
+          placeholder: "ACME-NL",
+          maxLength: 32,
+        },
         { name: "name", label: t("Name") },
         {
           name: "vatNumber",

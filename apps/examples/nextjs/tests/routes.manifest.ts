@@ -41,7 +41,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -50,7 +50,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/banking/transactions",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -59,7 +59,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -68,7 +68,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/banking/accounts",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -77,7 +77,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -86,7 +86,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/finance/accounting",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -95,7 +95,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -104,7 +104,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/finance/periods",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -113,7 +113,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -122,7 +122,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/finance/ledger",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -131,7 +131,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -140,7 +140,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/finance/invoices",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -149,7 +149,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -158,7 +158,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/finance/expenses",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -167,7 +167,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -176,7 +176,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/finance/billable-time",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -185,7 +185,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -194,7 +194,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/finance/tax",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -203,7 +203,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -212,7 +212,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -221,7 +221,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/finance/recurring",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -230,7 +230,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -239,7 +239,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -248,7 +248,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {

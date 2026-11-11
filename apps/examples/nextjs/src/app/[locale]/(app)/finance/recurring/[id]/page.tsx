@@ -8,9 +8,6 @@ export default function RecurringRecordPage({
   params,
 }: PageProps<"/[locale]/finance/recurring/[id]">) {
   return (
-    <FinanceDetailPage
-      entity="recurring"
-      ids={params.then(({ id }) => id)}
-    />
+    <FinanceDetailPage entity="recurring" ids={params.then(({ id }) => id)} />
   );
 }

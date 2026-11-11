@@ -1,3 +1,4 @@
+/* oxlint-disable anti-slop/no-conditional-empty-object-spread -- `exactOptionalPropertyTypes` rejects an explicit `undefined`, so an optional input is spread only when present; 11 findings */
 "use server";
 
 import { ok } from "better-supabase";

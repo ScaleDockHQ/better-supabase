@@ -1,10 +1,11 @@
+/* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type -- the record is the untyped jsonb of `api.finance_detail`, read field by field per entity; the 14 findings are the boundary readers (`asText`, `rowsOf`, the formatters) */
 import type { ReactNode } from "react";
 
 import { formatMoney, moneyFromJson } from "better-supabase/commerce";
 import { TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter, getLocale } from "next-intl/server";
-import { notFound } from "next/navigation";
 import { refresh } from "next/cache";
+import { notFound } from "next/navigation";
 
 import type { FinanceEntityKey } from "@/lib/finance-list";
 
@@ -164,7 +165,8 @@ export async function FinanceDetail({
       : "–";
   };
 
-  const yesNo = (value: unknown): string => (value === true ? t("Yes") : t("No"));
+  const yesNo = (value: unknown): string =>
+    value === true ? t("Yes") : t("No");
 
   const duration = (value: unknown): string => {
     const minutes = Math.round(Number(value ?? 0) / 60);
@@ -177,66 +179,87 @@ export async function FinanceDetail({
       case "draft": {
         return t("Draft");
       }
+
       case "issued": {
         return t("Issued");
       }
+
       case "partially_paid": {
         return t("Partly paid");
       }
+
       case "paid": {
         return t("Paid");
       }
+
       case "void": {
         return t("Void");
       }
+
       case "uncollectible": {
         return t("Uncollectible");
       }
+
       case "submitted": {
         return t("Submitted");
       }
+
       case "approved": {
         return t("Approved");
       }
+
       case "reimbursed": {
         return t("Reimbursed");
       }
+
       case "cancelled": {
         return t("Cancelled");
       }
+
       case "open": {
         return t("Open");
       }
+
       case "locked": {
         return t("Locked");
       }
+
       case "closed": {
         return t("Closed");
       }
+
       case "filed": {
         return t("Filed");
       }
+
       case "exported": {
         return t("Exported");
       }
+
       case "posted": {
         return t("Posted");
       }
+
       case "active": {
         return t("Active");
       }
+
       case "archived": {
         return t("Archived");
       }
+
       case "matched": {
         return t("Matched");
       }
+
       case "unmatched": {
         return t("Unmatched");
       }
+
       case "ignored": {
         return t("Ignored");
       }
+
       default: {
         return humanize(value);
       }
@@ -274,7 +297,10 @@ export async function FinanceDetail({
             { label: t("Direction"), value: humanize(text("direction")) },
             { label: t("Issued"), value: date(record["issued_on"]) },
             { label: t("Due"), value: date(record["due_on"]) },
-            { label: t("Subtotal"), value: money(record["subtotal"], currency) },
+            {
+              label: t("Subtotal"),
+              value: money(record["subtotal"], currency),
+            },
             { label: t("Tax"), value: money(record["tax_total"], currency) },
             { label: t("Total"), value: money(record["total"], currency) },
             { label: t("Paid"), value: money(record["paid_total"], currency) },
@@ -291,10 +317,15 @@ export async function FinanceDetail({
           tables: [
             {
               title: t("Lines"),
-              headers: [t("Description"), t("Quantity"), t("Unit amount"), t("Tax")],
+              headers: [
+                t("Description"),
+                t("Quantity"),
+                t("Unit amount"),
+                t("Tax"),
+              ],
               rows: rowsOf(record["lines"]).map((line) => [
-                text_(line, "description"),
-                text_(line, "quantity"),
+                textOf(line, "description"),
+                textOf(line, "quantity"),
                 money(line["unit_amount"], currency),
                 `${String(Number(line["tax_rate_bps"] ?? 0) / 100)}%`,
               ]),
@@ -305,7 +336,7 @@ export async function FinanceDetail({
               headers: [t("Date"), t("Level"), t("Fee"), t("Open balance")],
               rows: rowsOf(record["dunning"]).map((row) => [
                 dateTime(row["created_at"]),
-                text_(row, "level"),
+                textOf(row, "level"),
                 money(row["fee"], currency),
                 money(row["balance"], currency),
               ]),
@@ -316,9 +347,9 @@ export async function FinanceDetail({
               headers: [t("Date"), t("Channel"), t("Format"), t("State")],
               rows: rowsOf(record["deliveries"]).map((row) => [
                 dateTime(row["created_at"]),
-                humanize(text_(row, "channel")),
-                text_(row, "format"),
-                humanize(text_(row, "state")),
+                humanize(textOf(row, "channel")),
+                textOf(row, "format"),
+                humanize(textOf(row, "state")),
               ]),
               empty: t("Not sent as an e-invoice."),
             },
@@ -327,7 +358,7 @@ export async function FinanceDetail({
               headers: [t("Booked"), t("Counterparty"), t("Amount")],
               rows: rowsOf(record["matches"]).map((row) => [
                 date(row["bookedOn"]),
-                text_(row, "counterparty"),
+                textOf(row, "counterparty"),
                 money(row["amount"], currency),
               ]),
               empty: t("No bank transaction pays this invoice yet."),
@@ -335,6 +366,7 @@ export async function FinanceDetail({
           ],
         };
       }
+
       case "expenses": {
         const lines = rowsOf(record["lines"]);
 
@@ -371,17 +403,25 @@ export async function FinanceDetail({
             { label: t("Filed"), value: dateTime(record["created_at"]) },
             { label: t("Submitted"), value: dateTime(record["submitted_at"]) },
             { label: t("Approved"), value: dateTime(record["approved_at"]) },
-            { label: t("Reimbursed"), value: dateTime(record["reimbursed_at"]) },
+            {
+              label: t("Reimbursed"),
+              value: dateTime(record["reimbursed_at"]),
+            },
             { label: t("Currency"), value: currency },
           ],
           tables: [
             {
               title: t("Receipts"),
-              headers: [t("Date"), t("Description"), t("Category"), t("Amount")],
+              headers: [
+                t("Date"),
+                t("Description"),
+                t("Category"),
+                t("Amount"),
+              ],
               rows: lines.map((line) => [
                 date(line["spent_on"]),
-                text_(line, "description"),
-                text_(line, "category"),
+                textOf(line, "description"),
+                textOf(line, "category"),
                 money(line["amount"], currency),
               ]),
               empty: t("No receipts on this report."),
@@ -389,6 +429,7 @@ export async function FinanceDetail({
           ],
         };
       }
+
       case "ledger": {
         return {
           title: text("memo") || t("Ledger transaction"),
@@ -406,15 +447,16 @@ export async function FinanceDetail({
               title: t("Entries"),
               headers: [t("Account"), t("Amount"), t("Unit")],
               rows: rowsOf(record["entries"]).map((row) => [
-                `${text_(row, "code")} ${text_(row, "account")}`.trim(),
-                text_(row, "amount"),
-                text_(row, "unit"),
+                `${textOf(row, "code")} ${textOf(row, "account")}`.trim(),
+                textOf(row, "amount"),
+                textOf(row, "unit"),
               ]),
               empty: t("No entries."),
             },
           ],
         };
       }
+
       case "journal": {
         const lines = rowsOf(record["lines"]);
         const code = asText(lines[0]?.["currency"]) ?? "EUR";
@@ -426,27 +468,30 @@ export async function FinanceDetail({
           fields: [
             { label: t("Date"), value: date(record["entry_date"]) },
             { label: t("Reference"), value: dash(asText(record["reference"])) },
-            {
-              label: t("Source"),
-              value: dash(asText(record["source_type"])),
-            },
+            { label: t("Source"), value: dash(asText(record["source_type"])) },
             { label: t("Posted"), value: dateTime(record["posted_at"]) },
           ],
           tables: [
             {
               title: t("Lines"),
-              headers: [t("Account"), t("Debit"), t("Credit"), t("Description")],
+              headers: [
+                t("Account"),
+                t("Debit"),
+                t("Credit"),
+                t("Description"),
+              ],
               rows: lines.map((line) => [
-                `${text_(line, "code")} ${text_(line, "account")}`.trim(),
+                `${textOf(line, "code")} ${textOf(line, "account")}`.trim(),
                 money(line["debit"], code),
                 money(line["credit"], code),
-                text_(line, "description"),
+                textOf(line, "description"),
               ]),
               empty: t("No lines."),
             },
           ],
         };
       }
+
       case "billable-time": {
         return {
           title: dash(asText(record["note"])),
@@ -460,14 +505,17 @@ export async function FinanceDetail({
               label: t("Hourly rate"),
               value: money(record["rate"], record["rate_currency"]),
             },
-            { label: t("Record"), value: `${text("subject_type")} ${text("subject_id")}`.trim() },
+            {
+              label: t("Record"),
+              value: `${text("subject_type")} ${text("subject_id")}`.trim(),
+            },
           ],
           tables: [
             {
               title: t("Invoiced on"),
               headers: [t("Invoice"), t("Hours billed"), t("Rate")],
               rows: rowsOf(record["invoices"]).map((row) => [
-                text_(row, "invoiceId").slice(0, 8),
+                textOf(row, "invoiceId").slice(0, 8),
                 duration(row["seconds"]),
                 money(row["rate"], row["currency"]),
               ]),
@@ -476,6 +524,7 @@ export async function FinanceDetail({
           ],
         };
       }
+
       case "recurring": {
         return {
           title: text("source_id"),
@@ -493,13 +542,14 @@ export async function FinanceDetail({
               rows: rowsOf(record["rows"]).map((row) => [
                 date(row["due_on"]),
                 money(row["amount"], currency),
-                statusText(text_(row, "status")),
+                statusText(textOf(row, "status")),
               ]),
               empty: t("No postings are planned."),
             },
           ],
         };
       }
+
       case "tax": {
         const status = text("status");
         const boxes = record["boxes"];
@@ -532,6 +582,7 @@ export async function FinanceDetail({
           ],
         };
       }
+
       case "periods": {
         const status = text("status");
 
@@ -549,6 +600,7 @@ export async function FinanceDetail({
           tables: [],
         };
       }
+
       case "payroll": {
         const status = text("status");
 
@@ -570,16 +622,17 @@ export async function FinanceDetail({
               title: t("Lines"),
               headers: [t("Employee"), t("Code"), t("Kind"), t("Quantity")],
               rows: rowsOf(record["lines"]).map((row) => [
-                text_(row, "employee_name"),
-                text_(row, "code"),
-                humanize(text_(row, "kind")),
-                `${text_(row, "quantity")} ${text_(row, "unit")}`.trim(),
+                textOf(row, "employee_name"),
+                textOf(row, "code"),
+                humanize(textOf(row, "kind")),
+                `${textOf(row, "quantity")} ${textOf(row, "unit")}`.trim(),
               ]),
               empty: t("The run has no lines yet."),
             },
           ],
         };
       }
+
       case "legal-entities": {
         const archived = record["archived_at"] !== null;
 
@@ -595,15 +648,25 @@ export async function FinanceDetail({
             />
           ) : null,
           fields: [
-            { label: t("VAT number"), value: dash(asText(record["vat_number"])) },
-            { label: t("Chamber of Commerce"), value: dash(asText(record["coc_number"])) },
+            {
+              label: t("VAT number"),
+              value: dash(asText(record["vat_number"])),
+            },
+            {
+              label: t("Chamber of Commerce"),
+              value: dash(asText(record["coc_number"])),
+            },
             { label: t("IBAN"), value: dash(asText(record["iban"])) },
-            { label: t("Currency"), value: dash(asText(record["default_currency"])) },
+            {
+              label: t("Currency"),
+              value: dash(asText(record["default_currency"])),
+            },
             { label: t("Default"), value: yesNo(record["is_default"]) },
           ],
           tables: [],
         };
       }
+
       case "funding": {
         const status = text("status");
 
@@ -626,14 +689,15 @@ export async function FinanceDetail({
               headers: [t("Date"), t("Units"), t("Status")],
               rows: rowsOf(record["deliveries"]).map((row) => [
                 date(row["delivered_on"]),
-                text_(row, "units"),
-                statusText(text_(row, "status")),
+                textOf(row, "units"),
+                statusText(textOf(row, "status")),
               ]),
               empty: t("Nothing was delivered against this award."),
             },
           ],
         };
       }
+
       case "bank-accounts": {
         return {
           title: text("name"),
@@ -648,18 +712,24 @@ export async function FinanceDetail({
           tables: [
             {
               title: t("Latest transactions"),
-              headers: [t("Booked"), t("Counterparty"), t("Amount"), t("Status")],
+              headers: [
+                t("Booked"),
+                t("Counterparty"),
+                t("Amount"),
+                t("Status"),
+              ],
               rows: rowsOf(record["transactions"]).map((row) => [
                 date(row["bookedOn"]),
-                text_(row, "counterparty"),
+                textOf(row, "counterparty"),
                 money(row["amount"], row["currency"]),
-                statusText(text_(row, "status")),
+                statusText(textOf(row, "status")),
               ]),
               empty: t("No transactions were imported."),
             },
           ],
         };
       }
+
       case "bank-transactions": {
         return {
           title: text("counterparty_name") || t("Bank transaction"),
@@ -668,15 +738,21 @@ export async function FinanceDetail({
           fields: [
             { label: t("Booked"), value: date(record["booked_on"]) },
             { label: t("Amount"), value: money(record["amount"], currency) },
-            { label: t("Counterparty IBAN"), value: dash(asText(record["counterparty_iban"])) },
-            { label: t("Remittance"), value: dash(asText(record["remittance"])) },
+            {
+              label: t("Counterparty IBAN"),
+              value: dash(asText(record["counterparty_iban"])),
+            },
+            {
+              label: t("Remittance"),
+              value: dash(asText(record["remittance"])),
+            },
           ],
           tables: [
             {
               title: t("Matches"),
               headers: [t("Matched to"), t("Amount"), t("Date")],
               rows: rowsOf(record["matches"]).map((row) => [
-                `${humanize(text_(row, "target_type"))} ${text_(row, "target_id").slice(0, 8)}`,
+                `${humanize(textOf(row, "target_type"))} ${textOf(row, "target_id").slice(0, 8)}`,
                 money(row["amount"], currency),
                 dateTime(row["created_at"]),
               ]),
@@ -685,6 +761,7 @@ export async function FinanceDetail({
           ],
         };
       }
+
       default: {
         const unknown: never = entity;
 
@@ -740,10 +817,12 @@ export async function FinanceDetail({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {table.rows.map((row, index) => (
-                    <TableRow key={index}>
+                  {table.rows.map((row) => (
+                    <TableRow key={row.join("\u001F")}>
                       {row.map((cell, column) => (
-                        <TableCell key={column}>{cell}</TableCell>
+                        <TableCell key={table.headers[column]}>
+                          {cell}
+                        </TableCell>
                       ))}
                     </TableRow>
                   ))}
@@ -758,7 +837,7 @@ export async function FinanceDetail({
 }
 
 /** A record's text field, empty when it holds none. */
-function text_(row: Json, key: string): string {
+function textOf(row: Json, key: string): string {
   return asText(row[key]) ?? "";
 }
 

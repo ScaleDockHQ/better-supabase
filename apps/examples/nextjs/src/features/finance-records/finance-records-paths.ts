@@ -4,8 +4,8 @@ import type { FinanceEntityKey } from "@/lib/finance-list";
 import { toAppHref } from "@/i18n/navigation";
 
 /**
- * Where each entity's overview lives. A record's page is the overview path
- * and the id, so a row link and a back link never drift apart.
+ * Where each entity's overview lives. A record's page is the overview path and
+ * the id, so a row link and a back link never drift apart.
  */
 export const FINANCE_PATHS = {
   invoices: "/finance/invoices",

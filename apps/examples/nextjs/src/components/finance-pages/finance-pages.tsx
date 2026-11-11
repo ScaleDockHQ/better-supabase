@@ -4,6 +4,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import type { Permission } from "@/features/user/user-permissions";
 import type { FinanceEntityKey } from "@/lib/finance-list";
 
 import { PageHeader } from "@/components/page-header";
@@ -26,7 +27,6 @@ import {
 import { FINANCE_PATHS } from "@/features/finance-records/finance-records-paths";
 import { ConnectivityFallback } from "@/features/offline/components/connectivity-fallback";
 import { PermissionGate } from "@/features/user/components/permission-gate";
-import type { Permission } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
 /** The permission that reads each entity, and the one that writes it. */
@@ -55,24 +55,35 @@ function createFor(
     case "tax": {
       return { permission: "tax.manage", node: <PrepareTaxReturnDialog /> };
     }
+
     case "billable-time": {
-      return { permission: "billable_time.invoice", node: <InvoiceTimeButton /> };
+      return {
+        permission: "billable_time.invoice",
+        node: <InvoiceTimeButton />,
+      };
     }
+
     case "payroll": {
       return {
         permission: "payroll_export.export",
         node: <CreatePayrollRunDialog />,
       };
     }
+
     case "legal-entities": {
       return {
         permission: "legal_entities.manage",
         node: <CreateLegalEntityDialog />,
       };
     }
+
     case "bank-accounts": {
-      return { permission: "banking.manage", node: <CreateBankAccountDialog /> };
+      return {
+        permission: "banking.manage",
+        node: <CreateBankAccountDialog />,
+      };
     }
+
     case "invoices":
     case "payables":
     case "expenses":
@@ -84,6 +95,7 @@ function createFor(
     case "bank-transactions": {
       return null;
     }
+
     default: {
       const unknown: never = entity;
 
@@ -92,10 +104,7 @@ function createFor(
   }
 }
 
-function useOverviewCopy(entity: FinanceEntityKey): {
-  readonly title: string;
-  readonly description: string;
-} {
+function useOverviewCopy(entity: FinanceEntityKey) {
   const t = useExtracted("finance");
 
   switch (entity) {
@@ -107,12 +116,14 @@ function useOverviewCopy(entity: FinanceEntityKey): {
         ),
       };
     }
+
     case "payables": {
       return {
         title: t("Bills"),
         description: t("Purchase invoices to approve and pay."),
       };
     }
+
     case "expenses": {
       return {
         title: t("Expenses"),
@@ -121,6 +132,7 @@ function useOverviewCopy(entity: FinanceEntityKey): {
         ),
       };
     }
+
     case "ledger": {
       return {
         title: t("Ledger"),
@@ -129,6 +141,7 @@ function useOverviewCopy(entity: FinanceEntityKey): {
         ),
       };
     }
+
     case "journal": {
       return {
         title: t("Journal"),
@@ -137,6 +150,7 @@ function useOverviewCopy(entity: FinanceEntityKey): {
         ),
       };
     }
+
     case "billable-time": {
       return {
         title: t("Billable time"),
@@ -145,6 +159,7 @@ function useOverviewCopy(entity: FinanceEntityKey): {
         ),
       };
     }
+
     case "recurring": {
       return {
         title: t("Recurring postings"),
@@ -153,48 +168,56 @@ function useOverviewCopy(entity: FinanceEntityKey): {
         ),
       };
     }
+
     case "tax": {
       return {
         title: t("Tax returns"),
         description: t("Returns prepared from posted tax, per period."),
       };
     }
+
     case "periods": {
       return {
         title: t("Periods"),
         description: t("Fiscal periods that lock and close the books."),
       };
     }
+
     case "payroll": {
       return {
         title: t("Payroll runs"),
         description: t("Runs collected from worked and leave hours."),
       };
     }
+
     case "legal-entities": {
       return {
         title: t("Legal entities"),
         description: t("Companies inside this organization."),
       };
     }
+
     case "funding": {
       return {
         title: t("Awards"),
         description: t("Units funders award, with the share each award used."),
       };
     }
+
     case "bank-accounts": {
       return {
         title: t("Bank accounts"),
         description: t("Accounts statements are imported into."),
       };
     }
+
     case "bank-transactions": {
       return {
         title: t("Bank transactions"),
         description: t("Every imported transaction, matched or not."),
       };
     }
+
     default: {
       const unknown: never = entity;
 
@@ -210,45 +233,59 @@ function useBackLabel(entity: FinanceEntityKey): string {
     case "invoices": {
       return t("All invoices");
     }
+
     case "payables": {
       return t("All bills");
     }
+
     case "expenses": {
       return t("All expense reports");
     }
+
     case "ledger": {
       return t("All ledger transactions");
     }
+
     case "journal": {
       return t("All journal entries");
     }
+
     case "billable-time": {
       return t("All time entries");
     }
+
     case "recurring": {
       return t("All schedules");
     }
+
     case "tax": {
       return t("All tax returns");
     }
+
     case "periods": {
       return t("All periods");
     }
+
     case "payroll": {
       return t("All payroll runs");
     }
+
     case "legal-entities": {
       return t("All legal entities");
     }
+
     case "funding": {
       return t("All awards");
     }
+
     case "bank-accounts": {
       return t("All bank accounts");
     }
+
     case "bank-transactions": {
       return t("All bank transactions");
     }
+
     default: {
       const unknown: never = entity;
 
@@ -275,7 +312,9 @@ export function FinanceOverviewPage({
 
   const actions = create ? (
     <Suspense fallback={null}>
-      <PermissionGate permission={create.permission}>{create.node}</PermissionGate>
+      <PermissionGate permission={create.permission}>
+        {create.node}
+      </PermissionGate>
     </Suspense>
   ) : null;
 
@@ -287,7 +326,9 @@ export function FinanceOverviewPage({
             <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
             <p className="text-sm text-muted-foreground">{description}</p>
           </div>
-          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+          {actions ? (
+            <div className="flex items-center gap-2">{actions}</div>
+          ) : null}
         </div>
       ) : (
         <PageHeader title={title} description={description} actions={actions} />

@@ -7,10 +7,5 @@ export const instant = true;
 export default function TaxRecordPage({
   params,
 }: PageProps<"/[locale]/finance/tax/[id]">) {
-  return (
-    <FinanceDetailPage
-      entity="tax"
-      ids={params.then(({ id }) => id)}
-    />
-  );
+  return <FinanceDetailPage entity="tax" ids={params.then(({ id }) => id)} />;
 }

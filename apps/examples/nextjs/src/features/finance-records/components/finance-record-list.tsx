@@ -1,3 +1,4 @@
+/* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- `asText` reads one cell of the untyped jsonb row `api.finance_list` sends; 3 findings */
 "use client";
 
 import type { CellContext } from "@tanstack/react-table";
@@ -13,8 +14,8 @@ import {
   ScaleIcon,
   WalletIcon,
 } from "lucide-react";
-import { createParser, useQueryStates } from "nuqs";
 import { useExtracted, useFormatter, useLocale } from "next-intl";
+import { createParser, useQueryStates } from "nuqs";
 import { createContext, use, useMemo } from "react";
 
 import type { RecordListColumns } from "@/components/record-list/record-list-grid";
@@ -61,9 +62,7 @@ interface ColumnSpec {
 const EntityContext = createContext<FinanceEntityKey>("invoices");
 
 const asText = (value: unknown): string | null =>
-  typeof value === "string" || typeof value === "number"
-    ? String(value)
-    : null;
+  typeof value === "string" || typeof value === "number" ? String(value) : null;
 
 /** `partially_paid` as "Partially paid", for a value the app has no label for. */
 const humanize = (value: string): string => {
@@ -80,78 +79,103 @@ function useValueLabel(): (value: string) => string {
       case "draft": {
         return t("Draft");
       }
+
       case "issued": {
         return t("Issued");
       }
+
       case "partially_paid": {
         return t("Partly paid");
       }
+
       case "paid": {
         return t("Paid");
       }
+
       case "void": {
         return t("Void");
       }
+
       case "uncollectible": {
         return t("Uncollectible");
       }
+
       case "submitted": {
         return t("Submitted");
       }
+
       case "approved": {
         return t("Approved");
       }
+
       case "reimbursed": {
         return t("Reimbursed");
       }
+
       case "cancelled": {
         return t("Cancelled");
       }
+
       case "open": {
         return t("Open");
       }
+
       case "locked": {
         return t("Locked");
       }
+
       case "closed": {
         return t("Closed");
       }
+
       case "filed": {
         return t("Filed");
       }
+
       case "exported": {
         return t("Exported");
       }
+
       case "posted": {
         return t("Posted");
       }
+
       case "active": {
         return t("Active");
       }
+
       case "archived": {
         return t("Archived");
       }
+
       case "matched": {
         return t("Matched");
       }
+
       case "unmatched": {
         return t("Unmatched");
       }
+
       case "ignored": {
         return t("Ignored");
       }
+
       case "sales": {
         return t("Sales");
       }
+
       case "purchase": {
         return t("Purchase");
       }
+
       case "true": {
         return t("Yes");
       }
+
       case "false": {
         return t("No");
       }
+
       default: {
         return humanize(value);
       }
@@ -348,6 +372,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "expenses": {
       return {
         icon: <WalletIcon />,
@@ -373,12 +398,15 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "ledger": {
       return {
         icon: <ScaleIcon />,
         search: t("Search transactions"),
         empty: t("No ledger transactions found"),
-        emptyText: t("Postings show up here once a block writes to the ledger."),
+        emptyText: t(
+          "Postings show up here once a block writes to the ledger.",
+        ),
         columns: [
           { key: "memo", header: t("Memo"), kind: "link", size: 320 },
           { key: "kind", header: t("Kind"), kind: "label", size: 140 },
@@ -397,6 +425,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "journal": {
       return {
         icon: <ScaleIcon />,
@@ -418,6 +447,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "billable-time": {
       return {
         icon: <ClockIcon />,
@@ -432,7 +462,12 @@ function useEntityCopy(entity: FinanceEntityKey) {
             kind: "datetime",
             size: 170,
           },
-          { key: "seconds", header: t("Duration"), kind: "duration", size: 100 },
+          {
+            key: "seconds",
+            header: t("Duration"),
+            kind: "duration",
+            size: 100,
+          },
           { key: "billable", header: t("Billable"), kind: "yesno", size: 100 },
           { key: "billed", header: t("Invoiced"), kind: "yesno", size: 100 },
           { key: "rate", header: t("Hourly rate"), kind: "money", size: 130 },
@@ -447,6 +482,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "recurring": {
       return {
         icon: <CalendarClockIcon />,
@@ -468,6 +504,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "tax": {
       return {
         icon: <ReceiptIcon />,
@@ -488,6 +525,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "periods": {
       return {
         icon: <CalendarClockIcon />,
@@ -508,6 +546,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "payroll": {
       return {
         icon: <BanknoteIcon />,
@@ -528,6 +567,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "legal-entities": {
       return {
         icon: <ScaleIcon />,
@@ -537,7 +577,12 @@ function useEntityCopy(entity: FinanceEntityKey) {
         columns: [
           { key: "name", header: t("Name"), kind: "link", size: 280 },
           { key: "code", header: t("Code"), kind: "text", size: 120 },
-          { key: "vatNumber", header: t("VAT number"), kind: "text", size: 170 },
+          {
+            key: "vatNumber",
+            header: t("VAT number"),
+            kind: "text",
+            size: 170,
+          },
           { key: "currency", header: t("Currency"), kind: "text", size: 100 },
           { key: "isDefault", header: t("Default"), kind: "yesno", size: 100 },
         ] satisfies ColumnSpec[],
@@ -548,6 +593,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "funding": {
       return {
         icon: <BanknoteIcon />,
@@ -570,6 +616,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "bank-accounts": {
       return {
         icon: <WalletIcon />,
@@ -590,6 +637,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     case "bank-transactions": {
       return {
         icon: <WalletIcon />,
@@ -607,7 +655,12 @@ function useEntityCopy(entity: FinanceEntityKey) {
           { key: "bookedOn", header: t("Booked"), kind: "date", size: 130 },
           { key: "amount", header: t("Amount"), kind: "money", size: 130 },
           { key: "status", header: t("Status"), kind: "status", size: 120 },
-          { key: "remittance", header: t("Remittance"), kind: "text", size: 240 },
+          {
+            key: "remittance",
+            header: t("Remittance"),
+            kind: "text",
+            size: 240,
+          },
         ] satisfies ColumnSpec[],
         facets: [status],
         sorts: [
@@ -616,6 +669,7 @@ function useEntityCopy(entity: FinanceEntityKey) {
         ],
       };
     }
+
     default: {
       const unknown: never = entity;
 
@@ -641,7 +695,11 @@ export function FinanceRecordList({
 }) {
   const copy = useEntityCopy(entity);
   const list = useMemo(() => defineFinanceList(entity), [entity]);
-  const state = useRecordListState(list, useQueryStates(list.nuqs(createParser)));
+
+  const state = useRecordListState(
+    list,
+    useQueryStates(list.nuqs(createParser)),
+  );
 
   const columns: RecordListColumns<FinanceRow> = copy.columns.map((spec) => ({
     accessorKey: spec.key,

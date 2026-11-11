@@ -20,25 +20,30 @@ export const statusVariant = (
     case "closed": {
       return "success-light";
     }
+
     case "issued":
     case "submitted":
     case "open": {
       return "info-light";
     }
+
     case "partially_paid":
     case "locked":
     case "unmatched": {
       return "warning-light";
     }
+
     case "uncollectible":
     case "cancelled": {
       return "destructive-light";
     }
+
     case "void":
     case "ignored":
     case "archived": {
       return "outline";
     }
+
     default: {
       return "secondary";
     }

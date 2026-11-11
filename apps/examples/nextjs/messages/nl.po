@@ -13400,3 +13400,4204 @@ msgctxt "navigation.Rm3xgH"
 msgid "Workflow builder"
 msgstr "Workflowbouwer"
 
+
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.bVjFta"
+msgid "Search customers"
+msgstr "Klanten zoeken"
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.mUocSC"
+msgid "Search failed. Try again."
+msgstr "Zoeken mislukt. Probeer het opnieuw."
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.aiy3-p"
+msgid "Type to search."
+msgstr "Typ om te zoeken."
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.wLCEuv"
+msgid "No matches."
+msgstr "Geen resultaten."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.uhLiFs"
+msgid "No sequences yet"
+msgstr "Nog geen reeksen"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.jo2BZv"
+msgid "Create a sample sequence, then activate it to enroll contacts."
+msgstr "Maak een voorbeeldreeks en activeer die om contacten in te schrijven."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.OdK47I"
+msgid "An admin sets up the sequences your team enrolls contacts in."
+msgstr "Een beheerder stelt de reeksen in waarin je team contacten inschrijft."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.C2iTEH"
+msgid "Paused"
+msgstr "Gepauzeerd"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.iOWjNm"
+msgid "Wait {minutes} minutes"
+msgstr "Wacht {minutes} minuten"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.8nWPbU"
+msgid "No steps yet."
+msgstr "Nog geen stappen."
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.bz-S_R"
+msgid "{count} active"
+msgstr "{count} actief"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.cjYin_"
+msgid "{count} completed"
+msgstr "{count} voltooid"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.TE_1u-"
+msgid "{count} replied"
+msgstr "{count} beantwoord"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.5YeDsT"
+msgid "Sample sequence created"
+msgstr "Voorbeeldreeks gemaakt"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.dEl5ay"
+msgid "Welcome series"
+msgstr "Welkomstreeks"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.dC1LJX"
+msgid "Welcome to the team"
+msgstr "Welkom bij het team"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.oPKWQ6"
+msgid "Reply to this email if you have questions."
+msgstr "Beantwoord deze e-mail als je vragen hebt."
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nIHcMI"
+msgid "Call the new customer"
+msgstr "Bel de nieuwe klant"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.KTZS4Z"
+msgid "Create a sample sequence"
+msgstr "Maak een voorbeeldreeks"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.u3ID8A"
+msgid "Sequence active"
+msgstr "Reeks actief"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.GFYx5s"
+msgid "Sequence paused"
+msgstr "Reeks gepauzeerd"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.tFFMkF"
+msgid "Pause"
+msgstr "Pauzeren"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.AcxDgz"
+msgid "Activate"
+msgstr "Activeren"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.6QushX"
+msgid "Step added"
+msgstr "Stap toegevoegd"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.Mmft-L"
+msgid "Wait"
+msgstr "Wachten"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.0wJ7N-"
+msgid "Task"
+msgstr "Taak"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.KWJ4W2"
+msgid "Add step"
+msgstr "Stap toevoegen"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nj4dGB"
+msgid "Add a step"
+msgstr "Voeg een stap toe"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.BGcreS"
+msgid "Recipients already past the end run the new step on their next turn."
+msgstr "Ontvangers die al aan het einde zijn, doorlopen de nieuwe stap bij hun volgende beurt."
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.e5x8FT"
+msgid "Kind"
+msgstr "Soort"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.2_2yg-"
+msgid "Add"
+msgstr "Toevoegen"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.LLtKhp"
+msgid "Subject"
+msgstr "Onderwerp"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.nXsjRT"
+msgid "Following up"
+msgstr "Opvolging"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.1c9W9U"
+msgid "Minutes to wait"
+msgstr "Minuten wachten"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.rM6yDL"
+msgid "Task title"
+msgstr "Taaktitel"
+
+#: src/features/sequences/components/sequence-controls.tsx
+msgctxt "sequences.ifgK-P"
+msgid "Call the contact"
+msgstr "Bel het contact"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.7L86Z5"
+msgid "Member"
+msgstr "Lid"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.iHN12u"
+msgid "Admin"
+msgstr "Beheerder"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.gAyB9M"
+msgid "Service principal added"
+msgstr "Serviceaccount toegevoegd"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.p7tUdy"
+msgid "Add principal"
+msgstr "Serviceaccount toevoegen"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.Jh_szh"
+msgid "Add a service principal"
+msgstr "Een serviceaccount toevoegen"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.kSaWAh"
+msgid "A machine identity that can't sign in. Workflows and webhooks run as it, with its role's permissions."
+msgstr "Een machine-identiteit die niet kan inloggen. Workflows en webhooks draaien als dit account, met de rechten van zijn rol."
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.1ZgrhW"
+msgid "Role"
+msgstr "Rol"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.agCIme"
+msgid "Make it the default"
+msgstr "Als standaard instellen"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.eFMzv9"
+msgid "Work the organization owns runs as the default."
+msgstr "Werk van de organisatie draait als het standaardaccount."
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.Rw7iI7"
+msgid "Disable"
+msgstr "Uitschakelen"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.-T7Ai-"
+msgid "Disable {name}?"
+msgstr "{name} uitschakelen?"
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.l7iclH"
+msgid "It loses its membership, so workflows and webhooks that run as it stop. This can't be undone."
+msgstr "Het verliest zijn lidmaatschap, dus workflows en webhooks die als dit account draaien stoppen. Dit kan niet ongedaan worden gemaakt."
+
+#: src/features/service-principals/components/service-principal-controls.tsx
+msgctxt "servicePrincipals.ZT-sVT"
+msgid "Service principal disabled"
+msgstr "Serviceaccount uitgeschakeld"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.zINlao"
+msgid "Owner"
+msgstr "Eigenaar"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.nL5Cg-"
+msgid "Service principals"
+msgstr "Serviceaccounts"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.B3e6iC"
+msgid "Machine identities that workflows and webhooks run as. They can't sign in."
+msgstr "Machine-identiteiten waarmee workflows en webhooks draaien. Ze kunnen niet inloggen."
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.4rgfr-"
+msgid "The service principals didn't load"
+msgstr "De serviceaccounts zijn niet geladen"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.UfH9Rk"
+msgid "No service principals yet"
+msgstr "Nog geen serviceaccounts"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.IyylOa"
+msgid "Add one so automations don't run as a person."
+msgstr "Voeg er een toe zodat automatiseringen niet als een persoon draaien."
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.B776US"
+msgid "An admin can add one for automations."
+msgstr "Een beheerder kan er een toevoegen voor automatiseringen."
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.ORGv1Q"
+msgid "Created"
+msgstr "Aangemaakt"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.lKv8ex"
+msgid "Default"
+msgstr "Standaard"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.tthToS"
+msgid "Disabled"
+msgstr "Uitgeschakeld"
+
+#: src/features/service-principals/components/service-principals-table.tsx
+msgctxt "servicePrincipals.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/sessions/components/sessions-card.tsx
+msgctxt "sessions.7eoFEl"
+msgid "Your sessions could not be loaded"
+msgstr "Je sessies zijn niet geladen"
+
+#: src/features/sessions/components/sessions-card.tsx
+msgctxt "sessions.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/sessions/components/sessions-card.tsx
+msgctxt "sessions.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.5sg7KC"
+msgid "Password"
+msgstr "Wachtwoord"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.Fjofte"
+msgid "Email link"
+msgstr "E-maillink"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.s5S9f8"
+msgid "Social sign-in"
+msgstr "Inloggen via social"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.YQJkxw"
+msgid "Single sign-on"
+msgstr "Single sign-on"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.izYqCA"
+msgid "Authenticator app"
+msgstr "Authenticator-app"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.y1-vDA"
+msgid "Unknown method"
+msgstr "Onbekende methode"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.saCe9Q"
+msgid "Signing out failed. Try again."
+msgstr "Uitloggen is mislukt. Probeer het opnieuw."
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.YJ0Uas"
+msgid "Signed out of your other devices"
+msgstr "Uitgelogd op je andere apparaten"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.Z3EDd9"
+msgid "Sessions"
+msgstr "Sessies"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.zGiwrr"
+msgid "The devices you are signed in on. End a session if you lost the device or signed in somewhere you no longer use."
+msgstr "De apparaten waarop je bent ingelogd. Beëindig een sessie als je het apparaat kwijt bent of ergens bent ingelogd dat je niet meer gebruikt."
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.wPwDM0"
+msgid "This device"
+msgstr "Dit apparaat"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.oeWogB"
+msgid "Active now"
+msgstr "Nu actief"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.A_jtQ8"
+msgid "Two-factor"
+msgstr "Tweestapsverificatie"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.o6uBGs"
+msgid "{method}, signed in {date}"
+msgstr "{method}, ingelogd {date}"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.xXbJso"
+msgid "Sign out"
+msgstr "Uitloggen"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.LKJc4G"
+msgid "You are not signed in on any other device."
+msgstr "Je bent op geen ander apparaat ingelogd."
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.vusy2r"
+msgid "Other devices stay signed in until you end their sessions."
+msgstr "Andere apparaten blijven ingelogd tot je hun sessies beëindigt."
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.ZAh2TG"
+msgid "Sign out other devices"
+msgstr "Andere apparaten uitloggen"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.JDArHB"
+msgid "Sign out of your other devices?"
+msgstr "Uitloggen op je andere apparaten?"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.UMWq87"
+msgid "Every session except this one ends. Those devices have to sign in again."
+msgstr "Elke sessie behalve deze wordt beëindigd. Die apparaten moeten opnieuw inloggen."
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.7Htd8-"
+msgid "Sign out others"
+msgstr "Anderen uitloggen"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.DgX9uT"
+msgid "Session ended"
+msgstr "Sessie beëindigd"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.10IkTF"
+msgid "Unknown device"
+msgstr "Onbekend apparaat"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.f62BVb"
+msgid "Last active {date} from {ip}"
+msgstr "Laatst actief {date} vanaf {ip}"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.Xa4LQE"
+msgid "Last active {date}"
+msgstr "Laatst actief {date}"
+
+#: src/features/sessions/components/sessions-list.tsx
+msgctxt "sessions.iIenp6"
+msgid "End session"
+msgstr "Sessie beëindigen"
+
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.7ccWHk"
+msgid "Only admins can change this."
+msgstr "Alleen beheerders kunnen dit wijzigen."
+
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.xIOlmn"
+msgid "Your preferences"
+msgstr "Jouw voorkeuren"
+
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.hZcxFt"
+msgid "Only you see these."
+msgstr "Alleen jij ziet deze."
+
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.Lbq9gJ"
+msgid "Organization defaults"
+msgstr "Standaardinstellingen van de organisatie"
+
+#: src/features/settings/components/settings-layout.tsx
+msgctxt "settings.zvMP6-"
+msgid "Shared by everyone in the organization."
+msgstr "Gedeeld met iedereen in de organisatie."
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.itPgxd"
+msgid "Profile"
+msgstr "Profiel"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.PCSt5T"
+msgid "Preferences"
+msgstr "Voorkeuren"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.6cBDhe"
+msgid "Integrations"
+msgstr "Integraties"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Py189G"
+msgid "Security"
+msgstr "Beveiliging"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.cXBJ7U"
+msgid "Privacy"
+msgstr "Privacy"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.K56Dim"
+msgid "Organization"
+msgstr "Organisatie"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.-a-2ug"
+msgid "Members"
+msgstr "Leden"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.c35gM5"
+msgid "Roles"
+msgstr "Rollen"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.V8cirD"
+msgid "Access requests"
+msgstr "Toegangsverzoeken"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Tbo377"
+msgid "Billing"
+msgstr "Facturatie"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.yOFPA6"
+msgid "API keys"
+msgstr "API-sleutels"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.hf7LJX"
+msgid "Webhooks"
+msgstr "Webhooks"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.RHDnsC"
+msgid "Incoming webhooks"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.NZ8yBj"
+msgid "Domains"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.7lS5o3"
+msgid "Option sets"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Ed112w"
+msgid "Flags"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.GlHclO"
+msgid "Numbering"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.kpuV4y"
+msgid "Security events"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.EN-bsf"
+msgid "OAuth apps"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.iiCETl"
+msgid "Search index"
+msgstr ""
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Y0PHiM"
+msgid "Signing keys"
+msgstr "Ondertekeningssleutels"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.YQJkxw"
+msgid "Single sign-on"
+msgstr "Single sign-on"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.i9kpGj"
+msgid "Custom fields"
+msgstr "Eigen velden"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.9AcATF"
+msgid "Jobs"
+msgstr "Taken"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.ED9RG5"
+msgid "Audit log"
+msgstr "Auditlog"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings._3yfCs"
+msgid "AI providers"
+msgstr "AI-providers"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.LHKgIm"
+msgid "The roster didn't load"
+msgstr "Het rooster is niet geladen"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.7aB5fd"
+msgid "No shifts this week"
+msgstr "Geen diensten deze week"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.eTTTI3"
+msgid "Save a shift template, generate the week's shifts from it, then publish them."
+msgstr "Sla een dienstsjabloon op, maak daarmee de diensten van de week en publiceer ze."
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.1lj_dz"
+msgid "Read the shifts guide"
+msgstr "Lees de handleiding voor diensten"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.w7tf2z"
+msgid "Published"
+msgstr "Gepubliceerd"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.PFtMy9"
+msgid "Canceled"
+msgstr "Geannuleerd"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.l2ZoQ2"
+msgid "This week's roster"
+msgstr "Rooster van deze week"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.LadPL1"
+msgid "The shifts of each day and how many of their places are filled."
+msgstr "De diensten per dag en hoeveel plekken bezet zijn."
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.ONuwo0"
+msgid "{assigned}/{headcount} filled"
+msgstr "{assigned}/{headcount} bezet"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.IatzIV"
+msgid "{count} requested"
+msgstr "{count} aangevraagd"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.ddW5zC"
+msgid "Correction"
+msgstr "Correctie"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.2BtiQy"
+msgid "Damaged"
+msgstr "Beschadigd"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.FL6lKX"
+msgid "Lost"
+msgstr "Kwijt"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.PvBlVy"
+msgid "Scrapped"
+msgstr "Afgeschreven"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.wm96Jx"
+msgid "Returned"
+msgstr "Geretourneerd"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.z_wUXE"
+msgid "Received"
+msgstr "Ontvangen"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.G8-bFc"
+msgid "{count, number} on hand now"
+msgstr "Nu {count, number} op voorraad"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.fhGzJi"
+msgid "Adjust"
+msgstr "Aanpassen"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.WqWCS7"
+msgid "Adjust stock"
+msgstr "Voorraad aanpassen"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+#: src/features/shop/components/create-draft-order-dialog.tsx
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.qVGRIE"
+msgid "Quantity"
+msgstr "Aantal"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.b4GK23"
+msgid "A negative number removes units."
+msgstr "Een negatief getal haalt eenheden weg."
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.AkCxS_"
+msgid "Reason"
+msgstr "Reden"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.qMePPG"
+msgid "Note"
+msgstr "Notitie"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+#: src/features/shop/components/create-draft-order-dialog.tsx
+#: src/features/shop/components/create-product-dialog.tsx
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
+
+#: src/features/shop/components/create-draft-order-dialog.tsx
+msgctxt "shop.CuFve5"
+msgid "Added to the draft order"
+msgstr "Toegevoegd aan de conceptbestelling"
+
+#: src/features/shop/components/create-draft-order-dialog.tsx
+msgctxt "shop.PYYir2"
+msgid "New draft order"
+msgstr "Nieuwe conceptbestelling"
+
+#: src/features/shop/components/create-draft-order-dialog.tsx
+msgctxt "shop.VBc4gm"
+msgid "Pick a product. It goes on your draft order, which you place from its page."
+msgstr "Kies een product. Het komt op je conceptbestelling, die je vanaf de pagina ervan plaatst."
+
+#: src/features/shop/components/create-draft-order-dialog.tsx
+#: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.x_ZVlU"
+msgid "Product"
+msgstr "Product"
+
+#: src/features/shop/components/create-draft-order-dialog.tsx
+msgctxt "shop.I7BpIO"
+msgid "Add to draft"
+msgstr "Aan concept toevoegen"
+
+#: src/features/shop/components/create-location-button.tsx
+msgctxt "shop.pCEHfF"
+msgid "Location created"
+msgstr "Locatie aangemaakt"
+
+#: src/features/shop/components/create-location-button.tsx
+msgctxt "shop.AdYk5o"
+msgid "Add a main warehouse"
+msgstr "Hoofdmagazijn toevoegen"
+
+#: src/features/shop/components/create-product-dialog.tsx
+msgctxt "shop.DO8-uV"
+msgid "Product created"
+msgstr "Product aangemaakt"
+
+#: src/features/shop/components/create-product-dialog.tsx
+msgctxt "shop.q_w9sM"
+msgid "New product"
+msgstr "Nieuw product"
+
+#: src/features/shop/components/create-product-dialog.tsx
+msgctxt "shop.csHFpZ"
+msgid "It goes on sale right away with one variant and its price."
+msgstr "Het is meteen te koop met één variant en de prijs ervan."
+
+#: src/features/shop/components/create-product-dialog.tsx
+msgctxt "shop.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/shop/components/create-product-dialog.tsx
+msgctxt "shop.xvF54C"
+msgid "Linen shirt"
+msgstr "Linnen overhemd"
+
+#: src/features/shop/components/create-product-dialog.tsx
+msgctxt "shop.k4brJy"
+msgid "SKU"
+msgstr "SKU"
+
+#: src/features/shop/components/create-product-dialog.tsx
+msgctxt "shop.isufJA"
+msgid "Price ({currency})"
+msgstr "Prijs ({currency})"
+
+#: src/features/shop/components/create-product-dialog.tsx
+msgctxt "shop.IMGmEh"
+msgid "Stored in minor units, so 49.00 becomes 4900 cents."
+msgstr "Opgeslagen in de kleinste eenheid, dus 49.00 wordt 4900 cent."
+
+#: src/features/shop/components/create-product-dialog.tsx
+msgctxt "shop.V85fXf"
+msgid "Create product"
+msgstr "Product aanmaken"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.a2X9Je"
+msgid "Stock levels"
+msgstr "Voorraadniveaus"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.-FFNBU"
+msgid "Units on hand, reserved by open orders and available to sell, per location."
+msgstr "Eenheden op voorraad, gereserveerd door open bestellingen en beschikbaar voor verkoop, per locatie."
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.ZOxjc9"
+msgid "The stock levels didn't load"
+msgstr "De voorraadniveaus zijn niet geladen"
+
+#: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.01HHM0"
+msgid "No stock locations yet"
+msgstr "Nog geen voorraadlocaties"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.S7BWNW"
+msgid "Stock is counted per location. Add one to start."
+msgstr "Voorraad wordt per locatie geteld. Voeg er een toe om te beginnen."
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.XfzXbo"
+msgid "No products to count"
+msgstr "Geen producten om te tellen"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.UymbDq"
+msgid "Products from the catalog show up here with their stock."
+msgstr "Producten uit de catalogus verschijnen hier met hun voorraad."
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.vy8loV"
+msgid "Go to the catalog"
+msgstr "Naar de catalogus"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.rvirM2"
+msgid "Location"
+msgstr "Locatie"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.GRV8gi"
+msgid "On hand"
+msgstr "Op voorraad"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.sI_NFi"
+msgid "Reserved"
+msgstr "Gereserveerd"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.PgJGHT"
+msgid "Available"
+msgstr "Beschikbaar"
+
+#: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.WHgdsk"
+msgid "Out of stock"
+msgstr "Uitverkocht"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.477I0g"
+msgid "Low"
+msgstr "Laag"
+
+#: src/features/shop/components/inventory-table.tsx
+msgctxt "shop.ED7X19"
+msgid "In stock"
+msgstr "Op voorraad"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.Kb1t2A"
+msgid "The kitchen didn't load"
+msgstr "De keuken is niet geladen"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.m7hs5E"
+msgid "Stations"
+msgstr "Stations"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.kpZZ7x"
+msgid "All stations"
+msgstr "Alle stations"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.ckrEp1"
+msgid "No open tickets"
+msgstr "Geen open bonnen"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.-q8LW3"
+msgid "Send a paid order to the kitchen and its lines show up here."
+msgstr "Stuur een betaalde bestelling naar de keuken, dan verschijnen haar regels hier."
+
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.39vjfP"
+msgid "Open orders"
+msgstr "Open bestellingen"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.Cnm0QA"
+msgid "Queued"
+msgstr "In de wachtrij"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.n09Z0M"
+msgid "Preparing"
+msgstr "In bereiding"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.IZFEUg"
+msgid "Ready"
+msgstr "Klaar"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.1UpQL6"
+msgid "Served"
+msgstr "Uitgeserveerd"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.mOFG3K"
+msgid "Start"
+msgstr "Starten"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.O2X2mS"
+msgid "Mark ready"
+msgstr "Klaar melden"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.Ce-KSx"
+msgid "Serve"
+msgstr "Serveren"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.HQo5qK"
+msgid "Order {number}"
+msgstr "Bestelling {number}"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.G5YxOb"
+msgid "Sent at {time}"
+msgstr "Verstuurd om {time}"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.yv-FF_"
+msgid "Move {title} to {state}"
+msgstr "{title} naar {state} verplaatsen"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.yUcWBK"
+msgid "The board didn't load"
+msgstr "Het bord is niet geladen"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.YOvr0P"
+msgid "Nothing in the kitchen today"
+msgstr "Vandaag niets in de keuken"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.Kj8l4l"
+msgid "Orders show up here once they're sent to the kitchen."
+msgstr "Bestellingen verschijnen hier zodra ze naar de keuken zijn gestuurd."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.kYqrr0"
+msgid "The order didn't load"
+msgstr "De bestelling is niet geladen"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.CDs-7a"
+msgid "Pick a shipping rate first."
+msgstr "Kies eerst een verzendtarief."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.lnj_-o"
+msgid "No shipping rate covers this address."
+msgstr "Geen verzendtarief dekt dit adres."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.l-w5L0"
+msgid "A promotion code no longer applies."
+msgstr "Een kortingscode geldt niet meer."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.L8seEc"
+msgid "Subtotal"
+msgstr "Subtotaal"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.28C0Aj"
+msgid "Discount"
+msgstr "Korting"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.PRlD0A"
+msgid "Shipping"
+msgstr "Verzending"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.AwzkSM"
+msgid "Tax"
+msgstr "Btw"
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.M4fGzP"
+msgid "Draft order"
+msgstr "Conceptbestelling"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.BK4k0-"
+msgid "Placed {date}"
+msgstr "Geplaatst {date}"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.-8YqRC"
+msgid "Not placed yet. Prices follow the catalog until you place it."
+msgstr "Nog niet geplaatst. Prijzen volgen de catalogus tot je hem plaatst."
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.T2ZVQY"
+msgid "Lines"
+msgstr "Regels"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.L0YNvJ"
+msgid "This draft is empty"
+msgstr "Dit concept is leeg"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.9XonZ8"
+msgid "Add a product from the orders page."
+msgstr "Voeg een product toe vanaf de bestellingenpagina."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.ITSq4J"
+msgid "Unit price"
+msgstr "Stukprijs"
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.MJ2jZQ"
+msgid "Total"
+msgstr "Totaal"
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.u_vOPu"
+msgid "Paid"
+msgstr "Betaald"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.d-qgix"
+msgid "Next step"
+msgstr "Volgende stap"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.RJ5UzY"
+msgid "Placing the order reserves its stock and fixes its prices."
+msgstr "Door de bestelling te plaatsen reserveer je de voorraad en liggen de prijzen vast."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.CpOITI"
+msgid "Without a payments provider, record the payment by hand."
+msgstr "Zonder betaalprovider registreer je de betaling met de hand."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.FHe3ws"
+msgid "Check this draft before placing it"
+msgstr "Controleer dit concept voordat je het plaatst"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.mgr8Td"
+msgid "Ask an admin to move this order along."
+msgstr "Vraag een beheerder om deze bestelling verder te verwerken."
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.Bl0vcE"
+msgid "Shipment {n, number}"
+msgstr "Zending {n, number}"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.DMqnF4"
+msgid "Delivered"
+msgstr "Bezorgd"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.OtIOMb"
+msgid "Shipped"
+msgstr "Verzonden"
+
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.3wsVWF"
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.D3vrid"
+msgid "Packing"
+msgstr "Inpakken"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.B_orA3"
+msgid "Promotions"
+msgstr "Acties"
+
+#: src/features/shop/components/order-detail.tsx
+msgctxt "shop.F3CMuN"
+msgid "No promotion was applied."
+msgstr "Er is geen actie toegepast."
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.Ii4JS5"
+msgid "Add a product first"
+msgstr "Voeg eerst een product toe"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.YpFjNr"
+msgid "Your draft orders first, then every placed order, newest first."
+msgstr "Eerst je conceptbestellingen, daarna elke geplaatste bestelling, nieuwste eerst."
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.XaQYY1"
+msgid "The orders didn't load"
+msgstr "De bestellingen zijn niet geladen"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.0w6Ufu"
+msgid "No orders yet"
+msgstr "Nog geen bestellingen"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.5c9Jmv"
+msgid "Start a draft order from a catalog product, then place it."
+msgstr "Begin een conceptbestelling vanuit een catalogusproduct en plaats die daarna."
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.XPruqs"
+msgid "Order"
+msgstr "Bestelling"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.P7PLVj"
+msgid "Date"
+msgstr "Datum"
+
+#: src/features/shop/components/order-list.tsx
+msgctxt "shop.zL6NHU"
+msgid "Not placed"
+msgstr "Niet geplaatst"
+
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.OK8i3s"
+msgid "{ready, number} of {lines, number} ready, sent at {time}"
+msgstr "{ready, number} van {lines, number} klaar, verstuurd om {time}"
+
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.Yrt5OC"
+msgid "An order only moves forward on this board."
+msgstr "Op dit bord gaat een bestelling alleen vooruit."
+
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.agJ_Ux"
+msgid "No orders here."
+msgstr "Geen bestellingen hier."
+
+#: src/features/shop/components/order-status-badge.tsx
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.0Hhe6f"
+msgid "On hold"
+msgstr "In de wacht"
+
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.M1w9up"
+msgid "Awaiting payment"
+msgstr "Wacht op betaling"
+
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.dX7-Rv"
+msgid "Confirmed"
+msgstr "Bevestigd"
+
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.jY-f2f"
+msgid "Fulfilled"
+msgstr "Afgehandeld"
+
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.95stPq"
+msgid "Completed"
+msgstr "Voltooid"
+
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.Gs86nL"
+msgid "Refunded"
+msgstr "Terugbetaald"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.fGroR9"
+msgid "Order placed"
+msgstr "Bestelling geplaatst"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.JItzoH"
+msgid "Place order"
+msgstr "Bestelling plaatsen"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.jdTej-"
+msgid "Payment recorded"
+msgstr "Betaling geregistreerd"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.0ix6PR"
+msgid "Order cancelled"
+msgstr "Bestelling geannuleerd"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.8vir8Z"
+msgid "Draft confirmed"
+msgstr "Concept bevestigd"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.t9oC-P"
+msgid "Order put on hold"
+msgstr "Order in de wacht gezet"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.-y0jGW"
+msgid "Hold released"
+msgstr "Wacht opgeheven"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.cBURaZ"
+msgid "Fulfillment created"
+msgstr "Afhandeling aangemaakt"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.qbIoUk"
+msgid "Marked as shipped"
+msgstr "Gemarkeerd als verzonden"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.acoR1e"
+msgid "Marked as delivered"
+msgstr "Gemarkeerd als bezorgd"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.IBEhkd"
+msgid "Already in the kitchen"
+msgstr "Al in de keuken"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop._bAyIb"
+msgid "{count, plural, one {# line} other {# lines}} sent to the kitchen"
+msgstr "{count, plural, one {# regel} other {# regels}} naar de keuken gestuurd"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.ILawY9"
+msgid "Confirm draft"
+msgstr "Concept bevestigen"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.8fI5PB"
+msgid "Cancel order"
+msgstr "Bestelling annuleren"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop._tJQ7S"
+msgid "Release hold"
+msgstr "Wacht opheffen"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.01-5kQ"
+msgid "Mark as paid"
+msgstr "Markeren als betaald"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.K1HLMq"
+msgid "Put on hold"
+msgstr "In de wacht zetten"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.BR3V4w"
+msgid "Create fulfillment"
+msgstr "Afhandeling aanmaken"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.8xFh5A"
+msgid "Send to kitchen"
+msgstr "Naar de keuken sturen"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.paB5lo"
+msgid "Mark as shipped"
+msgstr "Markeren als verzonden"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.HmtEhg"
+msgid "Mark as delivered"
+msgstr "Markeren als bezorgd"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.Ff2eMO"
+msgid "Nothing left to do for this order."
+msgstr "Er is niets meer te doen voor deze bestelling."
+
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.6mRFNJ"
+msgid "The products didn't load"
+msgstr "De producten zijn niet geladen"
+
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.txkmSX"
+msgid "No products yet"
+msgstr "Nog geen producten"
+
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.THgMlH"
+msgid "Add a product with a price to start taking orders."
+msgstr "Voeg een product met een prijs toe om bestellingen aan te nemen."
+
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.Xm38wR"
+msgid "{count, plural, one {# product} other {# products}}"
+msgstr "{count, plural, one {# product} other {# producten}}"
+
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.dcZV01"
+msgid "No price"
+msgstr "Geen prijs"
+
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.xLyjVO"
+msgid "Not stocked"
+msgstr "Niet op voorraad"
+
+#: src/features/shop/components/product-catalog-grid.tsx
+msgctxt "shop.KwMECP"
+msgid "{count, number} available"
+msgstr "{count, number} beschikbaar"
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.Rt3Led"
+msgid "{code} applied"
+msgstr "{code} toegepast"
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.mdB06m"
+msgid "Promotion code"
+msgstr "Kortingscode"
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.EWw_tK"
+msgid "Apply"
+msgstr "Toepassen"
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.njwqqQ"
+msgid "Remove {code}"
+msgstr "{code} verwijderen"
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.WBXLWO"
+msgid "No code applied."
+msgstr "Geen code toegepast."
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.doaqty"
+msgid "{code} is ready to use"
+msgstr "{code} is klaar voor gebruik"
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.VTfCbV"
+msgid "New promotion code"
+msgstr "Nieuwe kortingscode"
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.clvaDZ"
+msgid "A percentage off the whole order, with one code to enter."
+msgstr "Een percentage korting op de hele bestelling, met één code om in te voeren."
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.T4i7eK"
+msgid "Percent off"
+msgstr "Procent korting"
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.Ed7wKn"
+msgid "Above 0 and at most 100, such as 12.5."
+msgstr "Boven 0 en hoogstens 100, zoals 12.5."
+
+#: src/features/shop/components/promotion-code-field.tsx
+msgctxt "shop.7t4Jbq"
+msgid "Create code"
+msgstr "Code aanmaken"
+
+#: src/features/shop/components/request-purchase-button.tsx
+msgctxt "shop.x11Lxx"
+msgid "Purchase requested"
+msgstr "Inkoop aangevraagd"
+
+#: src/features/shop/components/request-purchase-button.tsx
+msgctxt "shop.UYH-bA"
+msgid "Request {quantity} of {label}"
+msgstr "{quantity} aanvragen van {label}"
+
+#: src/features/shop/components/request-purchase-button.tsx
+msgctxt "shop.l4-R6R"
+msgid "Request purchase"
+msgstr "Inkoop aanvragen"
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.gHsayi"
+msgid "Create a signing key"
+msgstr "Ondertekeningssleutel aanmaken"
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.afYI6-"
+msgid "Rotate key"
+msgstr "Sleutel roteren"
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.iDBoqb"
+msgid "Create a signing key?"
+msgstr "Een ondertekeningssleutel aanmaken?"
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.4trMId"
+msgid "Rotate the signing key?"
+msgstr "De ondertekeningssleutel roteren?"
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.2jVXsV"
+msgid "A new Ed25519 key is generated and stored in Vault. Its public half is published in the JWKS."
+msgstr "Er wordt een nieuwe Ed25519-sleutel gegenereerd en opgeslagen in Vault. De publieke helft wordt gepubliceerd in de JWKS."
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.IIAiw0"
+msgid "New tokens are signed with a new key. The current key stays published until the tokens it signed expire, so nothing breaks."
+msgstr "Nieuwe tokens worden met een nieuwe sleutel ondertekend. De huidige sleutel blijft gepubliceerd tot de tokens die hij ondertekende verlopen, dus er gaat niets stuk."
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.ymzTmM"
+msgid "Signing key created"
+msgstr "Ondertekeningssleutel aangemaakt"
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.7lMsmU"
+msgid "Signing key rotated"
+msgstr "Ondertekeningssleutel geroteerd"
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.wEebuR"
+msgid "Create key"
+msgstr "Sleutel maken"
+
+#: src/features/signing-keys/components/rotate-signing-key-button.tsx
+msgctxt "signingKeys.2MN1aB"
+msgid "Rotate"
+msgstr "Roteren"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.Y0PHiM"
+msgid "Signing keys"
+msgstr "Ondertekeningssleutels"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.p7ReY4"
+msgid "The keys that sign this organization's tokens. Private keys stay in Vault; receivers check signatures against the published JWKS."
+msgstr "De sleutels die de tokens van deze organisatie ondertekenen. Privésleutels blijven in Vault; ontvangers controleren handtekeningen met de gepubliceerde JWKS."
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.MZJaq0"
+msgid "The signing keys didn't load"
+msgstr "De ondertekeningssleutels zijn niet geladen"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.sLK5Lz"
+msgid "No signing key yet"
+msgstr "Nog geen ondertekeningssleutel"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.khoIsc"
+msgid "Create one before the organization signs any tokens."
+msgstr "Maak er een aan voordat de organisatie tokens ondertekent."
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.TDiWte"
+msgid "Key ID"
+msgstr "Sleutel-ID"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.u2OsFB"
+msgid "Algorithm"
+msgstr "Algoritme"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.JJNc3c"
+msgid "Previous"
+msgstr "Vorige"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.VZTS3k"
+msgid "The TXT record was not found yet. DNS changes can take a while to show up."
+msgstr "Het TXT-record is nog niet gevonden. DNS-wijzigingen kunnen even duren voordat ze zichtbaar zijn."
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.VBVjUV"
+msgid "The server has no secret key to verify domains or manage SAML."
+msgstr "De server heeft geen geheime sleutel om domeinen te verifiëren of SAML te beheren."
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.kYK0pv"
+msgid "Domain added. Publish its TXT record, then verify it."
+msgstr "Domein toegevoegd. Publiceer het TXT-record en verifieer het daarna."
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.f5Lsjw"
+msgid "Enter a domain such as acme.com."
+msgstr "Voer een domein in, zoals acme.com."
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.Wrwi-e"
+msgid "Email domain"
+msgstr "E-maildomein"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.EkcNZU"
+msgid "Add domain"
+msgstr "Domein toevoegen"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.G_yZLu"
+msgid "Remove"
+msgstr "Verwijderen"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.s6dhLG"
+msgid "Domain verified"
+msgstr "Domein geverifieerd"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.TetbMu"
+msgid "Domain removed"
+msgstr "Domein verwijderd"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.iFb_yG"
+msgid "Don't add new users"
+msgstr "Geen nieuwe gebruikers toevoegen"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.NW7TQG"
+msgid "Join as member"
+msgstr "Deelnemen als lid"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.FqGWjZ"
+msgid "Join as admin"
+msgstr "Deelnemen als beheerder"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.A7jOCV"
+msgid "Role for new users at {domain}"
+msgstr "Rol voor nieuwe gebruikers op {domain}"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.ZoAxEH"
+msgid "Require SSO"
+msgstr "SSO verplichten"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.q5Xl0M"
+msgid "Verify"
+msgstr "Verifiëren"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.i2i1YF"
+msgid "Remove {domain}?"
+msgstr "{domain} verwijderen?"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.ozZDtq"
+msgid "New users at this domain no longer join automatically, and SAML connections stop covering it."
+msgstr "Nieuwe gebruikers op dit domein worden niet meer automatisch lid, en SAML-verbindingen dekken het niet meer."
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.HFYsEe"
+msgid "SAML connection added"
+msgstr "SAML-verbinding toegevoegd"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.VkQEB9"
+msgid "Enter the https URL of your identity provider's metadata and pick a domain."
+msgstr "Voer de https-URL van de metadata van je identiteitsprovider in en kies een domein."
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.AT-YBP"
+msgid "Metadata URL"
+msgstr "Metadata-URL"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.jthz70"
+msgid "Your identity provider shows this URL in its SAML app settings."
+msgstr "Je identiteitsprovider toont deze URL in de instellingen van de SAML-app."
+
+#: src/features/sso/components/sso-controls.tsx
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.NZ8yBj"
+msgid "Domains"
+msgstr "Domeinen"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.f3clKD"
+msgid "Add connection"
+msgstr "Verbinding toevoegen"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.4VHMLQ"
+msgid "SAML connection removed"
+msgstr "SAML-verbinding verwijderd"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.06o_iY"
+msgid "Remove this SAML connection?"
+msgstr "Deze SAML-verbinding verwijderen?"
+
+#: src/features/sso/components/sso-controls.tsx
+msgctxt "sso.OZiiNV"
+msgid "Members who sign in with it have to use another sign-in method."
+msgstr "Leden die ermee inloggen, moeten een andere inlogmethode gebruiken."
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.ftUMtx"
+msgid "SSO settings could not be loaded"
+msgstr "De SSO-instellingen zijn niet geladen"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.ahtNTA"
+msgid "Pick an organization to manage its single sign-on."
+msgstr "Kies een organisatie om de single sign-on ervan te beheren."
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.x9BGT0"
+msgid "Claim the email domains your company owns. Publish the TXT record at your DNS host, then verify the domain."
+msgstr "Claim de e-maildomeinen van je bedrijf. Publiceer het TXT-record bij je DNS-host en verifieer daarna het domein."
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.fb9xru"
+msgid "No domains yet"
+msgstr "Nog geen domeinen"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.c1tKg-"
+msgid "Add your company's email domain to start."
+msgstr "Voeg het e-maildomein van je bedrijf toe om te beginnen."
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.Z8971h"
+msgid "Verified"
+msgstr "Geverifieerd"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.dXTCjA"
+msgid "Not verified"
+msgstr "Niet geverifieerd"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.rPuNBr"
+msgid "TXT name"
+msgstr "TXT-naam"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.68Qev9"
+msgid "TXT value"
+msgstr "TXT-waarde"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.PwfunE"
+msgid "SAML connection"
+msgstr "SAML-verbinding"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.4UP5Os"
+msgid "Members at your verified domains sign in through your identity provider, such as Okta or Microsoft Entra ID."
+msgstr "Leden met een geverifieerd domein loggen in via je identiteitsprovider, zoals Okta of Microsoft Entra ID."
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.Q0GNQw"
+msgid "No SAML connection"
+msgstr "Geen SAML-verbinding"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.Kd6y1f"
+msgid "Verify a domain first, then connect your identity provider."
+msgstr "Verifieer eerst een domein en koppel daarna je identiteitsprovider."
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.ggkcLQ"
+msgid "Connect your identity provider with its metadata URL."
+msgstr "Koppel je identiteitsprovider met de metadata-URL."
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.63WSFE"
+msgid "Go to domains"
+msgstr "Naar domeinen"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.Aoj_zI"
+msgid "SAML 2.0"
+msgstr "SAML 2.0"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.ovXkC-"
+msgid "Metadata uploaded as XML"
+msgstr "Metadata geüpload als XML"
+
+#: src/features/sso/components/sso-settings.tsx
+msgctxt "sso.jUqYir"
+msgid "Added {date}"
+msgstr "Toegevoegd op {date}"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.HLDzpl"
+msgid "The status page didn't load"
+msgstr "De statuspagina is niet geladen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.Dnob31"
+msgid "Operational"
+msgstr "Operationeel"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.dudqv_"
+msgid "Maintenance"
+msgstr "Onderhoud"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.SsC4IV"
+msgid "Degraded performance"
+msgstr "Verminderde prestaties"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.Fh9xh1"
+msgid "Partial outage"
+msgstr "Gedeeltelijke storing"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.sSIbEd"
+msgid "Major outage"
+msgstr "Grote storing"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.RVjGF7"
+msgid "All systems operational"
+msgstr "Alle systemen werken"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.caRJuT"
+msgid "Scheduled maintenance in progress"
+msgstr "Gepland onderhoud bezig"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.9M-5lH"
+msgid "Some systems are affected"
+msgstr "Sommige systemen hebben last van een storing"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status._GKH_w"
+msgid "Investigating"
+msgstr "Onderzoek"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.7cv4Uf"
+msgid "Identified"
+msgstr "Oorzaak gevonden"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.1P6GMj"
+msgid "Monitoring"
+msgstr "Monitoren"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.W6nSYE"
+msgid "Resolved"
+msgstr "Opgelost"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.AcAA5x"
+msgid "Components"
+msgstr "Onderdelen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.LfjXKs"
+msgid "Uptime over the last {days, number} days."
+msgstr "Beschikbaarheid over de laatste {days, number} dagen."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.N8Mlqy"
+msgid "No components yet"
+msgstr "Nog geen onderdelen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.o1tnzb"
+msgid "Components appear here once the team marks them public. Check back later."
+msgstr "Onderdelen verschijnen hier zodra het team ze openbaar maakt. Kom later terug."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status._2ICQ5"
+msgid "{percent, number}% uptime"
+msgstr "{percent, number}% beschikbaar"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.mtr3R4"
+msgid "Incidents"
+msgstr "Incidenten"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.U8Td13"
+msgid "Open incidents and those resolved in the last {days, number} days."
+msgstr "Open incidenten en incidenten die in de laatste {days, number} dagen zijn opgelost."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.wgm9yH"
+msgid "No incidents reported."
+msgstr "Geen incidenten gemeld."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.wnbY9R"
+msgid "Affects {components}"
+msgstr "Betreft {components}"
+
+#: src/features/subjects/components/subject-chip.tsx
+msgctxt "subjects.UpwcFd"
+msgid "Unavailable"
+msgstr "Niet beschikbaar"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.UJ-xqJ"
+msgid "The title didn't load"
+msgstr "De titel is niet geladen"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.fkf6Ps"
+msgid "A record you can't open"
+msgstr "Een record dat je niet kunt openen"
+
+#: src/features/subjects/components/subject-link.tsx
+msgctxt "subjects.3kbIhS"
+msgid "Untitled"
+msgstr "Zonder titel"
+
+#: src/features/teams/components/team-detail.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.5lVaeB"
+msgid "No description"
+msgstr "Geen beschrijving"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.ULVuKn"
+msgid "Owned customers"
+msgstr "Klanten in eigendom"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.QsGKCb"
+msgid "{count, plural, =0 {No customers} one {# customer} other {# customers}} name this team as their owner"
+msgstr "{count, plural, =0 {Geen klanten hebben} one {# klant heeft} other {# klanten hebben}} dit team als eigenaar"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.5GYr_-"
+msgid "No owned customers"
+msgstr "Geen klanten in eigendom"
+
+#: src/features/teams/components/team-detail.tsx
+msgctxt "teams.N-LkOO"
+msgid "Set a customer's owner team on its page."
+msgstr "Stel het eigenaarsteam van een klant in op de pagina van die klant."
+
+#: src/features/teams/components/team-dialogs.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/teams/components/team-dialogs.tsx
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.Q8Qw5B"
+msgid "Description"
+msgstr "Beschrijving"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.J9yqGv"
+msgid "Team created"
+msgstr "Team aangemaakt"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.xGiyeB"
+msgid "New team"
+msgstr "Nieuw team"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.mZefzf"
+msgid "Teams group members and can own customers."
+msgstr "Teams groeperen leden en kunnen eigenaar zijn van klanten."
+
+#: src/features/teams/components/team-dialogs.tsx
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.VzzYJk"
+msgid "Create"
+msgstr "Aanmaken"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams._eT8WV"
+msgid "Team updated"
+msgstr "Team bijgewerkt"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.wEQDC6"
+msgid "Edit"
+msgstr "Bewerken"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.I8Hyi4"
+msgid "Edit team"
+msgstr "Team bewerken"
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.XnwmYR"
+msgid "The slug stays the same when you rename a team."
+msgstr "De slug blijft hetzelfde als je een team hernoemt."
+
+#: src/features/teams/components/team-dialogs.tsx
+msgctxt "teams.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.VRLUcc"
+msgid "Member to add"
+msgstr "Lid om toe te voegen"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.XKF1qH"
+msgid "Choose a member"
+msgstr "Kies een lid"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.2_2yg-"
+msgid "Add"
+msgstr "Toevoegen"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.pm7N-R"
+msgid "Nobody is on this team"
+msgstr "Niemand zit in dit team"
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.pe_KhA"
+msgid "Choose a member above to add them."
+msgstr "Kies hierboven een lid om toe te voegen."
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.IlJWZx"
+msgid "Ask an admin to add members."
+msgstr "Vraag een beheerder om leden toe te voegen."
+
+#: src/features/teams/components/team-members.tsx
+msgctxt "teams.csSJhm"
+msgid "Take {name} off the team"
+msgstr "{name} uit het team halen"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.6b87eq"
+msgid "Team restored"
+msgstr "Team hersteld"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.2M1Ej4"
+msgid "Team archived"
+msgstr "Team gearchiveerd"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.lNwtwt"
+msgid "Team deleted"
+msgstr "Team verwijderd"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.zz6ObK"
+msgid "Restore"
+msgstr "Herstellen"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.hrgo-E"
+msgid "Archive"
+msgstr "Archiveren"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.K3r6DQ"
+msgid "Delete"
+msgstr "Verwijderen"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.g9o_2L"
+msgid "Delete {name}?"
+msgstr "{name} verwijderen?"
+
+#: src/features/teams/components/team-status-actions.tsx
+msgctxt "teams.IXHy6n"
+msgid "Its members stay in the organization, and the customers it owned keep no owner."
+msgstr "De leden blijven in de organisatie, en de klanten waarvan het team eigenaar was, hebben daarna geen eigenaar."
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.-a-2ug"
+msgid "Members"
+msgstr "Leden"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.hvH0rZ"
+msgid "Search teams"
+msgstr "Teams zoeken"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.zi5WKg"
+msgid "No teams match"
+msgstr "Geen teams gevonden"
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.AvP65a"
+msgid "Try another name or status."
+msgstr "Probeer een andere naam of status."
+
+#: src/features/teams/components/teams-grid.tsx
+msgctxt "teams.k112pF"
+msgid "Show all teams"
+msgstr "Alle teams tonen"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.DNeuzb"
+msgid "Teams"
+msgstr "Teams"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.wIHVeU"
+msgid "{count, plural, one {# active team} other {# active teams}}"
+msgstr "{count, plural, one {# actief team} other {# actieve teams}}"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.68djwb"
+msgid "No teams yet"
+msgstr "Nog geen teams"
+
+#: src/features/teams/components/teams-section.tsx
+msgctxt "teams.3xX2Kk"
+msgid "Group members into teams so they can own customers."
+msgstr "Groepeer leden in teams zodat ze eigenaar kunnen zijn van klanten."
+
+#: src/features/templates/components/create-template-dialog.tsx
+msgctxt "templates.uI5hko"
+msgid "{name} created"
+msgstr "{name} aangemaakt"
+
+#: src/features/templates/components/create-template-dialog.tsx
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.bhfSJZ"
+msgid "Lead"
+msgstr "Lead"
+
+#: src/features/templates/components/create-template-dialog.tsx
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/templates/components/create-template-dialog.tsx
+msgctxt "templates.lGJaj2"
+msgid "New template"
+msgstr "Nieuw sjabloon"
+
+#: src/features/templates/components/create-template-dialog.tsx
+msgctxt "templates.fyRF1n"
+msgid "New customer template"
+msgstr "Nieuw klantsjabloon"
+
+#: src/features/templates/components/create-template-dialog.tsx
+msgctxt "templates.jIdjfI"
+msgid "Customers created from it start with these values."
+msgstr "Klanten die hiermee worden aangemaakt, beginnen met deze waarden."
+
+#: src/features/templates/components/create-template-dialog.tsx
+msgctxt "templates.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/templates/components/create-template-dialog.tsx
+msgctxt "templates.ag395s"
+msgid "Active account"
+msgstr "Actief account"
+
+#: src/features/templates/components/create-template-dialog.tsx
+msgctxt "templates.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/templates/components/create-template-dialog.tsx
+#: src/features/templates/components/use-template-dialog.tsx
+msgctxt "templates.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/templates/components/create-template-dialog.tsx
+msgctxt "templates.VzzYJk"
+msgid "Create"
+msgstr "Maken"
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.bTWkPP"
+msgid "The templates didn't load"
+msgstr "De sjablonen zijn niet geladen"
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.bbwWD0"
+msgid "No templates yet"
+msgstr "Nog geen sjablonen"
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.gFVPNM"
+msgid "A template holds the values a new customer starts with, so the team sets them up the same way."
+msgstr "Een sjabloon bevat de beginwaarden van een nieuwe klant, zodat het team klanten steeds op dezelfde manier instelt."
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.vbMp1u"
+msgid "Updated {date}"
+msgstr "Bijgewerkt op {date}"
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.PGJpP6"
+msgid "Not published"
+msgstr "Niet gepubliceerd"
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.MM8aow"
+msgid "Version {version}"
+msgstr "Versie {version}"
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.3vzXZQ"
+msgid "Built in"
+msgstr "Ingebouwd"
+
+#: src/features/templates/components/templates-gallery.tsx
+msgctxt "templates.lKv8ex"
+msgid "Default"
+msgstr "Standaard"
+
+#: src/features/templates/components/use-template-dialog.tsx
+msgctxt "templates.V2Umpo"
+msgid "Customer created from {name}"
+msgstr "Klant aangemaakt met {name}"
+
+#: src/features/templates/components/use-template-dialog.tsx
+msgctxt "templates.dQvZ-J"
+msgid "Use template"
+msgstr "Sjabloon gebruiken"
+
+#: src/features/templates/components/use-template-dialog.tsx
+msgctxt "templates.lzUnyw"
+msgid "New customer from {name}"
+msgstr "Nieuwe klant met {name}"
+
+#: src/features/templates/components/use-template-dialog.tsx
+msgctxt "templates.3tTxJF"
+msgid "The customer starts with the template's values."
+msgstr "De klant begint met de waarden van het sjabloon."
+
+#: src/features/templates/components/use-template-dialog.tsx
+msgctxt "templates.61Xs6O"
+msgid "Customer name"
+msgstr "Naam van klant"
+
+#: src/features/templates/components/use-template-dialog.tsx
+msgctxt "templates.ninItd"
+msgid "Create customer"
+msgstr "Klant aanmaken"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.KGYKYA"
+msgid "Till"
+msgstr "Kassa"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.ADKsID"
+msgid "Opened"
+msgstr "Geopend"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.nhfX6m"
+msgid "Expected cash"
+msgstr "Verwacht contant geld"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.H3Pj5d"
+msgid "Front counter"
+msgstr "Balie"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.Z3EDd9"
+msgid "Sessions"
+msgstr "Diensten"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.q3LKq4"
+msgid "Each shift starts with a float, and the closing count books any difference."
+msgstr "Elke dienst begint met wisselgeld en de telling bij sluiting boekt een verschil."
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.vuBPCO"
+msgid "The sessions didn't load"
+msgstr "De diensten zijn niet geladen"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.KqE7GJ"
+msgid "No sessions yet"
+msgstr "Nog geen diensten"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.xRZutt"
+msgid "Add a till, open a session with its float, then count the drawer at the end of the day."
+msgstr "Voeg een kassa toe, open een dienst met wisselgeld en tel aan het eind van de dag de lade."
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.9ZCo57"
+msgid "Add a till"
+msgstr "Voeg een kassa toe"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.Hjofpw"
+msgid "Read the tills guide"
+msgstr "Lees de gids over kassa's"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.hkENym"
+msgid "Customer"
+msgstr "Klant"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.Sj_mQ9"
+msgid "Drive item"
+msgstr "Drive-item"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.-j5xqF"
+msgid "Deleted items"
+msgstr "Verwijderde items"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.ChC9Fo"
+msgid "Restore an item to put it back where it was, with everything deleted along with it."
+msgstr "Herstel een item om het terug te zetten waar het stond, samen met alles wat ermee is verwijderd."
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.Asvt95"
+msgid "The trash didn't load"
+msgstr "De prullenbak is niet geladen"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.RCtpfi"
+msgid "The trash is empty"
+msgstr "De prullenbak is leeg"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.My21vk"
+msgid "Items you delete in the drive or elsewhere show up here."
+msgstr "Items die je in de drive of elders verwijdert, verschijnen hier."
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.VKnnO2"
+msgid "Open the drive"
+msgstr "Drive openen"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.5ujeDa"
+msgid "Item"
+msgstr "Item"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.KQvWvD"
+msgid "Deleted"
+msgstr "Verwijderd"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.btHCYy"
+msgid "Removed for good"
+msgstr "Definitief verwijderd op"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.3kbIhS"
+msgid "Untitled"
+msgstr "Naamloos"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.LCL__I"
+msgid "and {count, number} more"
+msgstr "en nog {count, number}"
+
+#: src/features/trash/components/trash-bin.tsx
+msgctxt "trash.du1laW"
+msgid "Never"
+msgstr "Nooit"
+
+#: src/features/trash/components/trash-item-actions.tsx
+msgctxt "trash.FG7N8s"
+msgid "{title} restored"
+msgstr "{title} hersteld"
+
+#: src/features/trash/components/trash-item-actions.tsx
+msgctxt "trash.xMOo5R"
+msgid "{title} deleted for good"
+msgstr "{title} definitief verwijderd"
+
+#: src/features/trash/components/trash-item-actions.tsx
+msgctxt "trash.zz6ObK"
+msgid "Restore"
+msgstr "Herstellen"
+
+#: src/features/trash/components/trash-item-actions.tsx
+msgctxt "trash.8aSo9o"
+msgid "Delete forever"
+msgstr "Definitief verwijderen"
+
+#: src/features/trash/components/trash-item-actions.tsx
+msgctxt "trash.H4ALc7"
+msgid "Delete {title} for good?"
+msgstr "{title} definitief verwijderen?"
+
+#: src/features/trash/components/trash-item-actions.tsx
+msgctxt "trash.n56BYW"
+msgid "It and everything trashed with it are removed. This can't be undone."
+msgstr "Het item en alles wat ermee in de prullenbak staat, worden verwijderd. Dit kun je niet ongedaan maken."
+
+#: src/features/trash/components/trash-item-actions.tsx
+msgctxt "trash.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/trash/components/undo-toast.tsx
+msgctxt "trash.muh87-"
+msgid "Restored"
+msgstr "Hersteld"
+
+#: src/features/trash/components/undo-toast.tsx
+msgctxt "trash.MwAZ7_"
+msgid "{name} moved to the trash"
+msgstr "{name} is naar de prullenbak verplaatst"
+
+#: src/features/trash/components/undo-toast.tsx
+msgctxt "trash.JkS37H"
+msgid "Undo"
+msgstr "Ongedaan maken"
+
+#: src/features/user/components/avatar-form.tsx
+msgctxt "user.6V-aAL"
+msgid "Avatar updated"
+msgstr "Avatar bijgewerkt"
+
+#: src/features/user/components/avatar-form.tsx
+msgctxt "user.VnXp8Z"
+msgid "Avatar"
+msgstr "Avatar"
+
+#: src/features/user/components/avatar-form.tsx
+msgctxt "user.22KMRw"
+msgid "PNG, JPEG, WebP, GIF or AVIF, up to 2 MB."
+msgstr "PNG, JPEG, WebP, GIF of AVIF, tot 2 MB."
+
+#: src/features/user/components/avatar-form.tsx
+msgctxt "user.mqa6CF"
+msgid "Upload avatar"
+msgstr "Avatar uploaden"
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.i_IILR"
+msgid "{client} is disconnected."
+msgstr "{client} is ontkoppeld."
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.4khuEB"
+msgid "Connected agents"
+msgstr "Gekoppelde agents"
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.-FGFtd"
+msgid "Apps and AI agents you allowed to act as you. Disconnecting one ends its sessions; a token it already holds works until it expires."
+msgstr "Apps en AI-agents die namens jou mogen handelen. Ontkoppelen beëindigt hun sessies; een token dat ze al hebben werkt tot het verloopt."
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.a-annA"
+msgid "No agents are connected."
+msgstr "Er zijn geen agents gekoppeld."
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.iELlIu"
+msgid "Connected {date}"
+msgstr "Gekoppeld op {date}"
+
+#: src/features/user/components/connected-agents-card.tsx
+msgctxt "security.qj1uhz"
+msgid "Disconnect"
+msgstr "Ontkoppelen"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.wyxJrL"
+msgid "Delete account"
+msgstr "Account verwijderen"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security._cYV6z"
+msgid "Removes your user and your notifications. Organizations you own stay."
+msgstr "Verwijdert je gebruiker en je meldingen. Organisaties waarvan je eigenaar bent blijven bestaan."
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.TcCxtt"
+msgid "Delete your account?"
+msgstr "Je account verwijderen?"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.4Y9r1i"
+msgid "This can't be undone. You need a verified second factor in this session."
+msgstr "Dit kan niet ongedaan worden gemaakt. Je hebt in deze sessie een geverifieerde tweede factor nodig."
+
+#: src/features/user/components/delete-account-button.tsx
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.HmKCAW"
+msgid "Verify a second factor first, then try again."
+msgstr "Verifieer eerst een tweede factor en probeer het daarna opnieuw."
+
+#: src/features/user/components/delete-account-button.tsx
+msgctxt "security.K3r6DQ"
+msgid "Delete"
+msgstr "Verwijderen"
+
+#: src/features/user/components/impersonation-banner.tsx
+msgctxt "user.GXJkeD"
+msgid "Support session"
+msgstr "Supportsessie"
+
+#: src/features/user/components/impersonation-banner.tsx
+msgctxt "user.VAZP5L"
+msgid "Signed in by support ({id}): {reason}"
+msgstr "Ingelogd door support ({id}): {reason}"
+
+#: src/features/user/components/impersonation-banner.tsx
+msgctxt "user.7cuPOb"
+msgid "Signed in by support ({id})."
+msgstr "Ingelogd door support ({id})."
+
+#: src/features/user/components/permission-gate.tsx
+msgctxt "user.yO2v_w"
+msgid "You don't have access"
+msgstr "Je hebt geen toegang"
+
+#: src/features/user/components/permission-gate.tsx
+msgctxt "user.53bplh"
+msgid "This needs the {permission} permission in this organization."
+msgstr "Hiervoor is de permissie {permission} in deze organisatie nodig."
+
+#: src/features/user/components/profile-details.tsx
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.itPgxd"
+msgid "Profile"
+msgstr "Profiel"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.Y0jjJp"
+msgid "How your teammates see you."
+msgstr "Hoe je teamgenoten je zien."
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.qxg3uo"
+msgid "Access"
+msgstr "Toegang"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.hoC9fG"
+msgid "Your role comes from the memberships claim in your access token; the permissions are your role's catalog keys with this organization's overrides."
+msgstr "Je rol komt uit de memberships-claim in je toegangstoken; de rechten zijn de catalogussleutels van je rol met de afwijkingen van deze organisatie."
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.1ZgrhW"
+msgid "Role"
+msgstr "Rol"
+
+#: src/features/user/components/profile-details.tsx
+#: src/features/user/components/user-menu-dropdown.tsx
+#: src/features/user/components/user-menu-lazy.tsx
+msgctxt "user.VQB58n"
+msgid "No role"
+msgstr "Geen rol"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.SFuk1v"
+msgid "Permissions"
+msgstr "Permissies"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.450Fty"
+msgid "None"
+msgstr "Geen"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.A6OIRq"
+msgid "Token expires"
+msgstr "Token verloopt"
+
+#: src/features/user/components/profile-details.tsx
+msgctxt "user.5jeq8P"
+msgid "Unknown"
+msgstr "Onbekend"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.CKdAvh"
+msgid "Profile saved"
+msgstr "Profiel opgeslagen"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.yk4PT9"
+msgid "Full name"
+msgstr "Volledige naam"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.-N-UI2"
+msgid "Your sign-in address. It comes from Supabase Auth."
+msgstr "Je inlogadres. Het komt uit Supabase Auth."
+
+#: src/features/user/components/profile-form.tsx
+msgctxt "user.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.3vAb4l"
+msgid "That code didn't work. Try the next one."
+msgstr "Die code werkte niet. Probeer de volgende."
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.OIYSz8"
+msgid "Two-factor authentication is on"
+msgstr "Tweestapsverificatie staat aan"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.vhpOyb"
+msgid "Two-factor authentication is off"
+msgstr "Tweestapsverificatie staat uit"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.Zmrie7"
+msgid "Two-factor authentication"
+msgstr "Tweestapsverificatie"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.P9ictx"
+msgid "An authenticator app code at sign-in. Needed to delete your account."
+msgstr "Een code uit een authenticator-app bij het inloggen. Nodig om je account te verwijderen."
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.Zh-5A6"
+msgid "On"
+msgstr "Aan"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.OvzONl"
+msgid "Off"
+msgstr "Uit"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.MBwRvF"
+msgid "QR code for your authenticator app"
+msgstr "QR-code voor je authenticator-app"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.a2WJGp"
+msgid "Code from the app"
+msgstr "Code uit de app"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.Avaq8g"
+msgid "Or enter this key by hand: {secret}"
+msgstr "Of voer deze sleutel met de hand in: {secret}"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.q5Xl0M"
+msgid "Verify"
+msgstr "Verifiëren"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.XZ-Fx6"
+msgid "Turn off"
+msgstr "Uitzetten"
+
+#: src/features/user/components/two-factor-card.tsx
+msgctxt "security.rrGMSx"
+msgid "Set up"
+msgstr "Instellen"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+#: src/features/user/components/user-menu-lazy.tsx
+msgctxt "user.yuQ593"
+msgid "Account menu"
+msgstr "Accountmenu"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.Py189G"
+msgid "Security"
+msgstr "Beveiliging"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.Pe0ogR"
+msgid "Theme"
+msgstr "Thema"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.3cc4Ct"
+msgid "Light"
+msgstr "Licht"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.tOdNiY"
+msgid "Dark"
+msgstr "Donker"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.-CwN9C"
+msgid "System"
+msgstr "Systeem"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.y1Z3or"
+msgid "Language"
+msgstr "Taal"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.xXbJso"
+msgid "Sign out"
+msgstr "Uitloggen"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.TBZNYA"
+msgid "Enter a valid email address."
+msgstr "Vul een geldig e-mailadres in."
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.pQBVnr"
+msgid "You're number {position} in line"
+msgstr "Je bent nummer {position} in de rij"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.clSftv"
+msgid "You're on the list"
+msgstr "Je staat op de lijst"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.Qp4rDM"
+msgid "We'll email you when your spot opens up."
+msgstr "We mailen je zodra er plek voor je is."
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.YKOVVO"
+msgid "Your spot is open. Create your account to get started."
+msgstr "Er is plek voor je. Maak je account aan om te beginnen."
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.dZd8H_"
+msgid "Waiting"
+msgstr "Wachtend"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.6XFO_C"
+msgid "Approved"
+msgstr "Goedgekeurd"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.7ucfxT"
+msgid "Add another address"
+msgstr "Nog een adres toevoegen"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.SeO7GZ"
+msgid "Create your account"
+msgstr "Maak je account"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.h6_d7P"
+msgid "Join the waitlist"
+msgstr "Aanmelden voor de wachtlijst"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.U9Ztdx"
+msgid "Acme Cloud opens to new teams in batches. Save your spot."
+msgstr "Acme Cloud laat nieuwe teams in groepen toe. Reserveer je plek."
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.sy-pv5"
+msgid "Email"
+msgstr "E-mail"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.uCk8r-"
+msgid "Already have an account?"
+msgstr "Heb je al een account?"
+
+#: src/features/waitlist/components/waitlist-signup.tsx
+msgctxt "waitlist.SQJto2"
+msgid "Sign in"
+msgstr "Inloggen"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.JPvrXS"
+msgid "Picked"
+msgstr "Gepickt"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.3wsVWF"
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.u9j3aI"
+msgid "Plan route"
+msgstr "Route plannen"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.U78NhE"
+msgid "Complete"
+msgstr "Voltooid"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.wmirkP"
+msgid "Document"
+msgstr "Document"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.T2ZVQY"
+msgid "Lines"
+msgstr "Regels"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.u7Bh0q"
+msgid "Pick lists"
+msgstr "Picklijsten"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.ZonasR"
+msgid "One list per document with allocated stock, with how many lines are picked."
+msgstr "Eén lijst per document met gereserveerde voorraad, met het aantal gepickte regels."
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.PAaa4v"
+msgid "The pick lists didn't load"
+msgstr "De picklijsten zijn niet geladen"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.nu3Ib8"
+msgid "No pick lists yet"
+msgstr "Nog geen picklijsten"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.Xnjtt-"
+msgid "Allocate stock to a document, then make a pick list from it to give a picker the lines and bins."
+msgstr "Reserveer voorraad voor een document en maak er een picklijst van om een picker de regels en vakken te geven."
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.r7AyZt"
+msgid "Read the warehouse guide"
+msgstr "Lees de magazijngids"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.KK_nq1"
+msgid "Add endpoint"
+msgstr "Endpoint toevoegen"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.uVGARk"
+msgid "Copy the signing secret"
+msgstr "Kopieer het ondertekeningsgeheim"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.OWdx3g"
+msgid "This is the only time it is shown. Your receiver checks each delivery's signature with it."
+msgstr "Je ziet het alleen nu. Je ontvanger controleert er de handtekening van elke levering mee."
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.WQpCwG"
+msgid "Signing secret"
+msgstr "Ondertekeningsgeheim"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.Fozpit"
+msgid "Copy secret"
+msgstr "Geheim kopiëren"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.AWkK0U"
+msgid "Secret copied"
+msgstr "Geheim gekopieerd"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.lZduJw"
+msgid "Add a webhook endpoint"
+msgstr "Webhook-endpoint toevoegen"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.0Hqv1x"
+msgid "Events that match the filter are sent to this URL."
+msgstr "Events die aan het filter voldoen, worden naar deze URL gestuurd."
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.bWjdfa"
+msgid "URL"
+msgstr "URL"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.A5czL7"
+msgid "It must use HTTPS."
+msgstr "Deze moet HTTPS gebruiken."
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.ZvKSfJ"
+msgid "Events"
+msgstr "Events"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.6h_2Sr"
+msgid "Comma-separated event types. Use * for every event, or invoice.* for a group."
+msgstr "Eventtypes gescheiden door komma's. Gebruik * voor alle events, of invoice.* voor een groep."
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.w9pRps"
+msgid "Enable {name}"
+msgstr "{name} inschakelen"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.FTNuuD"
+msgid "Endpoint turned on"
+msgstr "Endpoint ingeschakeld"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.OywY9Q"
+msgid "Endpoint turned off"
+msgstr "Endpoint uitgeschakeld"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.2WzuFa"
+msgid "Send a test event to {name}"
+msgstr "Testevent naar {name} sturen"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.MseUsX"
+msgid "Test event queued"
+msgstr "Testevent in de wachtrij gezet"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.JpsXCp"
+msgid "Delete {name}"
+msgstr "{name} verwijderen"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.g9o_2L"
+msgid "Delete {name}?"
+msgstr "{name} verwijderen?"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.X8KGKz"
+msgid "Its deliveries and signing secrets are deleted too. Events stop going to this URL."
+msgstr "De leveringen en ondertekeningsgeheimen worden ook verwijderd. Er gaan geen events meer naar deze URL."
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.PK7pDv"
+msgid "Endpoint deleted"
+msgstr "Endpoint verwijderd"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.K3r6DQ"
+msgid "Delete"
+msgstr "Verwijderen"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.0Gpgf3"
+msgid "Delivery queued again"
+msgstr "Levering opnieuw in de wachtrij gezet"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/webhooks/components/webhook-endpoint-controls.tsx
+msgctxt "webhooks.xTEoUz"
+msgid "Send a test event"
+msgstr "Testevent sturen"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.G3Nn73"
+msgid "Webhook endpoints"
+msgstr "Webhook-endpoints"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.2TSVZt"
+msgid "URLs that receive this organization's events, signed with a secret only you and the receiver know."
+msgstr "URL's die de events van deze organisatie ontvangen, ondertekend met een geheim dat alleen jij en de ontvanger kennen."
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.eU0vva"
+msgid "The webhooks didn't load"
+msgstr "De webhooks zijn niet geladen"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.mbquqS"
+msgid "No endpoints yet"
+msgstr "Nog geen endpoints"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.y09F9R"
+msgid "Add a URL to start receiving events."
+msgstr "Voeg een URL toe om events te ontvangen."
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.asDkdw"
+msgid "An admin can add a URL to receive events."
+msgstr "Een beheerder kan een URL toevoegen om events te ontvangen."
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.ljmS5P"
+msgid "Endpoint"
+msgstr "Endpoint"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.y8Ob2f"
+msgid "Recent deliveries"
+msgstr "Recente leveringen"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.kId2DB"
+msgid "The last 20 events sent to your endpoints. Failed deliveries retry with backoff."
+msgstr "De laatste 20 events die naar je endpoints zijn gestuurd. Mislukte leveringen worden met toenemende tussenpozen opnieuw geprobeerd."
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.dZ0EGP"
+msgid "No deliveries yet"
+msgstr "Nog geen leveringen"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.r1bdMQ"
+msgid "Send a test event to {name} to check that it receives them."
+msgstr "Stuur een testevent naar {name} om te controleren of het events ontvangt."
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.XCki53"
+msgid "Deliveries show up here once an endpoint is on."
+msgstr "Leveringen verschijnen hier zodra een endpoint is ingeschakeld."
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.m1czzY"
+msgid "Event"
+msgstr "Gebeurtenis"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.HhYIki"
+msgid "Attempts"
+msgstr "Pogingen"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.MgdnPi"
+msgid "Response"
+msgstr "Antwoord"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.ORGv1Q"
+msgid "Created"
+msgstr "Aangemaakt"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.UE_FNm"
+msgid "No reason given."
+msgstr "Geen reden opgegeven."
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.NvxiUc"
+msgid "{count, plural, one {# item updated} other {# items updated}}"
+msgstr "{count, plural, one {# item bijgewerkt} other {# items bijgewerkt}}"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.2g42tq"
+msgid "{failed, number} of {total, number} items failed"
+msgstr "{failed, number} van {total, number} items zijn mislukt"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.ch1L7M"
+msgid "Selected items"
+msgstr "Geselecteerde items"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.AZvexA"
+msgid "{count, plural, one {# selected} other {# selected}}"
+msgstr "{count, plural, one {# geselecteerd} other {# geselecteerd}}"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.kJoEDV"
+msgid "New state"
+msgstr "Nieuwe status"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.Rnwg7A"
+msgid "Set state"
+msgstr "Status instellen"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.EWw_tK"
+msgid "Apply"
+msgstr "Toepassen"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.K3r6DQ"
+msgid "Delete"
+msgstr "Verwijderen"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.SBtjqA"
+msgid "{count, plural, one {Delete # item?} other {Delete # items?}}"
+msgstr "{count, plural, one {# item verwijderen?} other {# items verwijderen?}}"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.fFLaxV"
+msgid "They move to the trash, where they can be restored."
+msgstr "Ze gaan naar de prullenbak, waar je ze kunt herstellen."
+
+#: src/features/work/components/bulk-action-bar.tsx
+#: src/features/work/components/create-work-item-dialog.tsx
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work._GCoTA"
+msgid "Clear"
+msgstr "Wissen"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.2ARmRt"
+msgid "{count, plural, one {# item wasn't changed} other {# items weren't changed}}"
+msgstr "{count, plural, one {# item is niet gewijzigd} other {# items zijn niet gewijzigd}}"
+
+#: src/features/work/components/bulk-action-bar.tsx
+msgctxt "work.TDaF6J"
+msgid "Dismiss"
+msgstr "Sluiten"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work._qulVc"
+msgid "Created {identifier}"
+msgstr "{identifier} aangemaakt"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work.zUJjPA"
+msgid "No team"
+msgstr "Geen team"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work.IjiSH5"
+msgid "New item"
+msgstr "Nieuw item"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work.KblnB2"
+msgid "New work item"
+msgstr "Nieuw werkitem"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work.ND6dmd"
+msgid "It starts in the first stage of your workflow."
+msgstr "Het begint in de eerste fase van je workflow."
+
+#: src/features/work/components/create-work-item-dialog.tsx
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work.CrGNTq"
+msgid "Enter a title."
+msgstr "Vul een titel in."
+
+#: src/features/work/components/create-work-item-dialog.tsx
+#: src/features/work/components/team-picker.tsx
+msgctxt "work.wsUmh9"
+msgid "Team"
+msgstr "Team"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.8lCjAM"
+msgid "Priority"
+msgstr "Prioriteit"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work.RBD1lh"
+msgid "Create item"
+msgstr "Item aanmaken"
+
+#: src/features/work/components/team-picker.tsx
+msgctxt "work.J9yqGv"
+msgid "Team created"
+msgstr "Team aangemaakt"
+
+#: src/features/work/components/team-picker.tsx
+msgctxt "work.68djwb"
+msgid "No teams yet"
+msgstr "Nog geen teams"
+
+#: src/features/work/components/team-picker.tsx
+msgctxt "work.ZXxF4K"
+msgid "Create a team to group work and filter the board by it."
+msgstr "Maak een team aan om werk te groeperen en het bord erop te filteren."
+
+#: src/features/work/components/team-picker.tsx
+msgctxt "work.WwRKM6"
+msgid "An admin can create teams to group work."
+msgstr "Een beheerder kan teams aanmaken om werk te groeperen."
+
+#: src/features/work/components/team-picker.tsx
+msgctxt "work.qUrlgz"
+msgid "Team name"
+msgstr "Teamnaam"
+
+#: src/features/work/components/team-picker.tsx
+msgctxt "work.uUF-Zq"
+msgid "Create team"
+msgstr "Team aanmaken"
+
+#: src/features/work/components/team-picker.tsx
+msgctxt "work.DtvBtA"
+msgid "All teams"
+msgstr "Alle teams"
+
+#: src/features/work/components/work-board.tsx
+msgctxt "work.fO3vTS"
+msgid "The teams didn't load"
+msgstr "De teams zijn niet geladen"
+
+#: src/features/work/components/work-board.tsx
+msgctxt "work.EIFkkA"
+msgid "Drag an item to another column to change its state, or within a column to reorder it."
+msgstr "Sleep een item naar een andere kolom om de status te wijzigen, of binnen een kolom om de volgorde aan te passen."
+
+#: src/features/work/components/work-board.tsx
+msgctxt "work.yUcWBK"
+msgid "The board didn't load"
+msgstr "Het bord is niet geladen"
+
+#: src/features/work/components/work-board.tsx
+#: src/features/work/components/work-grid.tsx
+msgctxt "work.oTYeQd"
+msgid "No work items yet"
+msgstr "Nog geen werkitems"
+
+#: src/features/work/components/work-board.tsx
+msgctxt "work.Hqc-CD"
+msgid "This team has no work items"
+msgstr "Dit team heeft geen werkitems"
+
+#: src/features/work/components/work-board.tsx
+msgctxt "work.9w5-wP"
+msgid "Create the first item. Its workflow is set up with it, from triage to done."
+msgstr "Maak het eerste item aan. De workflow wordt meteen ingericht, van triage tot klaar."
+
+#: src/features/work/components/work-board.tsx
+msgctxt "work.4KN5hv"
+msgid "Ask a member with write access to create one."
+msgstr "Vraag een lid met schrijfrechten om er een aan te maken."
+
+#: src/features/work/components/work-grid.tsx
+msgctxt "work.EqqllK"
+msgid "The work items didn't load"
+msgstr "De werkitems zijn niet geladen"
+
+#: src/features/work/components/work-grid.tsx
+msgctxt "work.cgsmc-"
+msgid "The saved views didn't load"
+msgstr "De opgeslagen weergaven zijn niet geladen"
+
+#: src/features/work/components/work-grid.tsx
+msgctxt "work.wGze6K"
+msgid "Create items on the board, then sort and edit them here."
+msgstr "Maak items aan op het bord en sorteer en bewerk ze hier."
+
+#: src/features/work/components/work-grid.tsx
+msgctxt "work.RdTI99"
+msgid "Open the board"
+msgstr "Bord openen"
+
+#: src/features/work/components/work-grid.tsx
+msgctxt "work.BlDlBd"
+msgid "No items match"
+msgstr "Geen items gevonden"
+
+#: src/features/work/components/work-grid.tsx
+msgctxt "work.sFdvh5"
+msgid "Change the search or the state filter."
+msgstr "Pas de zoekopdracht of het statusfilter aan."
+
+#: src/features/work/components/work-grid.tsx
+msgctxt "work.F4gyn3"
+msgid "Clear filters"
+msgstr "Filters wissen"
+
+#: src/features/work/components/work-item-board.tsx
+msgctxt "work.hI_lv8"
+msgid "{count, plural, one {# assignee} other {# assignees}}"
+msgstr "{count, plural, one {# toegewezen persoon} other {# toegewezen personen}}"
+
+#: src/features/work/components/work-item-board.tsx
+msgctxt "work.obTbyA"
+msgid "Moved, but its place in the column wasn't saved."
+msgstr "Verplaatst, maar de plek in de kolom is niet opgeslagen."
+
+#: src/features/work/components/work-item-board.tsx
+msgctxt "work.5ePA5T"
+msgid "{count, number} of {limit, number}"
+msgstr "{count, number} van {limit, number}"
+
+#: src/features/work/components/work-item-board.tsx
+msgctxt "work.oAv47O"
+msgid "Drop an item here."
+msgstr "Zet hier een item neer."
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.fwIt1X"
+msgid "Newest"
+msgstr "Nieuwste"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.ku-mDU"
+msgid "State"
+msgstr "Status"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.JAYugF"
+msgid "Save view"
+msgstr "Weergave opslaan"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.FrIr1g"
+msgid "View saved"
+msgstr "Weergave opgeslagen"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.heOG7H"
+msgid "Keeps the search, the state filter and the sort."
+msgstr "Bewaart de zoekopdracht, het statusfilter en de sortering."
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.r9dz-8"
+msgid "Any state"
+msgstr "Elke status"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.a1eoKk"
+msgid "Unassigned"
+msgstr "Niet toegewezen"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.cM6msH"
+msgid "Search titles"
+msgstr "Titels zoeken"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.xmcVZ0"
+msgid "Search"
+msgstr "Zoeken"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.25oM9Q"
+msgid "Sort"
+msgstr "Sorteren"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.49m_TX"
+msgid "Saved views"
+msgstr "Opgeslagen weergaven"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.ZA91bs"
+msgid "Delete view {name}"
+msgstr "Weergave {name} verwijderen"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.94Fg25"
+msgid "Select all"
+msgstr "Alles selecteren"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.qlcuNQ"
+msgid "ID"
+msgstr "ID"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.vx8bv3"
+msgid "Assignee"
+msgstr "Toegewezen aan"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.XrftS8"
+msgid "Select {identifier}"
+msgstr "{identifier} selecteren"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.NP0l5s"
+msgid "State of {identifier}"
+msgstr "Status van {identifier}"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.AlwLGP"
+msgid "Assignee of {identifier}"
+msgstr "Toegewezen persoon van {identifier}"
+
+#: src/features/work/components/work-load-error.tsx
+msgctxt "work.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/work/components/work-load-error.tsx
+msgctxt "work.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.Plj2Du"
+msgid "Triage"
+msgstr "Triage"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.mX1AFw"
+msgid "Backlog"
+msgstr "Backlog"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.vwqEeH"
+msgid "To do"
+msgstr "Te doen"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.q1WWIr"
+msgid "In progress"
+msgstr "Bezig"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.PFtMy9"
+msgid "Canceled"
+msgstr "Geannuleerd"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.yN7aqf"
+msgid "Urgent"
+msgstr "Urgent"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.AxMhQr"
+msgid "High"
+msgstr "Hoog"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.ovJ26C"
+msgid "Medium"
+msgstr "Gemiddeld"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.477I0g"
+msgid "Low"
+msgstr "Laag"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.3xhqUH"
+msgid "No priority"
+msgstr "Geen prioriteit"
+
+#: src/features/work/use-work-labels.ts
+msgctxt "work.XbVSQk"
+msgid "The workflow doesn't allow that move."
+msgstr "De workflow staat deze verplaatsing niet toe."
+
+#: src/features/workflows/builder/components/create-definition-form.tsx
+msgctxt "workflows.OX3pPf"
+msgid "Workflow name"
+msgstr "Naam van de workflow"
+
+#: src/features/workflows/builder/components/create-definition-form.tsx
+msgctxt "workflows.GIHRKG"
+msgid "New workflow"
+msgstr "Nieuwe workflow"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.pla3j2"
+msgid "Credential saved"
+msgstr "Inloggegeven opgeslagen"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.HLZ9CC"
+msgid "Credentials"
+msgstr "Inloggegevens"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.5JrXWi"
+msgid "Slack bot tokens for the Post to Slack step. The token is stored in Vault and never shown again."
+msgstr "Slack-bottokens voor de stap Post to Slack. Het token wordt in Vault bewaard en nooit meer getoond."
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.tnRDuU"
+msgid "Revoke"
+msgstr "Intrekken"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.YXi-kI"
+msgid "Bot token"
+msgstr "Bottoken"
+
+#: src/features/workflows/builder/components/credential-sheet.tsx
+msgctxt "workflows.o3mPr9"
+msgid "Add credential"
+msgstr "Inloggegeven toevoegen"
+
+#: src/features/workflows/builder/components/definition-list.tsx
+msgctxt "workflows.yW1OYL"
+msgid "No workflows yet. Members who can edit create one above."
+msgstr "Nog geen workflows. Leden die mogen bewerken maken er hierboven een aan."
+
+#: src/features/workflows/builder/components/definition-list.tsx
+msgctxt "workflows.4hC_e1"
+msgid "v{version}"
+msgstr "v{version}"
+
+#: src/features/workflows/builder/components/definition-list.tsx
+msgctxt "workflows.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.753yX5"
+msgid "Label"
+msgstr "Label"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.Sa3kyT"
+msgid "Pick a credential"
+msgstr "Kies een inloggegeven"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.IuFETn"
+msgid "Duration"
+msgstr "Duur"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.Qp1beM"
+msgid "Path"
+msgstr "Pad"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.3yf2ND"
+msgid "Operator"
+msgstr "Operator"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.GufXy5"
+msgid "Value"
+msgstr "Waarde"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.WCaf5C"
+msgid "Approve"
+msgstr "Goedkeuren"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.VzIOKf"
+msgid "Reject"
+msgstr "Afwijzen"
+
+#: src/features/workflows/builder/components/node-panel.tsx
+msgctxt "workflows.D6C3H7"
+msgid "Remove node"
+msgstr "Node verwijderen"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.xm3F7A"
+msgid "Nodes added"
+msgstr "Nodes toegevoegd"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.kMH7dy"
+msgid "Nodes removed"
+msgstr "Nodes verwijderd"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.mWq4c6"
+msgid "Nodes changed"
+msgstr "Nodes gewijzigd"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.AFN2jr"
+msgid "Edges added"
+msgstr "Verbindingen toegevoegd"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.FCmWxO"
+msgid "Edges removed"
+msgstr "Verbindingen verwijderd"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.syEQFE"
+msgid "Publish"
+msgstr "Publiceren"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.dqOScS"
+msgid "Publish the first version"
+msgstr "De eerste versie publiceren"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.cT2_An"
+msgid "Publish over version {version}"
+msgstr "Publiceren over versie {version}"
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.QcsPQj"
+msgid "New runs start on the published version. Runs in progress finish on the version they started on."
+msgstr "Nieuwe runs starten op de gepubliceerde versie. Lopende runs maken de versie af waarop ze begonnen."
+
+#: src/features/workflows/builder/components/publish-dialog.tsx
+msgctxt "workflows.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.VKCWKe"
+msgid "Trigger saved"
+msgstr "Trigger opgeslagen"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.GnZZHN"
+msgid "Webhook"
+msgstr "Webhook"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.hGQqkW"
+msgid "Schedule"
+msgstr "Schema"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.M59JhX"
+msgid "Manual"
+msgstr "Handmatig"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.GnWmca"
+msgid "Triggers"
+msgstr "Triggers"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.f1FufG"
+msgid "What starts the published version besides the Run button. A webhook's URL is shown once."
+msgstr "Wat de gepubliceerde versie start naast de knop Uitvoeren. De URL van een webhook wordt één keer getoond."
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.VscMsQ"
+msgid "New webhook URL"
+msgstr "Nieuwe webhook-URL"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.G_yZLu"
+msgid "Remove"
+msgstr "Verwijderen"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.LO-gev"
+msgid "Webhook URL"
+msgstr "Webhook-URL"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.e5x8FT"
+msgid "Kind"
+msgstr "Soort"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.3Wq8aM"
+msgid "Cron"
+msgstr "Cron"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.qE1eug"
+msgid "Add trigger"
+msgstr "Trigger toevoegen"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.JLulyJ"
+msgid "Draft saved"
+msgstr "Concept opgeslagen"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.7KALUt"
+msgid "Version {version} published"
+msgstr "Versie {version} gepubliceerd"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.R2zJFp"
+msgid "Save draft"
+msgstr "Concept opslaan"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.Z-RXZI"
+msgid "Input text"
+msgstr "Invoertekst"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.KiXNvz"
+msgid "Run"
+msgstr "Uitvoeren"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.alUnC1"
+msgid "Show a run"
+msgstr "Een run tonen"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.eA7dRH"
+msgid "Palette"
+msgstr "Palet"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.Mmft-L"
+msgid "Wait"
+msgstr "Wachten"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.Kl6x-n"
+msgid "Approval"
+msgstr "Goedkeuring"
+
+#: src/features/workflows/builder/components/workflow-canvas.tsx
+msgctxt "workflows.XMpO69"
+msgid "Condition"
+msgstr "Voorwaarde"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.3y9DGg"
+msgid "Resume"
+msgstr "Hervatten"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.tFFMkF"
+msgid "Pause"
+msgstr "Pauzeren"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.Upmxtt"
+msgid "Schedule saved"
+msgstr "Planning opgeslagen"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.OGhQzA"
+msgid "Daily drip"
+msgstr "Dagelijkse drip"
+
+#: src/features/workflows/components/schedule-controls.tsx
+msgctxt "workflows.L7eGvd"
+msgid "Save schedule"
+msgstr "Planning opslaan"
+
+#: src/features/workflows/components/schedule-list.tsx
+msgctxt "workflows.ge2zXh"
+msgid "No schedules. Admins can add one below."
+msgstr "Geen planningen. Beheerders kunnen er hieronder een toevoegen."
+
+#: src/features/workflows/components/schedule-list.tsx
+msgctxt "workflows.C2iTEH"
+msgid "Paused"
+msgstr "Gepauzeerd"
+
+#: src/features/workflows/components/schedule-list.tsx
+msgctxt "workflows.4tIA7p"
+msgid "Next: {time}"
+msgstr "Volgende: {time}"
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.5AgvJf"
+msgid "Workflow started"
+msgstr "Workflow gestart"
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.VBmGyS"
+msgid "Onboarding drip"
+msgstr "Onboarding-drip"
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.pN3nYG"
+msgid "Workflows survive restarts. Each step runs once. Runs show up here."
+msgstr "Workflows overleven herstarts. Elke stap draait één keer. Runs verschijnen hier."
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.7-VYtK"
+msgid "Ingest a document"
+msgstr "Document verwerken"
+
+#: src/features/workflows/components/workflow-actions.tsx
+msgctxt "workflows.0JzFLp"
+msgid "Request approval"
+msgstr "Goedkeuring aanvragen"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.ORGv1Q"
+msgid "Created"
+msgstr "Aangemaakt"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.TDUfVk"
+msgid "Started"
+msgstr "Gestart"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.EQpfkS"
+msgid "Finished"
+msgstr "Afgerond"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.lsX7TX"
+msgid "Cancel run"
+msgstr "Run annuleren"
+
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.x3qvaC"
+msgid "No runs yet"
+msgstr "Nog geen runs"
+
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.G5eG81"
+msgid "Start a sample workflow to see its run here."
+msgstr "Start een voorbeeldworkflow om de run hier te zien."
+
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.pv1lF7"
+msgid "Workflow"
+msgstr "Workflow"
+
+#: src/features/workflows/components/workflow-runs.tsx
+msgctxt "workflows.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.JI3eca"
+msgid "That already exists."
+msgstr "Dat bestaat al."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.U8S-VX"
+msgid "Check the highlighted fields and try again."
+msgstr "Controleer de gemarkeerde velden en probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.l4YmKm"
+msgid "Someone else changed this. Reload and try again."
+msgstr "Iemand anders heeft dit gewijzigd. Herlaad en probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.0Wy2tt"
+msgid "The server didn't answer. Try again."
+msgstr "De server antwoordde niet. Probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.3kJE8G"
+msgid "Something went wrong. Try again."
+msgstr "Er ging iets mis. Probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.p0Vi70"
+msgid "Sign in again to continue."
+msgstr "Log opnieuw in om door te gaan."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.7GZhCN"
+msgid "You don't have permission to do that."
+msgstr "Je hebt geen toestemming om dat te doen."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.ZT3lBq"
+msgid "That item no longer exists."
+msgstr "Dat item bestaat niet meer."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.GhZx8v"
+msgid "Too many requests. Wait a moment and try again."
+msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.L-85Jk"
+msgid "Your plan's limit is reached. Upgrade to continue."
+msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
+
+#: src/lib/use-error-message.ts
+msgctxt "errors.TM7s8X"
+msgid "The list was cut off. Ask for a page instead."
+msgstr "De lijst is afgekapt. Vraag in plaats daarvan een pagina op."
+

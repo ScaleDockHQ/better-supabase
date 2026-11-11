@@ -8,9 +8,6 @@ export default function LedgerRecordPage({
   params,
 }: PageProps<"/[locale]/finance/ledger/[id]">) {
   return (
-    <FinanceDetailPage
-      entity="ledger"
-      ids={params.then(({ id }) => id)}
-    />
+    <FinanceDetailPage entity="ledger" ids={params.then(({ id }) => id)} />
   );
 }

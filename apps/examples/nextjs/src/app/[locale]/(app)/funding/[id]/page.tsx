@@ -8,9 +8,6 @@ export default function FundingRecordPage({
   params,
 }: PageProps<"/[locale]/funding/[id]">) {
   return (
-    <FinanceDetailPage
-      entity="funding"
-      ids={params.then(({ id }) => id)}
-    />
+    <FinanceDetailPage entity="funding" ids={params.then(({ id }) => id)} />
   );
 }

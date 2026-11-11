@@ -8,9 +8,6 @@ export default function PayrollRecordPage({
   params,
 }: PageProps<"/[locale]/payroll/[id]">) {
   return (
-    <FinanceDetailPage
-      entity="payroll"
-      ids={params.then(({ id }) => id)}
-    />
+    <FinanceDetailPage entity="payroll" ids={params.then(({ id }) => id)} />
   );
 }

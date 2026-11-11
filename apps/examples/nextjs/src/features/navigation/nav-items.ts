@@ -512,12 +512,7 @@ export const navItems: readonly NavItem[] = [
     area: "finance",
     requires: "accounting.read",
   },
-  {
-    id: "tax",
-    href: "/finance/tax",
-    area: "finance",
-    requires: "tax.read",
-  },
+  { id: "tax", href: "/finance/tax", area: "finance", requires: "tax.read" },
   {
     id: "periods",
     href: "/finance/periods",

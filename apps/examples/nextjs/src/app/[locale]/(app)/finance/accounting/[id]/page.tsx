@@ -8,9 +8,6 @@ export default function JournalRecordPage({
   params,
 }: PageProps<"/[locale]/finance/accounting/[id]">) {
   return (
-    <FinanceDetailPage
-      entity="journal"
-      ids={params.then(({ id }) => id)}
-    />
+    <FinanceDetailPage entity="journal" ids={params.then(({ id }) => id)} />
   );
 }

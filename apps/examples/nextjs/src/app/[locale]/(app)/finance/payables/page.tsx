@@ -9,6 +9,10 @@ import {
 } from "@/features/payables/components/payables-aging";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
+// instant: this overview keeps its own header and sections (the page reads
+// the signed-in user's permissions), so it doesn't export `instant`; the
+// list and detail pages beside it do.
+
 export default function PayablesPage() {
   const t = useExtracted("payables");
 

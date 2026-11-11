@@ -1,11 +1,12 @@
+/* oxlint-disable anti-slop/no-conditional-empty-object-spread -- `exactOptionalPropertyTypes` rejects an explicit `undefined`, so an optional input is spread only when present; 1 findings */
 import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import type { FinanceEntityKey, FinanceListQuery } from "@/lib/finance-list";
 import type { RecordListPage } from "@/components/record-list/record-list-types";
+import type { FinanceEntityKey, FinanceListQuery } from "@/lib/finance-list";
 
 import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { BILLING_TAG } from "@/features/billing/billing-cache";
@@ -26,7 +27,9 @@ const PAGE_SIZE = 50;
 const Page = v.object({
   items: v.array(v.looseObject({ id: v.string() })),
   nextCursor: v.nullable(v.string()),
-  facetCounts: v.nullish(v.record(v.string(), v.record(v.string(), v.number()))),
+  facetCounts: v.nullish(
+    v.record(v.string(), v.record(v.string(), v.number())),
+  ),
   facetCountsCapped: v.nullish(v.boolean()),
 });
 
@@ -74,8 +77,8 @@ export async function runFinanceList(
 
 /**
  * The first page of an entity, for the server render of its overview. The page
- * doesn't read `searchParams`, so it stays in the instant App Shell; every other
- * URL state goes through the entity's list route.
+ * doesn't read `searchParams`, so it stays in the instant App Shell; every
+ * other URL state goes through the entity's list route.
  */
 async function readFirstPage(
   entity: FinanceEntityKey,
@@ -101,7 +104,9 @@ export type FinanceLoaded<T> =
  * A failed read becomes `{ kind: "error" }` and is never cached, so Retry reads
  * again.
  */
-async function settle<T>(load: () => Promise<T | null>): Promise<FinanceLoaded<T>> {
+async function settle<T>(
+  load: () => Promise<T | null>,
+): Promise<FinanceLoaded<T>> {
   try {
     const data = await load();
 

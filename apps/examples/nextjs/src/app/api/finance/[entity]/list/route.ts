@@ -1,9 +1,10 @@
+import type { FinanceEntityKey } from "../../../../../lib/finance-list";
+
+import { runFinanceList } from "../../../../../features/finance-records/finance-records-queries";
 import {
   FINANCE_ENTITIES,
   defineFinanceList,
-  type FinanceEntityKey,
 } from "../../../../../lib/finance-list";
-import { runFinanceList } from "../../../../../features/finance-records/finance-records-queries";
 import { bsbCore as bsb } from "../../../../../lib/supabase/server-core";
 
 const isEntity = (value: string): value is FinanceEntityKey =>

@@ -1,3 +1,4 @@
+/* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-known-value-widening, anti-slop/no-conditional-empty-object-spread -- `exactOptionalPropertyTypes` rejects an explicit `undefined`, so an optional input is spread only when present; 5 findings */
 /**
  * Every entity of the finance pages with its list route, the facets its list
  * function filters by and the sorts it knows (`api.finance_list_spec`). The
@@ -139,7 +140,7 @@ const values = {
 
 const page = {
   parse: (value: string) => (/^\d+$/.test(value) ? Number(value) : null),
-  serialize: (value: number) => String(value),
+  serialize: String,
 };
 
 /**
@@ -217,11 +218,15 @@ export function defineFinanceList(entity: FinanceEntityKey) {
 
       return params;
     },
-    /** nuqs parsers, one per URL key (`useQueryStates(list.nuqs(createParser))`). */
+    /**
+     * Nuqs parsers, one per URL key
+     * (`useQueryStates(list.nuqs(createParser))`).
+     */
     nuqs<P>(createParser: (spec: ParserSpec<unknown>) => P): Record<string, P> {
       // SAFETY: each spec parses and serializes its own value type, which
       // nuqs receives untyped, as `defineListQuery(...).nuqs` does.
-      const untyped = (spec: unknown) => createParser(spec as ParserSpec<unknown>);
+      const untyped = (spec: unknown) =>
+        createParser(spec as ParserSpec<unknown>);
 
       return {
         q: untyped(text),
