@@ -5,6 +5,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -212,173 +213,166 @@ export async function CustomerDetail({ id }: { id: string }) {
   const customerId = customer.id;
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-3">
-      <div className="flex flex-col gap-6 lg:col-span-2">
-        <div className="flex items-center gap-4">
-          {customer.logoUrl ? (
-            <Image
-              src={customer.logoUrl}
-              width={56}
-              height={56}
-              alt=""
-              className="rounded-xl"
-            />
-          ) : (
-            <span className="flex size-14 items-center justify-center rounded-xl bg-muted text-lg font-semibold text-muted-foreground">
-              {initials(customer.name, null)}
-            </span>
-          )}
-          <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {customer.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {t("Customer since {date}", {
-                date: format.dateTime(new Date(customer.createdAt), {
-                  dateStyle: "long",
-                }),
-              })}
-            </p>
-          </div>
-          <CustomerStatus status={customer.status} />
-        </div>
-
-        {can(permissions, "reactions.read") ? (
-          <ReactionsBar
-            customerId={customerId}
-            canReact={can(permissions, "reactions.create")}
+    <RecordDetailFrame
+      leading={
+        customer.logoUrl ? (
+          <Image
+            src={customer.logoUrl}
+            width={56}
+            height={56}
+            alt=""
+            className="rounded-xl"
           />
-        ) : null}
-
-        <Card id="comments" data-recipe="comment-thread">
-          <CardHeader>
-            <CardTitle>{t("Comments")}</CardTitle>
-            <CardDescription>
-              {t("Visible to everyone in the organization.")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CommentThread
-              subject={{ type: "customer", id: customer.id }}
-              authors={authors}
-              canComment={can(permissions, "messages.send")}
-            />
-          </CardContent>
-        </Card>
-
-        {can(permissions, "attachments.read") ? (
-          <Suspense fallback={<AttachmentsUploaderSkeleton />}>
-            <AttachmentsSection
-              customerId={customerId}
-              canUpload={can(permissions, "attachments.upload")}
-              canRemove={can(permissions, "attachments.manage")}
-            />
+        ) : (
+          <span className="flex size-14 items-center justify-center rounded-xl bg-muted text-lg font-semibold text-muted-foreground">
+            {initials(customer.name, null)}
+          </span>
+        )
+      }
+      title={customer.name}
+      description={t("Customer since {date}", {
+        date: format.dateTime(new Date(customer.createdAt), {
+          dateStyle: "long",
+        }),
+      })}
+      status={<CustomerStatus status={customer.status} />}
+      aside={
+        <>
+          <Suspense fallback={<CustomerTimelineSkeleton />}>
+            <TimelineSection customerId={customerId} authors={authors} />
           </Suspense>
-        ) : null}
-        {can(permissions, "relations.read") ? (
-          <Suspense fallback={<RelatedItemsPanelSkeleton />}>
-            <RelationsSection
-              customerId={customerId}
-              canManage={can(permissions, "relations.manage")}
-            />
-          </Suspense>
-        ) : null}
-        {can(permissions, "versions.read") ? (
-          <Suspense fallback={<VersionHistorySkeleton />}>
-            <VersionsSection
-              customerId={customerId}
-              canSave={can(permissions, "versions.create")}
-              canRestore={
-                can(permissions, "versions.restore") &&
-                can(permissions, "customers.write")
-              }
-            />
-          </Suspense>
-        ) : null}
-      </div>
-
-      <div className="flex flex-col gap-6">
-        <Suspense fallback={<CustomerTimelineSkeleton />}>
-          <TimelineSection customerId={customerId} authors={authors} />
-        </Suspense>
-        {can(permissions, "sla.read") ? (
-          <Suspense fallback={<SlaBadgesSkeleton />}>
-            <SlaSection
-              customerId={customerId}
-              canCreatePolicy={can(permissions, "sla.manage")}
-            />
-          </Suspense>
-        ) : null}
-        {can(permissions, "share_links.read") ? (
-          <Suspense fallback={<ShareLinkDialogSkeleton />}>
-            <ShareLinksSection
-              customerId={customerId}
-              canCreate={can(permissions, "share_links.create")}
-            />
-          </Suspense>
-        ) : null}
-        {teams ? (
-          <Card size="sm">
+          {can(permissions, "sla.read") ? (
+            <Suspense fallback={<SlaBadgesSkeleton />}>
+              <SlaSection
+                customerId={customerId}
+                canCreatePolicy={can(permissions, "sla.manage")}
+              />
+            </Suspense>
+          ) : null}
+          {can(permissions, "share_links.read") ? (
+            <Suspense fallback={<ShareLinkDialogSkeleton />}>
+              <ShareLinksSection
+                customerId={customerId}
+                canCreate={can(permissions, "share_links.create")}
+              />
+            </Suspense>
+          ) : null}
+          {teams ? (
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>{t("Owner team")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <OwnerTeamSelect
+                  customerId={customer.id}
+                  ownerTeamId={customer.ownerTeamId}
+                  teams={teams
+                    .filter(
+                      (team) =>
+                        team.status === "active" ||
+                        team.id === customer.ownerTeamId,
+                    )
+                    .map((team) => ({ id: team.id, name: team.name }))}
+                  disabled={!can(permissions, "customers.write")}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+          <Card size="sm" data-recipe="tag-input">
             <CardHeader>
-              <CardTitle>{t("Owner team")}</CardTitle>
+              <CardTitle>{t("Tags")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <OwnerTeamSelect
-                customerId={customer.id}
-                ownerTeamId={customer.ownerTeamId}
-                teams={teams
-                  .filter(
-                    (team) =>
-                      team.status === "active" ||
-                      team.id === customer.ownerTeamId,
-                  )
-                  .map((team) => ({ id: team.id, name: team.name }))}
-                disabled={!can(permissions, "customers.write")}
-              />
+              <TagInput subject={{ type: "customer", id: customer.id }} />
             </CardContent>
           </Card>
-        ) : null}
-        <Card size="sm" data-recipe="tag-input">
-          <CardHeader>
-            <CardTitle>{t("Tags")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TagInput subject={{ type: "customer", id: customer.id }} />
-          </CardContent>
-        </Card>
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>{t("Recent notes")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {customer.notes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("No notes yet.")}
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {customer.notes.map((note) => (
-                  <li
-                    key={note.id}
-                    className="flex flex-col items-start gap-1 text-sm"
-                  >
-                    <p>{note.body}</p>
-                    <Badge variant="outline">{note.kind}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-        {can(permissions, "customers.write") ? (
           <Card size="sm">
+            <CardHeader>
+              <CardTitle>{t("Recent notes")}</CardTitle>
+            </CardHeader>
             <CardContent>
-              <CustomerLogoForm customerId={customer.id} />
+              {customer.notes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t("No notes yet.")}
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {customer.notes.map((note) => (
+                    <li
+                      key={note.id}
+                      className="flex flex-col items-start gap-1 text-sm"
+                    >
+                      <p>{note.body}</p>
+                      <Badge variant="outline">{note.kind}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           </Card>
-        ) : null}
-      </div>
-    </div>
+          {can(permissions, "customers.write") ? (
+            <Card size="sm">
+              <CardContent>
+                <CustomerLogoForm customerId={customer.id} />
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
+      }
+    >
+      {can(permissions, "reactions.read") ? (
+        <ReactionsBar
+          customerId={customerId}
+          canReact={can(permissions, "reactions.create")}
+        />
+      ) : null}
+
+      <Card id="comments" data-recipe="comment-thread">
+        <CardHeader>
+          <CardTitle>{t("Comments")}</CardTitle>
+          <CardDescription>
+            {t("Visible to everyone in the organization.")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CommentThread
+            subject={{ type: "customer", id: customer.id }}
+            authors={authors}
+            canComment={can(permissions, "messages.send")}
+          />
+        </CardContent>
+      </Card>
+
+      {can(permissions, "attachments.read") ? (
+        <Suspense fallback={<AttachmentsUploaderSkeleton />}>
+          <AttachmentsSection
+            customerId={customerId}
+            canUpload={can(permissions, "attachments.upload")}
+            canRemove={can(permissions, "attachments.manage")}
+          />
+        </Suspense>
+      ) : null}
+      {can(permissions, "relations.read") ? (
+        <Suspense fallback={<RelatedItemsPanelSkeleton />}>
+          <RelationsSection
+            customerId={customerId}
+            canManage={can(permissions, "relations.manage")}
+          />
+        </Suspense>
+      ) : null}
+      {can(permissions, "versions.read") ? (
+        <Suspense fallback={<VersionHistorySkeleton />}>
+          <VersionsSection
+            customerId={customerId}
+            canSave={can(permissions, "versions.create")}
+            canRestore={
+              can(permissions, "versions.restore") &&
+              can(permissions, "customers.write")
+            }
+          />
+        </Suspense>
+      ) : null}
+    </RecordDetailFrame>
   );
 }
 

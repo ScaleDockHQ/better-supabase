@@ -966,6 +966,56 @@ msgctxt "app.HetEY5"
 msgid "It moved, or it isn't available to your organization."
 msgstr "Ze is verplaatst, of niet beschikbaar voor je organisatie."
 
+#: src/components/record-detail/record-section-error.tsx
+msgctxt "recordDetail.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo nog eens."
+
+#: src/components/record-detail/record-section-error.tsx
+msgctxt "recordDetail.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/components/record-list/record-list-facets.tsx
+msgctxt "recordList.4w8gkk"
+msgid "is any of"
+msgstr "is een van"
+
+#: src/components/record-list/record-list-grid.tsx
+msgctxt "recordList.PihCom"
+msgid "The list did not load"
+msgstr "De lijst is niet geladen"
+
+#: src/components/record-list/record-list-grid.tsx
+msgctxt "recordList.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo nog eens."
+
+#: src/components/record-list/record-list-grid.tsx
+msgctxt "recordList.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/components/record-list/record-list-toolbar.tsx
+msgctxt "recordList.hDI-JM"
+msgid "Sort by"
+msgstr "Sorteren op"
+
+#: src/components/record-list/record-list-view.tsx
+msgctxt "recordList.jZ0o74"
+msgid "Reset filters"
+msgstr "Filters herstellen"
+
+#: src/components/record-list/record-list-view.tsx
+msgctxt "recordList.A64Z-T"
+msgid "First page"
+msgstr "Eerste pagina"
+
+#: src/components/record-list/record-list-view.tsx
+msgctxt "recordList.rBj9Ib"
+msgid "Next page"
+msgstr "Volgende pagina"
+
 #: src/features/access-requests/components/access-request-controls.tsx
 msgctxt "accessRequests.d7eaHV"
 msgid "You already have a pending request for this organization."
@@ -6270,7 +6320,7 @@ msgid "New customers start as leads and count toward your plan's quota."
 msgstr "Nieuwe klanten beginnen als lead en tellen mee voor het quotum van je abonnement."
 
 #: src/features/customers/components/create-customer-form.tsx
-#: src/features/customers/components/customer-table.tsx
+#: src/features/customers/components/customer-record-list.tsx
 msgctxt "customers.HAlOn1"
 msgid "Name"
 msgstr "Naam"
@@ -6292,16 +6342,6 @@ msgid "Customer since {date}"
 msgstr "Klant sinds {date}"
 
 #: src/features/customers/components/customer-detail.tsx
-msgctxt "customers.wCgTu5"
-msgid "Comments"
-msgstr "Reacties"
-
-#: src/features/customers/components/customer-detail.tsx
-msgctxt "customers.p38jo8"
-msgid "Visible to everyone in the organization."
-msgstr "Zichtbaar voor iedereen in de organisatie."
-
-#: src/features/customers/components/customer-detail.tsx
 #: src/features/customers/components/owner-team-select.tsx
 msgctxt "customers.KZJPu-"
 msgid "Owner team"
@@ -6321,6 +6361,16 @@ msgstr "Recente notities"
 msgctxt "customers.7PEOXA"
 msgid "No notes yet."
 msgstr "Nog geen notities."
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.wCgTu5"
+msgid "Comments"
+msgstr "Reacties"
+
+#: src/features/customers/components/customer-detail.tsx
+msgctxt "customers.p38jo8"
+msgid "Visible to everyone in the organization."
+msgstr "Zichtbaar voor iedereen in de organisatie."
 
 #: src/features/customers/components/customer-list.tsx
 msgctxt "customers.Zl6bWT"
@@ -6347,45 +6397,45 @@ msgctxt "customers.zfs6a2"
 msgid "Upload logo"
 msgstr "Logo uploaden"
 
-#: src/features/customers/components/customer-table.tsx
-msgctxt "customers.bVjFta"
-msgid "Search customers"
-msgstr "Klanten zoeken"
-
-#: src/features/customers/components/customer-table.tsx
+#: src/features/customers/components/customer-record-list.tsx
 msgctxt "customers.tzMNF3"
 msgid "Status"
 msgstr "Status"
 
-#: src/features/customers/components/customer-table.tsx
-msgctxt "customers.zQvVDJ"
-msgid "All"
-msgstr "Alle"
-
-#: src/features/customers/components/customer-table.tsx
-msgctxt "customers.FpIcp9"
-msgid "No customers found"
-msgstr "Geen klanten gevonden"
-
-#: src/features/customers/components/customer-table.tsx
-msgctxt "customers.S2OMpP"
-msgid "Add a customer, or change the filters."
-msgstr "Voeg een klant toe, of pas de filters aan."
-
-#: src/features/customers/components/customer-table.tsx
-msgctxt "customers.gzp6xc"
-msgid "Change the filters to see more."
-msgstr "Pas de filters aan om meer te zien."
-
-#: src/features/customers/components/customer-table.tsx
+#: src/features/customers/components/customer-record-list.tsx
 msgctxt "customers.7-Domh"
 msgid "Notes"
 msgstr "Notities"
 
-#: src/features/customers/components/customer-table.tsx
+#: src/features/customers/components/customer-record-list.tsx
 msgctxt "customers.dyyiUt"
 msgid "Last note"
 msgstr "Laatste notitie"
+
+#: src/features/customers/components/customer-record-list.tsx
+msgctxt "customers.MeKajs"
+msgid "Newest first"
+msgstr "Nieuwste eerst"
+
+#: src/features/customers/components/customer-record-list.tsx
+msgctxt "customers.bVjFta"
+msgid "Search customers"
+msgstr "Klanten zoeken"
+
+#: src/features/customers/components/customer-record-list.tsx
+msgctxt "customers.FpIcp9"
+msgid "No customers found"
+msgstr "Geen klanten gevonden"
+
+#: src/features/customers/components/customer-record-list.tsx
+msgctxt "customers.S2OMpP"
+msgid "Add a customer, or change the filters."
+msgstr "Voeg een klant toe, of pas de filters aan."
+
+#: src/features/customers/components/customer-record-list.tsx
+msgctxt "customers.gzp6xc"
+msgid "Change the filters to see more."
+msgstr "Pas de filters aan om meer te zien."
 
 #: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.gyrIEl"
@@ -6438,14 +6488,12 @@ msgid "The reactions didn't load"
 msgstr "De reacties zijn niet geladen"
 
 #: src/features/customers/components/reactions-bar.tsx
-#: src/features/customers/components/record-card-states.tsx
 #: src/features/customers/components/version-history.tsx
 msgctxt "customers.162kF7"
 msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
 #: src/features/customers/components/reactions-bar.tsx
-#: src/features/customers/components/record-card-states.tsx
 #: src/features/customers/components/version-history.tsx
 msgctxt "customers.62nsdy"
 msgid "Retry"

@@ -1,11 +1,11 @@
 import { getExtracted } from "next-intl/server";
 
-import { Skeleton } from "@/components/ui/skeleton";
+import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { getCustomers } from "@/features/customers-list/customers-list-queries";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { CustomerTable } from "./customer-table";
+import { CustomerRecordList } from "./customer-record-list";
 
 /** Render inside `<Suspense>`; the fallback is `CustomerListSkeleton`. */
 export async function CustomerList() {
@@ -18,18 +18,21 @@ export async function CustomerList() {
   const writer = can(permissions, "customers.write");
 
   return (
-    <div className="space-y-4">
-      <CustomerTable
-        customers={page.items.map((customer) => ({
-          id: customer.id,
-          name: customer.name,
-          status: customer.status,
-          logoUrl: customer.logoUrl,
-          notes: customer._count.notes,
-          lastNoteAt: customer._max.notes.createdAt,
-        }))}
-        statusCounts={page.facetCounts.status}
-        statusCountsCapped={page.facetCountsCapped === true}
+    <div className="flex flex-col gap-4">
+      <CustomerRecordList
+        initial={{
+          items: page.items.map((customer) => ({
+            id: customer.id,
+            name: customer.name,
+            status: customer.status,
+            logoUrl: customer.logoUrl,
+            notes: customer._count.notes,
+            lastNoteAt: customer._max.notes.createdAt,
+          })),
+          nextCursor: page.nextCursor,
+          facetCounts: page.facetCounts,
+          facetCountsCapped: page.facetCountsCapped === true,
+        }}
         canWrite={writer}
       />
       {writer ? null : (
@@ -42,12 +45,5 @@ export async function CustomerList() {
 }
 
 export function CustomerListSkeleton() {
-  return (
-    <div className="space-y-3" aria-busy="true">
-      <Skeleton className="h-9 w-full max-w-sm" />
-      {Array.from({ length: 5 }, (_, index) => (
-        <Skeleton key={index} className="h-12 w-full" />
-      ))}
-    </div>
-  );
+  return <RecordListSkeleton rows={5} />;
 }
