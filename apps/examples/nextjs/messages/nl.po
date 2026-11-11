@@ -2296,10 +2296,11 @@ msgctxt "agents.PLLdyt"
 msgid "Memory saved"
 msgstr ""
 
+#: src/features/agents/components/agent-publish.tsx
 #: src/features/agents/components/memory-manager.tsx
 msgctxt "agents.K3r6DQ"
 msgid "Delete"
-msgstr ""
+msgstr "Verwijderen"
 
 #: src/features/agents/components/memory-manager.tsx
 msgctxt "agents.jvo0vs"
@@ -25870,3 +25871,18 @@ msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
 msgctxt "errors.TM7s8X"
 msgid "The list was cut off. Ask for a page instead."
 msgstr "De lijst is afgekapt. Vraag in plaats daarvan een pagina op."
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.rfC5Ra"
+msgid "Delete this agent?"
+msgstr "Deze agent verwijderen?"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.bYeKbe"
+msgid "The agent is removed for everyone who installed it. This cannot be undone."
+msgstr "De agent wordt verwijderd voor iedereen die hem heeft geïnstalleerd. Dit kan niet ongedaan worden gemaakt."
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
