@@ -41,6 +41,28 @@ for (const name of files) {
   }
 }
 
+const linked = new Set<string>();
+
+for (const line of readme.split("\n")) {
+  if (!line.startsWith("|")) {
+    continue;
+  }
+
+  const link = /^\| \[(\d{4})\]\(/.exec(line);
+
+  if (link?.[1]) {
+    if (linked.has(link[1])) {
+      problems.push(`${DIR}/README.md lists ${link[1]} twice`);
+    }
+
+    linked.add(link[1]);
+  } else if (/^\|\s+\|/.test(line) || /^\| =+\s/.test(line)) {
+    problems.push(
+      `${DIR}/README.md has a stray row: ${line.slice(0, 40).trim()}`,
+    );
+  }
+}
+
 for (const path of [
   "AGENTS.md",
   `${DIR}/README.md`,
