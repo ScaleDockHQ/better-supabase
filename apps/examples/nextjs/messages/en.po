@@ -2162,6 +2162,27 @@ msgctxt "agents.FKlXAd"
 msgid "Delete agent"
 msgstr "Delete agent"
 
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.rfC5Ra"
+msgid "Delete this agent?"
+msgstr "Delete this agent?"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.bYeKbe"
+msgid "The agent is removed for everyone who installed it. This cannot be undone."
+msgstr "The agent is removed for everyone who installed it. This cannot be undone."
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/agents/components/agent-publish.tsx
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.K3r6DQ"
+msgid "Delete"
+msgstr "Delete"
+
 #: src/features/agents/components/agent-table.tsx
 msgctxt "agents.V22724"
 msgid "Installed"
@@ -2307,12 +2328,6 @@ msgstr "Stop run"
 msgctxt "agents.PLLdyt"
 msgid "Memory saved"
 msgstr "Memory saved"
-
-#: src/features/agents/components/agent-publish.tsx
-#: src/features/agents/components/memory-manager.tsx
-msgctxt "agents.K3r6DQ"
-msgid "Delete"
-msgstr "Delete"
 
 #: src/features/agents/components/memory-manager.tsx
 msgctxt "agents.jvo0vs"
@@ -21106,71 +21121,6 @@ msgctxt "search.cP4XVq"
 msgid "to close"
 msgstr "to close"
 
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.V52jNn"
-msgid "Enabled"
-msgstr "Enabled"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.C2iTEH"
-msgid "Paused"
-msgstr "Paused"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.tthToS"
-msgid "Disabled"
-msgstr "Disabled"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.GN9UDB"
-msgid "Push"
-msgstr "Push"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.h1gtUi"
-msgid "Poll"
-msgstr "Poll"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.Xd735s"
-msgid "Receiver"
-msgstr "Receiver"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.ku-mDU"
-msgid "State"
-msgstr "State"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.drqP2L"
-msgid "Delivery"
-msgstr "Delivery"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.ZvKSfJ"
-msgid "Events"
-msgstr "Events"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.Z8971h"
-msgid "Verified"
-msgstr "Verified"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.dB811t"
-msgid "Search receivers"
-msgstr "Search receivers"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.EkHtzj"
-msgid "No streams found"
-msgstr "No streams found"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.UpBMGK"
-msgid "Receivers register a stream to get security event tokens; change the filters to see more."
-msgstr "Receivers register a stream to get security event tokens; change the filters to see more."
-
 #: src/features/search/components/organization-commands.tsx
 msgctxt "search.0lmKIf"
 msgid "Switch organization"
@@ -21450,6 +21400,71 @@ msgstr "Tasks"
 msgctxt "search.izHU3r"
 msgid "Work orders"
 msgstr "Work orders"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.V52jNn"
+msgid "Enabled"
+msgstr "Enabled"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.C2iTEH"
+msgid "Paused"
+msgstr "Paused"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.tthToS"
+msgid "Disabled"
+msgstr "Disabled"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.GN9UDB"
+msgid "Push"
+msgstr "Push"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.h1gtUi"
+msgid "Poll"
+msgstr "Poll"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.Xd735s"
+msgid "Receiver"
+msgstr "Receiver"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.drqP2L"
+msgid "Delivery"
+msgstr "Delivery"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.ZvKSfJ"
+msgid "Events"
+msgstr "Events"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.Z8971h"
+msgid "Verified"
+msgstr "Verified"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.dB811t"
+msgid "Search receivers"
+msgstr "Search receivers"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.EkHtzj"
+msgid "No streams found"
+msgstr "No streams found"
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.UpBMGK"
+msgid "Receivers register a stream to get security event tokens; change the filters to see more."
+msgstr "Receivers register a stream to get security event tokens; change the filters to see more."
 
 #: src/features/sequences/components/sequence-builder.tsx
 msgctxt "sequences.xiZz44"
@@ -26264,22 +26279,6 @@ msgstr "Your plan's limit is reached. Upgrade to continue."
 msgctxt "errors.TM7s8X"
 msgid "The list was cut off. Ask for a page instead."
 msgstr "The list was cut off. Ask for a page instead."
-
-#: src/features/agents/components/agent-publish.tsx
-msgctxt "agents.rfC5Ra"
-msgid "Delete this agent?"
-msgstr "Delete this agent?"
-
-#: src/features/agents/components/agent-publish.tsx
-msgctxt "agents.bYeKbe"
-msgid "The agent is removed for everyone who installed it. This cannot be undone."
-msgstr "The agent is removed for everyone who installed it. This cannot be undone."
-
-#: src/features/agents/components/agent-publish.tsx
-msgctxt "agents.47FYwb"
-msgid "Cancel"
-msgstr "Cancel"
-
 #: src/app/[locale]/(app)/inbox/page.tsx
 msgctxt "inbox.DRlmpk"
 msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
@@ -27982,3 +27981,4 @@ msgstr "Your pipeline by stage, and how the targets are going."
 msgctxt "navigation.Rm3xgH"
 msgid "Workflow builder"
 msgstr "Workflow builder"
+

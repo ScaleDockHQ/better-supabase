@@ -2162,6 +2162,27 @@ msgctxt "agents.FKlXAd"
 msgid "Delete agent"
 msgstr ""
 
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.rfC5Ra"
+msgid "Delete this agent?"
+msgstr "Deze agent verwijderen?"
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.bYeKbe"
+msgid "The agent is removed for everyone who installed it. This cannot be undone."
+msgstr "De agent wordt verwijderd voor iedereen die hem heeft geïnstalleerd. Dit kan niet ongedaan worden gemaakt."
+
+#: src/features/agents/components/agent-publish.tsx
+msgctxt "agents.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/agents/components/agent-publish.tsx
+#: src/features/agents/components/memory-manager.tsx
+msgctxt "agents.K3r6DQ"
+msgid "Delete"
+msgstr "Verwijderen"
+
 #: src/features/agents/components/agent-table.tsx
 msgctxt "agents.V22724"
 msgid "Installed"
@@ -2307,12 +2328,6 @@ msgstr ""
 msgctxt "agents.PLLdyt"
 msgid "Memory saved"
 msgstr ""
-
-#: src/features/agents/components/agent-publish.tsx
-#: src/features/agents/components/memory-manager.tsx
-msgctxt "agents.K3r6DQ"
-msgid "Delete"
-msgstr "Verwijderen"
 
 #: src/features/agents/components/memory-manager.tsx
 msgctxt "agents.jvo0vs"
@@ -19056,45 +19071,6 @@ msgstr "Uit"
 msgctxt "sales.47FYwb"
 msgid "Cancel"
 msgstr ""
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.9a9-ww"
-msgid "Title"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.QbUmZX"
-msgid "Record type"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.JBWS0c"
-msgid "Link"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.IMS6rI"
-msgid "Indexed"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.6I1bwN"
-msgid "Search the index"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.XMHNwr"
-msgid "No indexed records found"
-msgstr ""
-
-#: src/features/search-settings/components/search-settings-record-list.tsx
-msgctxt "searchSettings.LG-5un"
-msgid "Records join the search index when they are saved; change the filters to see more."
-msgstr ""
-
-#: src/features/search/components/command-search-lazy.tsx
-msgctxt "search.xmcVZ0"
-msgid "Search"
-msgstr "Zoeken"
 
 #: src/features/sales/components/block-overview.tsx
 msgctxt "sales.qnf-Ea"
@@ -19150,75 +19126,6 @@ msgstr ""
 msgctxt "sales.ERnpdU"
 msgid "Scored"
 msgstr ""
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.V52jNn"
-msgid "Enabled"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.C2iTEH"
-msgid "Paused"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.tthToS"
-msgid "Disabled"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.GN9UDB"
-msgid "Push"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.h1gtUi"
-msgid "Poll"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.Xd735s"
-msgid "Receiver"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.ku-mDU"
-msgid "State"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.drqP2L"
-msgid "Delivery"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.ZvKSfJ"
-msgid "Events"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.Z8971h"
-msgid "Verified"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.dB811t"
-msgid "Search receivers"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.EkHtzj"
-msgid "No streams found"
-msgstr ""
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.UpBMGK"
-msgid "Receivers register a stream to get security event tokens; change the filters to see more."
-msgstr ""
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.xiZz44"
-msgid "The sequences didn't load"
-msgstr "De reeksen zijn niet geladen"
 
 #: src/features/sales/components/contact-sales-panel.tsx
 msgctxt "sales.JrJ_if"
@@ -21034,6 +20941,41 @@ msgctxt "sales.Kraa93"
 msgid "Referrals appear when someone signs up with a code."
 msgstr ""
 
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.9a9-ww"
+msgid "Title"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.QbUmZX"
+msgid "Record type"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.JBWS0c"
+msgid "Link"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.IMS6rI"
+msgid "Indexed"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.6I1bwN"
+msgid "Search the index"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.XMHNwr"
+msgid "No indexed records found"
+msgstr ""
+
+#: src/features/search-settings/components/search-settings-record-list.tsx
+msgctxt "searchSettings.LG-5un"
+msgid "Records join the search index when they are saved; change the filters to see more."
+msgstr ""
+
 #: src/features/search/components/command-center.tsx
 msgctxt "search.k0So_A"
 msgid "New customer"
@@ -21088,7 +21030,6 @@ msgstr "thema weergave systeem"
 msgctxt "search.PGNc-r"
 msgid "Switch language to {language}"
 msgstr "Taal wijzigen naar {language}"
-
 
 #: src/features/search/components/command-center.tsx
 msgctxt "search.6eGClL"
@@ -21179,8 +21120,6 @@ msgstr "om te openen"
 msgctxt "search.cP4XVq"
 msgid "to close"
 msgstr "om te sluiten"
-
-
 
 #: src/features/search/components/organization-commands.tsx
 msgctxt "search.0lmKIf"
@@ -21462,6 +21401,75 @@ msgctxt "search.izHU3r"
 msgid "Work orders"
 msgstr "Werkorders"
 
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.V52jNn"
+msgid "Enabled"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.C2iTEH"
+msgid "Paused"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.tthToS"
+msgid "Disabled"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.GN9UDB"
+msgid "Push"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.h1gtUi"
+msgid "Poll"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.Xd735s"
+msgid "Receiver"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.ku-mDU"
+msgid "State"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.drqP2L"
+msgid "Delivery"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.ZvKSfJ"
+msgid "Events"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.Z8971h"
+msgid "Verified"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.dB811t"
+msgid "Search receivers"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.EkHtzj"
+msgid "No streams found"
+msgstr ""
+
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.UpBMGK"
+msgid "Receivers register a stream to get security event tokens; change the filters to see more."
+msgstr ""
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.xiZz44"
+msgid "The sequences didn't load"
+msgstr "De reeksen zijn niet geladen"
 
 #: src/features/sequences/components/sequence-builder.tsx
 msgctxt "sequences.162kF7"
@@ -26271,22 +26279,6 @@ msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
 msgctxt "errors.TM7s8X"
 msgid "The list was cut off. Ask for a page instead."
 msgstr "De lijst is afgekapt. Vraag in plaats daarvan een pagina op."
-
-#: src/features/agents/components/agent-publish.tsx
-msgctxt "agents.rfC5Ra"
-msgid "Delete this agent?"
-msgstr "Deze agent verwijderen?"
-
-#: src/features/agents/components/agent-publish.tsx
-msgctxt "agents.bYeKbe"
-msgid "The agent is removed for everyone who installed it. This cannot be undone."
-msgstr "De agent wordt verwijderd voor iedereen die hem heeft geïnstalleerd. Dit kan niet ongedaan worden gemaakt."
-
-#: src/features/agents/components/agent-publish.tsx
-msgctxt "agents.47FYwb"
-msgid "Cancel"
-msgstr "Annuleren"
-
 #: src/app/[locale]/(app)/inbox/page.tsx
 msgctxt "inbox.DRlmpk"
 msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
@@ -27989,3 +27981,4 @@ msgstr "Workflowbouwer"
 msgctxt "workflows.yW1OYL"
 msgid "No workflows yet. Members who can edit create one above."
 msgstr "Nog geen workflows. Leden die mogen bewerken maken er hierboven een aan."
+
