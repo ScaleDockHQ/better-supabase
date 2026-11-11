@@ -109,6 +109,16 @@ function skipQuoted(sql: string, at: number): number {
 }
 
 /** Each statement of `sql` with what precedes it, up to its semicolon. */
+/**
+ * The comments before a statement that is dropped, such as a module header, or
+ * nothing when only whitespace precedes it.
+ */
+export function leadingComments(statement: string, masked: string): string {
+  const lead = statement.slice(0, masked.search(/\S/));
+
+  return lead.trim() === "" ? "" : lead;
+}
+
 export function statementSpans(sql: string): [number, number][] {
   const spans: [number, number][] = [];
   let start = 0;
@@ -148,12 +158,15 @@ export function withoutUnmappedTables(sql: string, instance: string): string {
   }
 
   const out = statementSpans(sql)
-    .map(([from, to]) => sql.slice(from, to))
-    .filter(
-      (statement) =>
-        !statement.includes(UNMAPPED_TABLE) ||
-        !UNMAPPED_TABLE_DDL.test(maskComments(statement)),
-    )
+    .map(([from, to]) => {
+      const statement = sql.slice(from, to);
+      const masked = maskComments(statement);
+
+      return statement.includes(UNMAPPED_TABLE) &&
+        UNMAPPED_TABLE_DDL.test(masked)
+        ? leadingComments(statement, masked)
+        : statement;
+    })
     .join("");
 
   const use = UNMAPPED_TABLE_USE.exec(out);

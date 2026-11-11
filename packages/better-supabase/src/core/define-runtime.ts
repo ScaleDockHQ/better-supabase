@@ -18,7 +18,12 @@ import { addLazyTable } from "../schema/define.ts";
 import { decodeRpcReturn } from "../schema/rpc-returns.ts";
 import { blocksPrototype } from "./db-blocks.ts";
 import { storageOf } from "./db-storage.ts";
-import { ensureFunctions, lazyRepository, runSpec } from "./define-lazy.ts";
+import {
+  ensureFunctions,
+  lazyRepository,
+  runSpec,
+  withRelatedTables,
+} from "./define-lazy.ts";
 import { isExecutor, keptPlugins } from "./define-plugins.ts";
 import { installConnectionRuntime } from "./define.ts";
 import { DbException, dbError } from "./errors.ts";
@@ -337,6 +342,10 @@ class Connector {
     const tables = {};
     const throwAs = this.options.throwAs;
 
+    const register = (table: SchemaMeta["tables"][string]): void => {
+      this.registerTable(table);
+    };
+
     const build = (state: DbState, key: string): Record<string, unknown> => {
       let repository = state.repositories.get(key);
 
@@ -353,12 +362,24 @@ class Connector {
           throw new TypeError(`better-supabase: unknown table "${key}"`);
         }
 
-        return lazyRepository(this.meta, state, key, load, build, (table) => {
-          this.registerTable(table);
-        });
+        return lazyRepository(this.meta, state, key, load, build, register);
       }
 
       repository = this.#repository(state.runner, key, table, state.plugins);
+
+      if (this.meta.tableLoaders !== undefined) {
+        for (const [name, method] of Object.entries(repository)) {
+          if (typeof method === "function" && name !== "extend") {
+            // SAFETY: the typeof check above narrows method to a function.
+            repository[name] = withRelatedTables(
+              this.meta,
+              table,
+              method as AnyMethod,
+              register,
+            );
+          }
+        }
+      }
 
       if (throwAs) {
         for (const [name, method] of Object.entries(repository)) {
