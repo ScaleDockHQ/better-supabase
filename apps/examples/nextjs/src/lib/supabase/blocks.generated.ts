@@ -29,6 +29,7 @@ import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
 import type { DataLifecycleEvents } from "better-supabase/blocks/data-lifecycle";
 import type { DealsEvents } from "better-supabase/blocks/deals";
 import type { DocumentsEvents } from "better-supabase/blocks/documents";
+import type { DomainsEvents } from "better-supabase/blocks/domains";
 import type { LeaveEvents } from "better-supabase/blocks/leave";
 import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { AssetsEvents } from "better-supabase/blocks/assets";
@@ -101,6 +102,7 @@ import type { NumberingEvents } from "better-supabase/blocks/numbering";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ContactsEvents } from "better-supabase/blocks/contacts";
+import type { OptionSetsEvents } from "better-supabase/blocks/option-sets";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { PromotionsEvents } from "better-supabase/blocks/promotions";
 import type { PushEvents } from "better-supabase/blocks/push";
@@ -113,6 +115,7 @@ import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { ServiceAccountsEvents } from "better-supabase/blocks/service-accounts";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { ShareLinksEvents } from "better-supabase/blocks/share-links";
+import type { SecurityEventsEvents } from "better-supabase/blocks/security-events";
 import type { SigningKeysEvents } from "better-supabase/blocks/signing-keys";
 import type { SlaEvents } from "better-supabase/blocks/sla";
 import type { SsoEvents } from "better-supabase/blocks/sso";
@@ -125,6 +128,7 @@ import type { TimeEntriesEvents } from "better-supabase/blocks/time-entries";
 import type { TrashEvents } from "better-supabase/blocks/trash";
 import type { VersionsEvents } from "better-supabase/blocks/versions";
 import type { WaitlistEvents } from "better-supabase/blocks/waitlist";
+import type { IncomingWebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
@@ -171,6 +175,7 @@ import { customFieldsBlock as customFieldsBlockInstance } from "better-supabase/
 import { dataLifecycleBlock as dataLifecycleBlockInstance } from "better-supabase/blocks/data-lifecycle";
 import { dealsBlock as dealsBlockInstance } from "better-supabase/blocks/deals";
 import { documentsBlock as documentsBlockInstance } from "better-supabase/blocks/documents";
+import { domainsBlock as domainsBlockInstance } from "better-supabase/blocks/domains";
 import { leaveBlock as leaveBlockInstance } from "better-supabase/blocks/leave";
 import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledger";
 import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
@@ -235,8 +240,10 @@ import { importsBlock as importsBlockInstance } from "better-supabase/blocks/imp
 import { inboxBlock as inboxBlockInstance } from "better-supabase/blocks/inbox";
 import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
 import { invoicesBlock as invoicesBlockInstance } from "better-supabase/blocks/invoices";
+import { idempotencyBlock as idempotencyBlockInstance } from "better-supabase/blocks/queue";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { rateLimitBlock as rateLimitBlockInstance } from "better-supabase/blocks/queue";
+import { webhookInboxBlock as webhookInboxBlockInstance } from "better-supabase/blocks/queue";
 import { knowledgeBlock as knowledgeBlockInstance } from "better-supabase/blocks/knowledge";
 import { memoryBlock as memoryBlockInstance } from "better-supabase/blocks/memory";
 import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
@@ -256,6 +263,7 @@ import { ordersBlock as ordersBlockInstance } from "better-supabase/blocks/order
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { contactsBlock as contactsBlockInstance } from "better-supabase/blocks/contacts";
+import { optionSetsBlock as optionSetsBlockInstance } from "better-supabase/blocks/option-sets";
 import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { promotionsBlock as promotionsBlockInstance } from "better-supabase/blocks/promotions";
@@ -272,6 +280,7 @@ import { serviceAccountsBlock as serviceAccountsBlockInstance } from "better-sup
 import { sessionsBlock as sessionsBlockInstance } from "better-supabase/blocks/sessions";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { shareLinksBlock as shareLinksBlockInstance } from "better-supabase/blocks/share-links";
+import { securityEventsBlock as securityEventsBlockInstance } from "better-supabase/blocks/security-events";
 import { signingKeysBlock as signingKeysBlockInstance } from "better-supabase/blocks/signing-keys";
 import { slaBlock as slaBlockInstance } from "better-supabase/blocks/sla";
 import { ssoBlock as ssoBlockInstance } from "better-supabase/blocks/sso";
@@ -286,6 +295,7 @@ import { trashBlock as trashBlockInstance } from "better-supabase/blocks/trash";
 import { usageBlock as usageBlockInstance } from "better-supabase/blocks/usage";
 import { versionsBlock as versionsBlockInstance } from "better-supabase/blocks/versions";
 import { waitlistBlock as waitlistBlockInstance } from "better-supabase/blocks/waitlist";
+import { incomingWebhooksBlock as incomingWebhooksBlockInstance } from "better-supabase/blocks/webhooks";
 import { webhooksBlock as webhooksBlockInstance } from "better-supabase/blocks/webhooks";
 import { workflowEditorBlock as workflowEditorBlockInstance } from "better-supabase/blocks/workflow-editor";
 import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks/workflows";
@@ -347,6 +357,7 @@ export const blocks = {
   "data-lifecycle": dataLifecycleBlockInstance,
   deals: dealsBlockInstance,
   documents: documentsBlockInstance,
+  domains: domainsBlockInstance,
   leave: leaveBlockInstance,
   ledger: ledgerBlockInstance,
   assets: assetsBlockInstance,
@@ -411,8 +422,10 @@ export const blocks = {
   inbox: inboxBlockInstance,
   inventory: inventoryBlockInstance,
   invoices: invoicesBlockInstance,
+  idempotency: idempotencyBlockInstance,
   queue: queueBlockInstance,
   "rate-limit": rateLimitBlockInstance,
+  "webhook-inbox": webhookInboxBlockInstance,
   knowledge: knowledgeBlockInstance,
   memory: memoryBlockInstance,
   messaging: messagingBlockInstance,
@@ -432,6 +445,7 @@ export const blocks = {
   organizations: organizationsBlockInstance,
   outbox: outboxBlockInstance,
   contacts: contactsBlockInstance,
+  "option-sets": optionSetsBlockInstance,
   pipelines: pipelinesBlockInstance,
   profiles: profilesBlockInstance,
   promotions: promotionsBlockInstance,
@@ -448,6 +462,7 @@ export const blocks = {
   sessions: sessionsBlockInstance,
   settings: settingsBlockInstance,
   "share-links": shareLinksBlockInstance,
+  "security-events": securityEventsBlockInstance,
   "signing-keys": signingKeysBlockInstance,
   sla: slaBlockInstance,
   sso: ssoBlockInstance,
@@ -462,6 +477,7 @@ export const blocks = {
   usage: usageBlockInstance,
   versions: versionsBlockInstance,
   waitlist: waitlistBlockInstance,
+  "incoming-webhooks": incomingWebhooksBlockInstance,
   webhooks: webhooksBlockInstance,
   tasks: workItemsBlock,
   facilities: facilitiesBlock,
@@ -490,7 +506,7 @@ export const appTableEventSchemas = {
 } as const;
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -825,6 +841,10 @@ export const blockEvents: Events<BlockEvents> = {
     "guest.revoked",
     "guest_grant.created",
     "guest_grant.revoked",
+    "hostname.added",
+    "hostname.deleted",
+    "hostname.primary_changed",
+    "hostname.verified",
     "import.completed",
     "import.entity_completed",
     "import.failed",
@@ -840,6 +860,12 @@ export const blockEvents: Events<BlockEvents> = {
     "incident_filing.submitted",
     "incident_postmortem.published",
     "incident_profile.updated",
+    "incoming_webhook.created",
+    "incoming_webhook.deleted",
+    "incoming_webhook.enabled_changed",
+    "incoming_webhook.secret_rotated",
+    "incoming_webhook.token_rotated",
+    "incoming_webhook.updated",
     "inspection.cancelled",
     "inspection.closed",
     "inspection.completed",
@@ -990,6 +1016,11 @@ export const blockEvents: Events<BlockEvents> = {
     "observation.recorded",
     "observation_definition.created",
     "observation_definition.updated",
+    "option_set.created",
+    "option_set.updated",
+    "option_set_item.archived",
+    "option_set_item.created",
+    "option_set_item.updated",
     "order.cancelled",
     "order.completed",
     "order.drafted",
@@ -1179,6 +1210,9 @@ export const blockEvents: Events<BlockEvents> = {
     "sla.completed",
     "sla.escalated",
     "sla.warned",
+    "ssf_stream.created",
+    "ssf_stream.deleted",
+    "ssf_stream.status_changed",
     "sso_domain.created",
     "sso_domain.deleted",
     "sso_domain.updated",
@@ -1600,6 +1634,10 @@ export const blockEventSchemas = {
   "guest.revoked": true,
   "guest_grant.created": true,
   "guest_grant.revoked": true,
+  "hostname.added": true,
+  "hostname.deleted": true,
+  "hostname.primary_changed": true,
+  "hostname.verified": true,
   "import.completed": true,
   "import.entity_completed": true,
   "import.failed": true,
@@ -1615,6 +1653,12 @@ export const blockEventSchemas = {
   "incident_filing.submitted": true,
   "incident_postmortem.published": true,
   "incident_profile.updated": true,
+  "incoming_webhook.created": true,
+  "incoming_webhook.deleted": true,
+  "incoming_webhook.enabled_changed": true,
+  "incoming_webhook.secret_rotated": true,
+  "incoming_webhook.token_rotated": true,
+  "incoming_webhook.updated": true,
   "inspection.cancelled": true,
   "inspection.closed": true,
   "inspection.completed": true,
@@ -1765,6 +1809,11 @@ export const blockEventSchemas = {
   "observation.recorded": true,
   "observation_definition.created": true,
   "observation_definition.updated": true,
+  "option_set.created": true,
+  "option_set.updated": true,
+  "option_set_item.archived": true,
+  "option_set_item.created": true,
+  "option_set_item.updated": true,
   "order.cancelled": true,
   "order.completed": true,
   "order.drafted": true,
@@ -1954,6 +2003,9 @@ export const blockEventSchemas = {
   "sla.completed": true,
   "sla.escalated": true,
   "sla.warned": true,
+  "ssf_stream.created": true,
+  "ssf_stream.deleted": true,
+  "ssf_stream.status_changed": true,
   "sso_domain.created": true,
   "sso_domain.deleted": true,
   "sso_domain.updated": true,

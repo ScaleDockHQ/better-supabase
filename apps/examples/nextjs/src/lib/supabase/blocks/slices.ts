@@ -307,6 +307,13 @@ export const documentsConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `domains` instance's config slice. */
+export const domainsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `leave` instance's config slice. */
 export const leaveConfig = {
   schema: "better_supabase",
@@ -774,6 +781,13 @@ export const invoicesConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `idempotency` instance's config slice. */
+export const idempotencyConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `queue` instance's config slice. */
 export const queueConfig = {
   schema: "better_supabase",
@@ -783,6 +797,13 @@ export const queueConfig = {
 /** The `rate-limit` instance's config slice. */
 export const rateLimitConfig = {
   schema: "better_supabase",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `webhook-inbox` instance's config slice. */
+export const webhookInboxConfig = {
+  schema: "better_supabase",
+  api: "api",
   options: {},
 } as const satisfies GeneratedBlock;
 
@@ -929,6 +950,13 @@ export const contactsConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `option-sets` instance's config slice. */
+export const optionSetsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `pipelines` instance's config slice. */
 export const pipelinesConfig = {
   schema: "better_supabase",
@@ -1006,6 +1034,13 @@ export const remindersConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `reserved-slugs` instance's config slice. */
+export const reservedSlugsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `automations` instance's config slice. */
 export const automationsConfig = {
   schema: "better_supabase",
@@ -1050,6 +1085,13 @@ export const settingsConfig = {
 
 /** The `share-links` instance's config slice. */
 export const shareLinksConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `security-events` instance's config slice. */
+export const securityEventsConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},
@@ -1191,6 +1233,13 @@ export const waitlistConfig = {
   options: {
     codeField: "invite_code",
   },
+} as const satisfies GeneratedBlock;
+
+/** The `incoming-webhooks` instance's config slice. */
+export const incomingWebhooksConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
 } as const satisfies GeneratedBlock;
 
 /** The `webhooks` instance's config slice. */

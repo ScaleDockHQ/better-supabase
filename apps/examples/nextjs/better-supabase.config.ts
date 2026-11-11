@@ -671,5 +671,13 @@ export default defineConfig({
     "field-encryption": {},
     // Exports leave out token, hash and secret columns (doctor BS341).
     "data-lifecycle": { options: { omitPattern: true } },
+    "reserved-slugs": {},
+    idempotency: {},
+    "webhook-inbox": {},
+    "webhooks-in": {},
+    "security-events": {},
+    domains: {},
+    housekeeping: {},
+    "option-sets": {},
   },
 });

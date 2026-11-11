@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:c3a850e6288bbb263752e769ce49c1a09e0137c11de123aab8ff514785472b87
+-- @bsb-hash sha256:b16cdfe03082e39c5fe46b1069aeeb29407967d41df542dce00e25b397c6ccbf
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -249,6 +249,8 @@ as $$
     when 'documents.read' then 'documents.read'
     when 'documents.suggest' then 'documents.suggest'
     when 'documents.write' then 'documents.write'
+    when 'domains.manage' then 'domains.manage'
+    when 'domains.read' then 'domains.read'
     when 'donations.manage' then 'donations.manage'
     when 'donations.read' then 'donations.read'
     when 'drive.create' then 'drive.create'
@@ -373,6 +375,8 @@ as $$
     when 'observations.record' then 'observations.record'
     when 'onboarding.complete' then 'onboarding.complete'
     when 'onboarding.read' then 'onboarding.read'
+    when 'option-sets.manage' then 'option_sets.manage'
+    when 'option-sets.read' then 'option_sets.read'
     when 'orders.manage' then 'orders.manage'
     when 'orders.overrideCredit' then 'orders.override_credit'
     when 'orders.prepare' then 'orders.prepare'
@@ -492,6 +496,10 @@ as $$
     when 'warehouse.manage' then 'warehouse.manage'
     when 'warehouse.pick' then 'warehouse.pick'
     when 'warehouse.read' then 'warehouse.read'
+    when 'webhooks-in.create' then 'webhooks.manage'
+    when 'webhooks-in.delete' then 'webhooks.manage'
+    when 'webhooks-in.read' then 'webhooks.read'
+    when 'webhooks-in.update' then 'webhooks.manage'
     when 'webhooks-out.manage' then 'webhooks.manage'
     when 'webhooks-out.read' then 'webhooks.read'
     when 'workflow-editor.manage' then 'workflow_editor.manage'
