@@ -572,8 +572,55 @@ function tableRows(): string[] {
   });
 }
 
+/**
+ * A `better-supabase/<subpath>` import in a code fence that the exports map
+ * doesn't resolve.
+ */
+function fenceImports(): string[] {
+  const { exports: exportsMap } = readJson(
+    PackageExports,
+    join(library, "package.json"),
+  );
+
+  const keys = Object.keys(exportsMap);
+
+  const resolves = (specifier: string): boolean => {
+    const key = `./${specifier.slice("better-supabase/".length)}`;
+
+    return keys.some((each) =>
+      each.includes("*")
+        ? key.startsWith(each.slice(0, each.indexOf("*"))) &&
+          key.endsWith(each.slice(each.indexOf("*") + 1))
+        : each === key,
+    );
+  };
+
+  return markdownFiles(docs, ".mdx").flatMap((file) => {
+    const text = readFileSync(file, "utf-8");
+
+    const fences = [...text.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gmu)].map(
+      (match) => match[1] ?? "",
+    );
+
+    return fences.flatMap((fence) =>
+      [
+        ...fence.matchAll(
+          /(?:from\s+|import\s*\(\s*|import\s+)["'](better-supabase\/[^"']+)["']/gu,
+        ),
+      ].flatMap((match) =>
+        match[1] === undefined || resolves(match[1])
+          ? []
+          : [
+              `${relative(docs, file)} imports "${match[1]}", which the package exports don't list`,
+            ],
+      ),
+    );
+  });
+}
+
 const problems = [
   ...doctorCodes(),
+  ...fenceImports(),
   ...tableRows(),
   ...subpaths(),
   ...metaFiles(docs),

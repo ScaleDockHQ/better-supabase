@@ -582,19 +582,24 @@ configured schema and table name.
 
 ## Codemod renames
 
-Each `better-supabase codemod` release publishes its renames as JSON, so an
-adapter's own codemod or a check in its CI reads the same list:
+`better-supabase/api/naming.json` lists every rename the library has made, so
+an adapter's own codemod or a check in its CI reads the same list. Each entry
+in `renames` has `from`, `to`, a `kind` (such as `env`) and the release it
+happened `since`:
 
 ```ts title="scripts/check-renames.ts"
-import renames from "better-supabase/codemods/0.32.json" with { type: "json" };
+import naming from "better-supabase/api/naming.json" with { type: "json" };
 
-for (const [from, to] of Object.entries(renames.members)) {
-  console.log(`${from} is now ${to}`);
+for (const rename of naming.renames) {
+  console.log(
+    `${rename.kind} ${rename.from} is now ${rename.to} (${rename.since})`,
+  );
 }
 ```
 
-The file has `codemod` (the version) and `imports`, `subpaths`, `members`,
-`configKeys` and `optionKeys`, each a map from the old name to the new one.
+The file also has `words` (the vocabulary: tenant, record type, member and
+the rest), `allowlist` (the names a check lets through) and `env`, the prefix
+and the platform variables it ignores.
 
 ## Bucket and topic policies
 
