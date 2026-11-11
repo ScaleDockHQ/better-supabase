@@ -113,7 +113,10 @@ export async function upgrade(
   const plan = upgradePlan(installed, sqlLayout);
   const renamed = [...new Set(renames.steps.map((step) => step.module))];
 
-  const problems = moduleFileProblems(installedFiles);
+  const problems = moduleFileProblems(
+    installedFiles,
+    !migrations && sqlLayout.rerunnable !== true,
+  );
 
   const data = {
     upgrades: plan.map(({ module, from, to }) => ({ module, from, to })),
@@ -379,6 +382,7 @@ async function installedFromMigration(
  */
 function moduleFileProblems(
   files: readonly { readonly path: string; readonly text: string }[],
+  declarative: boolean,
 ): string[] {
   const model = buildModel(files);
 
@@ -423,10 +427,22 @@ function moduleFileProblems(
     ),
   ]);
 
+  const drops = (declarative ? [...files] : []).flatMap(({ path, text }) =>
+    text
+      .split("\n")
+      .flatMap((line, index) =>
+        /^drop\s+event\s+trigger\b/iu.test(line)
+          ? [
+              `${path}:${String(index + 1)} drops an event trigger. A declarative file only declares it; run better-supabase upgrade to rewrite the file.`,
+            ]
+          : [],
+      ),
+  );
+
   const policies = duplicatePolicies(model).map(
     (group) =>
       `${group.table} has the policies ${group.names.join(" and ")}, which decide the same way.`,
   );
 
-  return [...conflicting, ...perFile, ...policies];
+  return [...conflicting, ...perFile, ...drops, ...policies];
 }
