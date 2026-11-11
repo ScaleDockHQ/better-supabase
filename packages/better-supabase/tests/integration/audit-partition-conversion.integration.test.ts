@@ -32,8 +32,15 @@ const AUTH_STUBS = `
 
 const SEED_ROWS = 6000;
 
+const ignoreTerminatedIdleClient = (error: Error & { code?: string }) => {
+  if (error.code !== "57P01") {
+    throw error;
+  }
+};
+
 describe.skipIf(!live)("convert_audit_log_to_partitioned", () => {
   const admin = new Pool({ connectionString: dbUrl, max: 1 });
+  admin.on("error", ignoreTerminatedIdleClient);
   let pool: Pool;
 
   const one = async <T>(sql: string): Promise<T> =>
@@ -43,6 +50,7 @@ describe.skipIf(!live)("convert_audit_log_to_partitioned", () => {
     await admin.query(`drop database if exists ${SCRATCH} with (force)`);
     await admin.query(`create database ${SCRATCH}`);
     pool = new Pool({ connectionString: scratchUrl(), max: 4 });
+    pool.on("error", ignoreTerminatedIdleClient);
     await pool.query(AUTH_STUBS);
 
     // The log as an app that never set the option has it, then the procedure
