@@ -261,3 +261,173 @@ insert into better_supabase.work_item_checklist_items (tenant_id, work_item_id, 
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f101', 'Three customer quotes', false, null, null, 'X', '00000000-0000-4000-8000-0000000000a1'),
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f105', 'Day 1: welcome', false, null, null, 'V', '00000000-0000-4000-8000-0000000000a2'),
   ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000f105', 'Day 3: invite your team', false, null, null, 'W', '00000000-0000-4000-8000-0000000000a2');
+
+-- The sales area (/crm). The permissions block's defaults do not list the
+-- commissions and referrals keys, so the catalog gets them here and the
+-- owner and admin roles hold all three of each; members keep their own
+-- referral codes and commissions through the row policies.
+insert into better_supabase.permissions (key)
+select v.key
+from (values
+  ('commissions.read'), ('commissions.write'), ('commissions.manage'),
+  ('referrals.read'), ('referrals.write'), ('referrals.manage')
+) as v(key)
+where not exists (select 1 from better_supabase.permissions p where p.key = v.key);
+
+insert into better_supabase.role_permissions (role_id, permission_id)
+select r.id, p.id
+from better_supabase.roles r
+cross join better_supabase.permissions p
+where r.key in ('owner', 'admin')
+  and (p.key like 'commissions.%' or p.key like 'referrals.%')
+on conflict do nothing;
+
+-- Four companies, one per lifecycle stage the segment and score examples use.
+insert into better_supabase.companies (id, tenant_id, name, domain, lifecycle, owner_id, created_by) values
+  ('00000000-0000-4000-8000-0000000c0001', '00000000-0000-4000-8000-000000000001', 'Globex', 'globex.test', 'customer', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000c0002', '00000000-0000-4000-8000-000000000001', 'Initech', 'initech.test', 'opportunity', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000c0003', '00000000-0000-4000-8000-000000000001', 'Hooli', 'hooli.test', 'lead', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000c0004', '00000000-0000-4000-8000-000000000001', 'Umbrella', 'umbrella.test', 'churned', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000a1');
+
+-- The block functions below check the caller's permissions; the seed runs
+-- them as the Acme owner, with the service role where a function asks for it.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
+
+-- The Sales deal pipeline with the six stages the app's default creates, and
+-- a second pipeline for renewals.
+select better_supabase.save_pipeline('00000000-0000-4000-8000-000000000001', null, 'deal', 'sales', 'Sales', null, true);
+select better_supabase.save_pipeline('00000000-0000-4000-8000-000000000001', null, 'deal', 'renewals', 'Renewals', null, false);
+
+select better_supabase.save_pipeline_stage(p.id, null, s.key, s.name, s.category, s.probability, null, null, null, null)
+from better_supabase.pipelines p
+cross join (values
+  (1, 'qualified', 'Qualified', 'open', 20),
+  (2, 'discovery', 'Discovery', 'open', 35),
+  (3, 'proposal', 'Proposal', 'open', 55),
+  (4, 'negotiation', 'Negotiation', 'open', 75),
+  (5, 'won', 'Closed won', 'won', 100),
+  (6, 'lost', 'Closed lost', 'lost', 0)
+) as s(position, key, name, category, probability)
+where p.key = 'sales' and p.tenant_id = '00000000-0000-4000-8000-000000000001'
+order by s.position;
+
+select better_supabase.save_pipeline_stage(p.id, null, s.key, s.name, s.category, s.probability, null, null, null, null)
+from better_supabase.pipelines p
+cross join (values
+  (1, 'upcoming', 'Upcoming', 'open', 80),
+  (2, 'renewed', 'Renewed', 'won', 100),
+  (3, 'churned', 'Churned', 'lost', 0)
+) as s(position, key, name, category, probability)
+where p.key = 'renewals' and p.tenant_id = '00000000-0000-4000-8000-000000000001'
+order by s.position;
+
+-- Six deals across the stages, linked to the companies. The numbers follow
+-- create_deal's DEAL-<n> per organization.
+insert into better_supabase.deals (id, tenant_id, number, identifier, name, company_type, company_id, owner_id, amount, currency, pipeline_id, stage_id, stage_entered_at, probability, forecast_category, opened_on, expected_close_on, outcome, closed_at, created_by)
+select d.id, '00000000-0000-4000-8000-000000000001', d.number, 'DEAL-' || d.number, d.name, 'company', d.company_id,
+  d.owner_id, d.amount, 'EUR', p.id, st.id, now() - d.age, st.probability,
+  d.category,
+  current_date - 30, d.close_on,
+  case st.category when 'won' then 'won' when 'lost' then 'lost' else 'open' end,
+  case when st.category in ('won', 'lost') then now() - d.age end,
+  '00000000-0000-4000-8000-0000000000a1'
+from (values
+  ('00000000-0000-4000-8000-0000000d0001'::uuid, 1, 'Annual plan for Globex', '00000000-0000-4000-8000-0000000c0001'::uuid, '00000000-0000-4000-8000-0000000000a1'::uuid, 1200000::bigint, 'negotiation', 'commit', current_date + 12, interval '4 days'),
+  ('00000000-0000-4000-8000-0000000d0002', 2, 'Initech rollout', '00000000-0000-4000-8000-0000000c0002', '00000000-0000-4000-8000-0000000000a1', 840000, 'proposal', 'best_case', current_date + 25, interval '9 days'),
+  ('00000000-0000-4000-8000-0000000d0003', 3, 'Hooli pilot', '00000000-0000-4000-8000-0000000c0003', '00000000-0000-4000-8000-0000000000a2', 300000, 'discovery', 'pipeline', current_date + 40, interval '2 days'),
+  ('00000000-0000-4000-8000-0000000d0004', 4, 'Hooli seats expansion', '00000000-0000-4000-8000-0000000c0003', '00000000-0000-4000-8000-0000000000a2', 150000, 'qualified', 'pipeline', current_date + 55, interval '1 day'),
+  ('00000000-0000-4000-8000-0000000d0005', 5, 'Globex add-on', '00000000-0000-4000-8000-0000000c0001', '00000000-0000-4000-8000-0000000000a1', 450000, 'won', 'commit', current_date - 6, interval '6 days'),
+  ('00000000-0000-4000-8000-0000000d0006', 6, 'Umbrella renewal', '00000000-0000-4000-8000-0000000c0004', '00000000-0000-4000-8000-0000000000a2', 220000, 'lost', 'omit', current_date - 12, interval '12 days')
+) as d(id, number, name, company_id, owner_id, amount, stage_key, category, close_on, age)
+join better_supabase.pipelines p on p.key = 'sales' and p.tenant_id = '00000000-0000-4000-8000-000000000001'
+join better_supabase.pipeline_stages st on st.pipeline_id = p.id and st.key = d.stage_key;
+
+-- The company field the segments and the score model test; the app writes the
+-- same catalog at start-up (features/rules/sync-rule-fields.ts).
+select better_supabase.sync_rule_fields('company', jsonb_build_array(jsonb_build_object(
+  'id', 'lifecycle', 'type', 'select', 'nullable', false,
+  'options', jsonb_build_array('lead', 'mql', 'sql', 'opportunity', 'customer', 'churned'),
+  'operators', jsonb_build_array('is', 'is_not'))));
+
+-- Segments, an assignment queue and a score model over the companies.
+select better_supabase.save_segment('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'name', 'Customers', 'description', 'Companies that bought.', 'subjectType', 'company',
+  'conditions', jsonb_build_object('id', 'root', 'type', 'group', 'combinator', 'and', 'rules', jsonb_build_array(
+    jsonb_build_object('id', 'lifecycle', 'type', 'rule', 'path', jsonb_build_array('lifecycle'), 'operator', 'is', 'value', 'customer')))));
+select better_supabase.save_segment('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'name', 'Open leads', 'description', 'Companies still being qualified.', 'subjectType', 'company',
+  'conditions', jsonb_build_object('id', 'root', 'type', 'group', 'combinator', 'and', 'rules', jsonb_build_array(
+    jsonb_build_object('id', 'lifecycle', 'type', 'rule', 'path', jsonb_build_array('lifecycle'), 'operator', 'is', 'value', 'lead')))));
+
+select better_supabase.save_assignment_queue('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'name', 'New companies', 'subjectType', 'company', 'strategy', 'round_robin', 'rank', 0));
+
+select better_supabase.set_assignment_members(q.id, jsonb_build_array(
+  jsonb_build_object('userId', '00000000-0000-4000-8000-0000000000a1', 'weight', 1),
+  jsonb_build_object('userId', '00000000-0000-4000-8000-0000000000a2', 'weight', 1)))
+from better_supabase.assignment_queues q
+where q.name = 'New companies' and q.tenant_id = '00000000-0000-4000-8000-000000000001';
+
+select better_supabase.save_score_model('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'key', 'health', 'name', 'Account health', 'subjectType', 'company',
+  'rules', jsonb_build_array(
+    jsonb_build_object('id', 'customer', 'label', 'customer', 'points', 60, 'conditions', jsonb_build_object('id', 'root', 'type', 'group', 'combinator', 'and', 'rules', jsonb_build_array(
+      jsonb_build_object('id', 'r1', 'type', 'rule', 'path', jsonb_build_array('lifecycle'), 'operator', 'is', 'value', 'customer')))),
+    jsonb_build_object('id', 'opportunity', 'label', 'opportunity', 'points', 40, 'conditions', jsonb_build_object('id', 'root', 'type', 'group', 'combinator', 'and', 'rules', jsonb_build_array(
+      jsonb_build_object('id', 'r1', 'type', 'rule', 'path', jsonb_build_array('lifecycle'), 'operator', 'is', 'value', 'opportunity'))))),
+  'bands', jsonb_build_array(
+    jsonb_build_object('label', 'cold', 'min', 0),
+    jsonb_build_object('label', 'warm', 'min', 30),
+    jsonb_build_object('label', 'hot', 'min', 60))));
+
+select better_supabase.compute_score('00000000-0000-4000-8000-000000000001', 'health', 'company', c.id::text,
+  jsonb_build_object('lifecycle', c.lifecycle), null)
+from better_supabase.companies c
+where c.tenant_id = '00000000-0000-4000-8000-000000000001';
+
+select better_supabase.refresh_segment(sg.id)
+from better_supabase.segments sg
+where sg.tenant_id = '00000000-0000-4000-8000-000000000001';
+
+-- Three draft contracts, and the forecast snapshot of the open quarter.
+select better_supabase.create_contract('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'title', 'Globex master services agreement', 'counterpartyType', 'company', 'counterpartyId', '00000000-0000-4000-8000-0000000c0001',
+  'ownerId', '00000000-0000-4000-8000-0000000000a1', 'value', 1200000, 'currency', 'EUR',
+  'startsOn', (current_date - 90)::text, 'endsOn', (current_date + 275)::text, 'autoRenew', true, 'renewalMonths', 12, 'noticeDays', 60));
+select better_supabase.create_contract('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'title', 'Initech pilot terms', 'counterpartyType', 'company', 'counterpartyId', '00000000-0000-4000-8000-0000000c0002',
+  'ownerId', '00000000-0000-4000-8000-0000000000a1', 'value', 840000, 'currency', 'EUR',
+  'startsOn', (current_date + 14)::text, 'endsOn', (current_date + 379)::text, 'autoRenew', false));
+select better_supabase.create_contract('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'title', 'Hooli NDA', 'counterpartyType', 'company', 'counterpartyId', '00000000-0000-4000-8000-0000000c0003',
+  'ownerId', '00000000-0000-4000-8000-0000000000a2',
+  'startsOn', (current_date - 20)::text, 'endsOn', (current_date + 345)::text, 'autoRenew', false));
+
+select better_supabase.take_forecast_snapshot('00000000-0000-4000-8000-000000000001', p.id,
+  date_trunc('quarter', current_date)::date, (date_trunc('quarter', current_date) + interval '3 months - 1 day')::date, 'EUR', 3000000)
+from better_supabase.pipelines p
+where p.key = 'sales' and p.tenant_id = '00000000-0000-4000-8000-000000000001';
+
+-- Commission plans, their assignments and accrued commissions per rep, and
+-- one referral code with a referral attributed to it.
+select better_supabase.save_commission_plan('00000000-0000-4000-8000-000000000001', 'Standard 5 percent', 'flat', 500, null, null, false);
+select better_supabase.save_commission_plan('00000000-0000-4000-8000-000000000001', 'Tiered quota', 'tiered', null,
+  '[{"upTo": 1000000, "bps": 300}, {"bps": 600}]'::jsonb, null, false);
+
+select better_supabase.assign_commission_plan('00000000-0000-4000-8000-000000000001', plan.id, s.seller_id, null, null, current_date - 60, null)
+from better_supabase.commission_plans plan
+join (values ('Standard 5 percent', '00000000-0000-4000-8000-0000000000a1'::uuid), ('Tiered quota', '00000000-0000-4000-8000-0000000000a2'::uuid)) as s(plan_name, seller_id)
+  on s.plan_name = plan.name
+where plan.tenant_id = '00000000-0000-4000-8000-000000000001';
+
+select better_supabase.accrue_commission('00000000-0000-4000-8000-000000000001', v.seller_id, 'deal', v.deal_id, v.basis, 'EUR', v.on_day, null, null)
+from (values
+  ('00000000-0000-4000-8000-0000000000a1'::uuid, '00000000-0000-4000-8000-0000000d0005', 450000::bigint, current_date - 6),
+  ('00000000-0000-4000-8000-0000000000a2'::uuid, '00000000-0000-4000-8000-0000000d0003', 300000::bigint, current_date - 3)
+) as v(seller_id, deal_id, basis, on_day);
+
+select better_supabase.create_referral_code('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1',
+  'ACMEFRIENDS', null, 2500, 'EUR', 10, null);
+select better_supabase.attribute_referral('00000000-0000-4000-8000-000000000001', 'ACMEFRIENDS', null, null, 'friend@initech.test');
+
+select set_config('request.jwt.claims', '', false);

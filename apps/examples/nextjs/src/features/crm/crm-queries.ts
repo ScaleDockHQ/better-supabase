@@ -40,7 +40,7 @@ export async function settle<T>(
 export type ContactKind = "company" | "person";
 
 /** The records an activity timeline shows: a contact, or a care client. */
-export type TimelineSubjectType = ContactKind | "customer";
+export type TimelineSubjectType = ContactKind | "customer" | "deal";
 
 export interface ContactSummary {
   readonly id: string;

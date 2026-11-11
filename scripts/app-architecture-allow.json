@@ -10,6 +10,7 @@
     "features/care/components/client-dossier.tsx": "each dossier tab is its own sibling boundary under one tab list",
     "features/crm/components/contact-detail.tsx": "the activity timeline streams beside the loaded contact card",
     "features/customers/components/customer-detail.tsx": "each side section checks its own permission and streams on its own",
+    "features/sales/components/deal-detail.tsx": "the activity timeline and the field history each stream beside the loaded deal card",
     "features/projects/components/task-board-lazy.tsx": "the kanban code loads only for the board view, and a skeleton of the board's height holds the space"
   },
   "connection": {},
@@ -34,9 +35,6 @@
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/courses/[courseId]/lessons/[lessonId]/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/courses/[courseId]/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/courses/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/crm/contacts/[id]/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/crm/contacts/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/crm/deals/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/crm/quotes/[id]/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/crm/quotes/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/crm/sequences/page.tsx",
