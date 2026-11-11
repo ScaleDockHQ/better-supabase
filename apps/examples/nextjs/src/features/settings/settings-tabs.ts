@@ -15,6 +15,9 @@ export type SettingsTabId =
   | "billing"
   | "apiKeys"
   | "webhooks"
+  | "incomingWebhooks"
+  | "domains"
+  | "optionSets"
   | "signingKeys"
   | "sso"
   | "customFields"
@@ -54,6 +57,17 @@ export const settingsTabs: readonly SettingsTab[] = [
   { id: "billing", href: "/settings/billing", requires: "billing.read" },
   { id: "apiKeys", href: "/settings/api-keys", requires: "api_keys.own" },
   { id: "webhooks", href: "/settings/webhooks", requires: "webhooks.read" },
+  {
+    id: "incomingWebhooks",
+    href: "/settings/webhooks/incoming",
+    requires: "webhooks.read",
+  },
+  { id: "domains", href: "/settings/domains", requires: "domains.read" },
+  {
+    id: "optionSets",
+    href: "/settings/option-sets",
+    requires: "option_sets.read",
+  },
   {
     id: "signingKeys",
     href: "/settings/signing-keys",

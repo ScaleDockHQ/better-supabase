@@ -1,6 +1,6 @@
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:2a5a800f99453d8711b212f5428e010d92074bce671a736758c24456b9726a92
+-- @bsb-hash sha256:d2873908271990a8572cca6e4504e3a64d625f3b4057fa95a3cba54d314e2102
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,9 +30,11 @@ from (values
     ('expire_approvals', '"better_supabase"."expire_approvals"', interval '15 minutes'),
     ('purge_chat_state', '"better_supabase"."purge_chat_state"', interval '15 minutes'),
     ('purge_expired_trash', '"better_supabase"."purge_expired_trash"', interval '1 day'),
+    ('purge_idempotency_keys', 'better_supabase.purge_idempotency_keys', interval '1 hour'),
     ('purge_rate_limits', 'better_supabase.purge_rate_limits', interval '15 minutes'),
     ('purge_usage_events', '"better_supabase"."purge_usage_events"', interval '1 day'),
-    ('purge_webhook_deliveries', '"better_supabase"."purge_webhook_deliveries"', interval '1 day')
+    ('purge_webhook_deliveries', '"better_supabase"."purge_webhook_deliveries"', interval '1 day'),
+    ('purge_webhooks', 'better_supabase.purge_webhooks', interval '1 day')
   ) j (job, fn, every_interval)
 left join "better_supabase"."maintenance_state" s on s."job" = j.job;
 revoke all on "better_supabase"."maintenance_jobs" from public, anon, authenticated;
@@ -125,3 +127,34 @@ revoke execute on function better_supabase.maintenance_schedule(text) from publi
 grant execute on function better_supabase.maintenance_schedule(text) to service_role;
 revoke execute on function better_supabase.maintenance_scheduler() from public, anon, authenticated;
 grant execute on function better_supabase.maintenance_scheduler() to service_role;
+
+-- blocks.housekeeping.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."maintenance"(job_name text default null, force_run boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."maintenance"($1, $2) $$;
+revoke execute on function "api"."maintenance"(text, boolean) from public, anon, authenticated;
+grant execute on function "api"."maintenance"(text, boolean) to service_role;
+
+create or replace function "api"."maintenance_schedule"(cron_schedule text default '*/5 * * * *')
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."maintenance_schedule"($1) $$;
+revoke execute on function "api"."maintenance_schedule"(text) from public, anon, authenticated;
+grant execute on function "api"."maintenance_schedule"(text) to service_role;
+
+create or replace function "api"."maintenance_scheduler"()
+returns text
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."maintenance_scheduler"() $$;
+revoke execute on function "api"."maintenance_scheduler"() from public, anon, authenticated;
+grant execute on function "api"."maintenance_scheduler"() to service_role;

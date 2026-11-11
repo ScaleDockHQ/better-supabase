@@ -748,10 +748,25 @@ msgctxt "audit.62nsdy"
 msgid "Retry"
 msgstr "Retry"
 
+#: src/app/[locale]/(app)/settings/jobs/page.tsx
+msgctxt "jobs.-P2HMk"
+msgid "Search all runs"
+msgstr "Search all runs"
+
+#: src/app/[locale]/(app)/settings/jobs/runs/[queue]/[id]/page.tsx
+msgctxt "jobs.B8K6dt"
+msgid "All job runs"
+msgstr "All job runs"
+
 #: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
 msgctxt "members.sKwqTt"
 msgid "All members"
 msgstr "All members"
+
+#: src/app/[locale]/(app)/settings/option-sets/[id]/page.tsx
+msgctxt "optionSets.i_1uRf"
+msgid "All option sets"
+msgstr "All option sets"
 
 #: src/app/[locale]/(app)/settings/roles/[roleId]/page.tsx
 msgctxt "roles.0QowWF"
@@ -1453,6 +1468,16 @@ msgstr "Overdue since {date}"
 msgctxt "acknowledgements.5vDqi-"
 msgid "Due {date}"
 msgstr "Due {date}"
+
+#: src/features/admin-lists/admin-record-list.tsx
+msgctxt "adminLists.MeKajs"
+msgid "Newest first"
+msgstr "Newest first"
+
+#: src/features/admin-lists/admin-record-list.tsx
+msgctxt "adminLists.h-T3T7"
+msgid "Oldest first"
+msgstr "Oldest first"
 
 #: src/features/ai-providers/components/ai-provider-section.tsx
 #: src/features/ai-providers/components/ai-provider-settings.tsx
@@ -7403,6 +7428,162 @@ msgctxt "documents.PeEood"
 msgid "Customer updated"
 msgstr "Customer updated"
 
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.NBobyu"
+msgid "Domain added"
+msgstr "Domain added"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.EkcNZU"
+msgid "Add domain"
+msgstr "Add domain"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.hV6QJL"
+msgid "Add a domain"
+msgstr "Add a domain"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.huYv5o"
+msgid "Your organization is served on a domain once you publish its TXT record and verify it."
+msgstr "Your organization is served on a domain once you publish its TXT record and verify it."
+
+#: src/features/domains/components/domain-controls.tsx
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.uPDgth"
+msgid "Hostname"
+msgstr "Hostname"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.yt0E0t"
+msgid "A hostname you control, without https://."
+msgstr "A hostname you control, without https://."
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.3Ziraf"
+msgid "Primary domain set"
+msgstr "Primary domain set"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.s06fQf"
+msgid "Make primary"
+msgstr "Make primary"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.s6dhLG"
+msgid "Domain verified"
+msgstr "Domain verified"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.q5Xl0M"
+msgid "Verify"
+msgstr "Verify"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.5-Lw27"
+msgid "Remove {hostname}"
+msgstr "Remove {hostname}"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.1_tBtU"
+msgid "Remove {hostname}?"
+msgstr "Remove {hostname}?"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.j4c7IO"
+msgid "The organization stops being served on this domain. You can add it again later."
+msgstr "The organization stops being served on this domain. You can add it again later."
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.TetbMu"
+msgid "Domain removed"
+msgstr "Domain removed"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.G_yZLu"
+msgid "Remove"
+msgstr "Remove"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.k5AM0y"
+msgid "Copy the TXT value"
+msgstr "Copy the TXT value"
+
+#: src/features/domains/components/domain-controls.tsx
+msgctxt "domains.weiK8h"
+msgid "Value copied"
+msgstr "Value copied"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.t2Wr8I"
+msgid "Primary"
+msgstr "Primary"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.Z8971h"
+msgid "Verified"
+msgstr "Verified"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.eKEL_g"
+msgid "Pending"
+msgstr "Pending"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.e5x8FT"
+msgid "Kind"
+msgstr "Kind"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.wF0wlc"
+msgid "TXT record"
+msgstr "TXT record"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.rIAJlE"
+msgid "Added"
+msgstr "Added"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.Sjo1P4"
+msgid "Custom"
+msgstr "Custom"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.A6ivgz"
+msgid "Subdomain"
+msgstr "Subdomain"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.cAiIGl"
+msgid "Search domains"
+msgstr "Search domains"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.PqbjSZ"
+msgid "No domains found"
+msgstr "No domains found"
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.FseT8F"
+msgid "Add a domain, or change the filters."
+msgstr "Add a domain, or change the filters."
+
+#: src/features/domains/components/domain-record-list.tsx
+msgctxt "domains.gzp6xc"
+msgid "Change the filters to see more."
+msgstr "Change the filters to see more."
+
 #: src/features/drive/components/document-register.tsx
 msgctxt "drive.W6nwjo"
 msgid "Draft"
@@ -9485,6 +9666,194 @@ msgctxt "inbox.pC2KQV"
 msgid "Cancel scheduled reply"
 msgstr "Cancel scheduled reply"
 
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.e_tg3W"
+msgid "Copy {label}"
+msgstr "Copy {label}"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.p556q3"
+msgid "Copied"
+msgstr "Copied"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.KK_nq1"
+msgid "Add endpoint"
+msgstr "Add endpoint"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.kX2R92"
+msgid "Copy the trigger URL"
+msgstr "Copy the trigger URL"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.eqg3yk"
+msgid "This is the only time the token and the secret are shown. Senders post to the URL."
+msgstr "This is the only time the token and the secret are shown. Senders post to the URL."
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.galdNg"
+msgid "Trigger path"
+msgstr "Trigger path"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.CtZMCP"
+msgid "Secret"
+msgstr "Secret"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.YW0KIR"
+msgid "Add an incoming endpoint"
+msgstr "Add an incoming endpoint"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.5tyIwL"
+msgid "Deliveries land in the webhook inbox for a worker to process."
+msgstr "Deliveries land in the webhook inbox for a worker to process."
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.FpxElY"
+msgid "Verification"
+msgstr "Verification"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.UmHyI8"
+msgid "Standard Webhooks signature"
+msgstr "Standard Webhooks signature"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.BWYdJ0"
+msgid "HMAC SHA-256 header"
+msgstr "HMAC SHA-256 header"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.ue5Glg"
+msgid "Shared secret header"
+msgstr "Shared secret header"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.w9pRps"
+msgid "Enable {name}"
+msgstr "Enable {name}"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.FTNuuD"
+msgid "Endpoint turned on"
+msgstr "Endpoint turned on"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.OywY9Q"
+msgid "Endpoint turned off"
+msgstr "Endpoint turned off"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.JpsXCp"
+msgid "Delete {name}"
+msgstr "Delete {name}"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.g9o_2L"
+msgid "Delete {name}?"
+msgstr "Delete {name}?"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.wLHXcc"
+msgid "Its secrets are deleted too. Senders that post to its URL get a 404."
+msgstr "Its secrets are deleted too. Senders that post to its URL get a 404."
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.PK7pDv"
+msgid "Endpoint deleted"
+msgstr "Endpoint deleted"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
+msgctxt "incomingWebhooks.K3r6DQ"
+msgid "Delete"
+msgstr "Delete"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.z_wUXE"
+msgid "Received"
+msgstr "Received"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.TMXkY7"
+msgid "Last delivery"
+msgstr "Last delivery"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.Zh-5A6"
+msgid "On"
+msgstr "On"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.OvzONl"
+msgid "Off"
+msgstr "Off"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.xDM7s1"
+msgid "Standard Webhooks"
+msgstr "Standard Webhooks"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.0_Ssji"
+msgid "HMAC SHA-256"
+msgstr "HMAC SHA-256"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.ubQ1f-"
+msgid "Shared secret"
+msgstr "Shared secret"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.mPfj7c"
+msgid "Search endpoints"
+msgstr "Search endpoints"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.VfRI0m"
+msgid "No incoming endpoints found"
+msgstr "No incoming endpoints found"
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.AEWJ-8"
+msgid "Add an endpoint, or change the filters."
+msgstr "Add an endpoint, or change the filters."
+
+#: src/features/incoming-webhooks/components/incoming-webhook-record-list.tsx
+msgctxt "incomingWebhooks.gzp6xc"
+msgid "Change the filters to see more."
+msgstr "Change the filters to see more."
+
 #: src/features/inspections/components/inspection-labels.tsx
 #: src/features/inspections/components/inspection-program-calendar.tsx
 msgctxt "inspections.kp0NPF"
@@ -9961,6 +10330,83 @@ msgctxt "islands.dJi4TF"
 msgid "Not in the token"
 msgstr "Not in the token"
 
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.Cnm0QA"
+msgid "Queued"
+msgstr "Queued"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.cXAlMR"
+msgid "Scheduled"
+msgstr "Scheduled"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.nDyaq_"
+msgid "Running"
+msgstr "Running"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.6p8Isg"
+msgid "Retrying"
+msgstr "Retrying"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.LOghU6"
+msgid "Succeeded"
+msgstr "Succeeded"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.vXCeIi"
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.MEvKnW"
+msgid "Job"
+msgstr "Job"
+
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-run-detail.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.HhYIki"
+msgid "Attempts"
+msgstr "Attempts"
+
+#: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-run-detail.tsx
+#: src/features/jobs/components/job-runs-table.tsx
+msgctxt "jobs.EQpfkS"
+msgid "Finished"
+msgstr "Finished"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.4YDNPC"
+msgid "Queue"
+msgstr "Queue"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.nzr43B"
+msgid "Search jobs"
+msgstr "Search jobs"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.sBpLKt"
+msgid "No job runs found"
+msgstr "No job runs found"
+
+#: src/features/jobs/components/job-record-list.tsx
+msgctxt "jobs.SKAI4r"
+msgid "Jobs are queued when the app hands work to the background. Queue a test job, or change the filters."
+msgstr "Jobs are queued when the app hands work to the background. Queue a test job, or change the filters."
+
 #: src/features/jobs/components/job-run-controls.tsx
 msgctxt "jobs.IJu8c2"
 msgid "Test job queued"
@@ -9981,6 +10427,21 @@ msgstr "Job queued again"
 msgctxt "jobs.62nsdy"
 msgid "Retry"
 msgstr "Retry"
+
+#: src/features/jobs/components/job-run-detail.tsx
+msgctxt "jobs.06BF9b"
+msgid "Queued {when}"
+msgstr "Queued {when}"
+
+#: src/features/jobs/components/job-run-detail.tsx
+msgctxt "jobs.LnoDao"
+msgid "Last error"
+msgstr "Last error"
+
+#: src/features/jobs/components/job-run-detail.tsx
+msgctxt "jobs.T7Ry38"
+msgid "Message"
+msgstr "Message"
 
 #: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.Tl-kE3"
@@ -10011,31 +10472,6 @@ msgstr "No job runs yet"
 msgctxt "jobs.hZ4xf9"
 msgid "Jobs are queued when the app hands work to the background, such as a webhook delivery or an import. Queue a test job to see one here."
 msgstr "Jobs are queued when the app hands work to the background, such as a webhook delivery or an import. Queue a test job to see one here."
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.MEvKnW"
-msgid "Job"
-msgstr "Job"
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.tzMNF3"
-msgid "Status"
-msgstr "Status"
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.HhYIki"
-msgid "Attempts"
-msgstr "Attempts"
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.Cnm0QA"
-msgid "Queued"
-msgstr "Queued"
-
-#: src/features/jobs/components/job-runs-table.tsx
-msgctxt "jobs.EQpfkS"
-msgid "Finished"
-msgstr "Finished"
 
 #: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.wL7VAE"
@@ -12141,6 +12577,166 @@ msgstr "Pending changes and pages load when you are back online."
 msgctxt "offline.qf5KUv"
 msgid "Waiting for connection"
 msgstr "Waiting for connection"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.2FTlRV"
+msgid "Priority options created"
+msgstr "Priority options created"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.7qTpLv"
+msgid "Create task priorities"
+msgstr "Create task priorities"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.z_4wqP"
+msgid "Option saved"
+msgstr "Option saved"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets._S1NDL"
+msgid "Edit {label}"
+msgstr "Edit {label}"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.LdswFL"
+msgid "Edit option"
+msgstr "Edit option"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.nz91sE"
+msgid "Records keep the option's level, so sorting and reports stay the same."
+msgstr "Records keep the option's level, so sorting and reports stay the same."
+
+#: src/features/option-sets/components/option-set-controls.tsx
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.753yX5"
+msgid "Label"
+msgstr "Label"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.uMhpKe"
+msgid "Color"
+msgstr "Color"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.jvo0vs"
+msgid "Save"
+msgstr "Save"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.WLanec"
+msgid "Archive {label}"
+msgstr "Archive {label}"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.rIXhbX"
+msgid "Archive {label}?"
+msgstr "Archive {label}?"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.zXuu9d"
+msgid "New records can no longer pick it. An option that records still use can't be archived until they move to another option."
+msgstr "New records can no longer pick it. An option that records still use can't be archived until they move to another option."
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.sbWa4_"
+msgid "Option archived"
+msgstr "Option archived"
+
+#: src/features/option-sets/components/option-set-controls.tsx
+msgctxt "optionSets.hrgo-E"
+msgid "Archive"
+msgstr "Archive"
+
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.9hEsCf"
+msgid "{type}, field {field}"
+msgstr "{type}, field {field}"
+
+#: src/features/option-sets/components/option-set-detail.tsx
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/option-sets/components/option-set-detail.tsx
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.EcglP9"
+msgid "Key"
+msgstr "Key"
+
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.y1Qr81"
+msgid "Level"
+msgstr "Level"
+
+#: src/features/option-sets/components/option-set-detail.tsx
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/option-sets/components/option-set-detail.tsx
+msgctxt "optionSets.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.lKv8ex"
+msgid "Default"
+msgstr "Default"
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.QbUmZX"
+msgid "Record type"
+msgstr "Record type"
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.AbvQFb"
+msgid "Field"
+msgstr "Field"
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.NDV5Mq"
+msgid "Options"
+msgstr "Options"
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.MhUSfT"
+msgid "Search option sets"
+msgstr "Search option sets"
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.bg7STD"
+msgid "No option sets found"
+msgstr "No option sets found"
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.-U70Ig"
+msgid "Create the task priorities, or change the filters."
+msgstr "Create the task priorities, or change the filters."
+
+#: src/features/option-sets/components/option-set-record-list.tsx
+msgctxt "optionSets.gzp6xc"
+msgid "Change the filters to see more."
+msgstr "Change the filters to see more."
 
 #: src/features/organization/components/create-organization-dialog.tsx
 msgctxt "organization.lehIHr"
@@ -15284,6 +15880,21 @@ msgstr "API keys"
 msgctxt "settings.hf7LJX"
 msgid "Webhooks"
 msgstr "Webhooks"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.RHDnsC"
+msgid "Incoming webhooks"
+msgstr "Incoming webhooks"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.NZ8yBj"
+msgid "Domains"
+msgstr "Domains"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.7lS5o3"
+msgid "Option sets"
+msgstr "Option sets"
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.Y0PHiM"

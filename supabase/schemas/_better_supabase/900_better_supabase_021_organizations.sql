@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:ee9c32b6b403f0c6cf0fedbfdd4d88d15efdb889ddffeebcd560a5f27fd0a986
+-- @bsb-hash sha256:da8e8f1afdee508078557f143f4eb722f8f58f52dab3af28934e7151b30e007b
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -27,7 +27,7 @@ as $$
   select case
     when value is null then null
     when length(value) < 2 or length(value) > 48 or value !~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$' then 'invalid'
-    when false then 'reserved'
+    when exists (select 1 from "better_supabase"."reserved_slugs" r where r."slug" = lower(value)) then 'reserved'
     when exists (
       select 1 from "public"."organizations" o
       where lower(o."slug"::text) = lower(value)
