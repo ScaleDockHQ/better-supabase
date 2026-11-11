@@ -150,6 +150,8 @@
       "FieldSpec",
       "FindExt",
       "FormatPageTotalOptions",
+      "FunctionSpec",
+      "FunctionSpecOptions",
       "GetKey",
       "HasFlag",
       "HookParams",

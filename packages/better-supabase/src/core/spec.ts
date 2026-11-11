@@ -106,11 +106,27 @@ export interface FunctionSpec<N extends string = string, R = unknown> {
   readonly [functionResultType]?: R;
 }
 
+/** The second argument of an `s.$fn` call. */
+export interface FunctionSpecOptions {
+  /**
+   * The tables the function reads. `bsb.tags` and `bsb.cached({ readSet })` tag
+   * the cache entry with them, so a mutation of one revalidates the payload.
+   * The database cannot tell which tables a function reads.
+   */
+  readonly tables?: readonly string[];
+}
+
 /** The function calls `s.$fn` offers: one per function in the schema. */
 export type FunctionSpecs<F extends AnyFunctions> = {
   readonly [N in keyof F & string]: [F[N]["Args"]] extends [never]
-    ? () => FunctionSpec<N, F[N]["Returns"]>
-    : (args: F[N]["Args"]) => FunctionSpec<N, F[N]["Returns"]>;
+    ? (
+        args?: undefined,
+        options?: FunctionSpecOptions,
+      ) => FunctionSpec<N, F[N]["Returns"]>
+    : (
+        args: F[N]["Args"],
+        options?: FunctionSpecOptions,
+      ) => FunctionSpec<N, F[N]["Returns"]>;
 };
 
 /** What a read set entry holds: a table read or a function call. */
@@ -263,11 +279,17 @@ export function createFunctionSpecs(): Record<string, unknown> {
     {
       get: (_target, name) =>
         typeof name === "string"
-          ? (args?: Readonly<Record<string, unknown>>): FunctionSpec => ({
+          ? (
+              args?: Readonly<Record<string, unknown>>,
+              options?: FunctionSpecOptions,
+            ): FunctionSpec => ({
               v: 1,
               kind: "function",
               name,
               args: args ?? {},
+              ...(options?.tables === undefined
+                ? {}
+                : { tables: [...options.tables] }),
             })
           : undefined,
     },

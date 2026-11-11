@@ -4,12 +4,14 @@ import * as v from "valibot";
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { Executor } from "../../src/core/executor.ts";
+import type { FunctionSpec, FunctionSpecOptions } from "../../src/core/spec.ts";
 
 import { writeSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { AsyncResult, ok } from "../../src/core/result.ts";
+import { createFunctionSpecs } from "../../src/core/spec.ts";
 import {
   createNext,
   requireAal,
@@ -1610,6 +1612,25 @@ describe("createNext", () => {
       "bsb:customers",
       "bsb:notes",
     );
+
+    const fn = createFunctionSpecs();
+
+    // SAFETY: createFunctionSpecs returns builders for any function name.
+    const payload = fn["board_payload"] as (
+      args: Record<string, unknown>,
+      options?: FunctionSpecOptions,
+    ) => FunctionSpec;
+
+    bsb.tags(payload({}, { tables: ["customers", "notes"] }), { tenant: "t1" });
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith(
+      "bsb:customers@t1",
+      "bsb:customers@*",
+      "bsb:notes@t1",
+      "bsb:notes@*",
+    );
+
+    bsb.tags([payload({}), betterSupabase.spec.tags.count()]);
+    expect(mocks.cacheTag).toHaveBeenLastCalledWith("bsb:tags");
   });
 
   it("invalidates each tag once when createNext runs again for a definition", async () => {
