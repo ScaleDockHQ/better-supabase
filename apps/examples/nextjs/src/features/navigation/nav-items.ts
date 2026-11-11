@@ -78,6 +78,14 @@ export type NavId =
   | "shifts"
   | "finance"
   | "payables"
+  | "invoices"
+  | "expenses"
+  | "ledger"
+  | "accountingBooks"
+  | "billableTime"
+  | "recurring"
+  | "tax"
+  | "periods"
   | "care"
   | "observations"
   | "medications"
@@ -467,6 +475,54 @@ export const navItems: readonly NavItem[] = [
     href: "/finance/payables",
     area: "finance",
     requires: "invoices.read",
+  },
+  {
+    id: "invoices",
+    href: "/finance/invoices",
+    area: "finance",
+    requires: "invoices.read",
+  },
+  {
+    id: "expenses",
+    href: "/finance/expenses",
+    area: "finance",
+    requires: "expenses.read",
+  },
+  {
+    id: "ledger",
+    href: "/finance/ledger",
+    area: "finance",
+    requires: "accounting.read",
+  },
+  {
+    id: "accountingBooks",
+    href: "/finance/accounting",
+    area: "finance",
+    requires: "accounting.read",
+  },
+  {
+    id: "billableTime",
+    href: "/finance/billable-time",
+    area: "finance",
+    requires: "billable_time.read",
+  },
+  {
+    id: "recurring",
+    href: "/finance/recurring",
+    area: "finance",
+    requires: "accounting.read",
+  },
+  {
+    id: "tax",
+    href: "/finance/tax",
+    area: "finance",
+    requires: "tax.read",
+  },
+  {
+    id: "periods",
+    href: "/finance/periods",
+    area: "finance",
+    requires: "periods.read",
   },
   { id: "care", href: "/care", area: "care", requires: "customers.read" },
   {
