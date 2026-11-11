@@ -14,7 +14,7 @@ $$;
 set local role authenticated;
 
 -- A personal API key of the owner whose scopes name the permission.
-select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","api_key":{"id":"k1","scopes":["organization.transfer_ownership","organization.delete","members.read"]}}');
+select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","api_key":{"id":"k1","scopes":["organization.transfer_ownership","organization.delete","members.read","members.update_role"]}}');
 select throws_ok(
   $$select better_supabase.transfer_ownership('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2')$$,
   '42501',
@@ -100,7 +100,7 @@ select throws_ok(
 );
 
 -- An API key mints and rotates only within its own scopes.
-select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","api_key":{"id":"k3","scopes":["members.read"]}}');
+select pg_temp.as_claims('{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","api_key":{"id":"k3","scopes":["members.read","api_keys.own"]}}');
 select throws_ok(
   $$select better_supabase.create_api_key('k', '0123456789abcde4', repeat('b', 64), '00000000-0000-4000-8000-000000000001', true, array['members.read', 'customers.write'])$$,
   '42501',
