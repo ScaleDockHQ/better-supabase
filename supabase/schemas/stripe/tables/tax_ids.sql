@@ -3,6 +3,8 @@ create table stripe.tax_ids (
   customer text,
   type text,
   value text,
+  country text,
+  verification jsonb,
   created integer
 );
 
