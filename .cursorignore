@@ -1,0 +1,4 @@
+supabase/migrations/
+coverage/
+packages/better-supabase/api/exports.json
+supabase/snapshot.json

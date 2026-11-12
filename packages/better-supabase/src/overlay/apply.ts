@@ -143,8 +143,8 @@ function resolve(
   document: unknown,
   segments: readonly PathSegment[],
 ): { parent: unknown; key: PathSegment | undefined; value: unknown } {
-  let parent: unknown = undefined;
-  let key: PathSegment | undefined = undefined;
+  let parent: unknown;
+  let key: PathSegment | undefined;
   let value = document;
 
   for (const segment of segments) {

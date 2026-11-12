@@ -170,7 +170,7 @@ jobs:
           # import the built package, so an affected-only build leaves `dist` missing.
           pnpm exec turbo run build --filter=better-supabase --log-file
           pnpm exec turbo run test --filter=better-supabase --only "${affected[@]}" --log-file -- \
-            --shard="$SHARD/6" --reporter=blob
+            --shard="$SHARD/6" --reporter=blob --coverage
 
       # The blob reporter prints no failures, so a failed shard replays its own report.
       - name: Show the failed tests

@@ -2735,12 +2735,13 @@
     "bench:live": "node tests/bench/postgrest-floor.ts && node tests/bench/executors.ts",
     "bench:sql": "node tests/bench/approval-eligible-ids.ts && node tests/bench/audit-statement.ts",
     "build": "tsdown",
-    "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
+    "check:publish": "publint",
     "gen:check": "node scripts/gen-fixtures.ts --check",
     "gen:config-schema": "node scripts/gen-config-schema.ts",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",
-    "test": "vitest run --project unit --coverage",
+    "test": "vitest run --project unit",
+    "test:coverage": "vitest run --project unit --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -2756,7 +2757,6 @@
     "@ai-sdk/react": "catalog:",
     "@ai-sdk/sandbox-vercel": "catalog:",
     "@ai-sdk/workflow": "catalog:",
-    "@arethetypeswrong/cli": "catalog:",
     "@better-supabase/typescript-config": "workspace:*",
     "@chat-adapter/catalog": "catalog:",
     "@chat-adapter/state-pg": "catalog:",

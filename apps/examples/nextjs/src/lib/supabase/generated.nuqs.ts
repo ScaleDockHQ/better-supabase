@@ -6,13 +6,13 @@ import { createLoader, createSearchParamsCache, createSerializer, parseAsInteger
 /** Search params for a list of `customers`: filters, order, cursor and page size. */
 export const customersSearchParams: {
   readonly status: SingleParserBuilder<"lead" | "active" | "archived">;
-  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "name" | "kvk" | "status" | "primaryContactId" | "updatedBy" | "archivedAt" | "createdAt" | "updatedAt" | "createdBy" | "ownerTeamId">;
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "name" | "kvk" | "status" | "primaryContactId" | "updatedBy" | "archivedAt" | "createdAt" | "updatedAt" | "ownerTeamId" | "createdBy">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
   status: parseAsStringLiteral(["lead", "active", "archived"] as const),
-  orderBy: parseAsStringLiteral(["id", "organizationId", "name", "kvk", "status", "primaryContactId", "updatedBy", "archivedAt", "createdAt", "updatedAt", "createdBy", "ownerTeamId"] as const),
+  orderBy: parseAsStringLiteral(["id", "organizationId", "name", "kvk", "status", "primaryContactId", "updatedBy", "archivedAt", "createdAt", "updatedAt", "ownerTeamId", "createdBy"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),

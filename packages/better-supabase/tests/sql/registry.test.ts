@@ -251,7 +251,8 @@ describe("renderBlocks", () => {
 
       expect(perRow).toEqual([]);
     }
-  });
+    // Renders every module twice; coverage on a shared runner took over 20 s.
+  }, 60_000);
 
   it("compares subject ids on the id column's type when idType is set", () => {
     const reactions = (subject: { table: string; idType?: string }) =>

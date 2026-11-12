@@ -4,6 +4,8 @@ import type { Stack } from "./supabase-prune.ts";
 
 import {
   mergedBranches,
+  countSegments,
+  destroyableStacks,
   prunableStacks,
   shouldApply,
   worktreeRoots,
@@ -66,5 +68,42 @@ describe("git output", () => {
       "main",
       "fix/old",
     ]);
+  });
+});
+
+describe("destroyableStacks", () => {
+  const stack = (id: string, root: string, branch: string) => ({
+    id,
+    project_root: root,
+    branch_context: branch,
+    owner: "reachable",
+  });
+
+  it("takes merged branches and missing checkouts, never main", () => {
+    const stacks = [
+      stack("a", "/r", "refs/heads/done"),
+      stack("b", "/r/wt", "refs/heads/open"),
+      stack("c", "/r/gone", "refs/heads/open"),
+      stack("d", "/r", "refs/heads/main"),
+      stack("e", "/elsewhere", "refs/heads/done"),
+    ];
+
+    expect(
+      destroyableStacks(
+        stacks,
+        ["/r", "/r/wt", "/r/gone"],
+        new Set(["done", "main"]),
+        (path) => path !== "/r/gone",
+      ).map((entry) => entry.id),
+    ).toEqual(["a", "c"]);
+  });
+});
+
+describe("countSegments", () => {
+  it("counts segment rows only", () => {
+    const output =
+      "IPC status\nShared Memory:\nT ID KEY MODE\nm 1 0x0 --rw\nm 2 0x0 --rw\n";
+
+    expect(countSegments(output)).toBe(2);
   });
 });

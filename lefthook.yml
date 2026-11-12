@@ -1,6 +1,7 @@
-# Tests stay out of the hooks; CI runs them (docs/decisions/0108-dev-and-ci-performance.md).
-# The `affected` jobs are `pnpm gate`, called through the binary to skip pnpm's startup; keep the
-# two in sync.
+# Hooks stay narrow: format the staged files, then `pnpm check` on what the branch changed
+# (format, lint, typecheck, the tests that mirror or import those files). Full `pnpm verify`
+# runs in CI only (docs/decisions/0686-ci-runs-the-full-gate.md). Each job has a time limit so
+# a hung linter fails the hook instead of stalling it.
 pre-commit:
   piped: true
   skip:
@@ -27,25 +28,21 @@ pre-commit:
         - "packages/better-supabase/src/blocks/hint-codes.generated.ts"
         - "packages/better-supabase/src/blocks/name-registry.generated.ts"
         - "packages/better-supabase/src/cli/error-codes.data.ts"
+      timeout: 120s
       run: node_modules/.bin/ultracite fix {staged_files}
       stage_fixed: true
-    - name: affected
-      env:
-        TURBO_SCM_BASE: origin/main
-      run: >-
-        node_modules/.bin/turbo run lint lint:root typecheck --affected
-        --cache=local:rw,remote:r --output-logs=errors-only --continue=dependencies-successful
+    - name: check
+      timeout: 300s
+      run: node scripts/check-changed.ts
 
 commit-msg:
   jobs:
     - name: commitlint
+      timeout: 30s
       run: node_modules/.bin/commitlint --edit {1}
 
 pre-push:
   jobs:
-    - name: affected
-      env:
-        TURBO_SCM_BASE: origin/main
-      run: >-
-        node_modules/.bin/turbo run lint lint:root typecheck --affected
-        --cache=local:rw,remote:r --output-logs=errors-only --continue=dependencies-successful
+    - name: check
+      timeout: 300s
+      run: node scripts/check-changed.ts

@@ -49,12 +49,12 @@ export const serializeClientNotesSearchParams: ReturnType<typeof createSerialize
 
 /** Search params for a list of `contacts`: filters, order, cursor and page size. */
 export const contactsSearchParams: {
-  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "email" | "fullName" | "createdAt" | "updatedAt" | "emailDomain">;
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "email" | "fullName" | "emailDomain" | "createdAt" | "updatedAt">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  orderBy: parseAsStringLiteral(["id", "organizationId", "email", "fullName", "createdAt", "updatedAt", "emailDomain"] as const),
+  orderBy: parseAsStringLiteral(["id", "organizationId", "email", "fullName", "emailDomain", "createdAt", "updatedAt"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),
@@ -94,13 +94,13 @@ export const serializeCustomerTagsSearchParams: ReturnType<typeof createSerializ
 /** Search params for a list of `customers`: filters, order, cursor and page size. */
 export const customersSearchParams: {
   readonly status: SingleParserBuilder<"lead" | "active" | "archived">;
-  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "name" | "kvk" | "status" | "primaryContactId" | "updatedBy" | "archivedAt" | "createdAt" | "updatedAt" | "createdBy" | "ownerTeamId">;
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "name" | "kvk" | "status" | "primaryContactId" | "updatedBy" | "archivedAt" | "createdAt" | "updatedAt" | "ownerTeamId" | "createdBy">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
   status: parseAsStringLiteral(["lead", "active", "archived"] as const),
-  orderBy: parseAsStringLiteral(["id", "organizationId", "name", "kvk", "status", "primaryContactId", "updatedBy", "archivedAt", "createdAt", "updatedAt", "createdBy", "ownerTeamId"] as const),
+  orderBy: parseAsStringLiteral(["id", "organizationId", "name", "kvk", "status", "primaryContactId", "updatedBy", "archivedAt", "createdAt", "updatedAt", "ownerTeamId", "createdBy"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),
@@ -184,13 +184,13 @@ export const serializeMembershipsSearchParams: ReturnType<typeof createSerialize
 /** Search params for a list of `notes`: filters, order, cursor and page size. */
 export const notesSearchParams: {
   readonly kind: SingleParserBuilder<"call" | "meeting" | "email">;
-  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "customerId" | "body" | "createdAt" | "updatedAt" | "embedding" | "kind">;
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "customerId" | "kind" | "body" | "createdAt" | "updatedAt" | "embedding">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
   kind: parseAsStringLiteral(["call", "meeting", "email"] as const),
-  orderBy: parseAsStringLiteral(["id", "organizationId", "customerId", "body", "createdAt", "updatedAt", "embedding", "kind"] as const),
+  orderBy: parseAsStringLiteral(["id", "organizationId", "customerId", "kind", "body", "createdAt", "updatedAt", "embedding"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),
@@ -207,12 +207,12 @@ export const serializeNotesSearchParams: ReturnType<typeof createSerializer<type
 
 /** Search params for a list of `organizations`: filters, order, cursor and page size. */
 export const organizationsSearchParams: {
-  readonly orderBy: SingleParserBuilder<"id" | "name" | "slug" | "createdAt" | "updatedAt" | "brand">;
+  readonly orderBy: SingleParserBuilder<"id" | "name" | "slug" | "brand" | "createdAt" | "updatedAt">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  orderBy: parseAsStringLiteral(["id", "name", "slug", "createdAt", "updatedAt", "brand"] as const),
+  orderBy: parseAsStringLiteral(["id", "name", "slug", "brand", "createdAt", "updatedAt"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),
@@ -251,12 +251,12 @@ export const serializePlanFeaturesSearchParams: ReturnType<typeof createSerializ
 
 /** Search params for a list of `plans`: filters, order, cursor and page size. */
 export const plansSearchParams: {
-  readonly orderBy: SingleParserBuilder<"key" | "name" | "priceCents" | "position" | "currency">;
+  readonly orderBy: SingleParserBuilder<"key" | "name" | "priceCents" | "currency" | "position">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  orderBy: parseAsStringLiteral(["key", "name", "priceCents", "position", "currency"] as const),
+  orderBy: parseAsStringLiteral(["key", "name", "priceCents", "currency", "position"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),
@@ -273,12 +273,12 @@ export const serializePlansSearchParams: ReturnType<typeof createSerializer<type
 
 /** Search params for a list of `projects`: filters, order, cursor and page size. */
 export const projectsSearchParams: {
-  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "createdAt" | "updatedAt" | "name" | "budgetMinor" | "currency" | "leadId" | "labelId" | "deletedAt" | "internalNotes">;
+  readonly orderBy: SingleParserBuilder<"id" | "organizationId" | "createdAt" | "updatedAt" | "name" | "budgetMinor" | "currency" | "leadId" | "labelId" | "internalNotes" | "deletedAt">;
   readonly direction: SingleParserBuilder<"asc" | "desc"> & { readonly defaultValue: "asc" | "desc" };
   readonly cursor: SingleParserBuilder<string>;
   readonly limit: SingleParserBuilder<number> & { readonly defaultValue: number };
 } = {
-  orderBy: parseAsStringLiteral(["id", "organizationId", "createdAt", "updatedAt", "name", "budgetMinor", "currency", "leadId", "labelId", "deletedAt", "internalNotes"] as const),
+  orderBy: parseAsStringLiteral(["id", "organizationId", "createdAt", "updatedAt", "name", "budgetMinor", "currency", "leadId", "labelId", "internalNotes", "deletedAt"] as const),
   direction: parseAsStringLiteral(["asc", "desc"] as const).withDefault("asc"),
   cursor: parseAsString,
   limit: parseAsInteger.withDefault(25),

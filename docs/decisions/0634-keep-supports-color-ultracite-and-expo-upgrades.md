@@ -17,7 +17,7 @@ upgrades stay and the code changes instead.
   (supports-hyperlinks 4) changes its export, which attw's `import TerminalRenderer from
   "marked-terminal"` does not accept. `supports-hyperlinks@3>supports-color` therefore keeps 7.2.0
   for that one consumer, and nothing else in the tree uses it. Drop the entry when attw moves to
-  marked-terminal 8.
+  marked-terminal 8. Superseded: ADR 0686 removed attw and this override.
 - ultracite 8.1.1 stays. Its `typescript/no-unsafe-enum-assignment` reported 12 findings in this
   tree. Three are real: commitlint's severities are `RuleConfigSeverity`, so the config now
   writes `RuleConfigSeverity.Error` and `.Disabled`. The other nine index a mapped type by a

@@ -1,6 +1,5 @@
 // Fails on merge-conflict markers in docs, on two ADR files with one number,
-// and on an ADR that `docs/decisions/README.md` or the `AGENTS.md` list does
-// not index. Run with `node scripts/check-adrs.ts`.
+// and on an ADR that `docs/decisions/README.md` does not index. Run with `node scripts/check-adrs.ts`.
 import { readdirSync, readFileSync } from "node:fs";
 import { exit } from "node:process";
 
@@ -27,17 +26,10 @@ for (const name of files) {
 }
 
 const readme = readFileSync(`${DIR}/README.md`, "utf-8");
-const agents = readFileSync("AGENTS.md", "utf-8");
 
 for (const name of files) {
-  const number = name.slice(0, 4);
-
   if (!readme.includes(`](${name})`)) {
     problems.push(`${DIR}/README.md does not link ${name}`);
-  }
-
-  if (!new RegExp(`^- ${number}:`, "m").test(agents)) {
-    problems.push(`AGENTS.md has no "- ${number}:" entry`);
   }
 }
 
