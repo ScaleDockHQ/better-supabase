@@ -365,12 +365,12 @@
     "brotli": 428120
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 1491704,
+    "raw": 1491908,
     "gzip": 482377,
     "brotli": 421061
   },
   "/[locale]/(app)/customers/page": {
-    "raw": 1582998,
+    "raw": 1583202,
     "gzip": 506481,
     "brotli": 443466
   },
@@ -980,7 +980,7 @@
     "brotli": 425273
   },
   "/[locale]/(app)/settings/security/page": {
-    "raw": 1351370,
+    "raw": 1351574,
     "gzip": 433124,
     "brotli": 378429
   },
