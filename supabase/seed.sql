@@ -762,7 +762,8 @@ declare
   count_id uuid;
   line record;
 begin
-  loc := (better_supabase.save_location(t, null, 'MAIN', 'Main warehouse', null, null) ->> 'id')::uuid;
+  -- The stock ledger seed above already made the main warehouse.
+  select l.id into loc from better_supabase.inventory_locations l where l.tenant_id = t and l.code = 'MAIN';
   perform better_supabase.save_location(t, null, 'RET', 'Returns warehouse', null, null);
   bin_a := (better_supabase.save_bin(loc, null, 'A-01', 'Fast movers', false, true) ->> 'id')::uuid;
   bin_b := (better_supabase.save_bin(loc, null, 'B-04', 'Shelving', false, true) ->> 'id')::uuid;
