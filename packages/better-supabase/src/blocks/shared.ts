@@ -48,6 +48,11 @@ export type {
   BlockCall,
   BlockOptions,
   BlockTemporalOptions,
+  Count,
   CursorPageOptions,
+  FacetResult,
+  FacetValue,
+  ListPage,
+  PageOptions,
   TransitionActor,
 } from "../core/block-helpers.ts";

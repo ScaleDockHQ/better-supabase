@@ -15,6 +15,12 @@ export const agentsBlock: BlockOf<"agents", typeof createAgents, AgentsEvents> =
     events: agentsEvents,
     create: createAgents,
     category: "ai",
+    entities: {
+      agent: {
+        mutability: "editable",
+        emits: { create: true, update: true, delete: true },
+      },
+    },
     description:
       "Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.",
     recipes: ["agent-run-trace"],

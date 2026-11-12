@@ -78,6 +78,11 @@ import {
   withDefaultAutomations,
   withModuleMatrix,
 } from "./composition-docs.ts";
+import {
+  AUDIT_REPORT,
+  entityMatrix,
+  withEntityMatrix,
+} from "./entity-matrix.ts";
 
 /**
  * The blocks a block works with: what it integrates and the generic blocks it
@@ -916,6 +921,18 @@ if (import.meta.main) {
         exit(1);
       }
 
+      const report = readFileSync(AUDIT_REPORT, "utf-8");
+
+      if (
+        withEntityMatrix(report) !== report ||
+        !report.includes(entityMatrix())
+      ) {
+        console.error(
+          "build-catalog: the entity matrix in docs/agents/block-consistency-audit.md is stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
+
       const automationsPage = readFileSync(AUTOMATIONS_PAGE, "utf-8");
 
       if (
@@ -948,6 +965,7 @@ if (import.meta.main) {
 
       for (const [file, updated] of [
         [MATRIX_PAGE, withModuleMatrix(readFileSync(MATRIX_PAGE, "utf-8"))],
+        [AUDIT_REPORT, withEntityMatrix(readFileSync(AUDIT_REPORT, "utf-8"))],
         [
           AUTOMATIONS_PAGE,
           withDefaultAutomations(

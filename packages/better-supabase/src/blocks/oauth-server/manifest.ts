@@ -18,6 +18,13 @@ export const oauthServerBlock: BlockOf<
   events: oauthServerEvents,
   create: createOauthServer,
   category: "developer",
+  entities: {
+    oauth_client: {
+      mutability: "editable",
+      emits: { update: false, delete: true },
+    },
+    oauth_grant: { mutability: "state-machine", emits: { create: true } },
+  },
   description:
     "Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.",
 });

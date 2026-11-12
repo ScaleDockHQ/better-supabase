@@ -18,6 +18,12 @@ export const invoicesBlock: BlockOf<
   events: invoicesEvents,
   create: createInvoices,
   category: "commerce",
+  entities: {
+    invoice: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+  },
   description:
     "Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.",
   recipes: ["invoices-table"],

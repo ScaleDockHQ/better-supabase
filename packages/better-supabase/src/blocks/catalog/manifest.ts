@@ -19,6 +19,16 @@ export const catalogBlock: BlockOf<
   events: catalogEvents,
   create: createCatalog,
   category: "commerce",
+  entities: {
+    product: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    product_variant: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+  },
   description:
     "Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.",
   recipes: ["product-catalog-grid"],

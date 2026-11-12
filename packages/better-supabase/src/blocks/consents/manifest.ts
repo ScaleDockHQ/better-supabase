@@ -18,6 +18,13 @@ export const consentsBlock: BlockOf<
   schemas: { consent_purpose: { input: consentPurposeInputSchema } },
   create: createConsents,
   category: "admin",
+  entities: {
+    consent: { mutability: "state-machine", emits: { create: false } },
+    consent_purpose: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+  },
   description:
     "Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.",
   recipes: ["consent-register"],

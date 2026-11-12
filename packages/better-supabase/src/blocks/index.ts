@@ -150,7 +150,24 @@ export type {
   EventSpec,
 } from "../core/block-events.ts";
 
-export type { BlockOptions, CursorPageOptions } from "./shared.ts";
+export type {
+  BlockOptions,
+  Count,
+  CursorPageOptions,
+  FacetResult,
+  FacetValue,
+  ListPage,
+  PageOptions,
+} from "./shared.ts";
+
+export { ENTITY_METHODS, ENTITY_MUTABILITIES } from "./entity-surface.ts";
+
+export type {
+  BlockEntities,
+  EntityMethod,
+  EntityMutability,
+  EntitySurface,
+} from "./entity-surface.ts";
 
 export {
   dbTransport,

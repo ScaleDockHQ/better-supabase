@@ -29,6 +29,18 @@ export const warehouseBlock: BlockOf<
   create: createWarehouse,
   recipes: [],
   category: "commerce",
+  entities: {
+    pick_list: { mutability: "state-machine", emits: { create: true } },
+    pick_wave: { mutability: "state-machine", emits: { create: true } },
+    pick_line: { mutability: "read-only" },
+    count_plan: { mutability: "state-machine", emits: { create: true } },
+    putaway_rule: {
+      mutability: "editable",
+      emits: { update: false, delete: false },
+    },
+    bin_slot: { mutability: "editable", emits: { update: false } },
+    variant_size: { mutability: "editable", emits: { update: false } },
+  },
   description:
     "Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.",
 });

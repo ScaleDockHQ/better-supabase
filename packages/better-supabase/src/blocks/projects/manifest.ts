@@ -39,6 +39,7 @@ export const projectsBlock: BlockOf<"projects", typeof createProjects> =
     composes: projectsParts,
     create: createProjects,
     category: "work",
+    entities: { project: { mutability: "read-only" } },
     description:
       "Tasks, time tracking, billable time, approvals, invoices and meetings installed together for project work.",
   });

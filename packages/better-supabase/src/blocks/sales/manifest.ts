@@ -13,6 +13,7 @@ export const salesBlock: BlockOf<"sales", typeof createSales> = defineBlock({
   composes: salesParts,
   create: createSales,
   category: "crm",
+  entities: { sale: { mutability: "read-only" } },
   description:
     "Contacts, pipelines, deals, quotes, orders and invoices installed together for a team that sells.",
 });

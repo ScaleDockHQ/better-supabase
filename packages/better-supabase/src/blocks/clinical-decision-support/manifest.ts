@@ -19,6 +19,13 @@ export const clinicalDecisionSupportBlock: BlockOf<
   create: createClinicalDecisionSupport,
   recipes: [],
   category: "people",
+  entities: {
+    care_alert: { mutability: "state-machine" },
+    care_rule: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+  },
   description:
     "Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.",
 });

@@ -117,6 +117,16 @@ describe("renameBlock", () => {
     });
   });
 
+  it("renames the entity keys of the declared surface", () => {
+    const tasks = renameBlock(tasksBlock, NAMES);
+
+    expect(Object.keys(tasks.entities)).toContain("initiative");
+    expect(Object.keys(tasks.entities)).not.toContain("project");
+    expect(tasks.entities["initiative"]).toStrictEqual(
+      tasksBlock.entities["project"],
+    );
+  });
+
   it("renames the event types and keeps the name", () => {
     const tasks = renameBlock(tasksBlock, NAMES);
 

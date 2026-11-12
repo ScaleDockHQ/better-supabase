@@ -13,6 +13,9 @@ export const onboardingBlock: BlockOf<"onboarding", typeof createOnboarding> =
     create: createOnboarding,
     client: "onboarding",
     category: "growth",
+    entities: {
+      onboarding: { mutability: "append-only", emits: { create: false } },
+    },
     description:
       "Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.",
     recipes: ["onboarding-checklist"],

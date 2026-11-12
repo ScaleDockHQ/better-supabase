@@ -18,6 +18,7 @@ export const aiGuardrailsBlock: BlockOf<
   events: aiGuardrailsEvents,
   create: createAiGuardrails,
   category: "ai",
+  entities: { guardrail: { mutability: "state-machine" } },
   description:
     "Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.",
 });

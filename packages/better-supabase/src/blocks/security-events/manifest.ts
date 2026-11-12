@@ -18,6 +18,12 @@ export const securityEventsBlock: BlockOf<
   events: securityEventsEvents,
   create: createSecurityEvents,
   category: "developer",
+  entities: {
+    ssf_stream: {
+      mutability: "editable",
+      emits: { create: true, update: false, delete: true },
+    },
+  },
   description:
     "OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.",
 });

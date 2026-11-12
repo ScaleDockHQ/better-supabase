@@ -19,6 +19,13 @@ export const agentCheckoutBlock: BlockOf<
   create: createAgentCheckout,
   recipes: [],
   category: "commerce",
+  entities: {
+    checkout_session: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+    agent_mandate: { mutability: "state-machine", emits: { create: true } },
+  },
   description:
     "ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.",
 });

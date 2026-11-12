@@ -29,6 +29,19 @@ export const manufacturingBlock: BlockOf<
   create: createManufacturing,
   recipes: ["production-order-board"],
   category: "commerce",
+  entities: {
+    production_order: { mutability: "state-machine", emits: { create: false } },
+    bom: { mutability: "editable", emits: { update: false } },
+    bom_component: { mutability: "read-only" },
+    bom_operation: { mutability: "read-only" },
+    work_center: { mutability: "editable", emits: { update: false } },
+    production_order_operation: { mutability: "read-only" },
+    production_consumption: {
+      mutability: "append-only",
+      emits: { create: false },
+    },
+    stock_lot_link: { mutability: "read-only" },
+  },
   description:
     "Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.",
 });

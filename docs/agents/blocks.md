@@ -212,6 +212,12 @@ block with only SQL gets a directory with just the manifest (and
   entity from the block's `schemas.ts`, built with `entitySchema`.
   `tests/blocks/entity-schema.test-d.ts` checks each one agrees with the
   client's types, and `renameBlock` renames their keys.
+- `entities` declares each entity the block owns, by singular noun
+  (ADR 0689): `mutability` (`editable`, `append-only`, `state-machine` or
+  `read-only`) and, per method, `emits`. A new block declares them, and a
+  mutating method that records no event goes on `tests/blocks/emit-gaps.ts`
+  only with a reason in review. `pnpm catalog` regenerates the entity matrix in
+  the audit report.
 - `consumes` and `provides` name ports from `src/blocks/ports.ts`
   (`notifier`, `files`, `attachments`, `workflows`, `sink`). A block reaches
   another block only through a consumed port: never import or call a

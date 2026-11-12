@@ -7,6 +7,7 @@ export const mfaBlock: Block<"mfa"> = defineBlock({
   name: "mfa",
   sql: ["mfa"],
   category: "identity",
+  entities: { mfa: { mutability: "read-only" } },
   description:
     "mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).",
   recipes: ["mfa-setup"],

@@ -26,6 +26,9 @@ export const recruitingBlock: BlockOf<"recruiting", typeof createRecruiting> =
     composes: recruitingParts,
     create: createRecruiting,
     category: "people",
+    entities: {
+      recruiting: { mutability: "append-only", emits: { create: false } },
+    },
     description:
       "Hiring, employees and a calendar installed together for recruiting.",
   });

@@ -23,6 +23,13 @@ export const assetsBlock: BlockOf<
   create: createAssets,
   record: assetsBinding,
   category: "work",
+  entities: {
+    asset: { mutability: "editable", emits: { create: true, update: true } },
+    asset_location: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+  },
   description:
     "A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.",
 });

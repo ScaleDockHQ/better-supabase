@@ -20,6 +20,16 @@ export const postsBlock: BlockOf<"posts", typeof createPosts, PostsEvents> =
     },
     create: createPosts,
     category: "collaboration",
+    entities: {
+      post_board: {
+        mutability: "editable",
+        emits: { create: true, update: true },
+      },
+      post: {
+        mutability: "editable",
+        emits: { create: true, update: true, delete: true },
+      },
+    },
     description:
       "Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.",
     recipes: ["post-board"],

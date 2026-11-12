@@ -30,6 +30,18 @@ export const incidentsBlock: BlockOf<
   create: createIncidents,
   recipes: ["status-page"],
   category: "work",
+  entities: {
+    incident: {
+      mutability: "editable",
+      emits: { create: false, update: true },
+    },
+    status_component: {
+      mutability: "editable",
+      emits: { update: true, delete: false },
+    },
+    incident_postmortem: { mutability: "editable", emits: { update: false } },
+    status_page: { mutability: "editable", emits: { update: false } },
+  },
   description:
     "Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.",
 });

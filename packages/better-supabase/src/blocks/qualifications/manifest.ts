@@ -27,6 +27,17 @@ export const qualificationsBlock: BlockOf<
   create: createQualifications,
   recipes: ["qualification-matrix", "my-qualifications"],
   category: "people",
+  entities: {
+    qualification: { mutability: "state-machine" },
+    qualification_type: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+    qualification_requirement: {
+      mutability: "append-only",
+      emits: { create: false, delete: false },
+    },
+  },
   description:
     "Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.",
 });

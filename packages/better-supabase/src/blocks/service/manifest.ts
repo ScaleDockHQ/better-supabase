@@ -39,6 +39,9 @@ export const serviceBlock: BlockOf<"service", typeof createService> =
     composes: serviceParts,
     create: createService,
     category: "work",
+    entities: {
+      service: { mutability: "append-only", emits: { create: false } },
+    },
     description:
       "Dispatch, maintenance, assets, cases, inventory and service levels installed together for field service.",
   });
