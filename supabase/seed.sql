@@ -834,4 +834,105 @@ begin
 end
 $seed$;
 
+-- People and work for Acme (EX-920): an org chart with contracts, leave types
+-- and requests, an onboarding program with enrollments, a starter template,
+-- qualifications with holders, and a week of shifts with assignments.
+insert into better_supabase.employees (id, tenant_id, user_id, name, email, job_title, team_id, manager_id, status, start_date, created_by) values
+  ('00000000-0000-4000-8000-0000000e0001', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', 'Ada Admin', 'admin@acme.test', 'Managing director', null, null, 'active', current_date - 900, '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000e0002', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', 'Max Member', 'member@acme.test', 'Account executive', '00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-0000000e0001', 'active', current_date - 400, '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000e0003', '00000000-0000-4000-8000-000000000001', null, 'Priya Patel', 'priya@acme.test', 'Head of support', '00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-0000000e0001', 'active', current_date - 700, '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000e0004', '00000000-0000-4000-8000-000000000001', null, 'Sam Okafor', 'sam@acme.test', 'Support agent', '00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-0000000e0003', 'active', current_date - 200, '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000e0005', '00000000-0000-4000-8000-000000000001', null, 'Lena Fischer', 'lena@acme.test', 'Support agent', '00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-0000000e0003', 'on_leave', current_date - 300, '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-0000000e0006', '00000000-0000-4000-8000-000000000001', null, 'Noor Haddad', 'noor@acme.test', 'Sales development rep', '00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-0000000e0002', 'preboarding', current_date + 14, '00000000-0000-4000-8000-0000000000a1');
+
+insert into better_supabase.employee_contracts (tenant_id, employee_id, starts_on, hours_per_week, created_by)
+select e.tenant_id, e.id, e.start_date, 40, '00000000-0000-4000-8000-0000000000a1'
+from better_supabase.employees e where e.tenant_id = '00000000-0000-4000-8000-000000000001';
+
+insert into better_supabase.leave_types (id, tenant_id, key, name, unit, paid, tracked, allowance, carryover_max, color) values
+  ('00000000-0000-4000-8000-0000000e1001', '00000000-0000-4000-8000-000000000001', 'annual', 'Annual leave', 'days', true, true, 25, 5, '#2563eb'),
+  ('00000000-0000-4000-8000-0000000e1002', '00000000-0000-4000-8000-000000000001', 'sick', 'Sick leave', 'days', true, false, null, null, '#dc2626'),
+  ('00000000-0000-4000-8000-0000000e1003', '00000000-0000-4000-8000-000000000001', 'unpaid', 'Unpaid leave', 'days', false, false, null, null, '#6b7280');
+
+insert into better_supabase.leave_requests (id, tenant_id, user_id, type_id, starts_on, ends_on, amount, note, approved_at) values
+  ('00000000-0000-4000-8000-0000000e1101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000e1002', current_date - 12, current_date - 11, 2, 'Flu', now() - interval '12 days'),
+  ('00000000-0000-4000-8000-0000000e1102', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000e1003', current_date + 30, current_date + 31, 2, 'Moving house', null);
+
+select better_supabase.save_enrollment_program('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'key', 'new-hire', 'name', 'New hire', 'description', 'What a new employee finishes in the first weeks.',
+  'subjectTypes', jsonb_build_array('employee'),
+  'steps', jsonb_build_array(
+    jsonb_build_object('id', 'equipment', 'title', 'Hand over equipment', 'due', jsonb_build_object('days', 0, 'from', 'start')),
+    jsonb_build_object('id', 'accounts', 'title', 'Create accounts', 'due', jsonb_build_object('days', 1, 'from', 'start')),
+    jsonb_build_object('id', 'intro', 'title', 'Meet the team', 'due', jsonb_build_object('days', 7, 'from', 'start')),
+    jsonb_build_object('id', 'review', 'title', 'First review', 'due', jsonb_build_object('days', 30, 'from', 'start')))));
+
+select better_supabase.enrollment_ensure('00000000-0000-4000-8000-000000000001', 'new-hire', 1, array['equipment', 'accounts', 'intro', 'review'], 'employee', e.id::text, null)
+from better_supabase.employees e
+where e.tenant_id = '00000000-0000-4000-8000-000000000001' and e.id in ('00000000-0000-4000-8000-0000000e0004', '00000000-0000-4000-8000-0000000e0006');
+
+select better_supabase.enrollment_mark(en.id, 'equipment', true, null)
+from better_supabase.enrollments en
+where en.tenant_id = '00000000-0000-4000-8000-000000000001' and en.program = 'new-hire' and en.subject_id = '00000000-0000-4000-8000-0000000e0004';
+
+insert into better_supabase.document_templates (tenant_id, document_type, language, name, body) values
+  ('00000000-0000-4000-8000-000000000001', 'invoice', 'en', 'standard', '<h1>Invoice</h1>'),
+  ('00000000-0000-4000-8000-000000000001', 'invoice', 'nl', 'standard', '<h1>Factuur</h1>');
+
+insert into better_supabase.qualification_types (id, tenant_id, key, name, description, holder_types, valid_for_months, evidence_required) values
+  ('00000000-0000-4000-8000-0000000e2001', '00000000-0000-4000-8000-000000000001', 'first-aid', 'First aid', 'Basic first aid certificate.', array['member'], 24, false),
+  ('00000000-0000-4000-8000-0000000e2002', '00000000-0000-4000-8000-000000000001', 'gdpr', 'GDPR awareness', 'Yearly privacy training.', array['member'], 12, false);
+
+insert into better_supabase.qualification_requirements (tenant_id, type_id, target_type, target_value)
+values ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000e2001', 'role', 'member');
+
+insert into better_supabase.qualifications (tenant_id, type_id, holder_type, holder_id, granted_on, expires_on, granted_by) values
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000e2001', 'member', '00000000-0000-4000-8000-0000000000a1', current_date - 300, current_date + 430, '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000e2002', 'member', '00000000-0000-4000-8000-0000000000a1', current_date - 340, current_date + 25, '00000000-0000-4000-8000-0000000000a1'),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000e2002', 'member', '00000000-0000-4000-8000-0000000000a2', current_date - 400, current_date - 35, '00000000-0000-4000-8000-0000000000a1');
+
+insert into better_supabase.shifts (id, tenant_id, team_id, starts_at, ends_at, break_minutes, headcount, status, note, published_at, created_by)
+select ('00000000-0000-4000-8000-0000000e3' || lpad(d::text, 3, '0'))::uuid, '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000e2',
+  (date_trunc('week', now() at time zone 'UTC') + make_interval(days => d) + interval '8 hours') at time zone 'UTC',
+  (date_trunc('week', now() at time zone 'UTC') + make_interval(days => d) + interval '16 hours') at time zone 'UTC',
+  30, 2, case when d = 4 then 'draft' else 'published' end, case when d = 0 then 'Phones until noon, then tickets.' else null end,
+  case when d = 4 then null else now() end, '00000000-0000-4000-8000-0000000000a1'
+from generate_series(0, 4) d;
+
+insert into better_supabase.shift_assignments (tenant_id, shift_id, user_id, starts_at, ends_at, status, assigned_by)
+select s.tenant_id, s.id, u.user_id, s.starts_at, s.ends_at, u.status, '00000000-0000-4000-8000-0000000000a1'
+from better_supabase.shifts s
+join (values
+  ('00000000-0000-4000-8000-0000000e3000'::uuid, '00000000-0000-4000-8000-0000000000a1'::uuid, 'assigned'),
+  ('00000000-0000-4000-8000-0000000e3000', '00000000-0000-4000-8000-0000000000a2', 'assigned'),
+  ('00000000-0000-4000-8000-0000000e3001', '00000000-0000-4000-8000-0000000000a2', 'assigned'),
+  ('00000000-0000-4000-8000-0000000e3002', '00000000-0000-4000-8000-0000000000a1', 'requested')
+) as u(shift_id, user_id, status) on u.shift_id = s.id;
+
+-- The front desk calendar: a few visits today and in the coming days.
+insert into better_supabase.calendars (id, tenant_id, name, tz, color) values
+  ('00000000-0000-4000-8000-0000000e4001', '00000000-0000-4000-8000-000000000001', 'Front desk', 'UTC', '#2563eb');
+
+insert into better_supabase.calendar_events (tenant_id, calendar_id, uid, title, location, starts_at, ends_at, created_by)
+select '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000e4001', 'seed-front-desk-' || v.n, v.title, v.location,
+  (current_date + v.day + v.at)::timestamptz, (current_date + v.day + v.at + interval '45 minutes')::timestamptz,
+  '00000000-0000-4000-8000-0000000000a1'
+from (values
+  (1, 0, interval '9 hours', 'Visit: Initech facilities', 'Reception'),
+  (2, 0, interval '11 hours 30 minutes', 'Interview: support agent', 'Room 2'),
+  (3, 0, interval '14 hours', 'Delivery: office supplies', 'Loading dock'),
+  (4, 1, interval '10 hours', 'Visit: Globex auditors', 'Room 1'),
+  (5, 3, interval '15 hours', 'Onboarding: Noor Haddad', 'Reception')
+) as v(n, day, at, title, location);
+
+-- A review cycle with a rubric, opened for two people (the reviews stay unwritten).
+select better_supabase.open_appraisal_cycle((better_supabase.create_appraisal_cycle('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'name', 'Mid-year review', 'startsOn', (current_date - 30)::text, 'endsOn', (current_date + 60)::text,
+  'competencies', jsonb_build_array(
+    jsonb_build_object('key', 'delivery', 'name', 'Delivery', 'weight', 2),
+    jsonb_build_object('key', 'teamwork', 'name', 'Teamwork', 'weight', 1)))) ->> 'id')::uuid,
+  jsonb_build_array(
+    jsonb_build_object('subjectUserId', '00000000-0000-4000-8000-0000000000a2', 'managerId', '00000000-0000-4000-8000-0000000000a1'),
+    jsonb_build_object('subjectUserId', '00000000-0000-4000-8000-0000000000a1')));
+
 select set_config('request.jwt.claims', '', false);
