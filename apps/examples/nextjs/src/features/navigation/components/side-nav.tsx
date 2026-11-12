@@ -169,6 +169,8 @@ const ICONS = {
   qualifications: BadgeCheckIcon,
   risks: ShieldAlertIcon,
   cases: FileWarningIcon,
+  advisories: ShieldAlertIcon,
+  content: FileTextIcon,
   moderation: ShieldBanIcon,
   incidents: SirenIcon,
   inspections: ClipboardCheckIcon,

@@ -28,7 +28,9 @@ export type SettingsTabId =
   | "customFields"
   | "jobs"
   | "audit"
-  | "aiProviders";
+  | "aiProviders"
+  | "support"
+  | "marketplace";
 
 export interface SettingsTab {
   readonly id: SettingsTabId;
@@ -107,5 +109,11 @@ export const settingsTabs: readonly SettingsTab[] = [
     id: "aiProviders",
     href: "/settings/ai-providers",
     requires: "ai_keys.manage",
+  },
+  { id: "support", href: "/settings/support", requires: "impersonation.read" },
+  {
+    id: "marketplace",
+    href: "/settings/marketplace",
+    requires: "settings.manage",
   },
 ];

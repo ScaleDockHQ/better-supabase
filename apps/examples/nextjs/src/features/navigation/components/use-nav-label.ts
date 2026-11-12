@@ -237,6 +237,14 @@ export function useNavLabel(): (id: NavId) => string {
         return t("Cases");
       }
 
+      case "advisories": {
+        return t("Advisories");
+      }
+
+      case "content": {
+        return t("Content");
+      }
+
       case "moderation": {
         return t("Moderation");
       }

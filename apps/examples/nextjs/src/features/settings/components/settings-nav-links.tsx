@@ -97,6 +97,14 @@ export function useTabLabel(): (id: SettingsTabId) => string {
         return t("Signing keys");
       }
 
+      case "support": {
+        return t("Support sessions");
+      }
+
+      case "marketplace": {
+        return t("Vercel Marketplace");
+      }
+
       case "sso": {
         return t("Single sign-on");
       }
