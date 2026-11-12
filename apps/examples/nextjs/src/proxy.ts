@@ -98,7 +98,8 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
     path.startsWith("/share/") ||
     path.startsWith("/book/") ||
     path.startsWith("/send/") ||
-    path.startsWith("/status/");
+    path.startsWith("/status/") ||
+    path.startsWith("/store/");
 
   if (session.kind !== "user") {
     if (path === "/signup" && (await signupWaitlist())) {

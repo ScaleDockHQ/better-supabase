@@ -430,6 +430,61 @@ select better_supabase.create_referral_code('00000000-0000-4000-8000-00000000000
   'ACMEFRIENDS', null, 2500, 'EUR', 10, null);
 select better_supabase.attribute_referral('00000000-0000-4000-8000-000000000001', 'ACMEFRIENDS', null, null, 'friend@initech.test');
 
+-- The public store (/store/acme) and the stock ledger behind /shop/inventory:
+-- five active products, one draft the store hides, two locations, a lot-tracked
+-- coffee with two expiry dates and a published storefront.
+insert into better_supabase.products (id, tenant_id, slug, title, description, kind, status, manufacturer) values
+  ('00000000-0000-4000-8000-0000000b0001', '00000000-0000-4000-8000-000000000001', 'espresso-beans', 'Espresso beans, 1 kg', 'A dark roast with notes of cocoa and orange peel, roasted every week.', 'physical', 'active', 'Acme Roasters'),
+  ('00000000-0000-4000-8000-0000000b0002', '00000000-0000-4000-8000-000000000001', 'ceramic-mug', 'Ceramic mug', 'A 300 ml stoneware mug that goes in the dishwasher.', 'physical', 'active', 'Acme Studio'),
+  ('00000000-0000-4000-8000-0000000b0003', '00000000-0000-4000-8000-000000000001', 'steel-filter', 'Reusable steel filter', 'A fine mesh filter that replaces paper for 500 brews.', 'physical', 'active', 'Acme Studio'),
+  ('00000000-0000-4000-8000-0000000b0004', '00000000-0000-4000-8000-000000000001', 'burr-grinder', 'Burr grinder Pro', 'A conical burr grinder with 40 settings.', 'physical', 'active', 'Acme Studio'),
+  ('00000000-0000-4000-8000-0000000b0005', '00000000-0000-4000-8000-000000000001', 'gift-card', 'Gift card', 'A digital gift card, sent by email.', 'digital', 'active', null),
+  ('00000000-0000-4000-8000-0000000b0006', '00000000-0000-4000-8000-000000000001', 'prototype-scale', 'Prototype scale', 'Not for sale yet.', 'physical', 'draft', null);
+
+insert into better_supabase.product_variants (id, tenant_id, product_id, sku, title, track_inventory) values
+  ('00000000-0000-4000-8000-0000000b1001', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b0001', 'BEANS-1KG', '1 kg', true),
+  ('00000000-0000-4000-8000-0000000b1002', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b0002', 'MUG-CER', 'White', true),
+  ('00000000-0000-4000-8000-0000000b1003', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b0003', 'FILTER-STEEL', null, true),
+  ('00000000-0000-4000-8000-0000000b1004', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b0004', 'GRINDER-PRO', null, true),
+  ('00000000-0000-4000-8000-0000000b1005', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b0005', 'GIFT-50', 'EUR 50', false),
+  ('00000000-0000-4000-8000-0000000b1006', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b0006', 'SCALE-PROTO', null, true);
+
+insert into better_supabase.product_prices (tenant_id, variant_id, currency, amount, compare_at_amount) values
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b1001', 'EUR', 1850, 2100),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b1002', 'EUR', 1200, null),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b1003', 'EUR', 900, null),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b1004', 'EUR', 12900, null),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b1005', 'EUR', 5000, null),
+  ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000b1006', 'EUR', 4900, null);
+
+insert into better_supabase.catalog_storefronts (tenant_id, published_at) values
+  ('00000000-0000-4000-8000-000000000001', now());
+
+insert into better_supabase.inventory_locations (id, tenant_id, code, name, kind) values
+  ('00000000-0000-4000-8000-0000000b2001', '00000000-0000-4000-8000-000000000001', 'MAIN', 'Main warehouse', 'warehouse'),
+  ('00000000-0000-4000-8000-0000000b2002', '00000000-0000-4000-8000-000000000001', 'STORE', 'Amsterdam store', 'store');
+
+select better_supabase.set_stock_item('00000000-0000-4000-8000-0000000b1001', 'item', 0::smallint, 'lot', true, 'none', null);
+select better_supabase.save_lot('00000000-0000-4000-8000-0000000b1001', 'BEANS-2611', current_date + 25);
+select better_supabase.save_lot('00000000-0000-4000-8000-0000000b1001', 'BEANS-2701', current_date + 120);
+
+select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1001', '00000000-0000-4000-8000-0000000b2001', 40, 'receipt', 'First delivery', jsonb_build_object('lotId', (select id from better_supabase.stock_lots where code = 'BEANS-2611')));
+select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1001', '00000000-0000-4000-8000-0000000b2001', 60, 'receipt', 'Second delivery', jsonb_build_object('lotId', (select id from better_supabase.stock_lots where code = 'BEANS-2701')));
+select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1001', '00000000-0000-4000-8000-0000000b2001', -3, 'damage', 'Torn bag', jsonb_build_object('lotId', (select id from better_supabase.stock_lots where code = 'BEANS-2611')));
+select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1002', '00000000-0000-4000-8000-0000000b2001', 120, 'receipt', 'Pallet 14', null);
+select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1002', '00000000-0000-4000-8000-0000000b2002', 18, 'receipt', 'Moved to the shop floor', null);
+select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1002', '00000000-0000-4000-8000-0000000b2002', -2, 'loss', 'Dropped at the counter', null);
+select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1003', '00000000-0000-4000-8000-0000000b2001', 6, 'receipt', 'Sample batch', null);
+select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1004', '00000000-0000-4000-8000-0000000b2001', 4, 'receipt', 'Launch stock', null);
+select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1004', '00000000-0000-4000-8000-0000000b2001', -4, 'adjustment', 'Sold out at the launch event', null);
+
+update better_supabase.stock_levels set reorder_point = 20, reorder_quantity = 60
+where variant_id = '00000000-0000-4000-8000-0000000b1001';
+update better_supabase.stock_levels set reorder_point = 10
+where variant_id = '00000000-0000-4000-8000-0000000b1003';
+update better_supabase.stock_levels set reorder_point = 2, reorder_quantity = 4
+where variant_id = '00000000-0000-4000-8000-0000000b1004';
+
 select set_config('request.jwt.claims', '', false);
 -- The numbering page shows these sequences (finding EX-502).
 insert into better_supabase.number_sequences (tenant_id, entity, period, last_number) values
