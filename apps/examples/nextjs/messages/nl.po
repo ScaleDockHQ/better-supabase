@@ -1124,6 +1124,26 @@ msgctxt "audit.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
+#: src/app/[locale]/(app)/settings/billing/credits/[id]/page.tsx
+msgctxt "credits.QQoV5k"
+msgid "All credit entries"
+msgstr "Alle kredietposten"
+
+#: src/app/[locale]/(app)/settings/billing/credits/page.tsx
+msgctxt "credits.Tbo377"
+msgid "Billing"
+msgstr "Facturatie"
+
+#: src/app/[locale]/(app)/settings/billing/page.tsx
+msgctxt "billing.ctXPGw"
+msgid "Credit ledger"
+msgstr "Kredietgrootboek"
+
+#: src/app/[locale]/(app)/settings/integrations/[id]/page.tsx
+msgctxt "integrations.rz6iFP"
+msgid "All integrations"
+msgstr "Alle integraties"
+
 #: src/app/[locale]/(app)/settings/jobs/page.tsx
 msgctxt "jobs.-P2HMk"
 msgid "Search all runs"
@@ -1139,6 +1159,11 @@ msgctxt "members.sKwqTt"
 msgid "All members"
 msgstr "Alle leden"
 
+#: src/app/[locale]/(app)/settings/oauth-apps/[id]/page.tsx
+msgctxt "oauthApps.ApTgM_"
+msgid "All apps"
+msgstr "Alle apps"
+
 #: src/app/[locale]/(app)/settings/option-sets/[id]/page.tsx
 msgctxt "optionSets.i_1uRf"
 msgid "All option sets"
@@ -1148,6 +1173,11 @@ msgstr ""
 msgctxt "roles.0QowWF"
 msgid "All roles"
 msgstr "Alle rollen"
+
+#: src/app/[locale]/(app)/settings/security/events/[id]/page.tsx
+msgctxt "securityEvents.jbetPD"
+msgid "All streams"
+msgstr "Alle streams"
 
 #: src/app/[locale]/(app)/settings/teams/[teamId]/page.tsx
 #: src/features/teams/components/teams-grid.tsx
@@ -7096,6 +7126,95 @@ msgctxt "courses.LotwiE"
 msgid "Submit answers"
 msgstr "Antwoorden versturen"
 
+#: src/features/credits/components/credit-transaction-detail.tsx
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.Ae5h76"
+msgid "Plan grant"
+msgstr "Abonnementstegoed"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.J6Eyds"
+msgid "Purchase"
+msgstr "Aankoop"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.wbsq7O"
+msgid "Usage"
+msgstr "Verbruik"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.5lVaeB"
+msgid "No description"
+msgstr "Geen omschrijving"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+msgctxt "credits._57YNw"
+msgid "{date}, {reference}"
+msgstr "{date}, {reference}"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+msgctxt "credits.TwyMau"
+msgid "Account"
+msgstr "Rekening"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+msgctxt "credits._0TOL5"
+msgid "Amount"
+msgstr "Bedrag"
+
+#: src/features/credits/components/credits-list.tsx
+msgctxt "credits.5aQELC"
+msgid "Credit balance"
+msgstr "Kredietsaldo"
+
+#: src/features/credits/components/credits-list.tsx
+msgctxt "credits.y0yNn3"
+msgid "{held, number} credits are held for running work."
+msgstr "{held, number} credits zijn gereserveerd voor lopend werk."
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.Q8Qw5B"
+msgid "Description"
+msgstr "Omschrijving"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.wB_wXs"
+msgid "Credits"
+msgstr "Credits"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.mcUhhf"
+msgid "Reference"
+msgstr "Referentie"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.P7PLVj"
+msgid "Date"
+msgstr "Datum"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.7HXi96"
+msgid "Search credit entries"
+msgstr "Zoek kredietposten"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.zrL0OX"
+msgid "No credit entries found"
+msgstr "Geen kredietposten gevonden"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.Y1POCq"
+msgid "Credits appear when the plan grants them, when you buy more and when work uses them."
+msgstr "Credits verschijnen zodra het abonnement ze toekent, je er bijkoopt of werk ze verbruikt."
+
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
 msgctxt "crm.f-GKc4"
@@ -12811,6 +12930,78 @@ msgctxt "inspections.PjaypS"
 msgid "Close inspection"
 msgstr "Inspectie sluiten"
 
+#: src/features/integrations/components/connector-detail.tsx
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.V52jNn"
+msgid "Enabled"
+msgstr "Ingeschakeld"
+
+#: src/features/integrations/components/connector-detail.tsx
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.tthToS"
+msgid "Disabled"
+msgstr "Uitgeschakeld"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.F_6VqP"
+msgid "Server"
+msgstr "Server"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.W8hxJt"
+msgid "How agents reach this MCP server and sign in to it."
+msgstr "Hoe agents deze MCP-server bereiken en erop inloggen."
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.KwHBKR"
+msgid "Transport"
+msgstr "Transport"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.YeKWbP"
+msgid "Authentication"
+msgstr "Authenticatie"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.F8Ohus"
+msgid "Active grants"
+msgstr "Actieve toestemmingen"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.ORGv1Q"
+msgid "Created"
+msgstr "Aangemaakt"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.joDyyj"
+msgid "Scopes"
+msgstr "Scopes"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.pIW12P"
+msgid "This connector asks for no scopes."
+msgstr "Deze connector vraagt geen scopes."
+
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.2mMJRv"
+msgid "Connectors"
+msgstr "Connectors"
+
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.bS8wEx"
+msgid "The MCP servers the organization's agents can call."
+msgstr "De MCP-servers die de agents van de organisatie kunnen aanroepen."
+
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.2O8BC_"
+msgid "No connectors yet"
+msgstr "Nog geen connectors"
+
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.9R4fEl"
+msgid "Register an MCP server to let agents call its tools."
+msgstr "Registreer een MCP-server zodat agents de tools ervan kunnen aanroepen."
+
 #: src/features/integrations/components/integration-section.tsx
 #: src/features/integrations/components/integration-settings.tsx
 msgctxt "integrations.6cBDhe"
@@ -14607,10 +14798,30 @@ msgctxt "members.B50Tuv"
 msgid "Not on a team"
 msgstr "Niet in een team"
 
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.Csh2rX"
+msgid "Grants"
+msgstr "Rechten"
+
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.cNB6uz"
+msgid "The permissions this member holds through the {role} role."
+msgstr "De rechten die dit lid heeft via de rol {role}."
+
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.PU2I4R"
+msgid "This role grants no permissions."
+msgstr "Deze rol geeft geen rechten."
+
 #: src/features/members/components/member-table.tsx
 msgctxt "members.Jjrc4P"
 msgid "you"
 msgstr "jij"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.G65XME"
+msgid "Select {name}"
+msgstr "Selecteer {name}"
 
 #: src/features/members/components/member-table.tsx
 msgctxt "members.T0e6Lh"
@@ -14638,9 +14849,39 @@ msgid "Member"
 msgstr "Lid"
 
 #: src/features/members/components/member-table.tsx
+msgctxt "members.8IjNWk"
+msgid "{count, plural, one {# role updated} other {# roles updated}}"
+msgstr "{count, plural, one {# rol bijgewerkt} other {# rollen bijgewerkt}}"
+
+#: src/features/members/components/member-table.tsx
 msgctxt "members.QAz68F"
 msgid "Search members"
 msgstr "Leden zoeken"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.bjxb4i"
+msgid "{count, number} selected"
+msgstr "{count, number} geselecteerd"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.Z79AJ0"
+msgid "New role"
+msgstr "Nieuwe rol"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.FXtTXH"
+msgid "Change role to"
+msgstr "Rol wijzigen naar"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.EWw_tK"
+msgid "Apply"
+msgstr "Toepassen"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.EYIw2M"
+msgid "Clear selection"
+msgstr "Selectie wissen"
 
 #: src/features/members/components/member-table.tsx
 msgctxt "members.u4Mc5d"
@@ -15615,65 +15856,97 @@ msgctxt "numbering.bENWJJ"
 msgid "A sequence appears when the first document number is assigned."
 msgstr ""
 
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.uhu5aG"
+msgid "Public"
+msgstr "Openbaar"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.o0hn4A"
+msgid "Confidential"
+msgstr "Vertrouwelijk"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.JX0502"
+msgid "Client"
+msgstr "Client"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.SX2CHQ"
+msgid "How this app registered with the OAuth server and signs in."
+msgstr "Hoe deze app zich bij de OAuth-server registreerde en inlogt."
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.qv7ied"
+msgid "Registration"
+msgstr "Registratie"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.DXmeDy"
+msgid "Dynamic"
+msgstr "Dynamisch"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.M59JhX"
+msgid "Manual"
+msgstr "Handmatig"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.Ar65yY"
+msgid "Client authentication"
+msgstr "Clientauthenticatie"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.U5-MBC"
+msgid "Client ID"
+msgstr "Client-ID"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.ORGv1Q"
+msgid "Created"
+msgstr "Aangemaakt"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.WFdOHZ"
+msgid "Redirect URIs"
+msgstr "Redirect-URI's"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.gbpMkn"
+msgid "Grant types"
+msgstr "Grant types"
+
 #: src/features/oauth-apps/components/oauth-apps-record-list.tsx
 msgctxt "oauthApps.HAlOn1"
 msgid "Name"
-msgstr ""
+msgstr "Naam"
 
 #: src/features/oauth-apps/components/oauth-apps-record-list.tsx
 msgctxt "oauthApps.-U6ozc"
 msgid "Type"
-msgstr ""
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.qv7ied"
-msgid "Registration"
-msgstr ""
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.WFdOHZ"
-msgid "Redirect URIs"
-msgstr ""
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.ORGv1Q"
-msgid "Created"
-msgstr ""
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.uhu5aG"
-msgid "Public"
-msgstr ""
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.o0hn4A"
-msgid "Confidential"
-msgstr ""
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.DXmeDy"
-msgid "Dynamic"
-msgstr ""
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.M59JhX"
-msgid "Manual"
-msgstr ""
+msgstr "Type"
 
 #: src/features/oauth-apps/components/oauth-apps-record-list.tsx
 msgctxt "oauthApps.RiUFXT"
 msgid "Search apps"
-msgstr ""
+msgstr "Zoek apps"
 
 #: src/features/oauth-apps/components/oauth-apps-record-list.tsx
 msgctxt "oauthApps.0v7y2a"
 msgid "No OAuth apps found"
-msgstr ""
+msgstr "Geen OAuth-apps gevonden"
 
 #: src/features/oauth-apps/components/oauth-apps-record-list.tsx
 msgctxt "oauthApps.czyFa0"
 msgid "Register an OAuth client in the Supabase Auth settings, or change the filters."
-msgstr ""
+msgstr "Registreer een OAuth-client in de Supabase Auth-instellingen of pas de filters aan."
 
 #: src/features/observations/components/observation-chart.tsx
 msgctxt "observations.isSzws"
@@ -20941,40 +21214,41 @@ msgctxt "sales.Kraa93"
 msgid "Referrals appear when someone signs up with a code."
 msgstr ""
 
+#: src/features/search/components/command-center.tsx
 #: src/features/search-settings/components/search-settings-record-list.tsx
 msgctxt "searchSettings.9a9-ww"
 msgid "Title"
-msgstr ""
+msgstr "Titel"
 
 #: src/features/search-settings/components/search-settings-record-list.tsx
 msgctxt "searchSettings.QbUmZX"
 msgid "Record type"
-msgstr ""
+msgstr "Recordtype"
 
 #: src/features/search-settings/components/search-settings-record-list.tsx
 msgctxt "searchSettings.JBWS0c"
 msgid "Link"
-msgstr ""
+msgstr "Link"
 
 #: src/features/search-settings/components/search-settings-record-list.tsx
 msgctxt "searchSettings.IMS6rI"
 msgid "Indexed"
-msgstr ""
+msgstr "Geïndexeerd"
 
 #: src/features/search-settings/components/search-settings-record-list.tsx
 msgctxt "searchSettings.6I1bwN"
 msgid "Search the index"
-msgstr ""
+msgstr "Zoek in de index"
 
 #: src/features/search-settings/components/search-settings-record-list.tsx
 msgctxt "searchSettings.XMHNwr"
 msgid "No indexed records found"
-msgstr ""
+msgstr "Geen geïndexeerde records gevonden"
 
 #: src/features/search-settings/components/search-settings-record-list.tsx
 msgctxt "searchSettings.LG-5un"
 msgid "Records join the search index when they are saved; change the filters to see more."
-msgstr ""
+msgstr "Records komen in de zoekindex zodra ze worden opgeslagen; pas de filters aan om meer te zien."
 
 #: src/features/search/components/command-center.tsx
 msgctxt "search.k0So_A"
@@ -21061,7 +21335,7 @@ msgctxt "search.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
-#: src/features/search/components/command-center.tsx
+#: src/features/search/components/command-search.tsx
 msgctxt "search.SMrXWc"
 msgid "Favorites"
 msgstr "Favorieten"
@@ -21401,75 +21675,132 @@ msgctxt "search.izHU3r"
 msgid "Work orders"
 msgstr "Werkorders"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.V52jNn"
 msgid "Enabled"
-msgstr ""
+msgstr "Ingeschakeld"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.C2iTEH"
 msgid "Paused"
-msgstr ""
+msgstr "Gepauzeerd"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.tthToS"
 msgid "Disabled"
-msgstr ""
+msgstr "Uitgeschakeld"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.GN9UDB"
 msgid "Push"
-msgstr ""
+msgstr "Push"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.h1gtUi"
 msgid "Poll"
-msgstr ""
+msgstr "Poll"
 
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.Xd735s"
 msgid "Receiver"
-msgstr ""
+msgstr "Ontvanger"
 
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.ku-mDU"
 msgid "State"
-msgstr ""
+msgstr "Status"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.drqP2L"
 msgid "Delivery"
-msgstr ""
+msgstr "Aflevering"
 
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.ZvKSfJ"
 msgid "Events"
-msgstr ""
+msgstr "Gebeurtenissen"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.Z8971h"
 msgid "Verified"
-msgstr ""
+msgstr "Geverifieerd"
 
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.dB811t"
 msgid "Search receivers"
-msgstr ""
+msgstr "Zoek ontvangers"
 
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.EkHtzj"
 msgid "No streams found"
-msgstr ""
+msgstr "Geen streams gevonden"
 
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.UpBMGK"
 msgid "Receivers register a stream to get security event tokens; change the filters to see more."
-msgstr ""
+msgstr "Ontvangers registreren een stream om beveiligingsgebeurtenissen te krijgen; pas de filters aan om meer te zien."
 
 #: src/features/sequences/components/sequence-builder.tsx
 msgctxt "sequences.xiZz44"
 msgid "The sequences didn't load"
 msgstr "De reeksen zijn niet geladen"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.uYw2LD"
+msgid "Stream"
+msgstr "Stream"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.uNlKYg"
+msgid "How this receiver gets security event tokens."
+msgstr "Hoe deze ontvanger beveiligingsgebeurtenissen krijgt."
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.ea6iUX"
+msgid "Audience"
+msgstr "Doelgroep"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.ORGv1Q"
+msgid "Created"
+msgstr "Aangemaakt"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.AkCxS_"
+msgid "Reason"
+msgstr "Reden"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.JXACCN"
+msgid "Event types"
+msgstr "Gebeurtenistypen"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.t7vFUO"
+msgid "What the receiver asked for and what the stream delivers."
+msgstr "Wat de ontvanger vroeg en wat de stream aflevert."
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.9-12is"
+msgid "The receiver requested no event types."
+msgstr "De ontvanger vroeg geen gebeurtenistypen aan."
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.DMqnF4"
+msgid "Delivered"
+msgstr "Afgeleverd"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.0x75v-"
+msgid "Not delivered"
+msgstr "Niet afgeleverd"
 
 #: src/features/sequences/components/sequence-builder.tsx
 msgctxt "sequences.162kF7"

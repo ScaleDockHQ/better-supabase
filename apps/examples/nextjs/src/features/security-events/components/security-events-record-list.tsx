@@ -9,6 +9,7 @@ import type { RecordListPage } from "@/components/record-list/record-list-types"
 import { Badge } from "@/components/reui/badge";
 import { dateCell, listCell } from "@/features/admin-lists/admin-cells";
 import { AdminRecordList } from "@/features/admin-lists/admin-record-list";
+import { Link } from "@/i18n/navigation";
 
 import type { SecurityStreamRow } from "../security-events-list";
 
@@ -26,6 +27,20 @@ function StatusCell({ row }: { row: { original: SecurityStreamRow } }) {
           ? t("Paused")
           : t("Disabled")}
     </Badge>
+  );
+}
+
+function ReceiverCell({ row }: { row: { original: SecurityStreamRow } }) {
+  const { id, receiver } = row.original;
+
+  return (
+    <Link
+      href={`/settings/security/events/${id}`}
+      prefetch
+      className="truncate font-medium hover:underline"
+    >
+      {receiver}
+    </Link>
   );
 }
 
@@ -48,7 +63,7 @@ export function SecurityStreamRecordList({
   const t = useExtracted("securityEvents");
 
   const columns: RecordListColumns<SecurityStreamRow> = [
-    { accessorKey: "receiver", header: t("Receiver"), size: 240 },
+    { id: "receiver", header: t("Receiver"), size: 240, cell: ReceiverCell },
     { id: "status", header: t("State"), size: 120, cell: StatusCell },
     { id: "delivery", header: t("Delivery"), size: 110, cell: DeliveryCell },
     {

@@ -18,6 +18,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         "billing",
         "adminLists",
         "custom-fields",
+        "credits",
         "customers",
         "domains",
         "flagAdmin",
