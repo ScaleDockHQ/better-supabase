@@ -794,11 +794,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane A
 
 - Scope: Entity surface in the manifest and core list types
-- Status: in progress
+- Status: PR open #897
 - Branch: `feat/audit-a`
-- PR: none yet
+- PR: [#897](https://github.com/ScaleDockHQ/better-supabase/pull/897)
 - Findings: EX-1208, EX-1216, EX-1352
-- Log: 2026-11-12, lane A started from main in `../bsb-audit-a`.
+- Log: 2026-11-12, lane A started from main in `../bsb-audit-a`; PR #897 opened with `entities` on every manifest, the list contract types and the generated entity matrix.
 
 ### Lane B
 
