@@ -13,7 +13,13 @@ export default function MaintenanceLayout({
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "maintenance"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "maintenance",
+        "recordDetail",
+        "recordList",
+        "sales",
+      ])}
     >
       {children}
     </NextIntlClientProvider>
