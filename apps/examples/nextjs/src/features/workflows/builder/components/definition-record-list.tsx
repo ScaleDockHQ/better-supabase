@@ -2,7 +2,7 @@
 
 import type { CellContext } from "@tanstack/react-table";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { Trash2Icon, WorkflowIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -27,7 +27,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { DefinitionListRow, DefinitionState } from "../../workflow-lists";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   ListChecksIcon,
   MousePointerClickIcon,
@@ -34,7 +34,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, MeetingMinutesView } from "../meetings-queries";
 

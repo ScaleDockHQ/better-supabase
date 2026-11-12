@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { LinkIcon, UnlinkIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -35,7 +35,6 @@ import {
 } from "@/features/customers/customers-actions";
 import { SubjectLink } from "@/features/subjects/components/subject-link";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, RelatedCustomer, Relations } from "../customers-queries";
 

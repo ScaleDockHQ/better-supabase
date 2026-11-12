@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { EyeIcon, TriangleAlertIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -12,7 +12,6 @@ import {
 } from "@/components/reui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { getPrivateDetails } from "../people-actions";
 

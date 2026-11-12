@@ -3,7 +3,7 @@
 
 import type { SubmitEvent } from "react";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   HashIcon,
   LockIcon,
@@ -55,7 +55,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useConversations } from "@/hooks/use-messaging";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 
 import type { ChannelRow } from "../chat-actions";

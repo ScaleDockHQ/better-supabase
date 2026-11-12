@@ -2,7 +2,7 @@
 
 import type { ActionResultOf } from "better-supabase/react";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -29,7 +29,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormSelect } from "@/features/crm/components/form-select";
 import { useRouter, toAppHref } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /** One form field, described as data so a server page can declare a form. */
 export interface DialogField {

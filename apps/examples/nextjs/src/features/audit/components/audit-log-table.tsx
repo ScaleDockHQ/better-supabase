@@ -1,6 +1,7 @@
 // #region recipe:audit-log-table
 "use client";
 
+import { useErrorMessage } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,6 @@ import {
 } from "@/components/ui/table";
 import { useAuditLog } from "@/hooks/use-audit";
 import { auditConfig } from "@/lib/supabase/blocks/slices";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 const ALL = "all";
 

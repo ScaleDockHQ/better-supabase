@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { CopyIcon, Link2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState } from "react";
@@ -54,7 +54,6 @@ import {
 } from "@/components/ui/select";
 import { revokeCustomerShareLinks } from "@/features/customers/customers-actions";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, ShareLinkRow } from "../customers-queries";
 

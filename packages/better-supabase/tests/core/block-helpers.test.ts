@@ -13,6 +13,7 @@ import {
   instantArg,
   intervalOf,
   leaseHeartbeat,
+  localizedMappers,
   notFoundError,
   nullableInstant,
   nullableText,
@@ -29,7 +30,7 @@ import {
   textOf,
   toBlockError,
 } from "../../src/core/block-helpers.ts";
-import { dbError } from "../../src/core/errors.ts";
+import { dbError, mapDbError } from "../../src/core/errors.ts";
 
 const transport = (
   answer: () => unknown,
@@ -303,5 +304,55 @@ describe("intervalOf", () => {
 
   it.each(["soon", "1 fortnight", "1 mon -1 days"])("refuses %s", (text) => {
     expect(() => intervalOf(text)).toThrow(TypeError);
+  });
+});
+
+describe("localizedMappers", () => {
+  const raw = { code: "P0001", message: "english", hint: "TAG_NOT_FOUND" };
+
+  it("returns the app's mappers when there are no messages", () => {
+    expect(localizedMappers({})).toBeUndefined();
+    expect(localizedMappers({ locale: "nl" })).toBeUndefined();
+  });
+
+  it("rewords an error through messages, with the locale", () => {
+    const messages = vi.fn((hint: string, locale: string | undefined) =>
+      locale === "nl" ? `nl ${hint}` : undefined,
+    );
+
+    expect(
+      mapDbError(
+        raw,
+        localizedMappers({ locale: "nl", hintMessages: messages }),
+      ),
+    ).toMatchObject({
+      kind: "raised",
+      hint: "TAG_NOT_FOUND",
+      message: "nl TAG_NOT_FOUND",
+    });
+    expect(messages).toHaveBeenCalledWith("TAG_NOT_FOUND", "nl", "english");
+    expect(
+      mapDbError(raw, localizedMappers({ hintMessages: messages })).message,
+    ).toBe("english");
+  });
+
+  it("keeps the message of an error without a hint, and lets app mappers win", () => {
+    const messages = () => "reworded";
+
+    expect(
+      mapDbError(
+        { code: "P0001", message: "plain" },
+        localizedMappers({ hintMessages: messages }),
+      ).message,
+    ).toBe("plain");
+    expect(
+      mapDbError(
+        raw,
+        localizedMappers({
+          hintMessages: messages,
+          mappers: [(_raw, fallback) => ({ ...fallback, message: "app" })],
+        }),
+      ).message,
+    ).toBe("app");
   });
 });
