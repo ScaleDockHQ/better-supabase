@@ -19,7 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
-import { getConnectors } from "../connectors-queries";
+import { getConnectors } from "../integrations-connectors";
 
 /** Render inside `<Suspense>`; the fallback is `ConnectorListSkeleton`. */
 export async function ConnectorList() {

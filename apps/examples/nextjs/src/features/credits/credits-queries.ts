@@ -11,7 +11,7 @@ import { bsbShell } from "@/lib/supabase/server-shell";
 import { creditList } from "./credits-list";
 import { creditEntrySource } from "./credits-source";
 
-export const CREDITS_TAG = "credits";
+const CREDITS_TAG = "credits";
 
 /**
  * The first page of credit entries; `null` without an organization or

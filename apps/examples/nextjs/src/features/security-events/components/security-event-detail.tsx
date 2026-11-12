@@ -13,7 +13,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Fact } from "@/features/admin-lists/admin-detail-page";
 
-import { getSecurityStream } from "../security-events-detail-queries";
+import { getSecurityStream } from "../security-events-detail";
 
 /** Render inside `<Suspense>`; the fallback is `SecurityEventDetailSkeleton`. */
 export async function SecurityEventDetail({ id }: { id: string }) {

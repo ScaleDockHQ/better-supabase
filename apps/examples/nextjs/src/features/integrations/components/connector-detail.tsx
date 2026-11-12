@@ -13,7 +13,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Fact } from "@/features/admin-lists/admin-detail-page";
 
-import { getConnector } from "../connectors-queries";
+import { getConnector } from "../integrations-connectors";
 
 /** Render inside `<Suspense>`; the fallback is `ConnectorDetailSkeleton`. */
 export async function ConnectorDetail({ id }: { id: string }) {

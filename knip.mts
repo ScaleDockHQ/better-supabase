@@ -121,9 +121,7 @@ const config: KnipConfig = {
       // import them; drop an entry when a page imports its part.
       ignoreDependencies: [
         ...browserExample.ignoreDependencies,
-        "@shadcn/helpers",
         "react-day-picker",
-        "recharts",
         "shiki",
       ],
       // The browser loads the service worker by URL. `tsc` checks the type tests,

@@ -238,5 +238,3 @@ export function defineFinanceList(entity: FinanceEntityKey) {
     },
   };
 }
-
-export type FinanceList = ReturnType<typeof defineFinanceList>;

@@ -70,7 +70,7 @@ export interface ChatPartsActions {
 type ToolPart = DynamicToolUIPart | ToolUIPart;
 
 /** The tool the model calls to ask the user clarifying questions. */
-export const QUESTIONS_TOOL = "askQuestions";
+const QUESTIONS_TOOL = "askQuestions";
 
 export interface Question {
   readonly name: string;
