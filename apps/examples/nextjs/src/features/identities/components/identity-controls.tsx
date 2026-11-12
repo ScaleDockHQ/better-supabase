@@ -4,13 +4,6 @@ import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
@@ -46,6 +39,12 @@ export function UnlinkButton({ id }: { id: string }) {
 
 type Provider = "slack" | "telegram" | "whatsapp";
 
+const PROVIDERS: readonly { value: Provider; label: string }[] = [
+  { value: "slack", label: "Slack" },
+  { value: "telegram", label: "Telegram" },
+  { value: "whatsapp", label: "WhatsApp" },
+];
+
 /** Issues a one-time code to send to the bot from the chat account. */
 export function LinkChatForm() {
   const t = useExtracted("identities");
@@ -56,24 +55,23 @@ export function LinkChatForm() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select
-        value={provider}
-        onValueChange={(next) => {
-          if (next === "slack" || next === "telegram" || next === "whatsapp") {
-            setProvider(next);
-          }
-        }}
-        items={{ slack: "Slack", telegram: "Telegram", whatsapp: "WhatsApp" }}
-      >
-        <SelectTrigger className="w-40" aria-label={t("Chat provider")}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="slack">Slack</SelectItem>
-          <SelectItem value="telegram">Telegram</SelectItem>
-          <SelectItem value="whatsapp">WhatsApp</SelectItem>
-        </SelectContent>
-      </Select>
+      <fieldset className="flex items-center gap-1">
+        <legend className="sr-only">{t("Chat provider")}</legend>
+        {PROVIDERS.map((option) => (
+          <Button
+            key={option.value}
+            type="button"
+            size="sm"
+            variant={provider === option.value ? "secondary" : "ghost"}
+            aria-pressed={provider === option.value}
+            onClick={() => {
+              setProvider(option.value);
+            }}
+          >
+            {option.label}
+          </Button>
+        ))}
+      </fieldset>
       <Button
         size="sm"
         variant="outline"
