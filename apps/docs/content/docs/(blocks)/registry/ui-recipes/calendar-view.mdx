@@ -19,6 +19,8 @@ export async function CalendarView({
 }: {
   query: Record<string, string | string[] | undefined>;
 }) {
+  // The current month is read from the clock, which a prerender may not do.
+  await io();
   const first = firstOfMonth(query["month"], "UTC");
   const weeks = weeksOf(first);
   const from = weeks[0]?.[0] ?? first;
@@ -31,7 +33,6 @@ export async function CalendarView({
     getExtracted("calendar"),
     getFormatter(),
     settle(() => loadCalendarMonth(from.toString(), until.toString())),
-    io(),
   ]);
 
   if (!can(permissions, "calendar.read")) {

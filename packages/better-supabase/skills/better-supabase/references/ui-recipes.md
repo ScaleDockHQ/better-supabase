@@ -14161,7 +14161,57 @@ export function WorkItemGrid({
   const sortLabel = useSortLabel();
   const [navigating, startTransition] = useTransition();
   const [search, setSearch] = useState(query.q);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // The controller outlives renders, so it reads the latest message formatter.
+  const latestErrorMessage = useLatest(errorMessage);
+
+  const { view: bulk } = useController(
+    () =>
+      createBulkSelectionController({
+        run: async ({ rows: ids, action, args }) => {
+          const to = WORK_ITEM_STATES.find((state) => state === args?.["to"]);
+
+          const result = await runWorkBulkAction(
+            action === "state" && to !== undefined
+              ? { action: "state", ids: [...ids], to }
+              : { action: "delete", ids: [...ids] },
+          );
+
+          if (!result.ok) {
+            toast.error(latestErrorMessage.current(result.error));
+            throw new Error(result.error.message);
+          }
+
+          const failed = new Map(
+            result.data.failed.map((row) => [row.id, row]),
+          );
+
+          return {
+            mode: "now",
+            total: result.data.total,
+            succeeded: result.data.succeeded,
+            failed: failed.size,
+            results: ids.map((id) => {
+              const row = failed.get(id);
+
+              return {
+                id,
+                ok: row === undefined,
+                error: row
+                  ? {
+                      code: row.code ?? undefined,
+                      message: row.message,
+                      sqlstate: undefined,
+                    }
+                  : null,
+              };
+            }),
+          };
+        },
+      }),
+    [latestErrorMessage],
+  );
+
+  const selected = new Set(bulk.selected);
 
   const onEditError = (error: DbError) => {
     toast.error(workErrorHint(error.hint) ?? errorMessage(error));
@@ -14333,14 +14383,7 @@ export function WorkItemGrid({
           )}
         </div>
       </div>
-      {canBulk ? (
-        <BulkActionBar
-          selected={selectedRows}
-          onSettled={(failedIds) => {
-            setSelected(new Set(failedIds));
-          }}
-        />
-      ) : null}
+      {canBulk ? <BulkActionBar selected={selectedRows} bulk={bulk} /> : null}
       <Table>
         <TableHeader>
           <TableRow>
@@ -14351,9 +14394,11 @@ export function WorkItemGrid({
                   indeterminate={selection.length > 0 && !allSelected}
                   aria-label={t("Select all")}
                   onCheckedChange={(checked) => {
-                    setSelected(
-                      checked ? new Set(rows.map((row) => row.id)) : new Set(),
-                    );
+                    if (checked) {
+                      bulk.selectMany(rows.map((row) => row.id));
+                    } else {
+                      bulk.clear();
+                    }
                   }}
                 />
               </TableHead>
@@ -14392,17 +14437,11 @@ export function WorkItemGrid({
                         identifier: row.identifier,
                       })}
                       onCheckedChange={(checked) => {
-                        setSelected((current) => {
-                          const next = new Set(current);
-
-                          if (checked) {
-                            next.add(row.id);
-                          } else {
-                            next.delete(row.id);
-                          }
-
-                          return next;
-                        });
+                        if (checked) {
+                          bulk.select(row.id);
+                        } else {
+                          bulk.deselect(row.id);
+                        }
                       }}
                     />
                   </TableCell>
@@ -15224,59 +15263,60 @@ npx shadcn add alert alert-dialog button select
  */
 export function BulkActionBar({
   selected,
-  onSettled,
+  bulk,
 }: {
   selected: readonly Pick<WorkItemRow, "id" | "identifier">[];
-  onSettled: (failedIds: readonly string[]) => void;
+  bulk: BulkSelectionSnapshot & BulkSelectionActions;
 }) {
   const t = useExtracted("work");
-  const errorMessage = useErrorMessage();
   const stateLabel = useStateLabel();
   const [to, setTo] = useState<TaskState | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [failures, setFailures] = useState<readonly BulkFailure[]>([]);
-  const bulk = useAction(runWorkBulkAction);
 
   const identifiers = new Map(selected.map((row) => [row.id, row.identifier]));
 
   const run = async (
     input: { action: "state"; to: TaskState } | { action: "delete" },
   ): Promise<void> => {
-    const ids = selected.map((row) => row.id);
-    const result = await bulk.run({ ...input, ids });
+    const outcome = await bulk.run(
+      input.action === "state"
+        ? { action: "state", args: { to: input.to } }
+        : { action: "delete" },
+    );
 
-    if (!result.ok) {
-      toast.error(errorMessage(result.error));
-
+    // The grid's `run` already showed the error of a call that threw.
+    if (outcome?.mode !== "now") {
       return;
     }
 
-    const { succeeded, failed } = result.data;
+    const failed = outcome.results.flatMap((row) =>
+      row.ok || row.error === null ? [] : [{ id: row.id, error: row.error }],
+    );
 
     setFailures(
       failed.map((row) => ({
         id: row.id,
         identifier: identifiers.get(row.id) ?? row.id,
-        message: row.message === "" ? t("No reason given.") : row.message,
+        message:
+          row.error.message === "" ? t("No reason given.") : row.error.message,
       })),
     );
 
     if (failed.length === 0) {
       toast.success(
         t("{count, plural, one {# item updated} other {# items updated}}", {
-          count: succeeded,
+          count: outcome.succeeded,
         }),
       );
     } else {
       toast.warning(
         t("{failed, number} of {total, number} items failed", {
           failed: failed.length,
-          total: result.data.total,
+          total: outcome.total,
         }),
       );
     }
-
-    onSettled(failed.map((row) => row.id));
   };
 
   const stateItems = WORK_ITEM_STATES.map((state) => ({
@@ -15396,7 +15436,7 @@ export function BulkActionBar({
             variant="ghost"
             disabled={bulk.pending}
             onClick={() => {
-              onSettled([]);
+              bulk.clear();
             }}
           >
             <XIcon />
@@ -16257,9 +16297,10 @@ export async function RosterBoard() {
             {shifts
               .filter((shift) => shift.day === day)
               .map((shift) => (
-                <div
+                <Link
                   key={shift.id}
-                  className="flex flex-col gap-2 rounded-md border p-2"
+                  href={`/shifts/${shift.id}?on=${shift.day}`}
+                  className="flex flex-col gap-2 rounded-md border p-2 transition-colors hover:bg-muted/50"
                 >
                   <span className="text-sm">
                     {time(shift.startsAt)} – {time(shift.endsAt)}
@@ -16288,7 +16329,7 @@ export async function RosterBoard() {
                       })}
                     </span>
                   ) : null}
-                </div>
+                </Link>
               ))}
           </div>
         ))}
@@ -19341,6 +19382,8 @@ export async function CalendarView({
 }: {
   query: Record<string, string | string[] | undefined>;
 }) {
+  // The current month is read from the clock, which a prerender may not do.
+  await io();
   const first = firstOfMonth(query["month"], "UTC");
   const weeks = weeksOf(first);
   const from = weeks[0]?.[0] ?? first;
@@ -19353,7 +19396,6 @@ export async function CalendarView({
     getExtracted("calendar"),
     getFormatter(),
     settle(() => loadCalendarMonth(from.toString(), until.toString())),
-    io(),
   ]);
 
   if (!can(permissions, "calendar.read")) {

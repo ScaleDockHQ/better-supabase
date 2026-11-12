@@ -10,7 +10,18 @@ import {
   QualificationMatrix,
   QualificationMatrixSkeleton,
 } from "@/features/qualifications/components/qualification-matrix";
+import {
+  QualificationTypeOverview,
+  QualificationTypeOverviewSkeleton,
+} from "@/features/qualifications/components/qualification-type-overview";
 import { PermissionGate } from "@/features/user/components/permission-gate";
+
+// A prefetch of this page stays static; the lists render on navigation.
+export const ensureStatic = "prefetch";
+
+// Next.js validates in development that a navigation here paints without
+// waiting on uncached work.
+export const instant = true;
 
 export default function QualificationsPage() {
   const t = useExtracted("qualifications");
@@ -23,6 +34,11 @@ export default function QualificationsPage() {
           "The certificates and licences members hold, and the required ones that are missing or about to expire.",
         )}
       />
+      <Suspense fallback={<QualificationTypeOverviewSkeleton />}>
+        <PermissionGate permission="qualifications.read">
+          <QualificationTypeOverview />
+        </PermissionGate>
+      </Suspense>
       <Suspense fallback={<QualificationMatrixSkeleton />}>
         <PermissionGate permission="qualifications.read">
           <QualificationMatrix />
