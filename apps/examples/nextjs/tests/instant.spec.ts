@@ -53,7 +53,9 @@ test("customers to a customer uses the per-link prefetch", async ({ page }) => {
   });
 });
 
-test("settings tab to tab keeps the settings frame", async ({ page }) => {
+// Skipped: the settings tab bar went with the product-area navigation and no
+// link reaches /settings/preferences any more (EX-1503).
+test.fixme("settings tab to tab keeps the settings frame", async ({ page }) => {
   await page.goto("/settings/profile");
   const tab = page.getByRole("link", { name: "Preferences", exact: true });
 

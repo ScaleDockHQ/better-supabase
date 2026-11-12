@@ -8,8 +8,8 @@ import { moneyToJson } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
 import type { BlockPage } from "@/lib/block-page";
+import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
 
 import { bsb } from "@/lib/supabase/server";
 

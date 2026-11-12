@@ -1046,7 +1046,7 @@ describe("createQueue over SQL", () => {
     expect(await jobs.unschedule("nightly").orThrow()).toBe(true);
     expect(fake.calls).toEqual([
       {
-        text: "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6, $7)",
+        text: "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6, $7, $8)",
         values: [
           "nightly",
           "0 3 * * *",
@@ -1054,6 +1054,7 @@ describe("createQueue over SQL", () => {
           '{"day":"SUN"}',
           "UTC",
           expect.stringMatching(/T03:00:00Z$/),
+          null,
           null,
         ],
       },
@@ -1362,8 +1363,9 @@ describe("schedules with the drain scheduler", () => {
       "UTC",
       expect.any(String),
       "t1",
+      null,
     ]);
-    expect((calls[2]![1] as unknown[]).at(-1)).toBe("t2");
+    expect((calls[2]![1] as unknown[]).at(-2)).toBe("t2");
     expect(calls[3]).toEqual(["unschedule_job", ["wf:stale"]]);
   });
 

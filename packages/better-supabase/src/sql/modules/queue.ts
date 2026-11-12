@@ -54,7 +54,8 @@ drop function if exists better_supabase.purge_job_archive(text, interval, intege
 -- schedule_job before schedules had a tenant.
 drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz);
 -- claim_due_schedules returns first_after now; create or replace can't change a return type.
-drop function if exists better_supabase.claim_due_schedules(integer, integer);`;
+drop function if exists better_supabase.claim_due_schedules(integer, integer);
+drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz, text);`;
 
 /**
  * Opens purge_job_archive: nothing goes while a legal hold covers the archive,
@@ -458,6 +459,32 @@ begin
 end;
 $$;`;
 
+const PROBE_CHECK = `  if probe is not null and not exists (
+    select 1 from pg_catalog.pg_proc p
+    where p.oid = pg_catalog.to_regprocedure(probe || '()') and p.prorettype = 'boolean'::regtype
+  ) then
+    raise exception 'The probe % is not a function without arguments that returns boolean', probe using errcode = '22023';
+  end if;`;
+
+const SCHEDULE_HAS_WORK = `create or replace function better_supabase.schedule_has_work(probe text)
+returns boolean
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_probe regprocedure := pg_catalog.to_regprocedure(probe || '()');
+  v_work boolean;
+begin
+  if v_probe is null then
+    return true;
+  end if;
+  execute format('select %s()', v_probe::oid::regproc) into v_work;
+  return coalesce(v_work, true);
+exception when others then
+  return true;
+end;
+$$;`;
+
 const ensureQueue = (backend: JobsBackend): string =>
   backend === "pgmq"
     ? "\n  perform better_supabase.ensure_job_queue(queue);"
@@ -476,7 +503,8 @@ create or replace function better_supabase.schedule_job(
   payload jsonb default '{}',
   timezone text default 'UTC',
   next_run timestamptz default null,
-  tenant text default null
+  tenant text default null,
+  probe text default null
 )
 returns bigint
 language plpgsql
@@ -498,9 +526,11 @@ begin
   if timezone <> 'UTC' then
     raise exception 'pg_cron runs schedules in cron.timezone, not %; set blocks.queue.options.scheduler to "drain" for per-schedule time zones', timezone;
   end if;${ensureQueue(backend)}
+${PROBE_CHECK}
   execute format('select %s($1::text, $2::text, $3::text)', v_schedule::oid::regproc)
     into v_id
-    using job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text);
+    using job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text)
+      || case when probe is null then '' else format(' where better_supabase.schedule_has_work(%L)', probe) end;
   return v_id;
 end;
 $$;
@@ -547,7 +577,7 @@ $$;
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
 -- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb, probe text)
 language plpgsql
 stable
 security definer
@@ -560,7 +590,7 @@ begin
     return;
   end if;
   return query execute format(
-    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb
+    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb, null::text
      from %s j where $1 is null or starts_with(j.jobname, $1) order by j.jobname', v_jobs)
     using name_prefix;
 end;
@@ -610,7 +640,8 @@ create table if not exists ${schedules} (
 -- The tenant a schedule runs for, so a tenant's schedules can be listed and
 -- removed together (unschedule_tenant).
 alter table ${schedules} add column if not exists ${c("tenant")} text;
-alter table ${schedules} add column if not exists ${c("firstAfter")} timestamptz;${legacy}${jobNameKey}
+alter table ${schedules} add column if not exists ${c("firstAfter")} timestamptz;
+alter table ${schedules} add column if not exists ${c("probe")} text;${legacy}${jobNameKey}
 create index if not exists ${index("due_idx")} on ${schedules} (${c("nextRun")});
 create index if not exists ${index("tenant_idx")} on ${schedules} (${c("tenant")}) where ${c("tenant")} is not null;
 alter table ${schedules} enable row level security;
@@ -627,7 +658,8 @@ create or replace function better_supabase.schedule_job(
   payload jsonb default '{}',
   timezone text default 'UTC',
   next_run timestamptz default null,
-  tenant text default null
+  tenant text default null,
+  probe text default null
 )
 returns bigint
 language plpgsql
@@ -636,6 +668,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
+${PROBE_CHECK}
   if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = timezone) then
     raise exception 'Unknown time zone %', timezone;
   end if;
@@ -643,9 +676,9 @@ begin
     raise exception 'Invalid schedule %: expected five cron fields, a macro such as @daily, or an interval such as 5 minutes', schedule
       using errcode = '22023';
   end if;
-  insert into ${schedules} as s (${c("jobName")}, ${c("schedule")}, ${c("timezone")}, ${c("queue")}, ${c("payload")}, ${c("nextRun")}, ${c("firstAfter")}, ${c("tenant")})
+  insert into ${schedules} as s (${c("jobName")}, ${c("schedule")}, ${c("timezone")}, ${c("queue")}, ${c("payload")}, ${c("nextRun")}, ${c("firstAfter")}, ${c("tenant")}, ${c("probe")})
   values (job_name, schedule, timezone, queue, payload, date_trunc('milliseconds', next_run),
-    case when next_run is null then date_trunc('milliseconds', now()) end, tenant)
+    case when next_run is null then date_trunc('milliseconds', now()) end, tenant, probe)
   on conflict (${c("jobName")}) do update
     set ${c("schedule")} = excluded.${c("schedule")},
         ${c("timezone")} = excluded.${c("timezone")},
@@ -662,6 +695,7 @@ begin
           else excluded.${c("firstAfter")}
         end,
         ${c("tenant")} = excluded.${c("tenant")},
+        ${c("probe")} = excluded.${c("probe")},
         ${c("lockedUntil")} = null;
   return null;
 end;
@@ -670,13 +704,13 @@ $$;
 -- Schedules whose name starts with name_prefix and that run for for_tenant (either
 -- filter null: all), for a product page that shows the next run.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb, probe text)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select s.${c("jobName")}, s.${c("schedule")}, s.${c("timezone")}, s.${c("queue")}, s.${c("tenant")}, s.${c("nextRun")}, s.${c("lastRun")}, s.${c("lockedUntil")}, s.${c("createdAt")}, s.${c("payload")}
+  select s.${c("jobName")}, s.${c("schedule")}, s.${c("timezone")}, s.${c("queue")}, s.${c("tenant")}, s.${c("nextRun")}, s.${c("lastRun")}, s.${c("lockedUntil")}, s.${c("createdAt")}, s.${c("payload")}, s.${c("probe")}
   from ${schedules} s
   where (list_schedules.name_prefix is null or starts_with(s.${c("jobName")}, list_schedules.name_prefix))
     and (list_schedules.for_tenant is null or s.${c("tenant")} = list_schedules.for_tenant)
@@ -720,7 +754,7 @@ as $$
 begin
   return query
     with due as (
-      select s.${c("jobName")} as job_name
+      select s.${c("jobName")} as job_name, s.${c("nextRun")} is null as first, s.${c("probe")} as probe
       from ${schedules} s
       where (s.${c("nextRun")} is null or s.${c("nextRun")} <= clock_timestamp())
         and (s.${c("lockedUntil")} is null or s.${c("lockedUntil")} < clock_timestamp())
@@ -732,6 +766,7 @@ begin
     set ${c("lockedUntil")} = clock_timestamp() + make_interval(secs => lease)
     from due
     where s.${c("jobName")} = due.job_name
+      and (due.first or due.probe is null or better_supabase.schedule_has_work(due.probe))
     returning s.${c("jobName")}, s.${c("schedule")}, s.${c("timezone")}, s.${c("queue")}, s.${c("payload")}, s.${c("nextRun")}, s.${c("firstAfter")};
 end;
 $$;
@@ -775,7 +810,8 @@ const GRANTS = (backend: JobsBackend): string =>
     "complete_job(text, bigint, integer)",
     "fail_job(text, bigint, integer, text, integer)",
     "extend_job_lease(text, bigint, integer, integer)",
-    "schedule_job(text, text, text, jsonb, text, timestamptz, text)",
+    "schedule_job(text, text, text, jsonb, text, timestamptz, text, text)",
+    "schedule_has_work(text)",
     "unschedule_job(text)",
     "list_schedules(text, text)",
     "unschedule_tenant(text)",
@@ -811,6 +847,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         tenant: "tenant",
         firstAfter: "first_after",
+        probe: "probe",
       },
     },
   },
@@ -826,6 +863,7 @@ function jobsSql(ctx: BlockSqlContext): string {
     backend === "pgmq"
       ? pgmq(archiveGuard(ctx))
       : table(ctx, archiveGuard(ctx)),
+    SCHEDULE_HAS_WORK,
     scheduler === "pg_cron" ? PG_CRON(backend) : drain(ctx),
     leasesSql(ctx),
     GRANTS(backend),
@@ -840,13 +878,23 @@ export const JOBS: BlockSqlDefinition = {
   requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
-  version: 11,
+  version: 12,
   names: NAMES,
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
       ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
       : "",
   upgrades: [
+    {
+      from: 11,
+      description:
+        "A schedule can name a probe, a function without arguments that returns whether there is work; a due schedule whose probe returns false stays due and enqueues nothing until it does. list_schedules returns the probe.",
+      sql: () =>
+        [
+          "drop function if exists better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz, text);",
+          "drop function if exists better_supabase.list_schedules(text, text);",
+        ].join("\n"),
+    },
     {
       from: 10,
       description:

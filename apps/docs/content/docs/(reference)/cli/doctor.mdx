@@ -645,7 +645,8 @@ index.
 `.contains()`, `.containedBy()` and `.overlaps()` filters, can only use a GIN
 index; without one, every query reads the table. Doctor looks in the
 policies, the functions in the exposed schemas and the files in
-`tooling.doctor.sources`. Use `jsonb_path_ops` when you only filter with `@>`, which
+`tooling.doctor.sources`. A function counts for a table only when its own
+definition names the table and filters the column. Use `jsonb_path_ops` when you only filter with `@>`, which
 makes the index smaller; leave it out for `?`:
 
 ```sql
@@ -1757,7 +1758,7 @@ index, a primary key or a unique constraint that starts with the column.
 
 ### BS386
 
-**Warning: a policy calls a volatile or PL/pgSQL function per row.** A policy
+**Warning: a policy calls a volatile, PL/pgSQL or non-inlinable function per row.** A policy
 that calls a volatile function, or one written in PL/pgSQL, outside
 `(select ...)` runs it once for every row the statement reads, and Postgres
 can't hoist a volatile call. Wrap the call in `(select fn(...))` so it runs once
@@ -1766,8 +1767,13 @@ per statement, or replace a per-row check with a set helper such as
 `(select ...)` is accepted even when it is volatile, and so is a set helper in
 the `from` of a subquery whose arguments read no column of the row, such as
 `id in (select t.id from thread_ids('key') as t(id))`: Postgres calls it once
-and rescans its result. Policies named `bsb_*`
-belong to a block module and are left to `upgrade`. Doctor reads the policy
+and rescans its result. In a select policy, a function that is
+`security definer` or has a `set` clause counts too, even a stable SQL one,
+because Postgres never inlines it: `can_note(notes, 'read')` runs once per row.
+That call is accepted as the `or` fallback after a set check, as in
+`id in (select note_ids('read')) or can_note(notes, 'read')`, because it then
+runs only for rows outside the set, such as a row the statement itself inserted.
+Policies named `bsb_*` belong to a block module and are left to `upgrade`. Doctor reads the policy
 expressions and the functions they call from the catalog.
 
 ### BS387

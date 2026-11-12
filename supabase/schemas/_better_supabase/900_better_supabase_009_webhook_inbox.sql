@@ -1,6 +1,6 @@
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:c90d2292536cc7deeb41dc93eaf29ccac3788703c83392b3b4ae0832f4fd998f
+-- @bsb-block webhook-inbox@10 managed
+-- @bsb-hash sha256:6c3a5cc1a5482e2fe69d071e64c2440ceba6a45b8e2304c83875f7fe648ffccb
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -83,6 +83,19 @@ begin
     and w.message_id = receive_webhook.message_id;
   return jsonb_build_object('id', inbox_id, 'duplicate', true);
 end;
+$$;
+
+create or replace function better_supabase.webhook_inbox_has_work()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from better_supabase.webhook_inbox c
+    where (c.status = 'pending' and c.available_at <= now())
+      or (c.status = 'processing' and c.lock_expires_at < now())
+  )
 $$;
 
 -- The claimed messages, a jsonb array. A message whose lease ran out on its
@@ -270,6 +283,8 @@ revoke execute on function better_supabase.receive_webhook(text, text, text, jso
 grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) to service_role;
 revoke execute on function better_supabase.claim_webhooks(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.claim_webhooks(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.webhook_inbox_has_work() from public, anon, authenticated;
+grant execute on function better_supabase.webhook_inbox_has_work() to service_role;
 revoke execute on function better_supabase.complete_webhook(bigint, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_webhook(bigint, text, integer) to service_role;
 revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer, boolean) from public, anon, authenticated;
@@ -304,6 +319,16 @@ set search_path = ''
 as $$ select "better_supabase"."claim_webhooks"($1, $2, $3, $4) $$;
 revoke execute on function "api"."claim_webhooks"(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function "api"."claim_webhooks"(text, text, integer, interval) to service_role;
+
+create or replace function "api"."webhook_inbox_has_work"()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."webhook_inbox_has_work"() $$;
+revoke execute on function "api"."webhook_inbox_has_work"() from public, anon, authenticated;
+grant execute on function "api"."webhook_inbox_has_work"() to service_role;
 
 create or replace function "api"."complete_webhook"(inbox_id bigint, worker text, attempt integer default null)
 returns boolean

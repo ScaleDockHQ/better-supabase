@@ -1,6 +1,6 @@
 -- better-supabase module: queue
--- @bsb-block queue@11 managed
--- @bsb-hash sha256:8cb6b655a56f5483c342e74fa02016315ff81ab0d3bf167979d9deca94f438be
+-- @bsb-block queue@12 managed
+-- @bsb-hash sha256:3b178690e94e1478ba8d2c1b6ff41b51c9b48510ba53e3358e881595555acf97
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -404,6 +404,25 @@ begin
 end;
 $$;
 
+create or replace function better_supabase.schedule_has_work(probe text)
+returns boolean
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_probe regprocedure := pg_catalog.to_regprocedure(probe || '()');
+  v_work boolean;
+begin
+  if v_probe is null then
+    return true;
+  end if;
+  execute format('select %s()', v_probe::oid::regproc) into v_work;
+  return coalesce(v_work, true);
+exception when others then
+  return true;
+end;
+$$;
+
 -- Recurring jobs with pg_cron, in cron.timezone (UTC unless the project changed it):
 -- select better_supabase.schedule_job('nightly-digest', '0 3 * * *', 'emails', '{"kind": "digest"}');
 -- For another time zone or a tenant per schedule, set
@@ -415,7 +434,8 @@ create or replace function better_supabase.schedule_job(
   payload jsonb default '{}',
   timezone text default 'UTC',
   next_run timestamptz default null,
-  tenant text default null
+  tenant text default null,
+  probe text default null
 )
 returns bigint
 language plpgsql
@@ -438,9 +458,16 @@ begin
     raise exception 'pg_cron runs schedules in cron.timezone, not %; set blocks.queue.options.scheduler to "drain" for per-schedule time zones', timezone;
   end if;
   perform better_supabase.ensure_job_queue(queue);
+  if probe is not null and not exists (
+    select 1 from pg_catalog.pg_proc p
+    where p.oid = pg_catalog.to_regprocedure(probe || '()') and p.prorettype = 'boolean'::regtype
+  ) then
+    raise exception 'The probe % is not a function without arguments that returns boolean', probe using errcode = '22023';
+  end if;
   execute format('select %s($1::text, $2::text, $3::text)', v_schedule::oid::regproc)
     into v_id
-    using job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text);
+    using job_name, schedule, format('select better_supabase.enqueue_job(%L, %L::jsonb)', queue, payload::text)
+      || case when probe is null then '' else format(' where better_supabase.schedule_has_work(%L)', probe) end;
   return v_id;
 end;
 $$;
@@ -487,7 +514,7 @@ $$;
 -- pg_cron's jobs whose name starts with name_prefix. pg_cron keeps no queue,
 -- payload, tenant or next run, so those are null.
 create or replace function better_supabase.list_schedules(name_prefix text default null, for_tenant text default null)
-returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb)
+returns table (job_name text, schedule text, timezone text, queue text, tenant text, next_run timestamptz, last_run timestamptz, lock_expires_at timestamptz, created_at timestamptz, payload jsonb, probe text)
 language plpgsql
 stable
 security definer
@@ -500,7 +527,7 @@ begin
     return;
   end if;
   return query execute format(
-    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb
+    'select j.jobname::text, j.schedule::text, ''UTC''::text, null::text, null::text, null::timestamptz, null::timestamptz, null::timestamptz, null::timestamptz, null::jsonb, null::text
      from %s j where $1 is null or starts_with(j.jobname, $1) order by j.jobname', v_jobs)
     using name_prefix;
 end;
@@ -641,8 +668,10 @@ revoke execute on function better_supabase.fail_job(text, bigint, integer, text,
 grant execute on function better_supabase.fail_job(text, bigint, integer, text, integer) to service_role;
 revoke execute on function better_supabase.extend_job_lease(text, bigint, integer, integer) from public, anon, authenticated;
 grant execute on function better_supabase.extend_job_lease(text, bigint, integer, integer) to service_role;
-revoke execute on function better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz, text) from public, anon, authenticated;
-grant execute on function better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz, text) to service_role;
+revoke execute on function better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz, text, text) from public, anon, authenticated;
+grant execute on function better_supabase.schedule_job(text, text, text, jsonb, text, timestamptz, text, text) to service_role;
+revoke execute on function better_supabase.schedule_has_work(text) from public, anon, authenticated;
+grant execute on function better_supabase.schedule_has_work(text) to service_role;
 revoke execute on function better_supabase.unschedule_job(text) from public, anon, authenticated;
 grant execute on function better_supabase.unschedule_job(text) to service_role;
 revoke execute on function better_supabase.list_schedules(text, text) from public, anon, authenticated;

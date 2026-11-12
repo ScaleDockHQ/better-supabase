@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:196996bea023854980e381ecc2821d9f7b988b6b1c7210af508e4e8a4da84d9e
+-- @bsb-block webhooks-out@7 managed
+-- @bsb-hash sha256:29622f0876823a39c32effcca48627c3e53b6290dda9c73055523a7186362b39
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -267,6 +267,22 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."webhook_deliveries" v
+    where v."status" in ('pending', 'retrying', 'delivering')
+      and v."available_at" <= now()
+      and (v."lease_expires_at" is null or v."lease_expires_at" <= now())
+  )
+$$;
+revoke execute on function "better_supabase"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."webhook_deliveries_has_work"() to service_role;
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are
@@ -701,21 +717,21 @@ grant execute on function "better_supabase"."delete_webhook_endpoint"(uuid) to a
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:486063f44e46ac376b92702fb399294c552924e1c16c678fdb4e52577c7346f0
+-- @bsb-hash sha256:5f22915edd50182f39ee43e99696dfd3eea668351b7ec99a7754fc3056536845
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-out', 6, 'managed')
+values ('webhooks-out', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:736a6287e9b6cab8b730a8f0256a852cbb22cc1e49217b3a03f76c47906306ca
+-- @bsb-block webhooks-out@7 managed
+-- @bsb-hash sha256:8642d15ef5bb14f51b915466f563bfaa683272235392bcf928037263bdc7a2e8
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -999,6 +1015,22 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."webhook_deliveries" v
+    where v."status" in ('pending', 'retrying', 'delivering')
+      and v."available_at" <= now()
+      and (v."lease_expires_at" is null or v."lease_expires_at" <= now())
+  )
+$$;
+revoke execute on function "better_supabase"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."webhook_deliveries_has_work"() to service_role;
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are
@@ -1503,21 +1535,21 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:486063f44e46ac376b92702fb399294c552924e1c16c678fdb4e52577c7346f0
+-- @bsb-hash sha256:5f22915edd50182f39ee43e99696dfd3eea668351b7ec99a7754fc3056536845
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-out', 6, 'managed')
+values ('webhooks-out', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:35e87b94ea52c54ab98ec7e76aafcc6e0db28db32c9a79f65e05d324c34ff99c
+-- @bsb-block webhooks-out@7 managed
+-- @bsb-hash sha256:4589e95f22446244a0c48616955d5984eb39ae26d3e743afc11a5258657dee16
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1788,6 +1820,22 @@ end;
 $$;
 revoke execute on function "app_private"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "app_private"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
+
+create or replace function "app_private"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "app_private"."webhook_deliveries" v
+    where v."status" in ('pending', 'retrying', 'delivering')
+      and v."available_at" <= now()
+      and (v."lease_expires_at" is null or v."lease_expires_at" <= now())
+  )
+$$;
+revoke execute on function "app_private"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "app_private"."webhook_deliveries_has_work"() to service_role;
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are
@@ -2222,21 +2270,21 @@ grant execute on function "app_private"."delete_webhook_endpoint"(uuid) to authe
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:486063f44e46ac376b92702fb399294c552924e1c16c678fdb4e52577c7346f0
+-- @bsb-hash sha256:5f22915edd50182f39ee43e99696dfd3eea668351b7ec99a7754fc3056536845
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-out', 6, 'managed')
+values ('webhooks-out', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:f40e78b50b3df5938713cb91f69debc72aa8b7f52261a91ca4049042f468e833
+-- @bsb-block webhooks-out@7 managed
+-- @bsb-hash sha256:c73f4ac7311e6c970c6c94bed0d8dd510eeb2336f4fb531be081cdd74dca6422
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2502,6 +2550,22 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."webhook_deliveries" v
+    where v."status" in ('pending', 'retrying', 'delivering')
+      and v."available_at" <= now()
+      and (v."lease_expires_at" is null or v."lease_expires_at" <= now())
+  )
+$$;
+revoke execute on function "better_supabase"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."webhook_deliveries_has_work"() to service_role;
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are
@@ -2964,6 +3028,16 @@ as $$ select "better_supabase"."dispatch_webhook"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon;
 grant execute on function "api"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
 
+create or replace function "api"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."webhook_deliveries_has_work"() $$;
+revoke execute on function "api"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "api"."webhook_deliveries_has_work"() to service_role;
+
 create or replace function "api"."claim_webhook_deliveries"(max_items integer default 25, lease interval default '2 minutes', max_attempts integer default 8)
 returns jsonb
 language sql
@@ -3059,21 +3133,21 @@ grant execute on function "api"."delete_webhook_endpoint"(uuid) to authenticated
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:486063f44e46ac376b92702fb399294c552924e1c16c678fdb4e52577c7346f0
+-- @bsb-hash sha256:5f22915edd50182f39ee43e99696dfd3eea668351b7ec99a7754fc3056536845
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-out', 6, 'managed')
+values ('webhooks-out', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:62ab2384f2494fda71676cbea14f62c8ac37a80605f8d4a39f969a23f00d3934
+-- @bsb-block webhooks-out@7 managed
+-- @bsb-hash sha256:57ffd923d67f3b6eb478c4c6c32cd3ca86eba0062536da2283e687bf1c3e37fc
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3327,6 +3401,22 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."webhook_deliveries" v
+    where v."status" in ('pending', 'retrying', 'delivering')
+      and v."available_at" <= now()
+      and (v."lease_expires_at" is null or v."lease_expires_at" <= now())
+  )
+$$;
+revoke execute on function "better_supabase"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."webhook_deliveries_has_work"() to service_role;
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are
@@ -3757,21 +3847,21 @@ grant execute on function "better_supabase"."delete_webhook_endpoint"(uuid) to a
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:486063f44e46ac376b92702fb399294c552924e1c16c678fdb4e52577c7346f0
+-- @bsb-hash sha256:5f22915edd50182f39ee43e99696dfd3eea668351b7ec99a7754fc3056536845
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-out', 6, 'managed')
+values ('webhooks-out', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:7a82d3628a584aba2c9d387e776a34843a4ed1f31c89bad23e3d183dc5553d80
+-- @bsb-block webhooks-out@7 managed
+-- @bsb-hash sha256:50de95c7816d01fb122a69599572818848d2b17253e6bc29392f07809e6b71bf
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4037,6 +4127,22 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."webhook_deliveries" v
+    where v."status" in ('pending', 'retrying', 'delivering')
+      and v."available_at" <= now()
+      and (v."lease_expires_at" is null or v."lease_expires_at" <= now())
+  )
+$$;
+revoke execute on function "better_supabase"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."webhook_deliveries_has_work"() to service_role;
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are
@@ -4471,13 +4577,13 @@ grant execute on function "better_supabase"."delete_webhook_endpoint"(uuid) to a
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:486063f44e46ac376b92702fb399294c552924e1c16c678fdb4e52577c7346f0
+-- @bsb-hash sha256:5f22915edd50182f39ee43e99696dfd3eea668351b7ec99a7754fc3056536845
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-out', 6, 'managed')
+values ('webhooks-out', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

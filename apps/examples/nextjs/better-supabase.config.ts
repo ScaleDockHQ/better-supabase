@@ -33,6 +33,10 @@ export default defineConfig({
       plans: ["select"],
       plan_features: ["select"],
       subscriptions: ["select"],
+      // The bulk bar calls it over /rpc as the signed-in member.
+      "work_bulk_state(uuid, text, text, jsonb)": {
+        execute: ["authenticated"],
+      },
     },
     buckets: {
       customerLogos: {

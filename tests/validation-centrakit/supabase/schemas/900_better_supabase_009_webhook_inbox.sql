@@ -1,6 +1,6 @@
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:6fc88144a184635f0ffa30dca2e621a8b15183052d420e0a5b848f85cf0fab3e
+-- @bsb-block webhook-inbox@10 managed
+-- @bsb-hash sha256:ac65cd6c2f06750f2e01b750ebb712aec12686ddf7e82b88024722a8ef804221
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,6 +49,19 @@ begin
   returning "id" into inbox_id;
   return jsonb_build_object('id', inbox_id, 'duplicate', false);
 end;
+$$;
+
+create or replace function better_supabase.webhook_inbox_has_work()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "centrakit"."inbound_webhook_events" c
+    where (c."status" = 'pending' and c."available_at" <= now())
+      or (c."status" = 'processing' and c."locked_until" < now())
+  )
 $$;
 
 -- The claimed messages, a jsonb array. A message whose lease ran out on its
@@ -236,6 +249,8 @@ revoke execute on function better_supabase.receive_webhook(text, text, text, jso
 grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) to service_role;
 revoke execute on function better_supabase.claim_webhooks(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.claim_webhooks(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.webhook_inbox_has_work() from public, anon, authenticated;
+grant execute on function better_supabase.webhook_inbox_has_work() to service_role;
 revoke execute on function better_supabase.complete_webhook(bigint, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_webhook(bigint, text, integer) to service_role;
 revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer, boolean) from public, anon, authenticated;

@@ -138,6 +138,7 @@ export interface ScheduleOptions {
    * zones need `blocks.queue.options.scheduler: "drain"`.
    */
   readonly timeZone?: string;
+  readonly probe?: string;
 }
 
 /** One schedule of the set `ensureSchedules` keeps. */
@@ -293,6 +294,7 @@ export interface ScheduleInfo {
   /** Set while a drain holds the schedule. */
   readonly leasedUntil: Temporal.Instant | null;
   readonly createdAt: Temporal.Instant | null;
+  readonly probe: string | null;
 }
 
 export interface ScheduleFilter {

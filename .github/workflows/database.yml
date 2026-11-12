@@ -86,7 +86,17 @@ jobs:
             || { echo "supabase/snapshot.json is stale. Run pnpm supabase:reset, then pnpm better-supabase gen --save-snapshot --cwd ."; exit 1; }
 
       - name: pgTAP
-        run: pnpm exec supabase test db
+        # supabase test db streams pg_prove over the stack owner's HTTP endpoint, which drops
+        # the request when a scale test prints nothing for about five and a half minutes.
+        run: |
+          pg_prove=$(find "$HOME/.supabase/cache/stack/slim-services/postgres" -path '*/linux-*/bin/pg_prove' -print -quit)
+          test -n "$pg_prove"
+          bin_dir=$(dirname "$pg_prove")
+          # SUPABASE_DB_URL comes from the dotenv file, so the inner shell expands it.
+          # shellcheck disable=SC2016
+          BIN_DIR="$bin_dir" pnpm exec dotenv -e .env.development.local -- sh -c '
+            "$BIN_DIR/psql" "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c "create extension if not exists pgtap with schema extensions" &&
+            "$BIN_DIR/pg_prove" --ext .sql --recurse --dbname "$SUPABASE_DB_URL" supabase/tests'
 
       - name: Lint SQL
         # `extensions` holds third-party code (PostGIS for the assets block),

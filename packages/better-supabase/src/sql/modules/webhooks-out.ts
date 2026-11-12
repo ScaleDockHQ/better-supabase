@@ -551,7 +551,7 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 6,
+  version: 7,
   names: NAMES,
   contract,
   upgrades: [
@@ -589,6 +589,12 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
       from: 5,
       description:
         "create_webhook_endpoint, update_webhook_endpoint, list_webhook_endpoints and delete_webhook_endpoint manage a tenant's endpoints behind the module's manage and view permissions.",
+      sql: () => "",
+    },
+    {
+      from: 6,
+      description:
+        "webhook_deliveries_has_work() says whether a delivery is due, as the probe of the delivery schedule.",
       sql: () => "",
     },
   ],

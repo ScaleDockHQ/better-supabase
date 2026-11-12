@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:3e2e3db6c1b71ae3eb79292ddc09dae7aa23d8960d397396e5dd1ee7e9c41985
+-- @bsb-block webhooks-out@7 managed
+-- @bsb-hash sha256:8c09d0e0fcb12ea8c8e07d47e70705272ddc96cd55076f09f51525650c98e9db
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -284,6 +284,22 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."webhook_deliveries" v
+    where v."status" in ('pending', 'retrying', 'delivering')
+      and v."available_at" <= now()
+      and (v."lease_expires_at" is null or v."lease_expires_at" <= now())
+  )
+$$;
+revoke execute on function "better_supabase"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."webhook_deliveries_has_work"() to service_role;
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are
@@ -815,6 +831,16 @@ set search_path = ''
 as $$ select "better_supabase"."dispatch_webhook"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon;
 grant execute on function "api"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
+
+create or replace function "api"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."webhook_deliveries_has_work"() $$;
+revoke execute on function "api"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "api"."webhook_deliveries_has_work"() to service_role;
 
 create or replace function "api"."claim_webhook_deliveries"(max_items integer default 25, lease interval default '2 minutes', max_attempts integer default 8)
 returns jsonb

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.63.0 (2026-11-12)
+
+- `notifications.page` sorts by `order` (`newest`, `oldest`, `type`, `subject` or `status`, with `_desc` forms) and filters on `excludeTypes`, `subjectIds` and `anyOf` groups, so a view such as "everything that is not an open request" pages in SQL. `search` in `list` and `page` also matches the actor's name when the `profiles` module is installed. Both return up to 500 items (was 200), and `page` returns the `limit` it applied, so a caller sees when a request was clamped. `notification_page` takes `exclude_types`, `subject_ids`, `any_of` and `order_by`; the notifications module goes to version 11.
+- A queue schedule can name a `probe`, a SQL function without arguments that returns whether there is work. A due schedule whose probe returns `false` stays due and enqueues nothing, so every-minute schedules stop enqueueing a job on each idle drain tick. The outbox, webhooks-out and webhook-inbox modules add `outbox_has_work()`, `webhook_deliveries_has_work()` and `webhook_inbox_has_work()` to use as probes. `listSchedules` returns each schedule's probe, and `ensureSchedules` rewrites a schedule whose probe changed. The queue module goes to version 12.
+- Doctor BS219 attributes a containment filter in a function to the tables that function names. Before, it joined every function definition together, so a function that only named a table flagged that table's jsonb column whenever any other function used `?` or `@>` on a column of the same name.
+- `unreported_usage` reads each tenant's plans and entitlements once and each quota once per tenant and meter, instead of once per counter row, and computes each window start once per tenant, period and day. On 1,000 counters of 20 tenants it calls `tenant_entitlements` 20 times instead of 1,008 and `usage_window_start` 102 times instead of 1,000.
+
 ## 0.62.0 (2026-11-12)
 
 - `blocks.<name>.events` takes `{ payload: { "<event type>": { <payload key>: "<column>" } } }`, which adds columns of the event's row to the payload the module writes to the outbox. An app that keeps its own columns on a block's table, such as a `customer_id` on `tasks`, no longer has to write a second `task.created` with them. Rendering fails for an event type the module doesn't record and for an event the module writes without a row. The tasks block passes its row to every event. `events: true` and `events: false` keep working.
