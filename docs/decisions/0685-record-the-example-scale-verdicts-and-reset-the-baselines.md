@@ -81,6 +81,16 @@ policy (a number is a ceiling, the commit carries before and after):
 | server chunks, grown   | 353 numbers: median +2,752 B raw, +2,263 B gzip                                                                    |
 | payload                | `en/customers.html` +168 B raw, +121 B gzip, `en/projects.html` +30 B raw, +151 B gzip, `en/login.html` +69 B gzip |
 
+Tier XL (11,001,959 audit events, 11,000,001 notification events and recipients,
+a 22 GB database; the seed took 54 minutes 2 seconds) changes no verdict. The five
+`@scale` specs pass. The pgTAP reads that depend on the volume stay flat or grow
+slowly: the audit page takes 16 ms (15 at L), a notification page 113 ms (59 at L),
+notification counts 14 ms (2 at L), the exact customer count 308 ms (226 at L),
+the capped count 1 ms, the inbox list 37 ms and the customers newest page 5.3 ms.
+Seven heavy routes (customers, contacts, inbox, notifications, risks, audit log,
+search settings) measure cold 561 to 1,138 ms, warm 81 to 236 ms and client 17 to
+31 ms, inside their budgets. `search_global` takes 0.87 to 1.43 s.
+
 The 1,350 empty `nl` strings of the message files are filled. A build writes
 both `.po` files in extraction order; that order is committed now, so a build
 leaves them unchanged.
