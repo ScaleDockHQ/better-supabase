@@ -21,7 +21,7 @@ what it checks.
   80% branches); `autoUpdate` raises them locally, never in CI.
 - `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
   `.localhost` URLs (see Local development).
-- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack on the CLI's stack engine (native runtime, ports per checkout and branch, URLs written to `.env.development.local`), a reset from the migrations and seed, and the pgTAP tests.
+- `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack on the CLI's stack engine (native runtime, ports per checkout and branch, URLs written to `.env.development.local`), a reset from the migrations and seed, and the pgTAP tests. Run `pnpm supabase:reset:library` before `pnpm supabase:test`: the pgTAP files create their own fixtures, and the example rows of `seeds/example.sql` and `seeds/finance-demo.sql` reuse their ids and names (51 files fail on the full seed, none on the library seed, as in CI).
 - `pnpm supabase:start` checks the macOS shared memory cap (24 of 32 segments) before it starts and names the fix. `pnpm supabase:prune --segments` prints the count; `--destroy` (with `--apply`) deletes the stacks of merged branches and of missing checkouts, data included.
 - `pnpm supabase:prune`: list the running stacks of branches merged into `main`, in this checkout and its worktrees; `--apply` stops them and keeps their data. macOS runs out of shared memory segments after about 30 running stacks.
 - `pnpm check:migration-order`: fails when the branch adds a migration that sorts before the newest one on `origin/main` (`MIGRATION_BASE` names another base).
