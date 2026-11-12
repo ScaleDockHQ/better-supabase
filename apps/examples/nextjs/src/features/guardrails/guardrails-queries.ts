@@ -15,7 +15,7 @@ import { guardrailsBlock } from "./guardrails-server";
 
 const PAGE_SIZE = 25;
 
-export const STAGES: readonly GuardrailStage[] = ["input", "output"];
+const STAGES: readonly GuardrailStage[] = ["input", "output"];
 
 export interface PolicyCard {
   readonly id: string;

@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { AdminBackLink } from "@/features/admin-lists/admin-detail-page";
 import {
   CreditTransactionDetail,
-  CreditTransactionSkeleton,
+  CreditTransactionDetailSkeleton,
 } from "@/features/credits/components/credit-transaction-detail";
 
 // A navigation here shows the back link at once; the transaction streams in.
@@ -20,7 +20,7 @@ export default function CreditTransactionPage({
       <AdminBackLink href="/settings/billing/credits">
         {t("All credit entries")}
       </AdminBackLink>
-      <Suspense fallback={<CreditTransactionSkeleton />}>
+      <Suspense fallback={<CreditTransactionDetailSkeleton />}>
         {params.then(({ id }) => (
           <CreditTransactionDetail id={id} />
         ))}

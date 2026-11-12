@@ -5,7 +5,7 @@ import { useExtracted } from "next-intl";
 import { Badge } from "@/components/reui/badge";
 
 /** The badge variant of a run's or step's state, by what it means. */
-export function stateVariant(status: string) {
+function stateVariant(status: string) {
   switch (status) {
     case "completed":
     case "done": {

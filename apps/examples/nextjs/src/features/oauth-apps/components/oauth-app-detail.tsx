@@ -13,7 +13,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Fact } from "@/features/admin-lists/admin-detail-page";
 
-import { getOAuthApp } from "../oauth-apps-detail-queries";
+import { getOAuthApp } from "../oauth-apps-detail";
 
 /** Render inside `<Suspense>`; the fallback is `OAuthAppDetailSkeleton`. */
 export async function OAuthAppDetail({ id }: { id: string }) {

@@ -15,7 +15,10 @@ import {
 
 import { getCreditTransaction } from "../credits-queries";
 
-/** Render inside `<Suspense>`; the fallback is `CreditTransactionSkeleton`. */
+/**
+ * Render inside `<Suspense>`; the fallback is
+ * `CreditTransactionDetailSkeleton`.
+ */
 export async function CreditTransactionDetail({ id }: { id: string }) {
   const [transaction, t, format] = await Promise.all([
     getCreditTransaction(id),
@@ -76,6 +79,6 @@ export async function CreditTransactionDetail({ id }: { id: string }) {
   );
 }
 
-export function CreditTransactionSkeleton() {
+export function CreditTransactionDetailSkeleton() {
   return <Skeleton className="h-48 rounded-xl" aria-busy="true" />;
 }
