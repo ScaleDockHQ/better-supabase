@@ -420,6 +420,7 @@ ${indent}end if;`;
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
       type,
+      row: alias,
       payload: payload(alias, extra),
       subject: `'applications/' || ${alias}.${a("id")}::text`,
       tenant: `${alias}.${a("tenant")}::text`,
@@ -429,6 +430,7 @@ ${indent}end if;`;
   const jobRecord = (type: string): string =>
     ctx.record({
       type,
+      row: "v_job",
       payload: `jsonb_build_object('organizationId', v_job.${j("tenant")}, 'jobId', v_job.${j("id")}, 'title', v_job.${j("title")})`,
       subject: `'jobs/' || v_job.${j("id")}::text`,
       tenant: `v_job.${j("tenant")}::text`,

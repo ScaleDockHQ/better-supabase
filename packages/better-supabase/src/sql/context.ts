@@ -1107,7 +1107,11 @@ export function createModuleContext(
     return `(${event.payload} || jsonb_build_object(${added
       .map(
         ([key, column]) =>
-          `${sqlString(key)}, ${event.row}.${sqlIdent(column)}`,
+          `${sqlString(key)}, ${
+            typeof column === "string"
+              ? `${event.row}.${sqlIdent(column)}`
+              : `(${column.sql.replaceAll("{row}", event.row ?? "")})`
+          }`,
       )
       .join(", ")}))`;
   };

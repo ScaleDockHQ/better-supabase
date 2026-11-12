@@ -168,7 +168,15 @@ const blockEntries = {
     v.union([
       v.boolean(),
       v.strictObject({
-        payload: v.optional(v.record(v.string(), stringRecord)),
+        payload: v.optional(
+          v.record(
+            v.string(),
+            v.record(
+              v.string(),
+              v.union([v.string(), v.strictObject({ sql: v.string() })]),
+            ),
+          ),
+        ),
       }),
     ]),
   ),
