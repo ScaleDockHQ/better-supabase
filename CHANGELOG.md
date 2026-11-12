@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.64.0 (2026-11-12)
+
+- The search block indexes more record types. The quotes, invoices, orders, requests for quotation, tills, bookings, assets, leases, expenses, shipments, contracts, forms, documents, incidents, care plans, laboratory, maintenance, dispatch and ledger modules now declare a `search` title on their main subject, so `search(q)` finds their records once you run `better-supabase upgrade` and apply the migration. The migration backfills the index with `search_reindex`.
+- Doctor BS213 counts the authorization provider's `idsWith` and `memberIds` helpers as tenant pins, next to `tenant_ids_with` and `member_organization_ids`. A write policy with an `or` still pins the tenant column when each branch pins it or writes a null tenant under a platform check, such as `(org_id in (select ids_organization('notes.create'))) or (org_id is null and (select is_platform('platform.notes.manage')))`. A column every insert policy pins to the caller, `created_by = (select auth.uid())`, no longer counts on insert.
+- The `inbox-threads` recipe shows the conversation queue of the example app: search and status, assignee and channel filters in the URL, rows that link to `/inbox/<id>`, and a queue that reloads over Realtime.
+- `doctor` no longer reports BS610 when a `"use cache: private"` function calls a method that has the name of another private function, such as `db.tills.getSession(id)` next to a `getSession` helper.
+- Fix `db.$search` (and `$many`, `$stats`) going missing on the server when a module that only defines a list query loads the lean client runtime after the full one. A lean install no longer replaces an installed full runtime, so `db.$search is not a function` no longer fails pages that mix `better-supabase/list` over the client app with a server `db`.
+- Fix `useRecordListState` dropping the facets of a list. nuqs keeps each facet under its own URL key (`status=active`), but the hook passed that flat state to `toSearchParams`, which reads facets from `facets`, so `searchParams` and `query` never carried a facet and a list route called with them returned every row. The hook now moves the facet keys under `facets` using the list's `facets`, so `list.set({ status: ["active"] })` reaches both the URL and the query.
+
 ## 0.63.2 (2026-11-12)
 
 - Doctor BS386 accepts a per-row check after an `in (select ...)` set check only when the check passes the whole row, as in `id in (select note_ids('read')) or can_note(notes, 'read')`. A check that reads a column after an unrelated set check, such as `employee_id in (select own_employee_ids()) or is_decider(id)`, is flagged again.
