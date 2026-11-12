@@ -20,6 +20,7 @@ import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
+import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { BookingsEvents } from "better-supabase/blocks/bookings";
 import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
@@ -140,6 +141,7 @@ import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
 import { salesBlock as salesBlockInstance } from "better-supabase/blocks/sales";
+import { saasBlock as saasBlockInstance } from "better-supabase/blocks/saas";
 import { collaborationBlock as collaborationBlockInstance } from "better-supabase/blocks/collaboration";
 import { governanceBlock as governanceBlockInstance } from "better-supabase/blocks/governance";
 import { commerceBlock as commerceBlockInstance } from "better-supabase/blocks/commerce";
@@ -173,6 +175,7 @@ import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api
 import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
 import { attachmentsBlock as attachmentsBlockInstance } from "better-supabase/blocks/attachments";
 import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
+import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
 import { bookingsBlock as bookingsBlockInstance } from "better-supabase/blocks/bookings";
 import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/blocks/bulk-actions";
 import { calendarBlock as calendarBlockInstance } from "better-supabase/blocks/calendar";
@@ -332,6 +335,7 @@ export * from "./blocks/facilities-block.ts";
  */
 export const blocks = {
   sales: salesBlockInstance,
+  saas: saasBlockInstance,
   collaboration: collaborationBlockInstance,
   governance: governanceBlockInstance,
   commerce: commerceBlockInstance,
@@ -365,6 +369,7 @@ export const blocks = {
   approvals: approvalsBlockInstance,
   attachments: attachmentsBlockInstance,
   audit: auditBlockInstance,
+  billing: billingBlockInstance,
   bookings: bookingsBlockInstance,
   "bulk-actions": bulkActionsBlockInstance,
   calendar: calendarBlockInstance,
@@ -533,7 +538,7 @@ export const appTableEventSchemas = {
 } as const;
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & WarrantyEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & AdvisoriesEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & WarrantyEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & AdvisoriesEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -646,6 +651,13 @@ export const blockEvents: Events<BlockEvents> = {
     "bank_statement.imported",
     "bank_transaction.matched",
     "bank_transaction.unmatched",
+    "billing.account_linked",
+    "billing.checkout_completed",
+    "billing.customer_linked",
+    "billing.seats_synced",
+    "billing.subscription_created",
+    "billing.subscription_deleted",
+    "billing.subscription_updated",
     "bom.activated",
     "booking.cancelled",
     "booking.confirmed",
@@ -1475,6 +1487,13 @@ export const blockEventSchemas = {
   "bank_statement.imported": true,
   "bank_transaction.matched": true,
   "bank_transaction.unmatched": true,
+  "billing.account_linked": true,
+  "billing.checkout_completed": true,
+  "billing.customer_linked": true,
+  "billing.seats_synced": true,
+  "billing.subscription_created": true,
+  "billing.subscription_deleted": true,
+  "billing.subscription_updated": true,
   "bom.activated": true,
   "booking.cancelled": true,
   "booking.confirmed": true,

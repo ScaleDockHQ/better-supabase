@@ -42,6 +42,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         "sessions",
         "signingKeys",
         "support",
+        "billingAccount",
         "marketplace",
         "identities",
         "sso",

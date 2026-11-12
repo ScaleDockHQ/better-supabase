@@ -724,5 +724,6 @@ export default defineConfig({
     domains: {},
     housekeeping: {},
     "option-sets": {},
+    billing: {},
   },
 });

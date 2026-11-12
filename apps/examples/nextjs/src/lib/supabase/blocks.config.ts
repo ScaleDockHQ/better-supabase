@@ -4,6 +4,7 @@ import type { GeneratedBlocks } from "better-supabase/blocks";
 
 import {
   salesConfig,
+  saasConfig,
   collaborationConfig,
   governanceConfig,
   commerceConfig,
@@ -37,6 +38,7 @@ import {
   approvalsConfig,
   attachmentsConfig,
   auditConfig,
+  billingConfig,
   bookingsConfig,
   bulkActionsConfig,
   calendarConfig,
@@ -207,6 +209,7 @@ export { permissions, type PermissionKey } from "./blocks/permissions.ts";
  */
 export const blockConfig = {
   sales: salesConfig,
+  saas: saasConfig,
   collaboration: collaborationConfig,
   governance: governanceConfig,
   commerce: commerceConfig,
@@ -240,6 +243,7 @@ export const blockConfig = {
   approvals: approvalsConfig,
   attachments: attachmentsConfig,
   audit: auditConfig,
+  billing: billingConfig,
   bookings: bookingsConfig,
   "bulk-actions": bulkActionsConfig,
   calendar: calendarConfig,

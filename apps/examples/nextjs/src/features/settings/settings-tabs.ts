@@ -30,7 +30,8 @@ export type SettingsTabId =
   | "audit"
   | "aiProviders"
   | "support"
-  | "marketplace";
+  | "marketplace"
+  | "billingAccount";
 
 export interface SettingsTab {
   readonly id: SettingsTabId;
@@ -115,5 +116,10 @@ export const settingsTabs: readonly SettingsTab[] = [
     id: "marketplace",
     href: "/settings/marketplace",
     requires: "settings.manage",
+  },
+  {
+    id: "billingAccount",
+    href: "/settings/billing/account",
+    requires: "billing.read",
   },
 ];

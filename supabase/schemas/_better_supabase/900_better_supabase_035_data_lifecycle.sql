@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:7557aef998af020b7b766c36a77f1b56e43c4d79075b176feaf9312f3bd26337
+-- @bsb-hash sha256:f20a9714e21ef62ce01d6dbf2c545e3ba5843ae1210b3c6abd1eac628d669017
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1075,6 +1075,9 @@ as $$
     ('organization', 'better_supabase.usage_distinct', '"better_supabase"."usage_distinct"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_billed_periods', '"better_supabase"."usage_billed_periods"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_quotas', '"better_supabase"."usage_quotas"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.billing_native_subscriptions', '"better_supabase"."billing_native_subscriptions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.billing_customers', '"better_supabase"."billing_customers"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.billing_subscriptions', '"better_supabase"."billing_subscriptions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.flag_overrides', '"better_supabase"."flag_overrides"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.drive_nodes', '"better_supabase"."drive_nodes"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.drive_grants', '"better_supabase"."drive_grants"', 'tenant_id', true, '{}'::text[], true),

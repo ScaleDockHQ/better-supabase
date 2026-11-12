@@ -8,6 +8,12 @@ export const salesConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `saas` instance's config slice. */
+export const saasConfig = {
+  schema: "better_supabase",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `collaboration` instance's config slice. */
 export const collaborationConfig = {
   schema: "better_supabase",
@@ -228,6 +234,13 @@ export const attachmentsConfig = {
 
 /** The `audit` instance's config slice. */
 export const auditConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `billing` instance's config slice. */
+export const billingConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},

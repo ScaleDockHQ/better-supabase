@@ -1098,6 +1098,16 @@ msgctxt "people.Kufi7V"
 msgid "All people"
 msgstr "All people"
 
+#: src/app/[locale]/(app)/people/encryption/page.tsx
+msgctxt "encryption.FS0OC7"
+msgid "Field encryption"
+msgstr "Field encryption"
+
+#: src/app/[locale]/(app)/people/encryption/page.tsx
+msgctxt "encryption.hZe4HU"
+msgid "Which fields are encrypted at rest, and the key that seals them."
+msgstr "Which fields are encrypted at rest, and the key that seals them."
+
 #: src/app/[locale]/(app)/people/hiring/page.tsx
 #: src/features/people/components/hiring-board.tsx
 msgctxt "people.XuEwXv"
@@ -1286,6 +1296,16 @@ msgstr "The audit log could not be read."
 msgctxt "audit.62nsdy"
 msgid "Retry"
 msgstr "Retry"
+
+#: src/app/[locale]/(app)/settings/billing/account/page.tsx
+msgctxt "billingAccount.y1Nqya"
+msgid "Billing account"
+msgstr "Billing account"
+
+#: src/app/[locale]/(app)/settings/billing/account/page.tsx
+msgctxt "billingAccount.m8yp7I"
+msgid "The Stripe customer, seats and invoices of this organization, read through the billing block."
+msgstr "The Stripe customer, seats and invoices of this organization, read through the billing block."
 
 #: src/app/[locale]/(app)/settings/billing/credits/[id]/page.tsx
 msgctxt "credits.QQoV5k"
@@ -5371,6 +5391,106 @@ msgstr "Amount"
 msgctxt "banking.tzMNF3"
 msgid "Status"
 msgstr "Status"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.5QgC8u"
+msgid "The billing account didn't load"
+msgstr "The billing account didn't load"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.wjhxRK"
+msgid "No Stripe customer yet"
+msgstr "No Stripe customer yet"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.92lrOi"
+msgid "The organization gets a Stripe customer when it first opens Checkout. Until then there are no invoices to list."
+msgstr "The organization gets a Stripe customer when it first opens Checkout. Until then there are no invoices to list."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.niC6Ub"
+msgid "Choose a plan"
+msgstr "Choose a plan"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.6_VfeI"
+msgid "Stripe account"
+msgstr "Stripe account"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.6rQhJh"
+msgid "The customer and subscription Stripe holds for this organization."
+msgstr "The customer and subscription Stripe holds for this organization."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.hkENym"
+msgid "Customer"
+msgstr "Customer"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.n78zqT"
+msgid "Seats"
+msgstr "Seats"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.R_6nsx"
+msgid "Subscription"
+msgstr "Subscription"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.6dqYnF"
+msgid "Invoices"
+msgstr "Invoices"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.3xql5v"
+msgid "The latest twelve invoices Stripe sent."
+msgstr "The latest twelve invoices Stripe sent."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.9mzdwt"
+msgid "No invoices yet"
+msgstr "No invoices yet"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.CHaCA7"
+msgid "Stripe's first invoice shows up here once it is sent."
+msgstr "Stripe's first invoice shows up here once it is sent."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.kFkPWB"
+msgid "Number"
+msgstr "Number"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.P7PLVj"
+msgid "Date"
+msgstr "Date"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.MJ2jZQ"
+msgid "Total"
+msgstr "Total"
 
 #: src/features/billing/components/billing-overview.tsx
 #: src/features/billing/components/plan-picker.tsx
@@ -11697,6 +11817,106 @@ msgstr "Check again"
 msgctxt "prescriptions.BYSae4"
 msgid "Read the e-prescribing guide"
 msgstr "Read the e-prescribing guide"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.ewQ6Ty"
+msgid "The encrypted fields didn't load"
+msgstr "The encrypted fields didn't load"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.hkENym"
+msgid "Customer"
+msgstr "Customer"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.C7778D"
+msgid "Work item"
+msgstr "Work item"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.GsShsC"
+msgid "Data key"
+msgstr "Data key"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.g5AEsp"
+msgid "Values of sensitive fields are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them."
+msgstr "Values of sensitive fields are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them."
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.UVKDU0"
+msgid "Key owner"
+msgstr "Key owner"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.pxKgbm"
+msgid "Stored as plain values"
+msgstr "Stored as plain values"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.hX5sFy"
+msgid "{count} fields"
+msgstr "{count} fields"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.DFKrGe"
+msgid "Encrypted fields"
+msgstr "Encrypted fields"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.Hx5aSh"
+msgid "Custom fields marked sensitive, on every record type."
+msgstr "Custom fields marked sensitive, on every record type."
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.UrvsF8"
+msgid "No encrypted fields"
+msgstr "No encrypted fields"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.9U4GtQ"
+msgid "Mark a custom field as sensitive to encrypt its values."
+msgstr "Mark a custom field as sensitive to encrypt its values."
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.czhp-r"
+msgid "Open custom fields"
+msgstr "Open custom fields"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.AbvQFb"
+msgid "Field"
+msgstr "Field"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.QbUmZX"
+msgid "Record type"
+msgstr "Record type"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.-Cegy-"
+msgid "Encrypted"
+msgstr "Encrypted"
 
 #: src/features/evals/components/eval-items-card.tsx
 msgctxt "evals.IRrIur"
@@ -19023,6 +19243,63 @@ msgctxt "moderation.GwMpla"
 msgid "No end"
 msgstr "No end"
 
+#: src/features/my-work/components/my-reminder-row.tsx
+msgctxt "myWork.0ep_tB"
+msgid "Reminder removed"
+msgstr "Reminder removed"
+
+#: src/features/my-work/components/my-reminder-row.tsx
+msgctxt "myWork.z55zq6"
+msgid "{count} minutes before"
+msgstr "{count} minutes before"
+
+#: src/features/my-work/components/my-reminder-row.tsx
+msgctxt "myWork.3Kfgbs"
+msgid "Remove the reminder on {subject}"
+msgstr "Remove the reminder on {subject}"
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.xL_gwx"
+msgid "Your reminders"
+msgstr "Your reminders"
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.3q0T9R"
+msgid "Reminders you set on events and records. Remove one here."
+msgstr "Reminders you set on events and records. Remove one here."
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.Arq6em"
+msgid "Your reminders didn't load"
+msgstr "Your reminders didn't load"
+
+#: src/features/my-work/components/my-reminders.tsx
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/my-work/components/my-reminders.tsx
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.16kwR3"
+msgid "No reminders set"
+msgstr "No reminders set"
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.BN3We0"
+msgid "Set a reminder on a calendar event and it shows up here."
+msgstr "Set a reminder on a calendar event and it shows up here."
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.zj_Bu0"
+msgid "Open the calendar"
+msgstr "Open the calendar"
+
 #: src/features/my-work/components/my-work-list.tsx
 msgctxt "myWork.iZDRGO"
 msgid "Assigned"
@@ -19062,16 +19339,6 @@ msgstr "Assigned work, approvals, due reminders, mentions and SLA warnings."
 msgctxt "myWork.6A7ifa"
 msgid "My work didn't load"
 msgstr "My work didn't load"
-
-#: src/features/my-work/components/my-work-list.tsx
-msgctxt "myWork.162kF7"
-msgid "Try again in a moment."
-msgstr "Try again in a moment."
-
-#: src/features/my-work/components/my-work-list.tsx
-msgctxt "myWork.62nsdy"
-msgid "Retry"
-msgstr "Retry"
 
 #: src/features/my-work/components/my-work-list.tsx
 msgctxt "myWork.otPGOJ"
@@ -19443,6 +19710,12 @@ msgstr "Risks"
 msgctxt "navigation.TTLDST"
 msgid "Cases"
 msgstr "Cases"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.FS0OC7"
+msgid "Field encryption"
+msgstr "Field encryption"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
@@ -27094,6 +27367,11 @@ msgstr "Support sessions"
 msgctxt "settings.Gn23tM"
 msgid "Vercel Marketplace"
 msgstr "Vercel Marketplace"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.y1Nqya"
+msgid "Billing account"
+msgstr "Billing account"
 
 #: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.YQJkxw"

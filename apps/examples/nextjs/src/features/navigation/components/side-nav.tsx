@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 
 import {
   GiftIcon,
+  LockKeyholeIcon,
   MegaphoneIcon,
   ShieldBanIcon,
   SirenIcon,
@@ -170,6 +171,7 @@ const ICONS = {
   qualifications: BadgeCheckIcon,
   risks: ShieldAlertIcon,
   cases: FileWarningIcon,
+  encryption: LockKeyholeIcon,
   announcements: MegaphoneIcon,
   advisories: ShieldAlertIcon,
   content: FileTextIcon,

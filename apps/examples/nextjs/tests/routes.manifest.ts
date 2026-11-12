@@ -36,6 +36,24 @@ export interface RouteEntry {
 
 export const ROUTES: readonly RouteEntry[] = [
   {
+    route: "/settings/billing/account",
+    archetype: "settings",
+    url: "/settings/billing/account",
+    maxCalls: 9,
+    maxWaves: 2,
+    instant: true,
+    scale: false,
+  },
+  {
+    route: "/people/encryption",
+    archetype: "overview",
+    url: "/people/encryption",
+    maxCalls: 9,
+    maxWaves: 2,
+    instant: true,
+    scale: false,
+  },
+  {
     route: "/announcements",
     archetype: "overview",
     url: "/announcements",
