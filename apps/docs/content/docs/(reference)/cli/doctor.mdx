@@ -1770,7 +1770,7 @@ the `from` of a subquery whose arguments read no column of the row, such as
 and rescans its result. In a select policy, a function that is
 `security definer` or has a `set` clause counts too, even a stable SQL one,
 because Postgres never inlines it: `can_note(notes, 'read')` runs once per row.
-That call is accepted as the `or` fallback after a set check, as in
+A call that passes the whole row is accepted as the `or` fallback after a set check, as in
 `id in (select note_ids('read')) or can_note(notes, 'read')`, because it then
 runs only for rows outside the set, such as a row the statement itself inserted.
 Policies named `bsb_*` belong to a block module and are left to `upgrade`. Doctor reads the policy
