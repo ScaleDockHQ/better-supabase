@@ -54,6 +54,6 @@ authority.
 | eve example     | `https://eve.localhost`        |
 | Vite example    | `https://vite-react.localhost` |
 
-The seed (`supabase/seed.sql`) creates two Acme users with the password
+The seed (`supabase/seed.sql`, the library rows the pgTAP suite runs on; `supabase/seeds/example.sql` and `seeds/finance-demo.sql` add the example app's rows and the Schema job leaves them out) creates two Acme users with the password
 `password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role
 `member`).

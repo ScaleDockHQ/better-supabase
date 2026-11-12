@@ -1,0 +1,4 @@
+alter policy finance_recognition_schedules_read on better_supabase.accounting_recognition_schedules
+  rename to bsb_finance_recognition_schedules_read;
+alter policy finance_recognition_rows_read on better_supabase.accounting_recognition_rows
+  rename to bsb_finance_recognition_rows_read;

@@ -264,6 +264,8 @@
         "apps/examples/**",
         "supabase/schemas/**",
         "supabase/seed.sql",
+        "supabase/seeds/example.sql",
+        "supabase/seeds/finance-demo.sql",
         "supabase/tests/**",
         "tests/**"
       ]

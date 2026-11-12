@@ -26,7 +26,7 @@ max_locks_per_transaction = 256
 enabled = true
 # seed.scale.sql is not listed: a normal reset stays on seed.sql. Run it after
 # a reset when you want the large tenant (see the file's header).
-sql_paths = ["./seed.sql", "./seeds/finance-demo.sql"]
+sql_paths = ["./seed.sql", "./seeds/example.sql", "./seeds/finance-demo.sql"]
 
 [realtime]
 enabled = true

@@ -488,10 +488,10 @@ grant execute on function api.finance_detail(text, uuid, uuid) to authenticated;
 grant select on better_supabase.accounting_recognition_schedules to authenticated;
 grant select on better_supabase.accounting_recognition_rows to authenticated;
 
-create policy finance_recognition_schedules_read on better_supabase.accounting_recognition_schedules
+create policy bsb_finance_recognition_schedules_read on better_supabase.accounting_recognition_schedules
   for select to authenticated
   using (tenant_id in (select better_supabase.tenant_ids_with('accounting.read')));
 
-create policy finance_recognition_rows_read on better_supabase.accounting_recognition_rows
+create policy bsb_finance_recognition_rows_read on better_supabase.accounting_recognition_rows
   for select to authenticated
   using (tenant_id in (select better_supabase.tenant_ids_with('accounting.read')));
