@@ -53,11 +53,12 @@ select extensions.is(
     where table_schema = 'better_supabase' and data_type = 'timestamp with time zone'
       and column_name !~ '_at$'
       and column_name <> 'dtstart'
-      -- Vercel's billing API names the period of an invoice and a meter report.
-      and not (table_name in ('marketplace_invoices', 'marketplace_meter_reports')
+      -- Billing names the period of an invoice, a meter report and a native
+      -- subscription, as Vercel's and Stripe's APIs do.
+      and not (table_name in ('marketplace_invoices', 'marketplace_meter_reports', 'billing_native_subscriptions')
         and column_name in ('period_start', 'period_end'))),
   '',
-  'timestamp columns end in _at (dtstart stays: RFC 5545 names it; so do the marketplace periods)'
+  'timestamp columns end in _at (dtstart stays: RFC 5545 names it; so do billing periods)'
 );
 
 select extensions.is(

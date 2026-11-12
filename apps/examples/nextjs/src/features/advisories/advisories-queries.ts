@@ -35,7 +35,9 @@ export interface VulnerabilityRow {
 }
 
 /** The products the organization ships advisories for. */
-export async function getProducts(): Promise<readonly AdvisoryProductRow[]> {
+export async function getAdvisoryProducts(): Promise<
+  readonly AdvisoryProductRow[]
+> {
   "use cache: private";
   const { db } = await bsb.cached();
   cacheTag(ADVISORIES_TAG);

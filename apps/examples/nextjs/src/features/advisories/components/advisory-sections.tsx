@@ -32,7 +32,7 @@ import { PermissionGate } from "@/features/user/components/permission-gate";
 
 import {
   getAdvisories,
-  getProducts,
+  getAdvisoryProducts,
   getVulnerabilities,
 } from "../advisories-queries";
 import { AdvisoriesLoadError } from "./advisories-load-error";
@@ -137,7 +137,7 @@ export async function AdvisoryList() {
 /** Render inside `<Suspense>`: the products advisories are written for. */
 export async function ProductList() {
   const [result, t] = await Promise.all([
-    getProducts().then(
+    getAdvisoryProducts().then(
       (data) => ({ ok: true as const, data }),
       () => ({ ok: false as const }),
     ),
