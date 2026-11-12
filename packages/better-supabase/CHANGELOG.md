@@ -1,5 +1,11 @@
 # better-supabase
 
+## 0.61.1
+
+### Patch Changes
+
+- [#860](https://github.com/ScaleDockHQ/better-supabase/pull/860) [`7f9046f`](https://github.com/ScaleDockHQ/better-supabase/commit/7f9046fd36dd977cd51f1d99fcda2e7340c1622e) Thanks [@mick340](https://github.com/mick340)! - `doctor` BS386 no longer flags a volatile set helper in the `from` of a policy subquery when its arguments read no column of the row, such as `id in (select t.id from thread_ids('key') as t(id))`. Postgres calls that function once and rescans its result. A helper whose arguments read the row is still flagged.
+
 ## 0.61.0
 
 ### Minor Changes
