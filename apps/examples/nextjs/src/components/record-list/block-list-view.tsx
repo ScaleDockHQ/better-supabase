@@ -69,12 +69,12 @@ export interface BlockFacetOption {
 
 type RowCell = CellContext<ReadOnlyGridFeatures, BlockRow>;
 
-function textOf(value: BlockRow[string]): string {
-  if (value === null) {
+function textOf(column: BlockColumn, value: BlockRow[string]): string {
+  if (value === null || column.kind === "money") {
     return "";
   }
 
-  return typeof value === "object" ? "" : String(value);
+  return String(value);
 }
 
 function cellOf(
@@ -83,7 +83,7 @@ function cellOf(
 ): (context: RowCell) => React.ReactNode {
   return function Cell({ row }) {
     const raw = row.original[column.key] ?? null;
-    const text = textOf(raw);
+    const text = textOf(column, raw);
 
     switch (column.kind) {
       case "link": {

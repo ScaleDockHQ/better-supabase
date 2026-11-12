@@ -56,7 +56,7 @@ describe("runDigests", () => {
   });
 
   it("stops when a completion fails", async () => {
-    const failure = dbError("internal", "down");
+    const failure = dbError("unexpected", "down");
 
     const report = await runDigests({
       claim: () => done(digests),

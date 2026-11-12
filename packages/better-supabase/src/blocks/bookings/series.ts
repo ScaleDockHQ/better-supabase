@@ -139,6 +139,7 @@ export function bookingSeriesOf(value: unknown): BookingSeries {
  */
 export function parseRecurrence(rrule: string): BookingRecurrence {
   const text = rrule.replace(/^RRULE:/iu, "");
+
   const names = text
     .split(";")
     .map((item) => item.split("=")[0]?.toUpperCase());

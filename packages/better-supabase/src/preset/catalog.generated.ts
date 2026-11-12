@@ -2455,7 +2455,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "scheduling",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "recurrence"
       ],
       "integrates": [
         "queue",
