@@ -541,3 +541,297 @@ begin
   perform better_supabase.ledger_post(t, 'credit.usage', jsonb_build_array(jsonb_build_object('account', balance, 'amount', -640), jsonb_build_object('account', pool, 'amount', 640)),
     'ai_task', 'drafts', 'Inbox reply drafts', 'seed-credits-4', now() - interval '2 days');
 end $$;
+
+-- Operations pages (phase 8c): maintenance plans with meters and calibrations,
+-- requests for quotation with quotes and an award, laboratory samples with an
+-- out of specification result, and till shifts with a closing count.
+select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
+
+select better_supabase.create_maintenance_meter('00000000-0000-4000-8000-000000000001', 'Forklift hours', 'h');
+select better_supabase.create_maintenance_meter('00000000-0000-4000-8000-000000000001', 'Press cycles', 'cycles');
+
+select better_supabase.record_meter_reading(m.id, v.reading)
+from better_supabase.maintenance_meters m
+join (values ('Forklift hours', 480), ('Press cycles', 12600)) as v(name, reading) on v.name = m.name
+where m.tenant_id = '00000000-0000-4000-8000-000000000001';
+
+select better_supabase.create_maintenance_plan('00000000-0000-4000-8000-000000000001', p.input)
+from (values
+  (jsonb_build_object('title', 'Forklift annual service', 'kind', 'time', 'everyDays', 365, 'priority', 'high',
+    'parts', jsonb_build_array(jsonb_build_object('name', 'Hydraulic filter', 'quantity', 2), jsonb_build_object('name', 'Mast chain lubricant', 'quantity', 1)))),
+  (jsonb_build_object('title', 'Fire extinguisher inspection', 'kind', 'time', 'everyDays', 30, 'priority', 'normal')),
+  (jsonb_build_object('title', 'Dock door safety check', 'kind', 'time', 'everyDays', 14, 'priority', 'urgent')),
+  (jsonb_build_object('title', 'HVAC filter replacement', 'kind', 'rrule', 'rrule', 'FREQ=MONTHLY;BYMONTHDAY=1', 'dtstart', date_trunc('month', now())::text, 'priority', 'low',
+    'parts', jsonb_build_array(jsonb_build_object('name', 'G4 panel filter', 'quantity', 4)))),
+  (jsonb_build_object('title', 'Conveyor belt tension', 'kind', 'time', 'everyDays', 60, 'priority', 'normal'))
+) as p(input);
+
+select better_supabase.create_maintenance_plan('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'title', 'Forklift oil change', 'kind', 'meter', 'meterId', m.id, 'everyValue', 250, 'priority', 'normal'))
+from better_supabase.maintenance_meters m
+where m.tenant_id = '00000000-0000-4000-8000-000000000001' and m.name = 'Forklift hours';
+
+select better_supabase.create_maintenance_plan('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'title', 'Press lubrication', 'kind', 'meter', 'meterId', m.id, 'everyValue', 5000, 'priority', 'high'))
+from better_supabase.maintenance_meters m
+where m.tenant_id = '00000000-0000-4000-8000-000000000001' and m.name = 'Press cycles';
+
+-- Two plans are overdue, and one of them already has its work order.
+update better_supabase.maintenance_plans
+set next_due_at = now() - interval '4 days'
+where tenant_id = '00000000-0000-4000-8000-000000000001' and title = 'Fire extinguisher inspection';
+
+select better_supabase.record_calibration('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+  'instrument', c.instrument, 'performedAt', (now() - c.age)::text, 'dueAt', (now() - c.age + c.every)::text,
+  'result', c.result, 'reference', c.reference))
+from (values
+  ('Torque wrench TW-12', interval '300 days', interval '365 days', 'pass', 'CAL-2026-014'),
+  ('Digital caliper DC-3', interval '40 days', interval '180 days', 'adjusted', 'CAL-2026-031'),
+  ('Platform scale PS-1', interval '400 days', interval '365 days', 'pass', 'CAL-2025-007'),
+  ('Pressure gauge PG-8', interval '20 days', interval '90 days', 'fail', 'CAL-2026-044')
+) as c(instrument, age, every, result, reference);
+
+select better_supabase.generate_maintenance_work_orders('00000000-0000-4000-8000-000000000001');
+
+update better_supabase.maintenance_plans
+set next_due_at = now() - interval '2 days'
+where tenant_id = '00000000-0000-4000-8000-000000000001' and title = 'Dock door safety check';
+
+do $seed$
+declare
+  t constant uuid := '00000000-0000-4000-8000-000000000001';
+  rfq jsonb;
+  inv uuid;
+  quote uuid;
+  line_ids uuid[];
+  supplier text;
+  spec record;
+  n int;
+begin
+  -- A draft, an open request with three quotes, and one awarded request.
+  for spec in
+    select * from (values
+      ('Warehouse shelving, 12 bays', 'draft', 3),
+      ('Forklift battery packs', 'open', 3),
+      ('Packaging film, pallet wrap', 'awarded', 2)
+    ) as x(title, target, suppliers)
+  loop
+    rfq := better_supabase.create_rfq(t,
+      jsonb_build_object('title', spec.title, 'currency', 'EUR', 'dueAt', (now() + interval '14 days')::text,
+        'notes', 'Delivery to the main warehouse, dock 2.'),
+      jsonb_build_array(
+        jsonb_build_object('description', spec.title || ' (standard)', 'quantity', 12),
+        jsonb_build_object('description', spec.title || ' (spares)', 'quantity', 4)));
+
+    if spec.target <> 'draft' then
+      n := 0;
+      for supplier in
+        select c.id::text from better_supabase.companies c
+        where c.tenant_id = t and c.merged_into is null order by c.id limit spec.suppliers
+      loop
+        perform better_supabase.invite_rfq_supplier((rfq ->> 'id')::uuid, 'company', supplier);
+      end loop;
+      perform better_supabase.open_rfq((rfq ->> 'id')::uuid);
+
+      select array_agg(l.id order by l.ordinal) into line_ids from better_supabase.rfq_lines l where l.rfq_id = (rfq ->> 'id')::uuid;
+
+      for inv in
+        select s.id from better_supabase.rfq_suppliers s where s.rfq_id = (rfq ->> 'id')::uuid order by s.id
+      loop
+        n := n + 1;
+        perform better_supabase.record_rfq_quote((rfq ->> 'id')::uuid, inv,
+          jsonb_build_object('leadTimeDays', 5 + n * 3, 'validUntil', (current_date + 30)::text),
+          jsonb_build_array(
+            jsonb_build_object('lineId', line_ids[1], 'unitAmount', 9000 + n * 750),
+            jsonb_build_object('lineId', line_ids[2], 'unitAmount', 4500 + n * 400)));
+      end loop;
+
+      if spec.target = 'awarded' then
+        select q.id into quote from better_supabase.rfq_quotes q where q.rfq_id = (rfq ->> 'id')::uuid order by q.total_amount limit 1;
+        perform better_supabase.award_rfq((rfq ->> 'id')::uuid, quote, null);
+      end if;
+    end if;
+  end loop;
+end
+$seed$;
+
+do $seed$
+declare
+  t constant uuid := '00000000-0000-4000-8000-000000000001';
+  ph uuid;
+  assay uuid;
+  moisture uuid;
+  meter uuid;
+  smp jsonb;
+  sid uuid;
+  spec record;
+begin
+  -- The laboratory's instrument holds a calibration qualification, which the
+  -- block requires on every result.
+  perform better_supabase.save_qualification_type(t, 'calibration', 'Calibration', array['asset'], 12);
+  meter := (better_supabase.create_asset(t, 'instrument', 'Bench pH meter PH-100', null, 'LAB-PH-100') ->> 'id')::uuid;
+  perform better_supabase.grant_qualification(t, 'calibration', 'asset', meter::text, current_date - 30);
+
+  ph := (better_supabase.save_lims_method(t, jsonb_build_object('key', 'ph', 'name', 'pH', 'lowerLimit', 6, 'upperLimit', 8)) ->> 'id')::uuid;
+  assay := (better_supabase.save_lims_method(t, jsonb_build_object('key', 'assay', 'name', 'Active ingredient', 'unit', '%', 'lowerLimit', 98, 'upperLimit', 102)) ->> 'id')::uuid;
+  moisture := (better_supabase.save_lims_method(t, jsonb_build_object('key', 'moisture', 'name', 'Moisture', 'unit', '%', 'upperLimit', 5)) ->> 'id')::uuid;
+
+  for spec in
+    select * from (values
+      ('Incoming raw material, lot RM-2044', 'raw material', 'RM-2044', 1, 'released'),
+      ('Batch release, lot B-7781', 'finished product', 'B-7781', 3, 'completed'),
+      ('Stability sample, lot B-7702', 'stability', 'B-7702', 6, 'testing'),
+      ('Cleaning validation swab, line 2', 'swab', null, 8, 'testing_oos'),
+      ('Water for injection, loop A', 'water', null, 10, 'registered'),
+      ('Packaging component, lot PK-310', 'packaging', 'PK-310', 14, 'rejected'),
+      ('Retained sample, lot B-7650', 'retained', 'B-7650', 20, 'registered')
+    ) as x(title, kind, lot, age, target)
+  loop
+    smp := better_supabase.register_sample(t, jsonb_build_object('title', spec.title, 'kind', spec.kind,
+      'lot', spec.lot, 'receivedOn', (current_date - spec.age)::text));
+    sid := (smp ->> 'id')::uuid;
+
+    if spec.target in ('released', 'completed') then
+      perform better_supabase.record_lims_result(sid, ph, jsonb_build_object('value', 7.1, 'instrumentId', meter));
+      perform better_supabase.record_lims_result(sid, assay, jsonb_build_object('value', 99.6, 'instrumentId', meter));
+      perform better_supabase.complete_sample(sid);
+      if spec.target = 'released' then
+        perform better_supabase.release_sample(sid);
+      end if;
+    elsif spec.target = 'testing' then
+      perform better_supabase.record_lims_result(sid, ph, jsonb_build_object('value', 6.8, 'instrumentId', meter));
+    elsif spec.target = 'testing_oos' then
+      perform better_supabase.record_lims_result(sid, moisture, jsonb_build_object('value', 6.4, 'note', 'Second run pending', 'instrumentId', meter));
+      perform better_supabase.record_lims_result(sid, ph, jsonb_build_object('value', 5.2, 'instrumentId', meter));
+    elsif spec.target = 'rejected' then
+      perform better_supabase.reject_sample(sid, 'Damaged packaging on receipt');
+    end if;
+  end loop;
+end
+$seed$;
+
+do $seed$
+declare
+  t constant uuid := '00000000-0000-4000-8000-000000000001';
+  front uuid;
+  garden uuid;
+  s uuid;
+begin
+  front := (better_supabase.create_till(t, jsonb_build_object('name', 'Front counter', 'currency', 'EUR', 'location', 'Store, entrance')) ->> 'id')::uuid;
+  garden := (better_supabase.create_till(t, jsonb_build_object('name', 'Garden centre', 'currency', 'EUR', 'location', 'Store, garden centre')) ->> 'id')::uuid;
+  perform better_supabase.create_till(t, jsonb_build_object('name', 'Pop-up stall', 'currency', 'EUR'));
+
+  -- A closed shift with a count and a deposit.
+  s := (better_supabase.open_till_session(front, 10000) ->> 'id')::uuid;
+  perform better_supabase.record_till_movement(s, 'cash_sale', 8450, 'Morning sales');
+  perform better_supabase.record_till_movement(s, 'cash_sale', 12390, 'Afternoon sales');
+  perform better_supabase.record_till_movement(s, 'cash_refund', 1500, 'Returned jacket');
+  perform better_supabase.record_till_movement(s, 'cash_out', 2000, 'Bank run: change');
+  perform better_supabase.close_till_session(s, jsonb_build_object('denominations', jsonb_build_object('5000', 3, '2000', 5, '1000', 4, '500', 3, '100', 7), 'notes', 'Counted twice'));
+  perform better_supabase.deposit_till_cash(s, jsonb_build_object('amount', 20000, 'reference', 'Deposit slip 4471'));
+
+  -- A second closed shift, short in the drawer.
+  s := (better_supabase.open_till_session(garden, 15000) ->> 'id')::uuid;
+  perform better_supabase.record_till_movement(s, 'cash_sale', 6200, 'Plants and pots');
+  perform better_supabase.close_till_session(s, jsonb_build_object('amount', 20900, 'notes', 'Drawer is 3 euro short'));
+
+  -- An open shift with sales so far.
+  s := (better_supabase.open_till_session(front, 10000) ->> 'id')::uuid;
+  perform better_supabase.record_till_movement(s, 'cash_sale', 4300, 'Opening sales');
+  perform better_supabase.record_till_movement(s, 'cash_in', 5000, 'Extra float');
+end
+$seed$;
+
+
+-- A warehouse with bins, stock, putaway rules, pick lists in different states, a
+-- wave and cycle count plans (the Warehouse pages read these).
+do $seed$
+declare
+  t constant uuid := '00000000-0000-4000-8000-000000000001';
+  loc uuid;
+  bin_a uuid;
+  bin_b uuid;
+  bin_c uuid;
+  prod uuid;
+  var uuid;
+  vars uuid[] := '{}';
+  spec record;
+  list_id uuid;
+  wave_id uuid;
+  plan_id uuid;
+  count_id uuid;
+  line record;
+begin
+  -- The stock ledger seed above already made the main warehouse.
+  select l.id into loc from better_supabase.inventory_locations l where l.tenant_id = t and l.code = 'MAIN';
+  perform better_supabase.save_location(t, null, 'RET', 'Returns warehouse', null, null);
+  bin_a := (better_supabase.save_bin(loc, null, 'A-01', 'Fast movers', false, true) ->> 'id')::uuid;
+  bin_b := (better_supabase.save_bin(loc, null, 'B-04', 'Shelving', false, true) ->> 'id')::uuid;
+  bin_c := (better_supabase.save_bin(loc, null, 'C-12', 'Overflow', false, true) ->> 'id')::uuid;
+  perform better_supabase.save_bin_slot(t, jsonb_build_object('binId', bin_a, 'walkRank', 1, 'capacity', 200));
+  perform better_supabase.save_bin_slot(t, jsonb_build_object('binId', bin_b, 'walkRank', 2, 'capacity', 500));
+  perform better_supabase.save_bin_slot(t, jsonb_build_object('binId', bin_c, 'walkRank', 3));
+
+  for spec in
+    select * from (values
+      ('Pallet wrap film', 'WH-WRAP', 120, 'A-01'),
+      ('Cardboard box 40x30', 'WH-BOX-40', 300, 'B-04'),
+      ('Shipping labels, roll', 'WH-LABEL', 80, 'A-01'),
+      ('Bubble mailer', 'WH-MAILER', 220, 'C-12'),
+      ('Strapping band', 'WH-STRAP', 60, 'C-12')
+    ) as x(title, sku, qty, bin_code)
+  loop
+    prod := (better_supabase.save_product(t, null, spec.title, lower(spec.sku), null, 'physical', null) ->> 'id')::uuid;
+    var := (better_supabase.save_variant(prod, null, spec.sku, null, spec.title, null, null, true, false, null) ->> 'id')::uuid;
+    vars := vars || var;
+    perform better_supabase.adjust_stock(var, loc, spec.qty, 'receipt', null,
+      jsonb_build_object('binId', (select b.id from better_supabase.stock_bins b where b.location_id = loc and b.code = spec.bin_code)));
+  end loop;
+
+  perform better_supabase.save_putaway_rule(t, jsonb_build_object('locationId', loc, 'binId', bin_a, 'variantId', vars[1], 'priority', 10, 'maxQuantity', 150));
+  perform better_supabase.save_putaway_rule(t, jsonb_build_object('locationId', loc, 'binId', bin_b, 'variantId', vars[2], 'priority', 10));
+  perform better_supabase.save_putaway_rule(t, jsonb_build_object('locationId', loc, 'binId', bin_c, 'priority', 90));
+
+  -- Pick lists for four orders: one open, one half picked, one done, one in a wave.
+  for spec in select * from (values ('SO-1001', 'open'), ('SO-1002', 'partial'), ('SO-1003', 'done'), ('SO-1004', 'wave')) as x(doc, target)
+  loop
+    perform better_supabase.allocate_stock(t, vars[1], loc, 12, 'sales_order', spec.doc, 'l1', true);
+    perform better_supabase.allocate_stock(t, vars[2], loc, 30, 'sales_order', spec.doc, 'l2', true);
+    perform better_supabase.allocate_stock(t, vars[4], loc, 6, 'sales_order', spec.doc, 'l3', true);
+
+    if spec.target = 'wave' then
+      wave_id := (better_supabase.create_pick_wave(t, jsonb_build_object('name', 'Afternoon dispatch', 'locationId', loc)) ->> 'id')::uuid;
+      list_id := (better_supabase.create_pick_list(t, jsonb_build_object('locationId', loc, 'documentType', 'sales_order', 'documentId', spec.doc, 'waveId', wave_id)) ->> 'id')::uuid;
+      perform better_supabase.release_pick_wave(wave_id);
+    else
+      list_id := (better_supabase.create_pick_list(t, jsonb_build_object('locationId', loc, 'documentType', 'sales_order', 'documentId', spec.doc)) ->> 'id')::uuid;
+    end if;
+
+    if spec.target in ('partial', 'done') then
+      for line in
+        select l.id, l.quantity from better_supabase.pick_lines l where l.pick_list_id = list_id order by l.id
+        limit case when spec.target = 'done' then 3 else 1 end
+      loop
+        perform better_supabase.record_pick(line.id, jsonb_build_object('quantity', line.quantity));
+      end loop;
+    end if;
+
+    if spec.target = 'done' then
+      perform better_supabase.complete_pick_list(list_id);
+    end if;
+  end loop;
+
+  perform better_supabase.create_pick_wave(t, jsonb_build_object('name', 'Morning wave (draft)', 'locationId', loc));
+
+  -- A plan that is due and has an open count, and one that is scheduled.
+  plan_id := (better_supabase.create_count_plan(t, jsonb_build_object('name', 'Fast movers weekly', 'locationId', loc, 'everyDays', 7,
+    'variantIds', jsonb_build_array(vars[1], vars[3]), 'varianceLimitPct', 5)) ->> 'id')::uuid;
+  count_id := (better_supabase.run_count_plan(plan_id) ->> 'countId')::uuid;
+  perform better_supabase.create_count_plan(t, jsonb_build_object('name', 'Full count, quarterly', 'locationId', loc, 'everyDays', 90,
+    'startsOn', (current_date + 40)::text, 'varianceLimitPct', 2));
+  perform better_supabase.create_count_plan(t, jsonb_build_object('name', 'Overflow bins monthly', 'locationId', loc, 'everyDays', 30,
+    'startsOn', (current_date - 2)::text, 'variantIds', jsonb_build_array(vars[4], vars[5])));
+end
+$seed$;
+
+select set_config('request.jwt.claims', '', false);

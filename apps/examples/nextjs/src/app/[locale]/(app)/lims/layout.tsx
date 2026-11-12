@@ -9,7 +9,13 @@ export default function LimsLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "lims"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "lims",
+        "recordDetail",
+        "recordList",
+        "sales",
+      ])}
     >
       {children}
     </NextIntlClientProvider>
