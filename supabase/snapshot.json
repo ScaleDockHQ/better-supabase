@@ -220438,8 +220438,8 @@
         "schema": "better_supabase",
         "name": "notification_page",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_where text;\n  v_any text;\n  v_limit integer := least(greatest(coalesce(notification_page.max_items, 50), 1), 500);\n  v_order text;\n  v_items jsonb;\n  v_total bigint;\n  v_args_cap integer := notification_page.total_cap;\nbegin\n  v_order := case coalesce(notification_page.order_by, 'newest')\n    when 'newest' then 'rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'oldest' then 'rc.\"created_at\", rc.\"id\"'\n    when 'type' then 'ev.\"type\" collate \"C\", rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'type_desc' then 'ev.\"type\" collate \"C\" desc, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'subject' then 'lower(coalesce(ev.\"subject_label\", '''')) collate \"C\", rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'subject_desc' then 'lower(coalesce(ev.\"subject_label\", '''')) collate \"C\" desc, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'status' then 'case when rc.\"resolved_at\" is not null then 2 when rc.\"read_at\" is null then 0 else 1 end, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'status_desc' then 'case when rc.\"resolved_at\" is not null then 2 when rc.\"read_at\" is null then 0 else 1 end desc, rc.\"created_at\" desc, rc.\"id\" desc'\n  end;\n  if v_order is null then\n    raise exception 'order_by is one of newest, oldest, type, type_desc, subject, subject_desc, status, status_desc, not %', notification_page.order_by using errcode = '22023';\n  end if;\n  if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then\n    raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';\n  end if;\n  v_where := $q$rc.\"user_id\" = $1$q$;\n  if coalesce(notification_page.status, 'all') = 'settled' then\n    v_where := v_where || $q$ and (rc.\"resolved_at\" is not null or rc.\"dismissed_at\" is not null)$q$;\n  elsif notification_page.dismissed is not null then\n    v_where := v_where || case when notification_page.dismissed\n      then $q$ and rc.\"dismissed_at\" is not null$q$\n      else $q$ and rc.\"dismissed_at\" is null$q$ end;\n  end if;\n  if notification_page.read is not null then\n    v_where := v_where || case when notification_page.read\n      then $q$ and rc.\"read_at\" is not null$q$\n      else $q$ and rc.\"read_at\" is null$q$ end;\n  end if;\n  if notification_page.resolved is not null then\n    v_where := v_where || case when notification_page.resolved\n      then $q$ and rc.\"resolved_at\" is not null$q$\n      else $q$ and rc.\"resolved_at\" is null$q$ end;\n  end if;\n  if notification_page.tenant is not null then\n    v_where := v_where || $q$ and rc.\"tenant_id\" = $2$q$;\n  end if;\n  if notification_page.types is not null then\n    v_where := v_where || $q$ and ev.\"type\" = any($3)$q$;\n  end if;\n  if notification_page.subject_types is not null then\n    v_where := v_where || $q$ and ev.\"subject_type\" = any($4)$q$;\n  end if;\n  if btrim(coalesce(notification_page.search, '')) <> '' then\n    v_where := v_where || $q$ and (concat_ws(' ', ev.\"summary\", ev.\"subject_label\", ev.\"type\") ilike $5 or exists (select 1 from \"better_supabase\".\"profiles\" pr where pr.\"id\" = ev.\"actor_id\" and concat_ws(' ', pr.\"username\", pr.\"full_name\", pr.\"first_name\", pr.\"last_name\") ilike $5))$q$;\n  end if;\n  case coalesce(notification_page.status, 'all')\n    when 'unread' then v_where := v_where || $q$ and rc.\"read_at\" is null$q$;\n    when 'read' then v_where := v_where || $q$ and rc.\"read_at\" is not null$q$;\n    when 'unresolved' then v_where := v_where || $q$ and rc.\"resolved_at\" is null$q$;\n    else null;\n  end case;\n  if notification_page.before is not null then\n    v_where := v_where || $q$ and (rc.\"created_at\", rc.\"id\") < ($9, $10)$q$;\n  end if;\nif notification_page.exclude_types is not null then\n  v_where := v_where || $q$ and ev.\"type\" <> all($11)$q$;\nend if;\nif notification_page.subject_ids is not null then\n  v_where := v_where || $q$ and ev.\"subject_id\" = any($12)$q$;\nend if;\nif notification_page.any_of is not null then\n  if jsonb_typeof(notification_page.any_of) <> 'array'\n    or exists (select 1 from jsonb_array_elements(notification_page.any_of) g where jsonb_typeof(g) <> 'object') then\n    raise exception 'any_of is an array of filter objects' using errcode = '22023';\n  end if;\n  select coalesce(string_agg('(' || concat_ws(' and ', 'true', case when g ? 'types' then format('ev.\"type\" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'types'))) end, case when g ? 'exclude_types' then format('ev.\"type\" <> all(%L::text[])', array(select jsonb_array_elements_text(g -> 'exclude_types'))) end, case when g ? 'subject_types' then format('ev.\"subject_type\" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'subject_types'))) end, case (g ->> 'read')::boolean when true then 'rc.\"read_at\" is not null' when false then 'rc.\"read_at\" is null' end, case (g ->> 'resolved')::boolean when true then 'rc.\"resolved_at\" is not null' when false then 'rc.\"resolved_at\" is null' end) || ')', ' or '), 'false')\n  into v_any\n  from jsonb_array_elements(notification_page.any_of) g;\n  v_where := v_where || ' and (' || v_any || ')';\nend if;\n  -- One row more than the page says whether another page exists, and the\n  -- total stops counting at total_cap (null counts every row), so a large\n  -- inbox never counts all of it. Pass before and before_id to page by key\n  -- instead of skip.\n  execute $q$select coalesce(jsonb_agg(p.item order by p.n), '[]')\n  from (\n    select row_number() over () as n, q.item\n    from (\n      select jsonb_build_object('id', rc.\"id\", 'event_id', ev.\"id\", 'type', ev.\"type\", 'data', ev.\"data\", 'created_at', rc.\"created_at\", 'read_at', rc.\"read_at\", 'tenant', ev.\"tenant_id\", 'actor_id', ev.\"actor_id\", 'subject_type', ev.\"subject_type\", 'subject_id', ev.\"subject_id\", 'subject_label', ev.\"subject_label\", 'summary', ev.\"summary\", 'action_path', ev.\"action_path\", 'actions', ev.\"actions\", 'priority', ev.\"priority\", 'resolved_at', rc.\"resolved_at\", 'resolution', rc.\"resolution\") as item\n      from \"better_supabase\".\"notification_recipients\" rc\n      join \"better_supabase\".\"notification_events\" ev on ev.\"id\" = rc.\"event_id\"\n      where $q$ || v_where || $q$\n      order by $q$ || v_order || $q$\n      offset $13\n      limit $14 + 1\n    ) q\n  ) p$q$\n  into v_items\n  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,\n    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,\n    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),\n    notification_page.exclude_types, notification_page.subject_ids,\n    greatest(coalesce(notification_page.skip, 0), 0), v_limit;\n  execute $q$select count(*) from (\n    select 1 from \"better_supabase\".\"notification_recipients\" rc\n    join \"better_supabase\".\"notification_events\" ev on ev.\"id\" = rc.\"event_id\"\n    where $q$ || v_where || case when v_args_cap is null then '' else format(' limit %s', greatest(v_args_cap, 1)) end || $q$\n  ) c$q$\n  into v_total\n  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,\n    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,\n    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),\n    notification_page.exclude_types, notification_page.subject_ids;\n  return jsonb_build_object(\n    'items', coalesce((select jsonb_agg(x.value order by x.ordinality) from jsonb_array_elements(v_items) with ordinality x(value, ordinality) where x.ordinality <= v_limit), '[]'),\n    'hasMore', jsonb_array_length(v_items) > v_limit,\n    'limit', v_limit,\n    'total', v_total,\n    'totalCapped', v_args_cap is not null and v_total >= v_args_cap\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.notification_page(tenant uuid DEFAULT NULL::uuid, status text DEFAULT 'all'::text, types text[] DEFAULT NULL::text[], subject_types text[] DEFAULT NULL::text[], search text DEFAULT NULL::text, max_items integer DEFAULT 50, skip integer DEFAULT 0, read boolean DEFAULT NULL::boolean, resolved boolean DEFAULT NULL::boolean, dismissed boolean DEFAULT false, before timestamp with time zone DEFAULT NULL::timestamp with time zone, before_id uuid DEFAULT NULL::uuid, total_cap integer DEFAULT 10000, exclude_types text[] DEFAULT NULL::text[], subject_ids text[] DEFAULT NULL::text[], any_of jsonb DEFAULT NULL::jsonb, order_by text DEFAULT 'newest'::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_where text;\n  v_any text;\n  v_limit integer := least(greatest(coalesce(notification_page.max_items, 50), 1), 500);\n  v_order text;\n  v_items jsonb;\n  v_total bigint;\n  v_args_cap integer := notification_page.total_cap;\nbegin\n  v_order := case coalesce(notification_page.order_by, 'newest')\n    when 'newest' then 'rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'oldest' then 'rc.\"created_at\", rc.\"id\"'\n    when 'type' then 'ev.\"type\" collate \"C\", rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'type_desc' then 'ev.\"type\" collate \"C\" desc, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'subject' then 'lower(coalesce(ev.\"subject_label\", '''')) collate \"C\", rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'subject_desc' then 'lower(coalesce(ev.\"subject_label\", '''')) collate \"C\" desc, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'status' then 'case when rc.\"resolved_at\" is not null then 2 when rc.\"read_at\" is null then 0 else 1 end, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'status_desc' then 'case when rc.\"resolved_at\" is not null then 2 when rc.\"read_at\" is null then 0 else 1 end desc, rc.\"created_at\" desc, rc.\"id\" desc'\n  end;\n  if v_order is null then\n    raise exception 'order_by is one of newest, oldest, type, type_desc, subject, subject_desc, status, status_desc, not %', notification_page.order_by using errcode = '22023';\n  end if;\n  if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then\n    raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';\n  end if;\n  v_where := $q$rc.\"user_id\" = $1$q$;\n  if coalesce(notification_page.status, 'all') = 'settled' then\n    v_where := v_where || $q$ and (rc.\"resolved_at\" is not null or rc.\"dismissed_at\" is not null)$q$;\n  elsif notification_page.dismissed is not null then\n    v_where := v_where || case when notification_page.dismissed\n      then $q$ and rc.\"dismissed_at\" is not null$q$\n      else $q$ and rc.\"dismissed_at\" is null$q$ end;\n  end if;\n  if notification_page.read is not null then\n    v_where := v_where || case when notification_page.read\n      then $q$ and rc.\"read_at\" is not null$q$\n      else $q$ and rc.\"read_at\" is null$q$ end;\n  end if;\n  if notification_page.resolved is not null then\n    v_where := v_where || case when notification_page.resolved\n      then $q$ and rc.\"resolved_at\" is not null$q$\n      else $q$ and rc.\"resolved_at\" is null$q$ end;\n  end if;\n  if notification_page.tenant is not null then\n    v_where := v_where || $q$ and rc.\"tenant_id\" = $2$q$;\n  end if;\n  if notification_page.types is not null then\n    v_where := v_where || $q$ and ev.\"type\" = any($3)$q$;\n  end if;\n  if notification_page.subject_types is not null then\n    v_where := v_where || $q$ and ev.\"subject_type\" = any($4)$q$;\n  end if;\n  if btrim(coalesce(notification_page.search, '')) <> '' then\n    v_where := v_where || $q$ and (concat_ws(' ', ev.\"summary\", ev.\"subject_label\", ev.\"type\") ilike $5 or exists (select 1 from \"better_supabase\".\"profiles\" pr where pr.\"id\" = ev.\"actor_id\" and concat_ws(' ', pr.\"username\", pr.\"full_name\", pr.\"first_name\", pr.\"last_name\") ilike $5))$q$;\n  end if;\n  case coalesce(notification_page.status, 'all')\n    when 'unread' then v_where := v_where || $q$ and rc.\"read_at\" is null$q$;\n    when 'read' then v_where := v_where || $q$ and rc.\"read_at\" is not null$q$;\n    when 'unresolved' then v_where := v_where || $q$ and rc.\"resolved_at\" is null$q$;\n    else null;\n  end case;\n  if notification_page.before is not null then\n    v_where := v_where || $q$ and (rc.\"created_at\", rc.\"id\") < ($9, $10)$q$;\n  end if;\nif notification_page.exclude_types is not null then\n  v_where := v_where || $q$ and ev.\"type\" <> all($11)$q$;\nend if;\nif notification_page.subject_ids is not null then\n  v_where := v_where || $q$ and ev.\"subject_id\" = any($12)$q$;\nend if;\nif notification_page.any_of is not null then\n  if jsonb_typeof(notification_page.any_of) <> 'array'\n    or exists (select 1 from jsonb_array_elements(notification_page.any_of) g where jsonb_typeof(g) <> 'object') then\n    raise exception 'any_of is an array of filter objects' using errcode = '22023';\n  end if;\n  select coalesce(string_agg('(' || concat_ws(' and ', 'true', case when g ? 'types' then format('ev.\"type\" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'types'))) end, case when g ? 'exclude_types' then format('ev.\"type\" <> all(%L::text[])', array(select jsonb_array_elements_text(g -> 'exclude_types'))) end, case when g ? 'subject_types' then format('ev.\"subject_type\" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'subject_types'))) end, case (g ->> 'read')::boolean when true then 'rc.\"read_at\" is not null' when false then 'rc.\"read_at\" is null' end, case (g ->> 'resolved')::boolean when true then 'rc.\"resolved_at\" is not null' when false then 'rc.\"resolved_at\" is null' end) || ')', ' or '), 'false')\n  into v_any\n  from jsonb_array_elements(notification_page.any_of) g;\n  v_where := v_where || ' and (' || v_any || ')';\nend if;\n  -- One row more than the page says whether another page exists, and the\n  -- total stops counting at total_cap (null counts every row), so a large\n  -- inbox never counts all of it. Pass before and before_id to page by key\n  -- instead of skip.\n  execute $q$select coalesce(jsonb_agg(p.item order by p.n), '[]')\n  from (\n    select row_number() over () as n, q.item\n    from (\n      select jsonb_build_object('id', rc.\"id\", 'event_id', ev.\"id\", 'type', ev.\"type\", 'data', ev.\"data\", 'created_at', rc.\"created_at\", 'read_at', rc.\"read_at\", 'tenant', ev.\"tenant_id\", 'actor_id', ev.\"actor_id\", 'subject_type', ev.\"subject_type\", 'subject_id', ev.\"subject_id\", 'subject_label', ev.\"subject_label\", 'summary', ev.\"summary\", 'action_path', ev.\"action_path\", 'actions', ev.\"actions\", 'priority', ev.\"priority\", 'resolved_at', rc.\"resolved_at\", 'resolution', rc.\"resolution\") as item\n      from \"better_supabase\".\"notification_recipients\" rc\n      join \"better_supabase\".\"notification_events\" ev on ev.\"id\" = rc.\"event_id\"\n      where $q$ || v_where || $q$\n      order by $q$ || v_order || $q$\n      offset $13\n      limit $14 + 1\n    ) q\n  ) p$q$\n  into v_items\n  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,\n    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,\n    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),\n    notification_page.exclude_types, notification_page.subject_ids,\n    greatest(coalesce(notification_page.skip, 0), 0), v_limit;\n  execute $q$select count(*) from (\n    select 1 from \"better_supabase\".\"notification_recipients\" rc\n    join \"better_supabase\".\"notification_events\" ev on ev.\"id\" = rc.\"event_id\"\n    where $q$ || v_where || case when v_args_cap is null then '' else format(' limit %s', greatest(v_args_cap, 1)) end || $q$\n  ) c$q$\n  into v_total\n  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,\n    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,\n    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),\n    notification_page.exclude_types, notification_page.subject_ids;\n  return jsonb_build_object(\n    'items', coalesce((select jsonb_agg(x.value order by x.ordinality) from jsonb_array_elements(v_items) with ordinality x(value, ordinality) where x.ordinality <= v_limit), '[]'),\n    'hasMore', jsonb_array_length(v_items) > v_limit,\n    'limit', v_limit,\n    'total', v_total,\n    'totalCapped', v_args_cap is not null and v_total >= v_args_cap\n  );\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_where text;\n  v_any text;\n  v_limit integer := least(greatest(coalesce(notification_page.max_items, 50), 1), 500);\n  v_order text;\n  v_items jsonb;\n  v_total bigint;\n  v_args_cap integer := notification_page.total_cap;\nbegin\n  v_order := case coalesce(notification_page.order_by, 'newest')\n    when 'newest' then 'rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'oldest' then 'rc.\"created_at\", rc.\"id\"'\n    when 'type' then 'ev.\"type\" collate \"C\", rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'type_desc' then 'ev.\"type\" collate \"C\" desc, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'subject' then 'lower(coalesce(ev.\"subject_label\", '''')) collate \"C\", rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'subject_desc' then 'lower(coalesce(ev.\"subject_label\", '''')) collate \"C\" desc, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'status' then 'case when rc.\"resolved_at\" is not null then 2 when rc.\"read_at\" is null then 0 else 1 end, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'status_desc' then 'case when rc.\"resolved_at\" is not null then 2 when rc.\"read_at\" is null then 0 else 1 end desc, rc.\"created_at\" desc, rc.\"id\" desc'\n  end;\n  if v_order is null then\n    raise exception 'order_by is one of newest, oldest, type, type_desc, subject, subject_desc, status, status_desc, not %', notification_page.order_by using errcode = '22023';\n  end if;\n  if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then\n    raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';\n  end if;\n  v_where := $q$rc.\"user_id\" = $1$q$;\n  if coalesce(notification_page.status, 'all') = 'settled' then\n    v_where := v_where || $q$ and (rc.\"resolved_at\" is not null or rc.\"dismissed_at\" is not null)$q$;\n  elsif notification_page.dismissed is not null then\n    v_where := v_where || case when notification_page.dismissed\n      then $q$ and rc.\"dismissed_at\" is not null$q$\n      else $q$ and rc.\"dismissed_at\" is null$q$ end;\n  end if;\n  if notification_page.read is not null then\n    v_where := v_where || case when notification_page.read\n      then $q$ and rc.\"read_at\" is not null$q$\n      else $q$ and rc.\"read_at\" is null$q$ end;\n  end if;\n  if notification_page.resolved is not null then\n    v_where := v_where || case when notification_page.resolved\n      then $q$ and rc.\"resolved_at\" is not null$q$\n      else $q$ and rc.\"resolved_at\" is null$q$ end;\n  end if;\n  if notification_page.tenant is not null then\n    v_where := v_where || $q$ and rc.\"tenant_id\" = $2$q$;\n  end if;\n  if notification_page.types is not null then\n    v_where := v_where || $q$ and ev.\"type\" = any($3)$q$;\n  end if;\n  if notification_page.subject_types is not null then\n    v_where := v_where || $q$ and ev.\"subject_type\" = any($4)$q$;\n  end if;\n  if btrim(coalesce(notification_page.search, '')) <> '' then\n    v_where := v_where || $q$ and (concat_ws(' ', ev.\"summary\", ev.\"subject_label\", ev.\"type\") ilike $5 or exists (select 1 from \"better_supabase\".\"profiles\" pr where pr.\"id\" = ev.\"actor_id\" and concat_ws(' ', pr.\"username\", pr.\"full_name\", pr.\"first_name\", pr.\"last_name\") ilike $5))$q$;\n  end if;\n  case coalesce(notification_page.status, 'all')\n    when 'unread' then v_where := v_where || $q$ and rc.\"read_at\" is null$q$;\n    when 'read' then v_where := v_where || $q$ and rc.\"read_at\" is not null$q$;\n    when 'unresolved' then v_where := v_where || $q$ and rc.\"resolved_at\" is null$q$;\n    else null;\n  end case;\n  if notification_page.before is not null then\n    v_where := v_where || $q$ and (rc.\"created_at\", rc.\"id\") < ($9, $10)$q$;\n  end if;\n  if notification_page.exclude_types is not null then\n    v_where := v_where || $q$ and ev.\"type\" <> all($11)$q$;\n  end if;\n  if notification_page.subject_ids is not null then\n    v_where := v_where || $q$ and ev.\"subject_id\" = any($12)$q$;\n  end if;\n  if notification_page.any_of is not null then\n    if jsonb_typeof(notification_page.any_of) <> 'array'\n      or exists (select 1 from jsonb_array_elements(notification_page.any_of) g where jsonb_typeof(g) <> 'object') then\n      raise exception 'any_of is an array of filter objects' using errcode = '22023';\n    end if;\n    select coalesce(string_agg('(' || concat_ws(' and ', 'true', case when g ? 'types' then format('ev.\"type\" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'types'))) end, case when g ? 'exclude_types' then format('ev.\"type\" <> all(%L::text[])', array(select jsonb_array_elements_text(g -> 'exclude_types'))) end, case when g ? 'subject_types' then format('ev.\"subject_type\" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'subject_types'))) end, case (g ->> 'read')::boolean when true then 'rc.\"read_at\" is not null' when false then 'rc.\"read_at\" is null' end, case (g ->> 'resolved')::boolean when true then 'rc.\"resolved_at\" is not null' when false then 'rc.\"resolved_at\" is null' end) || ')', ' or '), 'false')\n    into v_any\n    from jsonb_array_elements(notification_page.any_of) g;\n    v_where := v_where || ' and (' || v_any || ')';\n  end if;\n  -- One row more than the page says whether another page exists, and the\n  -- total stops counting at total_cap (null counts every row), so a large\n  -- inbox never counts all of it. Pass before and before_id to page by key\n  -- instead of skip.\n  execute $q$select coalesce(jsonb_agg(p.item order by p.n), '[]')\n  from (\n    select row_number() over () as n, q.item\n    from (\n      select jsonb_build_object('id', rc.\"id\", 'event_id', ev.\"id\", 'type', ev.\"type\", 'data', ev.\"data\", 'created_at', rc.\"created_at\", 'read_at', rc.\"read_at\", 'tenant', ev.\"tenant_id\", 'actor_id', ev.\"actor_id\", 'subject_type', ev.\"subject_type\", 'subject_id', ev.\"subject_id\", 'subject_label', ev.\"subject_label\", 'summary', ev.\"summary\", 'action_path', ev.\"action_path\", 'actions', ev.\"actions\", 'priority', ev.\"priority\", 'resolved_at', rc.\"resolved_at\", 'resolution', rc.\"resolution\") as item\n      from \"better_supabase\".\"notification_recipients\" rc\n      join \"better_supabase\".\"notification_events\" ev on ev.\"id\" = rc.\"event_id\"\n      where $q$ || v_where || $q$\n      order by $q$ || v_order || $q$\n      offset $13\n      limit $14 + 1\n    ) q\n  ) p$q$\n  into v_items\n  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,\n    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,\n    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),\n    notification_page.exclude_types, notification_page.subject_ids,\n    greatest(coalesce(notification_page.skip, 0), 0), v_limit;\n  execute $q$select count(*) from (\n    select 1 from \"better_supabase\".\"notification_recipients\" rc\n    join \"better_supabase\".\"notification_events\" ev on ev.\"id\" = rc.\"event_id\"\n    where $q$ || v_where || case when v_args_cap is null then '' else format(' limit %s', greatest(v_args_cap, 1)) end || $q$\n  ) c$q$\n  into v_total\n  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,\n    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,\n    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),\n    notification_page.exclude_types, notification_page.subject_ids;\n  return jsonb_build_object(\n    'items', coalesce((select jsonb_agg(x.value order by x.ordinality) from jsonb_array_elements(v_items) with ordinality x(value, ordinality) where x.ordinality <= v_limit), '[]'),\n    'hasMore', jsonb_array_length(v_items) > v_limit,\n    'limit', v_limit,\n    'total', v_total,\n    'totalCapped', v_args_cap is not null and v_total >= v_args_cap\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.notification_page(tenant uuid DEFAULT NULL::uuid, status text DEFAULT 'all'::text, types text[] DEFAULT NULL::text[], subject_types text[] DEFAULT NULL::text[], search text DEFAULT NULL::text, max_items integer DEFAULT 50, skip integer DEFAULT 0, read boolean DEFAULT NULL::boolean, resolved boolean DEFAULT NULL::boolean, dismissed boolean DEFAULT false, before timestamp with time zone DEFAULT NULL::timestamp with time zone, before_id uuid DEFAULT NULL::uuid, total_cap integer DEFAULT 10000, exclude_types text[] DEFAULT NULL::text[], subject_ids text[] DEFAULT NULL::text[], any_of jsonb DEFAULT NULL::jsonb, order_by text DEFAULT 'newest'::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_where text;\n  v_any text;\n  v_limit integer := least(greatest(coalesce(notification_page.max_items, 50), 1), 500);\n  v_order text;\n  v_items jsonb;\n  v_total bigint;\n  v_args_cap integer := notification_page.total_cap;\nbegin\n  v_order := case coalesce(notification_page.order_by, 'newest')\n    when 'newest' then 'rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'oldest' then 'rc.\"created_at\", rc.\"id\"'\n    when 'type' then 'ev.\"type\" collate \"C\", rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'type_desc' then 'ev.\"type\" collate \"C\" desc, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'subject' then 'lower(coalesce(ev.\"subject_label\", '''')) collate \"C\", rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'subject_desc' then 'lower(coalesce(ev.\"subject_label\", '''')) collate \"C\" desc, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'status' then 'case when rc.\"resolved_at\" is not null then 2 when rc.\"read_at\" is null then 0 else 1 end, rc.\"created_at\" desc, rc.\"id\" desc'\n    when 'status_desc' then 'case when rc.\"resolved_at\" is not null then 2 when rc.\"read_at\" is null then 0 else 1 end desc, rc.\"created_at\" desc, rc.\"id\" desc'\n  end;\n  if v_order is null then\n    raise exception 'order_by is one of newest, oldest, type, type_desc, subject, subject_desc, status, status_desc, not %', notification_page.order_by using errcode = '22023';\n  end if;\n  if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then\n    raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';\n  end if;\n  v_where := $q$rc.\"user_id\" = $1$q$;\n  if coalesce(notification_page.status, 'all') = 'settled' then\n    v_where := v_where || $q$ and (rc.\"resolved_at\" is not null or rc.\"dismissed_at\" is not null)$q$;\n  elsif notification_page.dismissed is not null then\n    v_where := v_where || case when notification_page.dismissed\n      then $q$ and rc.\"dismissed_at\" is not null$q$\n      else $q$ and rc.\"dismissed_at\" is null$q$ end;\n  end if;\n  if notification_page.read is not null then\n    v_where := v_where || case when notification_page.read\n      then $q$ and rc.\"read_at\" is not null$q$\n      else $q$ and rc.\"read_at\" is null$q$ end;\n  end if;\n  if notification_page.resolved is not null then\n    v_where := v_where || case when notification_page.resolved\n      then $q$ and rc.\"resolved_at\" is not null$q$\n      else $q$ and rc.\"resolved_at\" is null$q$ end;\n  end if;\n  if notification_page.tenant is not null then\n    v_where := v_where || $q$ and rc.\"tenant_id\" = $2$q$;\n  end if;\n  if notification_page.types is not null then\n    v_where := v_where || $q$ and ev.\"type\" = any($3)$q$;\n  end if;\n  if notification_page.subject_types is not null then\n    v_where := v_where || $q$ and ev.\"subject_type\" = any($4)$q$;\n  end if;\n  if btrim(coalesce(notification_page.search, '')) <> '' then\n    v_where := v_where || $q$ and (concat_ws(' ', ev.\"summary\", ev.\"subject_label\", ev.\"type\") ilike $5 or exists (select 1 from \"better_supabase\".\"profiles\" pr where pr.\"id\" = ev.\"actor_id\" and concat_ws(' ', pr.\"username\", pr.\"full_name\", pr.\"first_name\", pr.\"last_name\") ilike $5))$q$;\n  end if;\n  case coalesce(notification_page.status, 'all')\n    when 'unread' then v_where := v_where || $q$ and rc.\"read_at\" is null$q$;\n    when 'read' then v_where := v_where || $q$ and rc.\"read_at\" is not null$q$;\n    when 'unresolved' then v_where := v_where || $q$ and rc.\"resolved_at\" is null$q$;\n    else null;\n  end case;\n  if notification_page.before is not null then\n    v_where := v_where || $q$ and (rc.\"created_at\", rc.\"id\") < ($9, $10)$q$;\n  end if;\n  if notification_page.exclude_types is not null then\n    v_where := v_where || $q$ and ev.\"type\" <> all($11)$q$;\n  end if;\n  if notification_page.subject_ids is not null then\n    v_where := v_where || $q$ and ev.\"subject_id\" = any($12)$q$;\n  end if;\n  if notification_page.any_of is not null then\n    if jsonb_typeof(notification_page.any_of) <> 'array'\n      or exists (select 1 from jsonb_array_elements(notification_page.any_of) g where jsonb_typeof(g) <> 'object') then\n      raise exception 'any_of is an array of filter objects' using errcode = '22023';\n    end if;\n    select coalesce(string_agg('(' || concat_ws(' and ', 'true', case when g ? 'types' then format('ev.\"type\" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'types'))) end, case when g ? 'exclude_types' then format('ev.\"type\" <> all(%L::text[])', array(select jsonb_array_elements_text(g -> 'exclude_types'))) end, case when g ? 'subject_types' then format('ev.\"subject_type\" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'subject_types'))) end, case (g ->> 'read')::boolean when true then 'rc.\"read_at\" is not null' when false then 'rc.\"read_at\" is null' end, case (g ->> 'resolved')::boolean when true then 'rc.\"resolved_at\" is not null' when false then 'rc.\"resolved_at\" is null' end) || ')', ' or '), 'false')\n    into v_any\n    from jsonb_array_elements(notification_page.any_of) g;\n    v_where := v_where || ' and (' || v_any || ')';\n  end if;\n  -- One row more than the page says whether another page exists, and the\n  -- total stops counting at total_cap (null counts every row), so a large\n  -- inbox never counts all of it. Pass before and before_id to page by key\n  -- instead of skip.\n  execute $q$select coalesce(jsonb_agg(p.item order by p.n), '[]')\n  from (\n    select row_number() over () as n, q.item\n    from (\n      select jsonb_build_object('id', rc.\"id\", 'event_id', ev.\"id\", 'type', ev.\"type\", 'data', ev.\"data\", 'created_at', rc.\"created_at\", 'read_at', rc.\"read_at\", 'tenant', ev.\"tenant_id\", 'actor_id', ev.\"actor_id\", 'subject_type', ev.\"subject_type\", 'subject_id', ev.\"subject_id\", 'subject_label', ev.\"subject_label\", 'summary', ev.\"summary\", 'action_path', ev.\"action_path\", 'actions', ev.\"actions\", 'priority', ev.\"priority\", 'resolved_at', rc.\"resolved_at\", 'resolution', rc.\"resolution\") as item\n      from \"better_supabase\".\"notification_recipients\" rc\n      join \"better_supabase\".\"notification_events\" ev on ev.\"id\" = rc.\"event_id\"\n      where $q$ || v_where || $q$\n      order by $q$ || v_order || $q$\n      offset $13\n      limit $14 + 1\n    ) q\n  ) p$q$\n  into v_items\n  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,\n    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,\n    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),\n    notification_page.exclude_types, notification_page.subject_ids,\n    greatest(coalesce(notification_page.skip, 0), 0), v_limit;\n  execute $q$select count(*) from (\n    select 1 from \"better_supabase\".\"notification_recipients\" rc\n    join \"better_supabase\".\"notification_events\" ev on ev.\"id\" = rc.\"event_id\"\n    where $q$ || v_where || case when v_args_cap is null then '' else format(' limit %s', greatest(v_args_cap, 1)) end || $q$\n  ) c$q$\n  into v_total\n  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,\n    case when btrim(coalesce(notification_page.search, '')) = '' then null else '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' end, notification_page.read, notification_page.resolved, notification_page.dismissed,\n    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),\n    notification_page.exclude_types, notification_page.subject_ids;\n  return jsonb_build_object(\n    'items', coalesce((select jsonb_agg(x.value order by x.ordinality) from jsonb_array_elements(v_items) with ordinality x(value, ordinality) where x.ordinality <= v_limit), '[]'),\n    'hasMore', jsonb_array_length(v_items) > v_limit,\n    'limit', v_limit,\n    'total', v_total,\n    'totalCapped', v_args_cap is not null and v_total >= v_args_cap\n  );\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -287966,8 +287966,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000061,
@@ -289331,8 +289330,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000068,
@@ -290001,8 +289999,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000072,
@@ -292482,8 +292479,7 @@
               "INSERT"
             ]
           }
-        ],
-        "large": true
+        ]
       },
       {
         "id": 1000085,
@@ -305378,8 +305374,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000164,
@@ -307208,8 +307203,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000174,
@@ -307895,8 +307889,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000180,
@@ -308049,8 +308042,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000181,
@@ -314664,8 +314656,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000218,
@@ -318138,8 +318129,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000242,
@@ -326909,8 +326899,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000295,
@@ -331380,8 +331369,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000321,
@@ -335264,8 +335252,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000341,
@@ -338655,8 +338642,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000361,
@@ -344200,8 +344186,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000397,
@@ -349172,8 +349157,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000425,
@@ -353099,8 +353083,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000448,
@@ -353846,8 +353829,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000452,
@@ -355959,8 +355941,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000464,
@@ -361078,8 +361059,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000495,
@@ -370769,8 +370749,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000559,
@@ -376359,8 +376338,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000593,
@@ -378341,8 +378319,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000606,

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@11 managed
--- @bsb-hash sha256:c3ffd825a6cf586a913fcbd64e6157243a1e7bdc98ae583f7e9128438d507e25
+-- @bsb-hash sha256:2c54df90bf57d7b02a73e7140f915ec5c6ac46362a4dd50c2e328d4606c7ef05
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -667,22 +667,22 @@ begin
   if notification_page.before is not null then
     v_where := v_where || $q$ and (rc."created_at", rc."id") < ($9, $10)$q$;
   end if;
-if notification_page.exclude_types is not null then
-  v_where := v_where || $q$ and ev."type" <> all($11)$q$;
-end if;
-if notification_page.subject_ids is not null then
-  v_where := v_where || $q$ and ev."subject_id" = any($12)$q$;
-end if;
-if notification_page.any_of is not null then
-  if jsonb_typeof(notification_page.any_of) <> 'array'
-    or exists (select 1 from jsonb_array_elements(notification_page.any_of) g where jsonb_typeof(g) <> 'object') then
-    raise exception 'any_of is an array of filter objects' using errcode = '22023';
+  if notification_page.exclude_types is not null then
+    v_where := v_where || $q$ and ev."type" <> all($11)$q$;
   end if;
-  select coalesce(string_agg('(' || concat_ws(' and ', 'true', case when g ? 'types' then format('ev."type" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'types'))) end, case when g ? 'exclude_types' then format('ev."type" <> all(%L::text[])', array(select jsonb_array_elements_text(g -> 'exclude_types'))) end, case when g ? 'subject_types' then format('ev."subject_type" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'subject_types'))) end, case (g ->> 'read')::boolean when true then 'rc."read_at" is not null' when false then 'rc."read_at" is null' end, case (g ->> 'resolved')::boolean when true then 'rc."resolved_at" is not null' when false then 'rc."resolved_at" is null' end) || ')', ' or '), 'false')
-  into v_any
-  from jsonb_array_elements(notification_page.any_of) g;
-  v_where := v_where || ' and (' || v_any || ')';
-end if;
+  if notification_page.subject_ids is not null then
+    v_where := v_where || $q$ and ev."subject_id" = any($12)$q$;
+  end if;
+  if notification_page.any_of is not null then
+    if jsonb_typeof(notification_page.any_of) <> 'array'
+      or exists (select 1 from jsonb_array_elements(notification_page.any_of) g where jsonb_typeof(g) <> 'object') then
+      raise exception 'any_of is an array of filter objects' using errcode = '22023';
+    end if;
+    select coalesce(string_agg('(' || concat_ws(' and ', 'true', case when g ? 'types' then format('ev."type" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'types'))) end, case when g ? 'exclude_types' then format('ev."type" <> all(%L::text[])', array(select jsonb_array_elements_text(g -> 'exclude_types'))) end, case when g ? 'subject_types' then format('ev."subject_type" = any(%L::text[])', array(select jsonb_array_elements_text(g -> 'subject_types'))) end, case (g ->> 'read')::boolean when true then 'rc."read_at" is not null' when false then 'rc."read_at" is null' end, case (g ->> 'resolved')::boolean when true then 'rc."resolved_at" is not null' when false then 'rc."resolved_at" is null' end) || ')', ' or '), 'false')
+    into v_any
+    from jsonb_array_elements(notification_page.any_of) g;
+    v_where := v_where || ' and (' || v_any || ')';
+  end if;
   -- One row more than the page says whether another page exists, and the
   -- total stops counting at total_cap (null counts every row), so a large
   -- inbox never counts all of it. Pass before and before_id to page by key

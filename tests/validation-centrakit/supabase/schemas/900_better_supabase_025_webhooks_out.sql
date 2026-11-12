@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:621f6ec361ac552b4d70df78d8a92bbb1b1888c8e592a767bc87fe04ca74a4e1
+-- @bsb-block webhooks-out@7 managed
+-- @bsb-hash sha256:c87e25b748bb5306979c48c19d9ceb39412c8bf760a73dfcb5ebe21b19869384
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -194,6 +194,22 @@ end;
 $$;
 revoke execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."dispatch_webhook"(uuid, text, jsonb, text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."webhook_deliveries_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "centrakit"."webhook_deliveries" v
+    where v."status" in ('pending', 'failed', 'processing')
+      and v."available_at" <= now()
+      and (v."leased_until" is null or v."leased_until" <= now())
+  )
+$$;
+revoke execute on function "better_supabase"."webhook_deliveries_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."webhook_deliveries_has_work"() to service_role;
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
 -- complete_webhook_delivery checks. Deliveries of disabled endpoints are

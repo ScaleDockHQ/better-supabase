@@ -72,26 +72,26 @@ export function pageFilters(n: NotifyNames): string {
   ];
 
   return `
-if ${fn}.exclude_types is not null then
-  v_where := v_where || $q$ and ev.${e("type")} <> all($11)$q$;
-end if;${
+  if ${fn}.exclude_types is not null then
+    v_where := v_where || $q$ and ev.${e("type")} <> all($11)$q$;
+  end if;${
     subjects
       ? `
-if ${fn}.subject_ids is not null then
-  v_where := v_where || $q$ and ev.${e("subjectId")} = any($12)$q$;
-end if;`
+  if ${fn}.subject_ids is not null then
+    v_where := v_where || $q$ and ev.${e("subjectId")} = any($12)$q$;
+  end if;`
       : ""
   }
-if ${fn}.any_of is not null then
-  if jsonb_typeof(${fn}.any_of) <> 'array'
-    or exists (select 1 from jsonb_array_elements(${fn}.any_of) g where jsonb_typeof(g) <> 'object') then
-    raise exception 'any_of is an array of filter objects' using errcode = '22023';
-  end if;
-  select coalesce(string_agg('(' || concat_ws(' and ', 'true', ${groups.join(", ")}) || ')', ' or '), 'false')
-  into v_any
-  from jsonb_array_elements(${fn}.any_of) g;
-  v_where := v_where || ' and (' || v_any || ')';
-end if;`;
+  if ${fn}.any_of is not null then
+    if jsonb_typeof(${fn}.any_of) <> 'array'
+      or exists (select 1 from jsonb_array_elements(${fn}.any_of) g where jsonb_typeof(g) <> 'object') then
+      raise exception 'any_of is an array of filter objects' using errcode = '22023';
+    end if;
+    select coalesce(string_agg('(' || concat_ws(' and ', 'true', ${groups.join(", ")}) || ')', ' or '), 'false')
+    into v_any
+    from jsonb_array_elements(${fn}.any_of) g;
+    v_where := v_where || ' and (' || v_any || ')';
+  end if;`;
 }
 
 export function notificationPage(
