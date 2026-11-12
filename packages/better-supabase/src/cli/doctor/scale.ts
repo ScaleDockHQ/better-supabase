@@ -52,22 +52,23 @@ function callsPerRow(
     "gi",
   );
 
+  const wholeRow = new RegExp(
+    String.raw`(?:^|,)\s*(?:"?\w+"?\.)?"?${escape(table)}"?(?:\.\*)?\s*(?:,|$)`,
+    "i",
+  );
+
   return [...expression.matchAll(call)].some((match) => {
     const before = expression.slice(0, match.index);
+    const args = argumentsAt(expression, match.index + match[0].length);
 
-    if (fallbackAllowed && AFTER_SET.test(before)) {
+    if (fallbackAllowed && AFTER_SET.test(before) && wholeRow.test(args)) {
       return false;
     }
 
     return (
       !/(?:\b(?:from|join)\s+(?:\(\s*)*(?:lateral\s+)?|,\s*lateral\s+)$/i.test(
         before,
-      ) ||
-      readsRow(
-        argumentsAt(expression, match.index + match[0].length),
-        table,
-        columns,
-      )
+      ) || readsRow(args, table, columns)
     );
   });
 }
@@ -279,7 +280,7 @@ const SCALE_CHECKS: readonly Rule[] = [
     title:
       "A policy calls a volatile, PL/pgSQL or non-inlinable function per row",
     description:
-      "A policy that calls a volatile function, or one written in PL/pgSQL, outside `(select ...)` runs it once for every row the statement reads, and a volatile function can't be hoisted or folded. A 100,000 row list then costs 100,000 calls. Wrap the call in `(select fn(...))` so Postgres evaluates it once per statement, or replace a per-row check with a set helper such as `tenant_id in (select tenant_ids_with('key'))`. A helper that is called inside `(select ...)` is accepted even when it is volatile, and so is a set helper in the `from` of a subquery whose arguments read no column of the row, such as `id in (select t.id from thread_ids('key') as t(id))`, because Postgres calls it once and rescans its result. In a select policy a function that is `security definer` or has a `set` clause counts too, even when it is a stable SQL function, because Postgres never inlines it, so `can_note(notes, 'read')` runs once per row. Such a call is accepted as the `or` fallback after a set check, as in `id in (select note_ids('read')) or can_note(notes, 'read')`, because it then runs only for rows outside the set, such as a row the statement itself inserted. Policies named `bsb_*` belong to a block module and are left to `upgrade`.",
+      "A policy that calls a volatile function, or one written in PL/pgSQL, outside `(select ...)` runs it once for every row the statement reads, and a volatile function can't be hoisted or folded. A 100,000 row list then costs 100,000 calls. Wrap the call in `(select fn(...))` so Postgres evaluates it once per statement, or replace a per-row check with a set helper such as `tenant_id in (select tenant_ids_with('key'))`. A helper that is called inside `(select ...)` is accepted even when it is volatile, and so is a set helper in the `from` of a subquery whose arguments read no column of the row, such as `id in (select t.id from thread_ids('key') as t(id))`, because Postgres calls it once and rescans its result. In a select policy a function that is `security definer` or has a `set` clause counts too, even when it is a stable SQL function, because Postgres never inlines it, so `can_note(notes, 'read')` runs once per row. Such a call that passes the whole row is accepted as the `or` fallback after a set check, as in `id in (select note_ids('read')) or can_note(notes, 'read')`, because it then runs only for rows outside the set, such as a row the statement itself inserted. Policies named `bsb_*` belong to a block module and are left to `upgrade`.",
     check(context) {
       const catalog = catalogOf(context);
 
