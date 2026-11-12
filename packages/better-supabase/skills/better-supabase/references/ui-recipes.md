@@ -8962,7 +8962,14 @@ export async function MetricsDashboard() {
         return (
           <Card key={panel.key}>
             <CardHeader>
-              <CardTitle>{labels[panel.key]}</CardTitle>
+              <CardTitle>
+                <Link
+                  href={`/metrics/${panel.key}`}
+                  className="hover:underline"
+                >
+                  {labels[panel.key]}
+                </Link>
+              </CardTitle>
               <CardDescription>
                 {t("{previous} in the 30 days before", {
                   previous: format.number(previous ?? 0),
@@ -24417,7 +24424,14 @@ export async function ControlPosture() {
           return (
             <Card key={framework.frameworkId}>
               <CardHeader>
-                <CardTitle>{framework.name}</CardTitle>
+                <CardTitle>
+                  <Link
+                    href={`/compliance/${framework.frameworkId}`}
+                    className="hover:underline"
+                  >
+                    {framework.name}
+                  </Link>
+                </CardTitle>
                 <CardDescription>
                   {t(
                     "{passing, number} of {applicable, number} controls passing",

@@ -6,6 +6,32 @@ msgstr ""
 "X-Generator: next-intl\n"
 "X-Message-Key: msgctxt\n"
 
+#: src/app/[locale]/(app)/advisories/page.tsx
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.l5XCJW"
+msgid "Advisories"
+msgstr "Advisories"
+
+#: src/app/[locale]/(app)/advisories/page.tsx
+msgctxt "advisories.JFdDVw"
+msgid "Security advisories for the software the organization ships: products, tracked vulnerabilities and the CSAF documents that tell customers what to do."
+msgstr "Security advisories for the software the organization ships: products, tracked vulnerabilities and the CSAF documents that tell customers what to do."
+
+#: src/app/[locale]/(app)/announcements/[id]/page.tsx
+msgctxt "announcements.ILTgGU"
+msgid "All announcements"
+msgstr "All announcements"
+
+#: src/app/[locale]/(app)/announcements/page.tsx
+msgctxt "announcements.3kP3Of"
+msgid "Announcements"
+msgstr "Announcements"
+
+#: src/app/[locale]/(app)/announcements/page.tsx
+msgctxt "announcements.P06Ac8"
+msgid "Notices for your organization: product news, maintenance windows and changes that need your attention."
+msgstr "Notices for your organization: product news, maintenance windows and changes that need your attention."
+
 #: src/app/[locale]/(app)/appraisals/[id]/page.tsx
 msgctxt "appraisals.KjSSya"
 msgid "All appraisals"
@@ -324,6 +350,11 @@ msgctxt "community.tb4_CP"
 msgid "Post ideas and questions, and vote on the ones you want."
 msgstr "Post ideas and questions, and vote on the ones you want."
 
+#: src/app/[locale]/(app)/compliance/[framework]/page.tsx
+msgctxt "compliance.jYMbbM"
+msgid "All frameworks"
+msgstr "All frameworks"
+
 #: src/app/[locale]/(app)/compliance/page.tsx
 msgctxt "compliance.NIi2K2"
 msgid "Compliance"
@@ -333,6 +364,16 @@ msgstr "Compliance"
 msgctxt "compliance.4zT1k6"
 msgid "What you are asked to read, how each framework's controls stand, the evidence that is due, the contracts coming up for renewal and what the organization asks consent for."
 msgstr "What you are asked to read, how each framework's controls stand, the evidence that is due, the contracts coming up for renewal and what the organization asks consent for."
+
+#: src/app/[locale]/(app)/content/page.tsx
+msgctxt "content.Jq3FDz"
+msgid "Content"
+msgstr "Content"
+
+#: src/app/[locale]/(app)/content/page.tsx
+msgctxt "content.RMIP97"
+msgid "Pages and posts with locales and scheduled publishing. Only published entries reach the public site."
+msgstr "Pages and posts with locales and scheduled publishing. Only published entries reach the public site."
 
 #: src/app/[locale]/(app)/courses/[courseId]/page.tsx
 #: src/features/courses/components/course-outline.tsx
@@ -802,6 +843,21 @@ msgctxt "inbox.j6NWwp"
 msgid "Its messages, notes, context and actions show here."
 msgstr "Its messages, notes, context and actions show here."
 
+#: src/app/[locale]/(app)/incidents/[id]/page.tsx
+msgctxt "incidents.Jn_i8M"
+msgid "All incidents"
+msgstr "All incidents"
+
+#: src/app/[locale]/(app)/incidents/page.tsx
+msgctxt "incidents.mtr3R4"
+msgid "Incidents"
+msgstr "Incidents"
+
+#: src/app/[locale]/(app)/incidents/page.tsx
+msgctxt "incidents.Pj6x6Z"
+msgid "What broke, how bad it is and what the team did about it, from the first report to the postmortem."
+msgstr "What broke, how bad it is and what the team did about it, from the first report to the postmortem."
+
 #: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
 msgid "Audits and inspections"
@@ -957,6 +1013,11 @@ msgctxt "meetings.IWewHP"
 msgid "The organization's meetings, and the agenda, decisions and action items of the one you open."
 msgstr "The organization's meetings, and the agenda, decisions and action items of the one you open."
 
+#: src/app/[locale]/(app)/metrics/[key]/page.tsx
+msgctxt "metrics.0_D7JO"
+msgid "All metrics"
+msgstr "All metrics"
+
 #: src/app/[locale]/(app)/metrics/page.tsx
 msgctxt "metrics.HNBpJ4"
 msgid "Metrics"
@@ -966,6 +1027,21 @@ msgstr "Metrics"
 msgctxt "metrics.VSqjtd"
 msgid "Your organization's numbers over the last 30 days."
 msgstr "Your organization's numbers over the last 30 days."
+
+#: src/app/[locale]/(app)/moderation/[type]/[id]/page.tsx
+msgctxt "moderation.350pyq"
+msgid "Back to the queue"
+msgstr "Back to the queue"
+
+#: src/app/[locale]/(app)/moderation/page.tsx
+msgctxt "moderation.wofVHy"
+msgid "Moderation"
+msgstr "Moderation"
+
+#: src/app/[locale]/(app)/moderation/page.tsx
+msgctxt "moderation.D-cPsi"
+msgid "Reported and pending content from reviews, comments and posts, and the members who are banned."
+msgstr "Reported and pending content from reviews, comments and posts, and the members who are banned."
 
 #: src/app/[locale]/(app)/my-work/page.tsx
 msgctxt "myWork.h-qaH6"
@@ -1246,6 +1322,16 @@ msgctxt "settings.D3idYv"
 msgid "Settings"
 msgstr "Settings"
 
+#: src/app/[locale]/(app)/settings/marketplace/page.tsx
+msgctxt "marketplace.Gn23tM"
+msgid "Vercel Marketplace"
+msgstr "Vercel Marketplace"
+
+#: src/app/[locale]/(app)/settings/marketplace/page.tsx
+msgctxt "marketplace.377lQr"
+msgid "Installations of this app from the Vercel Marketplace, with the resources Vercel provisioned for each."
+msgstr "Installations of this app from the Vercel Marketplace, with the resources Vercel provisioned for each."
+
 #: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
 msgctxt "members.sKwqTt"
 msgid "All members"
@@ -1270,6 +1356,16 @@ msgstr "All roles"
 msgctxt "securityEvents.jbetPD"
 msgid "All streams"
 msgstr "All streams"
+
+#: src/app/[locale]/(app)/settings/support/page.tsx
+msgctxt "support.-DZuNS"
+msgid "Support sessions"
+msgstr "Support sessions"
+
+#: src/app/[locale]/(app)/settings/support/page.tsx
+msgctxt "support.cjRLJO"
+msgid "Platform staff view the app as a user for a short time: read-only, approved by a second admin and recorded in the audit log."
+msgstr "Platform staff view the app as a user for a short time: read-only, approved by a second admin and recorded in the audit log."
 
 #: src/app/[locale]/(app)/settings/teams/[teamId]/page.tsx
 #: src/features/teams/components/teams-grid.tsx
@@ -2436,6 +2532,208 @@ msgctxt "adminLists.h-T3T7"
 msgid "Oldest first"
 msgstr "Oldest first"
 
+#: src/features/advisories/components/advisories-load-error.tsx
+msgctxt "advisories.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/advisories/components/advisories-load-error.tsx
+msgctxt "advisories.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.4URFh7"
+msgid "The advisories didn't load"
+msgstr "The advisories didn't load"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.iTDZy_"
+msgid "Published advisories are served as CSAF 2.0 documents under /.well-known/csaf."
+msgstr "Published advisories are served as CSAF 2.0 documents under /.well-known/csaf."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.HUeH9I"
+msgid "No advisories"
+msgstr "No advisories"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.N19SEL"
+msgid "Add a product, track the vulnerabilities that affect it, then write an advisory."
+msgstr "Add a product, track the vulnerabilities that affect it, then write an advisory."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.Cmdoi3"
+msgid "Advisory"
+msgstr "Advisory"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.x_ZVlU"
+msgid "Product"
+msgstr "Product"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.vCAhII"
+msgid "Severity"
+msgstr "Severity"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.6mRFNJ"
+msgid "The products didn't load"
+msgstr "The products didn't load"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.7NFfmz"
+msgid "Products"
+msgstr "Products"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.GOZIQy"
+msgid "Each product has versions, an SBOM and VEX statements."
+msgstr "Each product has versions, an SBOM and VEX statements."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.3PC0SX"
+msgid "No products yet. Add the first one to start."
+msgstr "No products yet. Add the first one to start."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.x9I9p7"
+msgid "The vulnerabilities didn't load"
+msgstr "The vulnerabilities didn't load"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.dzuQpn"
+msgid "Vulnerabilities"
+msgstr "Vulnerabilities"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.Aox3ks"
+msgid "Enriched hourly from OSV, EPSS and the CISA KEV catalog."
+msgstr "Enriched hourly from OSV, EPSS and the CISA KEV catalog."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.oJdN7Y"
+msgid "No vulnerabilities tracked yet."
+msgstr "No vulnerabilities tracked yet."
+
+#: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.kGGU2D"
+msgid "Id"
+msgstr "Id"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.HU3ax_"
+msgid "CVSS"
+msgstr "CVSS"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.AI_idA"
+msgid "EPSS"
+msgstr "EPSS"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.zJVS0y"
+msgid "Known exploited"
+msgstr "Known exploited"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.a5msuh"
+msgid "Yes"
+msgstr "Yes"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.oUWADl"
+msgid "No"
+msgstr "No"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.2_Tlx1"
+msgid "Product saved"
+msgstr "Product saved"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories._FcFll"
+msgid "Add product"
+msgstr "Add product"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.RY7t1A"
+msgid "Advisories and VEX statements are written per product."
+msgstr "Advisories and VEX statements are written per product."
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.EcglP9"
+msgid "Key"
+msgstr "Key"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.dU1t5Z"
+msgid "Vendor"
+msgstr "Vendor"
+
+#: src/features/advisories/components/product-dialog.tsx
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.RNwzwt"
+msgid "Save product"
+msgstr "Save product"
+
+#: src/features/advisories/components/publish-advisory-button.tsx
+msgctxt "advisories.GEyLGT"
+msgid "Advisory published"
+msgstr "Advisory published"
+
+#: src/features/advisories/components/publish-advisory-button.tsx
+msgctxt "advisories.syEQFE"
+msgid "Publish"
+msgstr "Publish"
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.XtFEKd"
+msgid "Vulnerability tracked"
+msgstr "Vulnerability tracked"
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.P-_nVk"
+msgid "Track vulnerability"
+msgstr "Track vulnerability"
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.l-rIdv"
+msgid "Enter a CVE, GHSA or OSV id. CVSS, EPSS and the CISA KEV flag arrive with the next enrichment run."
+msgstr "Enter a CVE, GHSA or OSV id. CVSS, EPSS and the CISA KEV flag arrive with the next enrichment run."
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.RrCui3"
+msgid "Summary"
+msgstr "Summary"
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.J0vUhO"
+msgid "Track"
+msgstr "Track"
+
 #: src/features/agents/components/agent-detail.tsx
 msgctxt "agents.9uOFF3"
 msgid "Overview"
@@ -3422,9 +3720,77 @@ msgid "Cached input is the share of input tokens a provider served from its prom
 msgstr "Cached input is the share of input tokens a provider served from its prompt cache. The call cache below keeps whole answers."
 
 #: src/features/announcements/components/announcement-banner.tsx
+#: src/features/announcements/components/dismiss-button.tsx
 msgctxt "announcements.TDaF6J"
 msgid "Dismiss"
 msgstr "Dismiss"
+
+#: src/features/announcements/components/announcement-detail.tsx
+msgctxt "announcements.bJOgDQ"
+msgid "The announcement didn't load"
+msgstr "The announcement didn't load"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/announcements/components/announcement-detail.tsx
+msgctxt "announcements.3X21Vj"
+msgid "Live from {from} until {until}"
+msgstr "Live from {from} until {until}"
+
+#: src/features/announcements/components/announcement-detail.tsx
+msgctxt "announcements.5gvBwB"
+msgid "Live since {from}"
+msgstr "Live since {from}"
+
+#: src/features/announcements/components/announcement-detail.tsx
+msgctxt "announcements.TdTXXf"
+msgid "Learn more"
+msgstr "Learn more"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.D_5hFJ"
+msgid "The announcements didn't load"
+msgstr "The announcements didn't load"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.0zontp"
+msgid "Nothing new"
+msgstr "Nothing new"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.xnUwk1"
+msgid "Product news and maintenance notices for your organization show up here until you dismiss them."
+msgstr "Product news and maintenance notices for your organization show up here until you dismiss them."
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.Sj-TN8"
+msgid "Announcement"
+msgstr "Announcement"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.vCAhII"
+msgid "Severity"
+msgstr "Severity"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.-eH89J"
+msgid "Since"
+msgstr "Since"
+
+#: src/features/announcements/components/dismiss-button.tsx
+msgctxt "announcements.FS1m_0"
+msgid "Announcement dismissed"
+msgstr "Announcement dismissed"
 
 #: src/features/api-keys/components/api-key-table.tsx
 msgctxt "apiKeys.5CT3F9"
@@ -7149,6 +7515,7 @@ msgstr "The consent purposes didn't load"
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
 #: src/features/compliance/components/control-posture.tsx
+#: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.162kF7"
 msgid "Try again in a moment."
 msgstr "Try again in a moment."
@@ -7156,6 +7523,7 @@ msgstr "Try again in a moment."
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
 #: src/features/compliance/components/control-posture.tsx
+#: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.62nsdy"
 msgid "Retry"
 msgstr "Retry"
@@ -7376,6 +7744,7 @@ msgid "Task"
 msgstr "Task"
 
 #: src/features/compliance/components/control-posture.tsx
+#: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.NZ9-vv"
 msgid "Control"
 msgstr "Control"
@@ -7384,6 +7753,163 @@ msgstr "Control"
 msgctxt "compliance.g9pEhE"
 msgid "Due"
 msgstr "Due"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.x5gHeJ"
+msgid "The framework didn't load"
+msgstr "The framework didn't load"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.JW6TBv"
+msgid "Version {version}, {count, number} controls"
+msgstr "Version {version}, {count, number} controls"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.Ui5Hwk"
+msgid "{count, number} controls"
+msgstr "{count, number} controls"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.sg9CbN"
+msgid "This framework has no controls yet."
+msgstr "This framework has no controls yet."
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.aH4De2"
+msgid "Source"
+msgstr "Source"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.Jr2vxi"
+msgid "The content didn't load"
+msgstr "The content didn't load"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.e8uOGJ"
+msgid "No entries yet"
+msgstr "No entries yet"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.ZJb3qm"
+msgid "Pages and posts you write here are published to the public site when you say so."
+msgstr "Pages and posts you write here are published to the public site when you say so."
+
+#: src/features/content/components/content-list.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/features/content/components/content-list.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.xrk6zg"
+msgid "Updated"
+msgstr "Updated"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/content/components/content-row-actions.tsx
+msgctxt "content.wqN6DE"
+msgid "Entry published"
+msgstr "Entry published"
+
+#: src/features/content/components/content-row-actions.tsx
+msgctxt "content.syEQFE"
+msgid "Publish"
+msgstr "Publish"
+
+#: src/features/content/components/content-row-actions.tsx
+msgctxt "content.caQi4p"
+msgid "Entry archived"
+msgstr "Entry archived"
+
+#: src/features/content/components/content-row-actions.tsx
+msgctxt "content.hrgo-E"
+msgid "Archive"
+msgstr "Archive"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.JLulyJ"
+msgid "Draft saved"
+msgstr "Draft saved"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.QRSQKr"
+msgid "New entry"
+msgstr "New entry"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.sv-rWu"
+msgid "Entries start as drafts. Publish one when it is ready to go live."
+msgstr "Entries start as drafts. Publish one when it is ready to go live."
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.wFmAFC"
+msgid "Page"
+msgstr "Page"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.eKv7yX"
+msgid "Post"
+msgstr "Post"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.IoDlcd"
+msgid "Slug"
+msgstr "Slug"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content._Sb5Yq"
+msgid "Lowercase letters and digits joined by dashes."
+msgstr "Lowercase letters and digits joined by dashes."
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.RrCui3"
+msgid "Summary"
+msgstr "Summary"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.R2zJFp"
+msgid "Save draft"
+msgstr "Save draft"
 
 #: src/features/courses/components/course-controls.tsx
 msgctxt "courses.1GGd_a"
@@ -13713,6 +14239,61 @@ msgctxt "guardrails.RDZVQL"
 msgid "Check"
 msgstr "Check"
 
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.tdNngP"
+msgid "Your linked accounts didn't load"
+msgstr "Your linked accounts didn't load"
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.njqGJJ"
+msgid "Linked accounts"
+msgstr "Linked accounts"
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.-BS9eX"
+msgid "The email addresses and chat accounts that act as you. A chat account links only with a code you issue here."
+msgstr "The email addresses and chat accounts that act as you. A chat account links only with a code you issue here."
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.Fg2d2V"
+msgid "No accounts linked yet."
+msgstr "No accounts linked yet."
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.Lmoq2B"
+msgid "Identity removed"
+msgstr "Identity removed"
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.G_yZLu"
+msgid "Remove"
+msgstr "Remove"
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.h08LKN"
+msgid "Chat provider"
+msgstr "Chat provider"
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.21SAKm"
+msgid "Get link code"
+msgstr "Get link code"
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.S5L8TY"
+msgid "Send this code to the bot:"
+msgstr "Send this code to the bot:"
+
 #: src/features/imports/components/csv-import-wizard.tsx
 msgctxt "imports.HAlOn1"
 msgid "Name"
@@ -14431,6 +15012,188 @@ msgstr "Scheduled replies"
 msgctxt "inbox.pC2KQV"
 msgid "Cancel scheduled reply"
 msgstr "Cancel scheduled reply"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.Bg_umm"
+msgid "Started {when}"
+msgstr "Started {when}"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.JAkIqb"
+msgid "Visibility"
+msgstr "Visibility"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.uhu5aG"
+msgid "Public"
+msgstr "Public"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.4h__F5"
+msgid "Members only"
+msgstr "Members only"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.AcAA5x"
+msgid "Components"
+msgstr "Components"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.W6nSYE"
+msgid "Resolved"
+msgstr "Resolved"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.jMbtTS"
+msgid "Postmortem"
+msgstr "Postmortem"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.w7tf2z"
+msgid "Published"
+msgstr "Published"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.zWkvNO"
+msgid "Timeline"
+msgstr "Timeline"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.ort6Sb"
+msgid "Every update, newest first."
+msgstr "Every update, newest first."
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.9vVxxH"
+msgid "No updates yet."
+msgstr "No updates yet."
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.TZrMIV"
+msgid "The incidents didn't load"
+msgstr "The incidents didn't load"
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.7UNuAl"
+msgid "No incidents"
+msgstr "No incidents"
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.LdlAzE"
+msgid "Open an incident when something breaks. Its timeline, affected components and postmortem live here."
+msgstr "Open an incident when something breaks. Its timeline, affected components and postmortem live here."
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.zaYxwd"
+msgid "Incident"
+msgstr "Incident"
+
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.vCAhII"
+msgid "Severity"
+msgstr "Severity"
+
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.TDUfVk"
+msgid "Started"
+msgstr "Started"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents._GKH_w"
+msgid "Investigating"
+msgstr "Investigating"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.7cv4Uf"
+msgid "Identified"
+msgstr "Identified"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.1P6GMj"
+msgid "Monitoring"
+msgstr "Monitoring"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.lyG6Lg"
+msgid "Incident resolved"
+msgstr "Incident resolved"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.uysI12"
+msgid "Update posted"
+msgstr "Update posted"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.BWpuKl"
+msgid "Update"
+msgstr "Update"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.YORRGQ"
+msgid "Post update"
+msgstr "Post update"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.UvYTan"
+msgid "Resolve"
+msgstr "Resolve"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.5rSqga"
+msgid "Incident opened"
+msgstr "Incident opened"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.Ajw2uj"
+msgid "Open incident"
+msgstr "Open incident"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.TgqfCA"
+msgid "Name what broke and how bad it is. Add updates as you learn more."
+msgstr "Name what broke and how bad it is. Add updates as you learn more."
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.EEmazE"
+msgid "First update"
+msgstr "First update"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
 
 #: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
 msgctxt "incomingWebhooks.e_tg3W"
@@ -17369,6 +18132,56 @@ msgctxt "manufacturing.9MRsjL"
 msgid "Read the manufacturing guide"
 msgstr "Read the manufacturing guide"
 
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.47svuN"
+msgid "Installation"
+msgstr "Installation"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.TBqFhD"
+msgid "Enter the configuration id Vercel shows for the installation. The organization is linked to it, and its resources are listed below."
+msgstr "Enter the configuration id Vercel shows for the installation. The organization is linked to it, and its resources are listed below."
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.loBc8J"
+msgid "Configuration id"
+msgstr "Configuration id"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.-vVZ_G"
+msgid "Connect"
+msgstr "Connect"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.6q_8YI"
+msgid "No installation connected"
+msgstr "No installation connected"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.ZaDlok"
+msgid "Install the app from the Vercel Marketplace, then connect its configuration here."
+msgstr "Install the app from the Vercel Marketplace, then connect its configuration here."
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.SWAD6r"
+msgid "No resources provisioned yet."
+msgstr "No resources provisioned yet."
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.wmyg6t"
+msgid "Resource"
+msgstr "Resource"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.fz0z4c"
+msgid "Plan"
+msgstr "Plan"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
 #: src/features/medications/components/medication-chart.tsx
 msgctxt "medications.Ydnmc6"
 msgid "The medication chart didn't load"
@@ -17877,20 +18690,57 @@ msgctxt "members.z7B1G5"
 msgid "There is no mailer in this example: copy the link and send it yourself."
 msgstr "There is no mailer in this example: copy the link and send it yourself."
 
-#: src/features/metrics/components/metrics-dashboard.tsx
-msgctxt "metrics.0HWXBy"
-msgid "The metrics didn't load"
-msgstr "The metrics didn't load"
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.doAgAR"
+msgid "The metric didn't load"
+msgstr "The metric didn't load"
 
+#: src/features/metrics/components/metric-detail.tsx
 #: src/features/metrics/components/metrics-dashboard.tsx
 msgctxt "metrics.162kF7"
 msgid "Try again in a moment."
 msgstr "Try again in a moment."
 
+#: src/features/metrics/components/metric-detail.tsx
 #: src/features/metrics/components/metrics-dashboard.tsx
 msgctxt "metrics.62nsdy"
 msgid "Retry"
 msgstr "Retry"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.SbuRo0"
+msgid "New customers, last 90 days"
+msgstr "New customers, last 90 days"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.saUEFl"
+msgid "{previous} in the 90 days before"
+msgstr "{previous} in the 90 days before"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.56WPYg"
+msgid "By week and status"
+msgstr "By week and status"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.Jj82O3"
+msgid "Week of"
+msgstr "Week of"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.MJ2jZQ"
+msgid "Total"
+msgstr "Total"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.aFope9"
+msgid "No status"
+msgstr "No status"
+
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.0HWXBy"
+msgid "The metrics didn't load"
+msgstr "The metrics didn't load"
 
 #: src/features/metrics/components/metrics-dashboard.tsx
 msgctxt "metrics.p2O_QZ"
@@ -17916,6 +18766,152 @@ msgstr "New customers"
 msgctxt "metrics.8O8AYG"
 msgid "{previous} in the 30 days before"
 msgstr "{previous} in the 30 days before"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.WCaf5C"
+msgid "Approve"
+msgstr "Approve"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.VA_Z1S"
+msgid "Hide"
+msgstr "Hide"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.G_yZLu"
+msgid "Remove"
+msgstr "Remove"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.zz6ObK"
+msgid "Restore"
+msgstr "Restore"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.zpIbwJ"
+msgid "Decision saved"
+msgstr "Decision saved"
+
+#: src/features/moderation/components/lift-ban-button.tsx
+msgctxt "moderation.FS_sQ5"
+msgid "Ban lifted"
+msgstr "Ban lifted"
+
+#: src/features/moderation/components/lift-ban-button.tsx
+msgctxt "moderation.IbW1Dd"
+msgid "Lift ban"
+msgstr "Lift ban"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.Ppx673"
+msgid "Reports"
+msgstr "Reports"
+
+#: src/features/moderation/components/moderation-detail.tsx
+msgctxt "moderation.DC-TOB"
+msgid "{count, number} open"
+msgstr "{count, number} open"
+
+#: src/features/moderation/components/moderation-detail.tsx
+msgctxt "moderation.9nI5h4"
+msgid "No reports."
+msgstr "No reports."
+
+#: src/features/moderation/components/moderation-detail.tsx
+msgctxt "moderation.ZjmERS"
+msgid "Log"
+msgstr "Log"
+
+#: src/features/moderation/components/moderation-detail.tsx
+msgctxt "moderation.xzh3TS"
+msgid "Every decision and automatic action, newest first."
+msgstr "Every decision and automatic action, newest first."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.iIM8_4"
+msgid "The queue didn't load"
+msgstr "The queue didn't load"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.cNoOpc"
+msgid "Review queue"
+msgstr "Review queue"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.8fc0Jh"
+msgid "Content waiting for a first decision and content with open reports, most recently changed first."
+msgstr "Content waiting for a first decision and content with open reports, most recently changed first."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.2pmuH6"
+msgid "Nothing to review"
+msgstr "Nothing to review"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.-RbGrL"
+msgid "Reported reviews, comments and posts appear here until a moderator decides."
+msgstr "Reported reviews, comments and posts appear here until a moderator decides."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.Jq3FDz"
+msgid "Content"
+msgstr "Content"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.PLUzwy"
+msgid "Changed"
+msgstr "Changed"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.4jcyF8"
+msgid "Bans"
+msgstr "Bans"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.ni9cke"
+msgid "Members who can't post, until the ban ends or a moderator lifts it."
+msgstr "Members who can't post, until the ban ends or a moderator lifts it."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.qpQxcX"
+msgid "Nobody is banned."
+msgstr "Nobody is banned."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.7L86Z5"
+msgid "Member"
+msgstr "Member"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.AkCxS_"
+msgid "Reason"
+msgstr "Reason"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.yPg8s6"
+msgid "Until"
+msgstr "Until"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.GwMpla"
+msgid "No end"
+msgstr "No end"
 
 #: src/features/my-work/components/my-work-list.tsx
 msgctxt "myWork.iZDRGO"
@@ -18340,6 +19336,37 @@ msgstr "Cases"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.3kP3Of"
+msgid "Announcements"
+msgstr "Announcements"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.l5XCJW"
+msgid "Advisories"
+msgstr "Advisories"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.Jq3FDz"
+msgid "Content"
+msgstr "Content"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.wofVHy"
+msgid "Moderation"
+msgstr "Moderation"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.mtr3R4"
+msgid "Incidents"
+msgstr "Incidents"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits and inspections"
@@ -18706,11 +19733,6 @@ msgstr "Commerce"
 msgctxt "navigation.MQbmj7"
 msgid "Operations"
 msgstr "Operations"
-
-#: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.Jq3FDz"
-msgid "Content"
-msgstr "Content"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.y-7ihJ"
@@ -25954,6 +26976,16 @@ msgid "Signing keys"
 msgstr "Signing keys"
 
 #: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.-DZuNS"
+msgid "Support sessions"
+msgstr "Support sessions"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Gn23tM"
+msgid "Vercel Marketplace"
+msgstr "Vercel Marketplace"
+
+#: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.YQJkxw"
 msgid "Single sign-on"
 msgstr "Single sign-on"
@@ -27625,6 +28657,107 @@ msgstr "A record you can't open"
 msgctxt "subjects.3kbIhS"
 msgid "Untitled"
 msgstr "Untitled"
+
+#: src/features/support/components/end-session-button.tsx
+msgctxt "support.DgX9uT"
+msgid "Session ended"
+msgstr "Session ended"
+
+#: src/features/support/components/end-session-button.tsx
+msgctxt "support.iIenp6"
+msgid "End session"
+msgstr "End session"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.bqgmwq"
+msgid "Request sent for approval"
+msgstr "Request sent for approval"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.tg_38n"
+msgid "Request session"
+msgstr "Request session"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.13pHKW"
+msgid "A second platform admin approves the request. The session is read-only, expires on its own and is recorded in the audit log."
+msgstr "A second platform admin approves the request. The session is read-only, expires on its own and is recorded in the audit log."
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.gpRPll"
+msgid "User id"
+msgstr "User id"
+
+#: src/features/support/components/request-support-dialog.tsx
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.AkCxS_"
+msgid "Reason"
+msgstr "Reason"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.PoX2HN"
+msgid "Send request"
+msgstr "Send request"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.P-S_bP"
+msgid "The support sessions didn't load"
+msgstr "The support sessions didn't load"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.pysPxb"
+msgid "No support sessions"
+msgstr "No support sessions"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.jCxY93"
+msgid "Platform staff see the sessions they opened here. Request one to view the app as a user."
+msgstr "Platform staff see the sessions they opened here. Request one to view the app as a user."
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.EwRIOm"
+msgid "User"
+msgstr "User"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.TDUfVk"
+msgid "Started"
+msgstr "Started"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.ku-mDU"
+msgid "State"
+msgstr "State"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.TP_cMX"
+msgid "Ended"
+msgstr "Ended"
 
 #: src/features/teams/components/team-detail.tsx
 #: src/features/teams/components/teams-grid.tsx
