@@ -194,11 +194,15 @@ export interface IncomingWebhooks {
   remove(id: string): AsyncResult<boolean>;
   /**
    * A tenant's endpoints, or one subject's, as the caller sees them (the read
-   * policy hides endpoints whose subject they can't read).
+   * policy hides endpoints whose subject they can't read), oldest first unless
+   * `newestFirst`; without `pageSize`, every endpoint.
    */
   list(input: {
     tenant: string;
     subject?: { readonly type: string; readonly id?: string } | undefined;
+    pageSize?: number | undefined;
+    skip?: number | undefined;
+    newestFirst?: boolean | undefined;
   }): AsyncResult<readonly IncomingWebhook[]>;
 }
 

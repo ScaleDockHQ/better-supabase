@@ -551,11 +551,11 @@ ${
       end if;
 `
     : ""
-}      ${ctx.record({ type: "task.closed", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
+}      ${ctx.record({ type: "task.closed", row: "new", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
     elsif not (${closed}) and ${state(`old.${w("state")}`, ["completed", "canceled"])} then
       new.${w("closedAt")} := null;
       new.${w("closeReason")} := null;
-      ${ctx.record({ type: "task.reopened", payload: payload(""), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
+      ${ctx.record({ type: "task.reopened", row: "new", payload: payload(""), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
     end if;
   end if;
   new.${w("updatedAt")} := now();

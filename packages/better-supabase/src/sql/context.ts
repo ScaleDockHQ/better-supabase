@@ -1083,6 +1083,35 @@ export function createModuleContext(
     };
   };
 
+  for (const type of Object.keys(config.eventPayload)) {
+    if (names.events && !Object.hasOwn(names.events, type)) {
+      throw new TypeError(
+        `${where}.events.payload names "${type}", which module "${module}" doesn't record`,
+      );
+    }
+  }
+
+  const withPayload = (event: BlockSqlEmit, type: string): string => {
+    const added = Object.entries(config.eventPayload[type] ?? {});
+
+    if (added.length === 0) {
+      return event.payload;
+    }
+
+    if (event.row === undefined) {
+      throw new TypeError(
+        `${where}.events.payload names "${type}", which module "${module}" records without a row`,
+      );
+    }
+
+    return `(${event.payload} || jsonb_build_object(${added
+      .map(
+        ([key, column]) =>
+          `${sqlString(key)}, ${event.row}.${sqlIdent(column)}`,
+      )
+      .join(", ")}))`;
+  };
+
   const outbox = (checked: BlockSqlEmit): string => {
     checkEvent(checked);
     const event = renamed(checked);
@@ -1102,7 +1131,7 @@ export function createModuleContext(
 
     return `perform ${sqlIdent(outboxConfig.schema)}.emit_event(${[
       sqlString(event.type),
-      event.payload,
+      withPayload(event, checked.type),
       event.subject ?? "null",
       event.tenant === undefined ? "null" : `(${event.tenant})::text`,
       event.key ?? "null",

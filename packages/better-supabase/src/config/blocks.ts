@@ -218,9 +218,18 @@ export interface BlockConfig<
   };
   /**
    * Whether the module writes its events to the outbox (`emit_event`) when the
-   * `outbox` module is installed. Defaults to true.
+   * `outbox` module is installed. Defaults to true. `payload` adds columns of
+   * the event's row to an event's payload, keyed by event type and then by
+   * payload key, e.g. `{ payload: { "task.created": { customerId: "customer_id"
+   * } } }`.
    */
-  readonly events?: boolean;
+  readonly events?:
+    | boolean
+    | {
+        readonly payload?: Readonly<
+          Record<string, Readonly<Record<string, string>>>
+        >;
+      };
   /**
    * Whether the module writes its actions to the audit log (`audit_event`) when
    * the `audit` module is installed. Defaults to true.
@@ -487,6 +496,9 @@ export interface ResolvedBlock {
     readonly functions: Readonly<Record<string, string>>;
   };
   readonly events: boolean;
+  readonly eventPayload: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
   readonly audit: boolean;
   readonly api?: {
     readonly schema: string;
@@ -530,7 +542,9 @@ export function resolveBlock(config: BlockConfig = {}): ResolvedBlock {
       schema: config.hooks?.schema ?? "public",
       functions: defined(config.hooks?.functions),
     },
-    events: config.events ?? true,
+    events: config.events !== false,
+    eventPayload:
+      typeof config.events === "object" ? (config.events.payload ?? {}) : {},
     audit: config.audit ?? true,
     ...(config.api === undefined || config.api === false
       ? {}

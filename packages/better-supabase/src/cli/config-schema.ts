@@ -164,7 +164,14 @@ const blockEntries = {
       functions: v.optional(stringRecord),
     }),
   ),
-  events: v.optional(v.boolean()),
+  events: v.optional(
+    v.union([
+      v.boolean(),
+      v.strictObject({
+        payload: v.optional(v.record(v.string(), stringRecord)),
+      }),
+    ]),
+  ),
   audit: v.optional(v.boolean()),
   api: v.optional(
     v.union([

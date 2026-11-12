@@ -284,9 +284,9 @@ connections for you and needs no database credentials.
 
 ## Decode raw rows
 
-`db.$decode(table)` reads rows that did not come from the repository, such as `queryRaw` or `$client` results with database names, into the table's shape: `.row(value)` and `.rows(value)` apply the configured casing and the column codecs (`int8` to `bigint`, timestamps to `Temporal`) and return a `Result`. A value that is not an object is a `validation` error:
+`db.$decode(table)` reads rows that did not come from the repository, such as `queryRaw` or `$client` results with database names, into the table's shape: `.row(value)` and `.rows(value)` apply the configured casing and the column codecs (`int8` to `bigint`, timestamps to `Temporal`) and return an `AsyncResult`. A value that is not an object is a `validation` error. With lazy tables (`gen.serverTables: "lazy"`), they load the table and every table an embedded relation in the value reaches first:
 
 ```ts
 const rows = await postgres.admin.queryRaw("select * from customers limit 10");
-const customers = db.$decode("customers").rows(rows).orThrow();
+const customers = await db.$decode("customers").rows(rows).orThrow();
 ```

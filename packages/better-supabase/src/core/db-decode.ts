@@ -4,19 +4,26 @@ import type { Result } from "./result.ts";
 
 import { builderFor } from "../ir/build.ts";
 import { decodeRows } from "../ir/codec.ts";
+import { addLazyTable } from "../schema/define.ts";
+import { loadReachedTables } from "./define-lazy.ts";
 import { DbException, dbError } from "./errors.ts";
 import { isRecord } from "./guards.ts";
-import { err, ok } from "./result.ts";
+import { AsyncResult, err, ok } from "./result.ts";
 
 /**
  * `db.$decode(table)`: reads rows that did not come from the repository, such
  * as `$client` or `queryRaw` results with database names, into the table's
- * shape.
+ * shape. With lazy tables it loads the table and the embedded relations first.
  */
 export interface DbDecoder<T> {
   /** One row, or a `validation` error when `value` is not an object. */
-  row(value: unknown): Result<T>;
+  row(value: unknown): AsyncResult<T>;
   /** Every row, or the first error. */
+  rows(value: unknown): AsyncResult<T[]>;
+}
+
+interface LoadedDecoder<T> {
+  row(value: unknown): Result<T>;
   rows(value: unknown): Result<T[]>;
 }
 
@@ -44,15 +51,38 @@ function aliased(
  * timestamps to `Temporal`).
  */
 export function dbDecoder<T>(meta: SchemaMeta, table: string): DbDecoder<T> {
-  const nested = new Map<string, DbDecoder<unknown>>();
+  if (!meta.tables[table] && !meta.tableLoaders?.[table]) {
+    throw new TypeError(`better-supabase: $decode: unknown table "${table}"`);
+  }
+
+  const decode = <R>(
+    value: unknown,
+    read: (decoder: LoadedDecoder<T>) => Result<R>,
+  ): AsyncResult<R> =>
+    AsyncResult.from(async () => {
+      await loadReachedTables(meta, table, value, (loaded) => {
+        addLazyTable(meta, loaded);
+      });
+
+      return read(loadedDecoder<T>(meta, table));
+    });
+
+  return {
+    row: (value) => decode(value, (decoder) => decoder.row(value)),
+    rows: (value) => decode(value, (decoder) => decoder.rows(value)),
+  };
+}
+
+function loadedDecoder<T>(meta: SchemaMeta, table: string): LoadedDecoder<T> {
+  const nested = new Map<string, LoadedDecoder<unknown>>();
 
   // Embedded relations (`select=*,customer(*)` from `$client`) arrive as nested
   // objects or lists, with database column names at every depth.
-  const decoderOf = (key: string): DbDecoder<unknown> => {
+  const decoderOf = (key: string): LoadedDecoder<unknown> => {
     let found = nested.get(key);
 
     if (!found) {
-      found = dbDecoder<unknown>(meta, key);
+      found = loadedDecoder<unknown>(meta, key);
       nested.set(key, found);
     }
 
