@@ -803,11 +803,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane B
 
 - Scope: Event verbs, hint prefix rule, one key per block
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-b`
 - PR: none yet
 - Findings: EX-1230, EX-1233, EX-1234
 - Log: 2026-11-12, planned.
+- Log: 2026-11-12, lane B started in `../bsb-audit-b` from main.
 
 ### Lane C
 
