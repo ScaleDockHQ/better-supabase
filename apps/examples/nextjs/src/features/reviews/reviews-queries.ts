@@ -9,8 +9,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
-import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
 import type { BlockPage } from "@/lib/block-page";
+import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
 
 import { pageOverStatuses } from "@/lib/block-page";
 import { bsb } from "@/lib/supabase/server";
