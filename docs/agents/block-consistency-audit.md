@@ -812,11 +812,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane C
 
 - Scope: Field-aware invalid_input, generated messages, locale
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-c`
 - PR: none yet
 - Findings: EX-1235, EX-1236, EX-1317
 - Log: 2026-11-12, planned.
+- Log: 2026-11-12, lane C started from main in `../bsb-audit-c`.
 
 ### Lane D
 
