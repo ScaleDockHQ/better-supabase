@@ -166,6 +166,7 @@ function main(): void {
           "supabase",
           "stack",
           "destroy",
+          "--yes",
           "--stack-id",
           stack.id,
         ]);
