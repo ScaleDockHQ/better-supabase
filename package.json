@@ -13,16 +13,18 @@
     "catalog": "node scripts/build-catalog.ts",
     "catalog:check": "node scripts/build-catalog.ts --check",
     "changeset": "changeset",
-    "check": "ultracite check",
+    "check": "node scripts/check-changed.ts",
     "check:adrs": "node scripts/check-adrs.ts",
     "check:app-architecture": "node scripts/check-app-architecture.ts",
     "check:example-coverage": "node scripts/check-example-coverage.ts",
+    "check:format": "ultracite check",
     "check:migration-order": "node scripts/check-migration-order.ts",
     "check:naming": "node scripts/check-naming.ts",
     "check:no-permdock": "node scripts/check-no-permdock.ts",
     "check:prose": "node scripts/check-prose.ts",
     "check:publish": "turbo run check:publish",
     "check:skills": "node scripts/check-skills.ts",
+    "ci:wait": "node scripts/ci-wait.ts",
     "db:gen": "dotenv -e .env.development.local -- sh -c 'for p in apps/examples/* apps/examples/monorepo/* tests/validation-*; do if [ \"$p\" != tests/validation-centrakit ] && [ \"$p\" != tests/validation-declarative ] && [ \"$p\" != tests/validation-lienlink ] && [ \"$p\" != tests/validation-single-tenant ] && ls \"$p\"/better-supabase.config.* >/dev/null 2>&1; then node packages/better-supabase/bin/better-supabase.js gen --cwd \"$p\" || exit 1; fi; done'",
     "db:seed:scale": "node scripts/seed-scale.ts",
     "dev": "turbo run dev",
@@ -56,7 +58,7 @@
     "supabase:prune": "node scripts/supabase-prune.ts",
     "supabase:reset": "supabase db reset",
     "supabase:signing-key": "node packages/better-supabase/bin/better-supabase.js dev keys --cwd .",
-    "supabase:start": "supabase start --runtime native && pnpm env:local",
+    "supabase:start": "node scripts/supabase-start.ts",
     "supabase:stop": "supabase stop",
     "supabase:test": "supabase test db",
     "supabase:types": "supabase gen types typescript --local --schema public,graphql_public",
@@ -67,7 +69,7 @@
     "typecheck:matrix": "turbo run typecheck:matrix",
     "typecheck:perf": "turbo run typecheck:perf",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:adrs check:app-architecture check:example-coverage check:migration-order check:naming check:no-permdock recipes:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix && turbo run typecheck:perf && turbo boundaries",
+    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:adrs check:app-architecture check:example-coverage check:migration-order check:naming check:no-permdock recipes:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix --output-logs=errors-only && turbo run typecheck:perf --output-logs=errors-only && turbo boundaries",
     "version-packages": "node scripts/root-changelog.ts && changeset version && node scripts/sync-versions.ts && pnpm run registry:build && pnpm run format"
   },
   "devDependencies": {
@@ -105,7 +107,7 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.14.0",
+      "version": "12.18.0",
       "onFail": "download"
     },
     "runtime": {
@@ -116,7 +118,7 @@
   },
   "engines": {
     "node": "24.x",
-    "pnpm": "12.14.0"
+    "pnpm": "12.18.0"
   },
-  "packageManager": "pnpm@12.14.0"
+  "packageManager": "pnpm@12.18.0"
 }

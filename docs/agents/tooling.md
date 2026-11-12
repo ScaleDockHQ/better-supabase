@@ -44,16 +44,15 @@ bump is one commit series:
 
 ## Scripts and hooks
 
-- `pnpm verify` is the gate. `pnpm check` runs `ultracite check`, the Oxfmt
-  check and Oxlint across the repo, and never replaces it.
+- `pnpm verify` is the full gate and CI runs it (ADR 0686). `pnpm check` is the local
+  gate: lint, typecheck and mirrored tests of the changed workspaces. `pnpm check:format` is
+  the old `ultracite check`.
 - `pnpm fix` runs `ultracite fix`: Oxfmt and the Oxlint autofixes. The
   root `oxlint.config.ts` holds every rule; workspace configs extend it.
-- Lefthook runs `ultracite fix` on staged files and `pnpm gate` on commit, commitlint on
-  the message, and `pnpm gate` again on push. `pnpm gate` is `turbo run lint lint:root
-  typecheck --affected` against `origin/main`, reading the remote cache without writing it.
-  Tests stay out of the hooks: run `pnpm test` (or the workspace's) before you push a code
-  change, and CI runs them all. Lefthook calls the binary in `node_modules/.bin`, so keep
-  `lefthook.yml` and the `gate` script in sync. The hooks skip during a merge or rebase.
+- Lefthook runs `ultracite fix` on staged files (120 s limit) and `pnpm check` (300 s) on
+  commit and push, and commitlint on the message. Lefthook calls the binary in
+  `node_modules/.bin`, so keep `lefthook.yml` and the `check` script in sync. The hooks skip
+  during a merge or rebase.
 - Commit headers stay under 73 characters and body lines under 101.
 
 ## Tests and coverage
