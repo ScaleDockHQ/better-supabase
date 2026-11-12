@@ -135,6 +135,44 @@ describe("createReminders: list and remove", () => {
     ]);
   });
 
+  it("lists the caller's reminders on every subject", async () => {
+    const { transport, calls } = fake({
+      list_my_reminders: () => [
+        {
+          id: "r-1",
+          subjectType: "task",
+          subjectId: "t-1",
+          method: "notification",
+          offsetMinutes: 60,
+          remindAt: "2026-10-14T09:00:00Z",
+        },
+        {
+          id: "r-2",
+          subjectType: "invoice",
+          subjectId: "7",
+          method: "notification",
+          offsetMinutes: 0,
+        },
+      ],
+    });
+
+    const reminders = createReminders({ transport, tenant: "org-1" });
+    const all = await reminders.listForCaller().orThrow();
+
+    expect(all.map((reminder) => reminder.subject)).toEqual([
+      { type: "task", id: "t-1" },
+      { type: "invoice", id: "7" },
+    ]);
+    expect(all[0]?.remindAt?.toString()).toBe("2026-10-14T09:00:00Z");
+    expect(all[1]).not.toHaveProperty("remindAt");
+    expect(calls).toEqual([
+      { fn: "list_my_reminders", args: { tenant: "org-1" } },
+    ]);
+    expect(await reminders.listForCaller({ limit: 1 }).orThrow()).toHaveLength(
+      1,
+    );
+  });
+
   it("fails without a tenant", async () => {
     const { transport, calls } = fake({ save_reminder: () => ({ id: "r-1" }) });
     const session: { tenant?: string } = {};

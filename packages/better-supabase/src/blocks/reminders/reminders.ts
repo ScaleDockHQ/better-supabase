@@ -195,6 +195,14 @@ export interface ReminderEntry {
 }
 
 /**
+ * One of the caller's reminders with the subject it is on, from
+ * `listForCaller`.
+ */
+export interface CallerReminderEntry extends ReminderEntry {
+  readonly subject: RecordRef;
+}
+
+/**
  * When a reminder fires: minutes before each occurrence of the subject's rule
  * (or its `on.<type>.at` column), or once at `at`.
  */
@@ -222,6 +230,13 @@ export interface Reminders<F extends object = Record<never, never>> {
     subject: RecordRef,
     options?: { readonly limit?: number },
   ): AsyncResult<readonly ReminderEntry[]>;
+  /**
+   * Every reminder the caller set in the tenant, on any subject, the earliest
+   * before the occurrence first.
+   */
+  listForCaller(options?: {
+    readonly limit?: number;
+  }): AsyncResult<readonly CallerReminderEntry[]>;
   /** Removes one of the caller's reminders; `false` when there was none. */
   remove(reminderId: string): AsyncResult<boolean>;
   /**
@@ -574,6 +589,25 @@ export function createReminders<
                 ? {}
                 : { remindAt: instantOf(row["remindAt"]) }),
             })),
+        ).map((rows) =>
+          options?.limit === undefined ? rows : rows.slice(0, options.limit),
+        ),
+      ),
+    listForCaller: (options) =>
+      tenant().andThen((organizationId) =>
+        call("list_my_reminders", { tenant: organizationId }, (value) =>
+          recordsOf(value, "list_my_reminders").map((row) => ({
+            id: textOf(row["id"]),
+            subject: {
+              type: textOf(row["subjectType"]),
+              id: textOf(row["subjectId"]),
+            },
+            method: textOf(row["method"]),
+            offsetMinutes: Number(row["offsetMinutes"]),
+            ...(row["remindAt"] === undefined || row["remindAt"] === null
+              ? {}
+              : { remindAt: instantOf(row["remindAt"]) }),
+          })),
         ).map((rows) =>
           options?.limit === undefined ? rows : rows.slice(0, options.limit),
         ),

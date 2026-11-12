@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:47de25d0916b0ad4d0a6aef1b77bf7600f85fd87ef7008a3ee620195101e3e18
+-- @bsb-hash sha256:74e0913fba31e9388caf4cdb0399e6817c752abfe3fdb72225ca0406cba916ea
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,8 +75,9 @@ $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
--- The caller's reminders on one subject, the earliest first.
-create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+-- The caller's reminders on one subject, or on every subject when both are
+-- null, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language plpgsql
 stable
@@ -90,14 +91,18 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
+      'subjectType', r."subject_type",
+      'subjectId', r."subject_id",
       'method', r."method",
       'offsetMinutes', r."offset_minutes",
       'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
-      and r."subject_type" = list_my_reminders.subject_type
-      and r."subject_id" = list_my_reminders.subject_id
+      and (list_my_reminders.subject_type is null
+        or r."subject_type" = list_my_reminders.subject_type)
+      and (list_my_reminders.subject_id is null
+        or r."subject_id" = list_my_reminders.subject_id)
       and r."user_id" = auth.uid()
   );
 end;
@@ -260,7 +265,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:e17bc56b44769e03c55818f1819ad0c4ac7668ff7f500ed9fa00a09f60cca193
+-- @bsb-hash sha256:c869c582690783d54e3130bda1c42ba16439f25548f7753feea1834c4505373f
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -334,8 +339,9 @@ $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
--- The caller's reminders on one subject, the earliest first.
-create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+-- The caller's reminders on one subject, or on every subject when both are
+-- null, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language plpgsql
 stable
@@ -349,14 +355,18 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
+      'subjectType', r."subject_type",
+      'subjectId', r."subject_id",
       'method', r."method",
       'offsetMinutes', r."offset_minutes",
       'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
-      and r."subject_type" = list_my_reminders.subject_type
-      and r."subject_id" = list_my_reminders.subject_id
+      and (list_my_reminders.subject_type is null
+        or r."subject_type" = list_my_reminders.subject_type)
+      and (list_my_reminders.subject_id is null
+        or r."subject_id" = list_my_reminders.subject_id)
       and r."user_id" = auth.uid()
   );
 end;
@@ -522,7 +532,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:eea7f62f656161ebdf48dc08ee1a530e731972b47b299f2c388678b2c53811a5
+-- @bsb-hash sha256:edd5d27385ba5bd7eb3c23944086515c22a248f3e53585b8caf8916c6016c847
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -601,8 +611,9 @@ $$;
 revoke execute on function "app_private"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
 grant execute on function "app_private"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
--- The caller's reminders on one subject, the earliest first.
-create or replace function "app_private"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+-- The caller's reminders on one subject, or on every subject when both are
+-- null, the earliest first.
+create or replace function "app_private"."list_my_reminders"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language plpgsql
 stable
@@ -616,14 +627,18 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
+      'subjectType', r."subject_type",
+      'subjectId', r."subject_id",
       'method', r."method",
       'offsetMinutes', r."offset_minutes",
       'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "app_private"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
-      and r."subject_type" = list_my_reminders.subject_type
-      and r."subject_id" = list_my_reminders.subject_id
+      and (list_my_reminders.subject_type is null
+        or r."subject_type" = list_my_reminders.subject_type)
+      and (list_my_reminders.subject_id is null
+        or r."subject_id" = list_my_reminders.subject_id)
       and r."user_id" = auth.uid()
   );
 end;
@@ -786,7 +801,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:9b5157129c81d0795b3b8a00a514de0a6f4a025fe5ac3ecede2519bf6fe71d75
+-- @bsb-hash sha256:2ab929b8e00c2c7076af62ece4bb3169510e869e2fbcebc13fa8d7b36b4aedd0
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -860,8 +875,9 @@ $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
--- The caller's reminders on one subject, the earliest first.
-create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+-- The caller's reminders on one subject, or on every subject when both are
+-- null, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language plpgsql
 stable
@@ -875,14 +891,18 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
+      'subjectType', r."subject_type",
+      'subjectId', r."subject_id",
       'method', r."method",
       'offsetMinutes', r."offset_minutes",
       'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
-      and r."subject_type" = list_my_reminders.subject_type
-      and r."subject_id" = list_my_reminders.subject_id
+      and (list_my_reminders.subject_type is null
+        or r."subject_type" = list_my_reminders.subject_type)
+      and (list_my_reminders.subject_id is null
+        or r."subject_id" = list_my_reminders.subject_id)
       and r."user_id" = auth.uid()
   );
 end;
@@ -1041,7 +1061,7 @@ as $$ select "better_supabase"."save_reminder"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
 grant execute on function "api"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
-create or replace function "api"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+create or replace function "api"."list_my_reminders"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language sql
 stable
@@ -1106,7 +1126,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:4b5d8e086df838884dfdffe300331592f1257608b577b400317c993ab463f1c0
+-- @bsb-hash sha256:5eaef5afba125fb7ff679f112e427fad356c0eb0df11091c09b15accd197fc3c
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1170,8 +1190,9 @@ $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
--- The caller's reminders on one subject, the earliest first.
-create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+-- The caller's reminders on one subject, or on every subject when both are
+-- null, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language plpgsql
 stable
@@ -1185,14 +1206,18 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
+      'subjectType', r."subject_type",
+      'subjectId', r."subject_id",
       'method', r."method",
       'offsetMinutes', r."offset_minutes",
       'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
-      and r."subject_type" = list_my_reminders.subject_type
-      and r."subject_id" = list_my_reminders.subject_id
+      and (list_my_reminders.subject_type is null
+        or r."subject_type" = list_my_reminders.subject_type)
+      and (list_my_reminders.subject_id is null
+        or r."subject_id" = list_my_reminders.subject_id)
       and r."user_id" = auth.uid()
   );
 end;
@@ -1355,7 +1380,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:64bc5ce32137aa73e4cf38d1de7fd086262237d5b673509ba4d73926b0a1ae3c
+-- @bsb-hash sha256:35aa3f9d5c6fd42009f80c294a3e5c8fbabb794d173e33173d7c0e36595881b0
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1429,8 +1454,9 @@ $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
--- The caller's reminders on one subject, the earliest first.
-create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+-- The caller's reminders on one subject, or on every subject when both are
+-- null, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language plpgsql
 stable
@@ -1444,14 +1470,18 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
+      'subjectType', r."subject_type",
+      'subjectId', r."subject_id",
       'method', r."method",
       'offsetMinutes', r."offset_minutes",
       'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."org_id" = list_my_reminders.tenant
-      and r."subject_type" = list_my_reminders.subject_type
-      and r."subject_id" = list_my_reminders.subject_id
+      and (list_my_reminders.subject_type is null
+        or r."subject_type" = list_my_reminders.subject_type)
+      and (list_my_reminders.subject_id is null
+        or r."subject_id" = list_my_reminders.subject_id)
       and r."user_id" = auth.uid()
   );
 end;

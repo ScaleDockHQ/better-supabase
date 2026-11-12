@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:1293bce8595d6390c65cd073c52957f5626b368f860c6cda66db1afe503107f6
+-- @bsb-hash sha256:3dee956999da39d0b1ebcbfa47685fcf093e220d8d441a18bfc20183e57aa2de
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,8 +78,9 @@ $$;
 revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz, jsonb) to authenticated, service_role;
 
--- The caller's reminders on one subject, the earliest first.
-create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text, subject_id text)
+-- The caller's reminders on one subject, or on every subject when both are
+-- null, the earliest first.
+create or replace function "better_supabase"."list_my_reminders"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
 language plpgsql
 stable
@@ -93,14 +94,18 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r."id",
+      'subjectType', r."subject_type",
+      'subjectId', r."subject_id",
       'method', r."method",
       'offsetMinutes', r."offset_minutes",
       'remindAt', r."remind_at"
     ) order by r."offset_minutes" desc, r."id"), '[]'::jsonb)
     from "better_supabase"."reminders" r
     where r."tenant_id" = list_my_reminders.tenant
-      and r."subject_type" = list_my_reminders.subject_type
-      and r."subject_id" = list_my_reminders.subject_id
+      and (list_my_reminders.subject_type is null
+        or r."subject_type" = list_my_reminders.subject_type)
+      and (list_my_reminders.subject_id is null
+        or r."subject_id" = list_my_reminders.subject_id)
       and r."user_id" = auth.uid()
   );
 end;
