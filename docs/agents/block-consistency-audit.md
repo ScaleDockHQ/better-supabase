@@ -927,11 +927,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane N
 
 - Scope: Subject labels, party core, manifest links and concerns
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-n`
 - PR: none yet
 - Findings: EX-1266, EX-1292, EX-1295, EX-1296
 - Log: 2026-11-12, planned.
+- Log: 2026-11-13, lane N started from main in `../bsb-audit-n`.
 
 ### Lane I
 
