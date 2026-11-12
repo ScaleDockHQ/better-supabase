@@ -1,5 +1,11 @@
 # better-supabase
 
+## 0.63.1
+
+### Patch Changes
+
+- [#878](https://github.com/ScaleDockHQ/better-supabase/pull/878) [`c4750ed`](https://github.com/ScaleDockHQ/better-supabase/commit/c4750ed133a48cfe59a26ab6f6c268c9d1bdfa32) Thanks [@mick340](https://github.com/mick340)! - Doctor BS386 now flags a select policy that calls a `security definer` function, or one with a `set` clause, once per row, even when it is a stable SQL function such as `can_note(notes, 'read')`. Postgres never inlines such a function, so a list pays one call per row. The call is still accepted as the `or` fallback after a set check, as in `id in (select note_ids('read')) or can_note(notes, 'read')`. It also no longer flags a set helper in the `from` of a subquery that is joined `lateral` or wrapped in parentheses, or one whose arguments read a column of another `from` item such as `member.id`.
+
 ## 0.63.0
 
 ### Minor Changes
