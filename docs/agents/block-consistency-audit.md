@@ -459,11 +459,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane F
 
 - Scope: pgTAP per block check and MCP mapping
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-f`
 - PR: none yet
 - Findings: EX-1269, EX-1351, EX-1354
 - Log: 2026-11-12, planned.
+  2026-11-12, lane F started from main (3220ac7c6a).
 
 ### Lane G1
 
