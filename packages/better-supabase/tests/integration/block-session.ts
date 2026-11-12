@@ -193,12 +193,13 @@ export class BlockSession {
     for (const file of renderBlocks(names, rerun)) {
       if (file.kind !== "test") {
         // The stack keeps tables between installs, so a column an app file adds
-        // may exist already.
+        // may exist already. The example's tables carry deferred constraint
+        // triggers, and an alter table after an insert fails while one is pending.
         await this.client.query(
-          file.contents.replaceAll(
+          `set constraints all immediate;\n${file.contents.replaceAll(
             /^(alter table \S+ add column )"/gm,
             '$1if not exists "',
-          ),
+          )}`,
         );
       }
     }

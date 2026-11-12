@@ -454,7 +454,7 @@ export const tasksRow: z.ZodMiniType<RowOf<'tasks'>> = z.object({
   assigneeId: z.nullable(z.guid()),
   projectId: z.guid(),
   rank: z.string(),
-}).check(z.meta({ title: "Tasks", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" }));
+}).check(z.meta({ title: "Tasks", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"" }));
 export const tasksInsert: z.ZodMiniType<InsertOf<'tasks'>> = z.object({
   id: z.exactOptional(z.guid()),
   organizationId: z.guid(),
@@ -467,7 +467,7 @@ export const tasksInsert: z.ZodMiniType<InsertOf<'tasks'>> = z.object({
   assigneeId: z.exactOptional(z.nullable(z.guid())),
   projectId: z.guid(),
   rank: z.exactOptional(z.string()),
-}).check(z.meta({ title: "Tasks insert", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" }));
+}).check(z.meta({ title: "Tasks insert", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"" }));
 export const tasksUpdate: z.ZodMiniType<UpdateOf<'tasks'>> = z.object({
   id: z.exactOptional(z.guid()),
   organizationId: z.exactOptional(z.guid()),
@@ -480,7 +480,7 @@ export const tasksUpdate: z.ZodMiniType<UpdateOf<'tasks'>> = z.object({
   assigneeId: z.exactOptional(z.nullable(z.guid())),
   projectId: z.exactOptional(z.guid()),
   rank: z.exactOptional(z.string()),
-}).check(z.meta({ title: "Tasks update", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" }));
+}).check(z.meta({ title: "Tasks update", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"" }));
 
 export const tasksViewRow: z.ZodMiniType<RowOf<'tasksView'>> = z.object({
   id: z.guid(),

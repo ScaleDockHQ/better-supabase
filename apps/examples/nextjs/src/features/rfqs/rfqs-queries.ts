@@ -4,7 +4,7 @@ import type { Money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { loadContacts } from "@/features/crm/crm-queries";
+import { readContacts } from "@/features/crm/crm-queries";
 import { bsb } from "@/lib/supabase/server";
 
 import { RFQS_TAG } from "./rfqs-cache";
@@ -121,7 +121,8 @@ export interface RfqFull extends RfqRow {
  */
 export async function loadRfq(id: string): Promise<RfqFull | null | undefined> {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+  const cached = await bsb.cached();
+  const { session, db } = cached;
   cacheTag(RFQS_TAG);
 
   if (!tenantOf(session)) {
@@ -130,7 +131,7 @@ export async function loadRfq(id: string): Promise<RfqFull | null | undefined> {
 
   const [found, contacts] = await Promise.all([
     db.rfqs.getRfq(id),
-    loadContacts(),
+    readContacts(cached),
   ]);
 
   if (!found.ok) {

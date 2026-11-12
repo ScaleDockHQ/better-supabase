@@ -454,7 +454,7 @@ export const tasksRow: z.ZodType<RowOf<'tasks'>> = z.object({
   assigneeId: z.guid().nullable(),
   projectId: z.guid(),
   rank: z.string(),
-}).meta({ title: "Tasks", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" });
+}).meta({ title: "Tasks", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"" });
 export const tasksInsert: z.ZodType<InsertOf<'tasks'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid(),
@@ -467,7 +467,7 @@ export const tasksInsert: z.ZodType<InsertOf<'tasks'>> = z.object({
   assigneeId: z.guid().nullable().exactOptional(),
   projectId: z.guid(),
   rank: z.string().exactOptional(),
-}).meta({ title: "Tasks insert", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" });
+}).meta({ title: "Tasks insert", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"" });
 export const tasksUpdate: z.ZodType<UpdateOf<'tasks'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
@@ -480,7 +480,7 @@ export const tasksUpdate: z.ZodType<UpdateOf<'tasks'>> = z.object({
   assigneeId: z.guid().nullable().exactOptional(),
   projectId: z.guid().exactOptional(),
   rank: z.string().exactOptional(),
-}).meta({ title: "Tasks update", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" });
+}).meta({ title: "Tasks update", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"" });
 
 export const tasksViewRow: z.ZodType<RowOf<'tasksView'>> = z.object({
   id: z.guid(),

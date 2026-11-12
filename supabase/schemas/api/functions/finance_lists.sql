@@ -241,7 +241,7 @@ declare
   last_row jsonb;
 begin
   if spec is null then
-    raise exception 'unknown finance entity %', entity using errcode = '22023';
+    raise exception 'unknown finance entity %', entity using errcode = '22023', hint = 'FINANCE_UNKNOWN_ENTITY';
   end if;
 
   chosen := coalesce(spec -> 'sorts' -> coalesce(sort, 'default'), spec -> 'sorts' -> 'default');
@@ -442,39 +442,37 @@ $$;
 
 -- Keyset sorts and trigram search for the lists above. Each tenant index ends
 -- in the id, so a page seeks to its cursor instead of sorting the tenant.
-create index if not exists finance_invoices_list_idx
+create index finance_invoices_list_idx
   on better_supabase.invoices (tenant_id, created_at desc, id desc);
-create index if not exists finance_invoices_title_trgm_idx
+create index finance_invoices_title_trgm_idx
   on better_supabase.invoices using gin (title extensions.gin_trgm_ops);
-create index if not exists finance_invoices_identifier_trgm_idx
+create index finance_invoices_identifier_trgm_idx
   on better_supabase.invoices using gin (identifier extensions.gin_trgm_ops);
-create index if not exists finance_expense_reports_list_idx
-  on better_supabase.expense_reports (tenant_id, created_at desc, id desc);
-create index if not exists finance_expense_reports_title_trgm_idx
+create index finance_expense_reports_title_trgm_idx
   on better_supabase.expense_reports using gin (title extensions.gin_trgm_ops);
-create index if not exists finance_ledger_transactions_list_idx
+create index finance_ledger_transactions_list_idx
   on better_supabase.ledger_transactions (tenant_id, effective_at desc, id desc);
-create index if not exists finance_accounting_entries_list_idx
+create index finance_accounting_entries_list_idx
   on better_supabase.accounting_entries (tenant_id, entry_date desc, id desc);
-create index if not exists finance_time_entries_list_idx
+create index finance_time_entries_list_idx
   on better_supabase.time_entries (tenant_id, started_at desc, id desc);
-create index if not exists finance_time_entries_note_trgm_idx
+create index finance_time_entries_note_trgm_idx
   on better_supabase.time_entries using gin (note extensions.gin_trgm_ops);
-create index if not exists finance_recognition_schedules_list_idx
+create index finance_recognition_schedules_list_idx
   on better_supabase.accounting_recognition_schedules (tenant_id, starts_on desc, id desc);
-create index if not exists finance_tax_returns_list_idx
+create index finance_tax_returns_list_idx
   on better_supabase.tax_returns (tenant_id, period_start desc, id desc);
-create index if not exists finance_periods_list_idx
+create index finance_periods_list_idx
   on better_supabase.periods (tenant_id, starts_on desc, id desc);
-create index if not exists finance_payroll_runs_list_idx
+create index finance_payroll_runs_list_idx
   on better_supabase.payroll_runs (tenant_id, period_from desc, id desc);
-create index if not exists finance_legal_entities_list_idx
+create index finance_legal_entities_list_idx
   on better_supabase.legal_entities (tenant_id, code, id);
-create index if not exists finance_funding_awards_list_idx
+create index finance_funding_awards_list_idx
   on better_supabase.funding_awards (tenant_id, starts_on desc, id desc);
-create index if not exists finance_bank_accounts_list_idx
+create index finance_bank_accounts_list_idx
   on better_supabase.bank_accounts (tenant_id, name, id);
-create index if not exists finance_bank_transactions_list_idx
+create index finance_bank_transactions_list_idx
   on better_supabase.bank_transactions (tenant_id, booked_on desc, id desc);
 
 revoke all on function api.finance_list_spec(text) from public, anon;
