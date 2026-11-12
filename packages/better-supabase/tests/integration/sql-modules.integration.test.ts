@@ -3062,6 +3062,125 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("skips a due schedule while its probe finds no work", async () => {
+    const queue = `block_${RUN}_probe`;
+    const work = `public.probe_work_${RUN}`;
+    const probe = `public.probe_has_work_${RUN}`;
+    await pool.query(
+      moduleBody("queue", {
+        rerunnable: true,
+        modules: {
+          queue: { options: { backend: "table", scheduler: "drain" } },
+        },
+      })!,
+    );
+    await pool.query(`create table ${work} (id integer)`);
+    await pool.query(
+      `create function ${probe}() returns boolean language sql as $$ select exists (select 1 from ${work}) $$`,
+    );
+
+    try {
+      const jobs = createQueue({
+        sql: postgres.admin,
+        queues: { [queue]: v.object({}) },
+      });
+
+      const bad = await jobs.schedule({
+        name: `probe-${RUN}:bad`,
+        cron: "* * * * *",
+        queue,
+        payload: {},
+        probe: "public.no_such_probe",
+      });
+
+      expect(bad.ok ? "" : bad.error.message).toContain(
+        "is not a function without arguments that returns boolean",
+      );
+
+      await jobs
+        .ensureSchedules({
+          definitions: [
+            {
+              name: `probe-${RUN}:relay`,
+              cron: "* * * * *",
+              queue,
+              payload: {},
+              probe,
+            },
+          ],
+          options: { prefix: `probe-${RUN}:` },
+        })
+        .orThrow();
+
+      expect(
+        (await jobs.listSchedules({ prefix: `probe-${RUN}:` }).orThrow()).map(
+          (entry) => entry.probe,
+        ),
+      ).toEqual([probe]);
+
+      await pool.query(
+        `update better_supabase.job_schedules
+         set next_run = date_trunc('milliseconds', now()) - interval '1 minute'
+         where job_name like $1`,
+        [`probe-${RUN}:%`],
+      );
+
+      let runs = 0;
+
+      const route = jobs.drainRoute({
+        secret: "s3cret",
+        handlers: {
+          [queue]: () => {
+            runs += 1;
+          },
+        },
+      });
+
+      const drain = async (): Promise<unknown> =>
+        (
+          await route(
+            new Request("https://app.test/api/jobs/drain", {
+              method: "POST",
+              headers: { authorization: "Bearer s3cret" },
+            }),
+          )
+        ).json();
+
+      expect(await drain()).toMatchObject({ schedules: 0 });
+      expect(runs).toBe(0);
+
+      await pool.query(`insert into ${work} values (1)`);
+
+      expect(await drain()).toMatchObject({
+        schedules: 1,
+        queues: { [queue]: { succeeded: 1, failed: 0 } },
+      });
+      expect(runs).toBe(1);
+
+      await pool.query(`drop function ${probe}()`);
+      await pool.query(
+        `update better_supabase.job_schedules
+         set next_run = date_trunc('milliseconds', now()) - interval '1 minute'
+         where job_name like $1`,
+        [`probe-${RUN}:%`],
+      );
+
+      expect(await drain()).toMatchObject({ schedules: 1 });
+    } finally {
+      await pool.query(
+        "delete from better_supabase.job_messages where queue = $1",
+        [queue],
+      );
+      await pool.query(
+        "delete from better_supabase.job_schedules where job_name like $1",
+        [`probe-${RUN}:%`],
+      );
+      await pool.query(`drop function if exists ${probe}()`);
+      await pool.query(`drop table if exists ${work}`);
+      await pool.query(moduleBody("queue", { rerunnable: true })!);
+    }
+  });
+
   it("ensures a set of schedules idempotently, keeping due runs", async () => {
     const queue = `block_${RUN}_ensure`;
     const prefix = `ensure-${RUN}:`;

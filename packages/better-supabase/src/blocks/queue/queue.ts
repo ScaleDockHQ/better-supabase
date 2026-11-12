@@ -521,6 +521,7 @@ export function createQueue<const Q extends QueueSchemas>(
     readonly payload: unknown;
     readonly timeZone: string;
     readonly tenant: string | undefined;
+    readonly probe: string | undefined;
   }
 
   const prepare = async (
@@ -567,6 +568,7 @@ export function createQueue<const Q extends QueueSchemas>(
           ? tenantFrom(scheduleOptions.context, tenantPathsFor(undefined))
           : undefined) ??
         tenantDefault,
+      probe: scheduleOptions.probe,
     });
   };
 
@@ -579,6 +581,7 @@ export function createQueue<const Q extends QueueSchemas>(
     current.timeZone === prepared.timeZone &&
     current.queue === prepared.queue &&
     (current.tenant ?? undefined) === prepared.tenant &&
+    (current.probe ?? undefined) === prepared.probe &&
     canonicalJson(current.payload) === canonicalJson(prepared.payload ?? {});
 
   const write = (prepared: PreparedSchedule): Promise<void> =>
@@ -590,6 +593,7 @@ export function createQueue<const Q extends QueueSchemas>(
       prepared.timeZone,
       millis(nextCronRun(prepared.cron, prepared.timeZone, now())),
       prepared.tenant,
+      prepared.probe,
     );
 
   const purge: Queue<Q>["purge"] = (purgeOptions = {}) =>

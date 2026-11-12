@@ -880,7 +880,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     {
       name: "notification_page",
       args: argTypes(
-        "{id} text text[] text[] text integer integer boolean boolean boolean timestamptz uuid integer",
+        "{id} text text[] text[] text integer integer boolean boolean boolean timestamptz uuid integer text[] text[] jsonb text",
       ),
       returns: "jsonb",
     },
@@ -1000,7 +1000,7 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 10,
+  version: 11,
   names: NAMES,
   contract,
   upgrades: [
@@ -1064,6 +1064,13 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
       description:
         "Preferences gain a cadence (immediate, daily, weekly or off); a daily or weekly delivery is held, run_notification_digests (the digest_run job) folds held deliveries into notification_digests, and claim_notification_digests and complete_notification_digest are the sender's pair. set_notification_cadence is new. A notification may name a consent_purpose that the consents block checks.",
       sql: (ctx) => digestUpgrade(ctx),
+    },
+    {
+      from: 10,
+      description:
+        "notification_page sorts by order_by (newest, oldest, type, subject or status, each with a _desc form), filters on exclude_types, subject_ids and any_of groups, and returns the limit it applied; list_notifications and notification_page match search on the actor's name and return up to 500 items.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("notification_page")}(${ctx.idType}, text, text[], text[], text, integer, integer, boolean, boolean, boolean, timestamptz, uuid, integer);`,
     },
   ],
   build,

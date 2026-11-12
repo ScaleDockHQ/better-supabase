@@ -170,6 +170,7 @@ export interface QueueProvider {
     timeZone: string,
     nextRun: Temporal.Instant,
     tenant?: string,
+    probe?: string,
   ): Promise<void>;
   unschedule(name: string): Promise<boolean>;
   /**
@@ -212,6 +213,7 @@ interface ScheduleListRow {
   readonly lock_expires_at: Date | string | null;
   readonly created_at: Date | string | null;
   readonly payload?: unknown;
+  readonly probe?: string | null;
 }
 
 /**
@@ -315,6 +317,7 @@ const scheduleInfo = (row: ScheduleListRow): StoredSchedule => ({
   lastRun: instantOrNull(row.last_run),
   leasedUntil: instantOrNull(row.lock_expires_at),
   createdAt: instantOrNull(row.created_at),
+  probe: row.probe ?? null,
   ...(row.payload === undefined ? {} : { payload: row.payload }),
 });
 
@@ -468,9 +471,18 @@ export function sqlQueueProvider(
 
       return row?.purged ?? 0;
     },
-    async schedule(name, cron, queue, payload, timeZone, nextRun, tenant) {
+    async schedule(
+      name,
+      cron,
+      queue,
+      payload,
+      timeZone,
+      nextRun,
+      tenant,
+      probe,
+    ) {
       await sql.queryRaw(
-        "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6, $7)",
+        "select better_supabase.schedule_job($1, $2, $3, $4, $5, $6, $7, $8)",
         [
           name,
           cron,
@@ -479,6 +491,7 @@ export function sqlQueueProvider(
           timeZone,
           nextRun.toString(),
           tenant ?? null,
+          probe ?? null,
         ],
       );
     },
@@ -558,6 +571,7 @@ const PARAMS = {
     "timezone",
     "next_run",
     "tenant",
+    "probe",
   ],
   unschedule_job: ["job_name"],
   list_schedules: ["name_prefix", "for_tenant"],
@@ -724,7 +738,16 @@ export function transportQueueProvider(
         args.batch,
         args.deadOlderThan,
       ),
-    async schedule(name, cron, queue, payload, timeZone, nextRun, tenant) {
+    async schedule(
+      name,
+      cron,
+      queue,
+      payload,
+      timeZone,
+      nextRun,
+      tenant,
+      probe,
+    ) {
       await call(
         "schedule_job",
         name,
@@ -734,6 +757,7 @@ export function transportQueueProvider(
         timeZone,
         nextRun.toString(),
         tenant ?? null,
+        probe ?? null,
       );
     },
     unschedule: (name) => bool("unschedule_job", name),

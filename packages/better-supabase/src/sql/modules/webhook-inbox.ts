@@ -276,6 +276,19 @@ ${receive}
 end;
 $$;
 
+create or replace function better_supabase.webhook_inbox_has_work()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from ${t} c
+    where (c.${c("status")} = 'pending' and c.${c("availableAt")} <= now())
+      or (c.${c("status")} = 'processing' and c.${c("lockedUntil")} < now())
+  )
+$$;
+
 -- The claimed messages, a jsonb array. A message whose lease ran out on its
 -- last attempt lost its worker (fail_webhook marks it dead otherwise), so the
 -- claim marks it dead.
@@ -475,6 +488,7 @@ $$;
 ${serviceOnly([
   `receive_webhook(text, text, text, jsonb, jsonb, text, integer${extra.type})`,
   "claim_webhooks(text, text, integer, interval)",
+  "webhook_inbox_has_work()",
   "complete_webhook(bigint, text, integer)",
   "fail_webhook(bigint, text, text, interval, integer, boolean)",
   "extend_webhook(bigint, text, integer, interval)",
@@ -523,7 +537,7 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
       },
     },
   },
-  version: 9,
+  version: 10,
   upgrades: [
     {
       from: 1,
@@ -580,6 +594,12 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
         "fail_webhook takes permanent, which marks the message dead without further attempts.",
       sql: () =>
         "drop function if exists better_supabase.fail_webhook(bigint, text, text, interval, integer);",
+    },
+    {
+      from: 9,
+      description:
+        "webhook_inbox_has_work() says whether a message is ready to claim, as the probe of the inbox schedule.",
+      sql: () => "",
     },
   ],
   build: webhookInboxSql,

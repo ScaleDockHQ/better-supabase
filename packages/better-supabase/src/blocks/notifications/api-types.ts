@@ -114,7 +114,7 @@ export interface ListOptions<
   readonly cursor?:
     | Temporal.Instant
     | Pick<NotificationItem, "createdAt" | "id">;
-  /** Up to 200. Defaults to 50. */
+  /** Up to 500. Defaults to 50. */
   readonly limit?: number;
   /** Passed to `render`. */
   readonly locale?: string;
@@ -125,10 +125,32 @@ export interface ListOptions<
   readonly include?: readonly "actor"[];
 }
 
+export interface NotificationFilterGroup<K extends string = string> {
+  readonly types?: readonly K[];
+  readonly excludeTypes?: readonly K[];
+  readonly subjectTypes?: readonly string[];
+  readonly read?: boolean;
+  readonly resolved?: boolean;
+}
+
+export type NotificationOrder =
+  | "newest"
+  | "oldest"
+  | "type"
+  | "type_desc"
+  | "subject"
+  | "subject_desc"
+  | "status"
+  | "status_desc";
+
 export interface PageOptions<K extends string = string> extends Omit<
   ListOptions<K>,
   "before"
 > {
+  readonly excludeTypes?: readonly K[];
+  readonly subjectIds?: readonly string[];
+  readonly anyOf?: readonly NotificationFilterGroup<K>[];
+  readonly order?: NotificationOrder;
   /** Skip this many items. Prefer `cursor`, which never reads skipped rows. */
   readonly offset?: number;
   /**
@@ -147,8 +169,9 @@ export interface NotificationPage<
   readonly total: number;
   /** Whether `total` stopped at `totalCap`: "10,000 or more". */
   readonly totalCapped: boolean;
-  /** Whether an older page exists after these items. */
+  /** Whether another page exists after these items. */
   readonly hasMore: boolean;
+  readonly limit: number;
 }
 
 export interface NotificationSubscription {

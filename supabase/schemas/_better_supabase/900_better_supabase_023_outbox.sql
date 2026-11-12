@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
--- @bsb-block outbox@5 managed
--- @bsb-hash sha256:3eedc004ecc6efd4d53ce6ac4ea3f504dc8ac1cad7be759fce18e5ef4db9f14d
+-- @bsb-block outbox@6 managed
+-- @bsb-hash sha256:afb2279309aef14761507cf96dd54e37f459b374192e93f7f0418ae312a11c7a
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -150,6 +150,19 @@ as $$
   ) latest on true
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
+$$;
+
+create or replace function "better_supabase"."outbox_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."outbox_consumers" c
+    where (c."retry_at" is null or c."retry_at" <= now())
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position"))
+  )
 $$;
 
 -- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
@@ -453,6 +466,8 @@ revoke execute on function "better_supabase"."outbox_history"(text, text, bigint
 grant execute on function "better_supabase"."outbox_history"(text, text, bigint, integer) to service_role;
 revoke execute on function "better_supabase"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_outbox"(interval, integer, interval) to service_role;
+revoke execute on function "better_supabase"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."outbox_has_work"() to service_role;
 
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.
@@ -587,3 +602,13 @@ set search_path = ''
 as $$ select "better_supabase"."purge_outbox"($1, $2, $3) $$;
 revoke execute on function "api"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "api"."purge_outbox"(interval, integer, interval) to service_role;
+
+create or replace function "api"."outbox_has_work"()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."outbox_has_work"() $$;
+revoke execute on function "api"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "api"."outbox_has_work"() to service_role;
