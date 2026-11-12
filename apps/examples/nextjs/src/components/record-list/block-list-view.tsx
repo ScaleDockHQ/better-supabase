@@ -1,8 +1,9 @@
 "use client";
 
 import type { CellContext } from "@tanstack/react-table";
+import type { MoneyJson } from "better-supabase/commerce";
 
-import { useExtracted } from "next-intl";
+import { useExtracted, useLocale } from "next-intl";
 import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
 import { useMemo, useTransition } from "react";
 
@@ -22,6 +23,7 @@ import { Link, toAppHref } from "@/i18n/navigation";
 import type { RecordListColumns } from "./record-list-grid";
 import type { RecordListSort } from "./record-list-types";
 
+import { moneyText } from "./money-text";
 import { RecordListGrid } from "./record-list-grid";
 import { RecordListToolbar } from "./record-list-toolbar";
 
@@ -40,9 +42,13 @@ type BadgeTone =
 export interface BlockColumn {
   readonly key: string;
   readonly header: string;
-  readonly kind: "text" | "link" | "number" | "badge" | "muted";
+  readonly kind: "text" | "link" | "number" | "badge" | "muted" | "money";
   /** The width in pixels. */
   readonly size?: number;
+  /**
+   * For `money`: the cell holds `{ amount, currency }` with the amount in minor
+   * units as text (`MoneyJson`), shown in the page's locale.
+   */
   /** For `link`: the path with `{id}` for the row's id. */
   readonly href?: string;
   /** For `badge`: the label of each value; a value without one shows as is. */
@@ -52,7 +58,7 @@ export interface BlockColumn {
 }
 
 export type BlockRow = { readonly id: string } & Readonly<
-  Record<string, string | number | boolean | null>
+  Record<string, string | number | boolean | MoneyJson | null>
 >;
 
 export interface BlockFacetOption {
@@ -64,10 +70,17 @@ export interface BlockFacetOption {
 type RowCell = CellContext<ReadOnlyGridFeatures, BlockRow>;
 
 function textOf(value: BlockRow[string]): string {
-  return value === null ? "" : String(value);
+  if (value === null) {
+    return "";
+  }
+
+  return typeof value === "object" ? "" : String(value);
 }
 
-function cellOf(column: BlockColumn): (context: RowCell) => React.ReactNode {
+function cellOf(
+  column: BlockColumn,
+  locale: string,
+): (context: RowCell) => React.ReactNode {
   return function Cell({ row }) {
     const raw = row.original[column.key] ?? null;
     const text = textOf(raw);
@@ -98,6 +111,16 @@ function cellOf(column: BlockColumn): (context: RowCell) => React.ReactNode {
 
       case "number": {
         return <span className="tabular-nums">{text === "" ? "–" : text}</span>;
+      }
+
+      case "money": {
+        const formatted = moneyText(raw, locale);
+
+        return (
+          <span className="tabular-nums">
+            {formatted === "" ? "–" : formatted}
+          </span>
+        );
       }
 
       case "muted": {
@@ -162,6 +185,7 @@ export function BlockListView({
   emptyAction?: React.ReactNode;
 }) {
   const t = useExtracted("recordList");
+  const locale = useLocale();
   const [pending, startTransition] = useTransition();
 
   const [state, setState] = useQueryStates(
@@ -181,9 +205,9 @@ export function BlockListView({
         accessorKey: column.key,
         header: column.header,
         size: column.size ?? 160,
-        cell: cellOf(column),
+        cell: cellOf(column, locale),
       })),
-    [columns],
+    [columns, locale],
   );
 
   const filtered = state.q !== "" || state.f !== "";

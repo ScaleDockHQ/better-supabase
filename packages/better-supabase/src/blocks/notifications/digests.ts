@@ -1,8 +1,9 @@
 import type { AsyncResult } from "../../core/result.ts";
+import type { DigestRunReport } from "../digest.ts";
 import type { BlockPorts } from "../ports.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { ok } from "../../core/result.ts";
+import { digestLines, runDigests } from "../digest.ts";
 import {
   blockCall,
   errorText,
@@ -30,13 +31,7 @@ export interface NotificationDigest {
   readonly items: readonly DigestItem[];
 }
 
-/** What one `sendDue` call did. */
-export interface DigestRunReport {
-  readonly claimed: number;
-  readonly sent: number;
-  readonly failed: number;
-  readonly skipped: number;
-}
+export type { DigestRunReport } from "../digest.ts";
 
 export interface NotificationDigestsOptions extends BlockOptions {
   /** Sends the digest email: the `mail-sync` block, which `createBlocks` passes. */
@@ -85,13 +80,12 @@ function digestOf(value: Record<string, unknown>): NotificationDigest {
 
 /** The plain text of a digest: one line per notification. */
 export function digestText(digest: NotificationDigest): string {
-  return digest.items
-    .map((item) => {
-      const label = item.summary ?? item.subjectLabel ?? item.type;
-
-      return `- ${label}${item.actionPath === undefined ? "" : ` (${item.actionPath})`}`;
-    })
-    .join("\n");
+  return digestLines(
+    digest.items.map((item) => ({
+      label: item.summary ?? item.subjectLabel ?? item.type,
+      path: item.actionPath,
+    })),
+  );
 }
 
 /**
@@ -109,73 +103,40 @@ export function createNotificationDigests(
 
   return {
     sendDue: (run = {}) =>
-      service(
-        "claim_notification_digests",
-        { max_items: run.limit ?? 50 },
-        (value) => recordsOf(value, "claim_notification_digests").map(digestOf),
-      ).andThen(async (digests) => {
-        let sent = 0;
-        let failed = 0;
-        let skipped = 0;
-
-        for (const digest of digests) {
-          if (digest.email === null) {
-            skipped += 1;
-
-            const done = await service(
-              "complete_notification_digest",
-              {
-                digest: digest.id,
-                status: "skipped",
-                error: "The member has no email address",
-              },
-              () => true,
-            );
-
-            if (!done.ok) {
-              return done;
-            }
-
-            continue;
-          }
-
+      runDigests({
+        claim: () =>
+          service(
+            "claim_notification_digests",
+            { max_items: run.limit ?? 50 },
+            (value) =>
+              recordsOf(value, "claim_notification_digests").map(digestOf),
+          ),
+        send: async (digest, email) => {
           const outcome = await options.mailer.send({
             accountId: options.accountId,
             draft: {
-              to: [{ address: digest.email }],
+              to: [{ address: email }],
               subject: options.subject?.(digest) ?? "Your notifications",
               text: digestText(digest),
             },
           });
 
-          const done = await service(
+          return outcome.ok
+            ? { ok: true, id: outcome.data.id }
+            : { ok: false, error: errorText(outcome.error) };
+        },
+        complete: (digest, outcome) =>
+          service(
             "complete_notification_digest",
-            outcome.ok
-              ? {
-                  digest: digest.id,
-                  status: "sent",
-                  provider_message_id: outcome.data.id,
-                }
-              : {
-                  digest: digest.id,
-                  status: "pending",
-                  error: errorText(outcome.error),
-                },
+            {
+              digest: digest.id,
+              status: outcome.status,
+              ...(outcome.status === "sent"
+                ? { provider_message_id: outcome.providerMessageId }
+                : { error: outcome.error }),
+            },
             (status) => status,
-          );
-
-          if (!done.ok) {
-            return done;
-          }
-
-          if (outcome.ok) {
-            sent += 1;
-          } else {
-            failed += 1;
-          }
-        }
-
-        return ok({ claimed: digests.length, sent, failed, skipped });
+          ),
       }),
   };
 }

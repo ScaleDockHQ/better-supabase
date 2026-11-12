@@ -76,6 +76,10 @@ function part(text: string): Rule {
     body.split(";").map((item) => {
       const eq = item.indexOf("=");
 
+      if (eq < 1) {
+        throw new TypeError(`Invalid RRULE part "${item}"`);
+      }
+
       return [item.slice(0, eq).toUpperCase(), item.slice(eq + 1)] as const;
     }),
   );
@@ -515,6 +519,92 @@ function skipTo(
   }
 
   return Math.max(0, Math.floor(periods / rule.interval) - 1);
+}
+
+/** The parts of an RRULE `parseRrule` reads and `formatRrule` writes. */
+export interface RecurrenceRule {
+  readonly frequency: "daily" | "weekly" | "monthly" | "yearly";
+  /** Default 1. */
+  readonly interval: number;
+  readonly count?: number;
+  readonly until?: Temporal.Instant;
+  /** `BYDAY`; `ordinal` is the `1` of `1MO` and `-1` of `-1FR`. */
+  readonly byDay: readonly {
+    readonly day: number;
+    readonly ordinal?: number;
+  }[];
+  readonly byMonthDay: readonly number[];
+  readonly byMonth: readonly number[];
+  readonly bySetPos: readonly number[];
+  /** 1 (Monday) through 7 (Sunday). Default 1. */
+  readonly weekStart: number;
+}
+
+const FREQUENCY_NAME = {
+  DAILY: "daily",
+  WEEKLY: "weekly",
+  MONTHLY: "monthly",
+  YEARLY: "yearly",
+} as const;
+
+/**
+ * Reads an `RRULE` value, with or without the `RRULE:` prefix, into its parts.
+ * Throws a `TypeError` for a part it can't read, as `expandRule` does.
+ */
+export function parseRrule(text: string): RecurrenceRule {
+  const rule = part(text);
+
+  return {
+    frequency: FREQUENCY_NAME[rule.frequency],
+    interval: rule.interval,
+    ...(rule.count === undefined ? {} : { count: rule.count }),
+    ...(rule.until === undefined ? {} : { until: rule.until }),
+    byDay: rule.byDay.map((item) => ({
+      day: item.day,
+      ...(item.ordinal === undefined ? {} : { ordinal: item.ordinal }),
+    })),
+    byMonthDay: rule.byMonthDay,
+    byMonth: rule.byMonth,
+    bySetPos: rule.bySetPos,
+    weekStart: rule.weekStart,
+  };
+}
+
+/**
+ * Writes the parts as an `RRULE` value, the inverse of `parseRrule`. Parts at
+ * their default (`INTERVAL=1`, `WKST=MO`) are left out.
+ */
+export function formatRrule(
+  rule: Partial<RecurrenceRule> & Pick<RecurrenceRule, "frequency">,
+): string {
+  const until = rule.until
+    ?.toString({ smallestUnit: "second" })
+    .replaceAll(/[-:]/gu, "");
+
+  const list = (name: string, values: readonly number[] | undefined) =>
+    values === undefined || values.length === 0
+      ? []
+      : [`${name}=${values.join(",")}`];
+
+  const byDay = (rule.byDay ?? []).map(
+    (item) => `${item.ordinal ?? ""}${weekdayName(item.day)}`,
+  );
+
+  return [
+    `FREQ=${COLUMN_FREQUENCY[rule.frequency]}`,
+    ...(rule.interval === undefined || rule.interval === 1
+      ? []
+      : [`INTERVAL=${rule.interval}`]),
+    ...(byDay.length === 0 ? [] : [`BYDAY=${byDay.join(",")}`]),
+    ...list("BYMONTHDAY", rule.byMonthDay),
+    ...list("BYMONTH", rule.byMonth),
+    ...list("BYSETPOS", rule.bySetPos),
+    ...(rule.weekStart === undefined || rule.weekStart === 1
+      ? []
+      : [`WKST=${weekdayName(rule.weekStart)}`]),
+    ...(rule.count === undefined ? [] : [`COUNT=${rule.count}`]),
+    ...(until === undefined ? [] : [`UNTIL=${until}`]),
+  ].join(";");
 }
 
 /** A weekday name for a column-format rule, 1 (Monday) through 7 (Sunday). */

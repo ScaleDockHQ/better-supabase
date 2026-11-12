@@ -3558,12 +3558,15 @@
   "./recurrence": {
     "values": [
       "expandRule",
+      "formatRrule",
+      "parseRrule",
       "rruleOccurrences",
       "weekdayName"
     ],
     "types": [
       "ExpandInput",
-      "OccurrencesInput"
+      "OccurrencesInput",
+      "RecurrenceRule"
     ]
   },
   "./generators/zod": {
