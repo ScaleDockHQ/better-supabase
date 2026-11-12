@@ -1139,20 +1139,10 @@
     "gzip": 895996,
     "brotli": 749978
   },
-  "/[locale]/(app)/workflows/[run]/page": {
-    "raw": 4389930,
-    "gzip": 1340718,
-    "brotli": 1114591
-  },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
     "raw": 4908381,
     "gzip": 1486357,
     "brotli": 1235396
-  },
-  "/[locale]/(app)/workflows/builder/page": {
-    "raw": 4425252,
-    "gzip": 1355259,
-    "brotli": 1127375
   },
   "/[locale]/(app)/workflows/page": {
     "raw": 4912687,
