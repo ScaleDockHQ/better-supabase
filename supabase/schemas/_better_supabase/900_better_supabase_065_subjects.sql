@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:fee2ee6860d0dff2ae015d145d1dd0d94873ea801bab9c5b9b040360720c541a
+-- @bsb-hash sha256:a11ee34d43c879881475a20f295dbe5f23a6653ccfe45da4e015686cdb68e538
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -136,10 +136,10 @@ begin
       return (select s."title"::text from "better_supabase"."work_items" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
       return (select s."name"::text from "better_supabase"."employees" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'invoice' then
-      return (select s."title"::text from "better_supabase"."invoices" s where s."id" = (subject_title.subject_id)::uuid);
     when 'ledger_account' then
       return (select s."name"::text from "better_supabase"."ledger_accounts" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'invoice' then
+      return (select s."title"::text from "better_supabase"."invoices" s where s."id" = (subject_title.subject_id)::uuid);
     when 'product' then
       return (select s."title"::text from "better_supabase"."products" s where s."id" = (subject_title.subject_id)::uuid);
     when 'product_variant' then
@@ -166,6 +166,8 @@ begin
       return (select s."description"::text from "better_supabase"."expense_lines" s where s."id" = (subject_title.subject_id)::uuid);
     when 'donation_fund' then
       return (select s."name"::text from "better_supabase"."donation_funds" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'warranty_claim' then
+      return (select s."title"::text from "better_supabase"."warranty_claims" s where s."id" = (subject_title.subject_id)::uuid);
     when 'work_order' then
       return (select s."title"::text from "better_supabase"."work_orders" s where s."id" = (subject_title.subject_id)::uuid);
     when 'shipment' then
@@ -252,12 +254,40 @@ begin
       return (select '/crm/contacts/' || s."id"::text from "better_supabase"."people" s where s."id" = (subject_url.subject_id)::uuid);
     when 'deal' then
       return (select '/crm/deals' from "better_supabase"."deals" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
+    when 'quote' then
+      return (select '/crm/quotes/' || s."id"::text from "better_supabase"."quotes" s where s."id" = (subject_url.subject_id)::uuid);
     when 'work_item' then
       return (select '/work' from "better_supabase"."work_items" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
-      return (select '/people' from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
+      return (select '/people/' || s."id"::text from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'ledger_account' then
+      return (select '/finance' from "better_supabase"."ledger_accounts" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'invoice' then
+      return (select '/finance/payables' from "better_supabase"."invoices" s where s."id" = (subject_url.subject_id)::uuid);
     when 'product' then
       return (select '/shop' from "better_supabase"."products" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'rfq' then
+      return (select '/rfqs' from "better_supabase"."rfqs" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'till' then
+      return (select '/tills' from "better_supabase"."tills" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'order' then
+      return (select '/shop/orders/' || s."id"::text from "better_supabase"."orders" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'booking' then
+      return (select '/calendar' from "better_supabase"."bookings" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'work_order' then
+      return (select '/field/dispatch' from "better_supabase"."work_orders" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'shipment' then
+      return (select '/field/shipments' from "better_supabase"."shipments" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'form' then
+      return (select '/forms/' || s."id"::text from "better_supabase"."forms" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'maintenance_plan' then
+      return (select '/maintenance' from "better_supabase"."maintenance_plans" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'lims_sample' then
+      return (select '/lims' from "better_supabase"."lims_samples" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'care_plan' then
+      return (select '/care-plans' from "better_supabase"."care_plans" s where s."id" = (subject_url.subject_id)::uuid);
+    when 'document' then
+      return (select '/documents/' || s."id"::text from "better_supabase"."documents" s where s."id" = (subject_url.subject_id)::uuid);
     when 'customer' then
       return (select '/customers/' || s."id"::text from "public"."customers" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
     when 'application' then
@@ -355,7 +385,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'quote', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/crm/quotes/' || s."id"::text))
     from "better_supabase"."quotes" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'quote')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -367,21 +397,21 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'employee', 'id', s."id"::text,
-      'title', s."name"::text, 'url', '/people'))
+      'title', s."name"::text, 'url', '/people/' || s."id"::text))
     from "better_supabase"."employees" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'employee')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'invoice', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
-    from "better_supabase"."invoices" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'invoice')::uuid[])), '[]'::jsonb);
-  found := found || coalesce((
-    select jsonb_agg(jsonb_build_object(
       'type', 'ledger_account', 'id', s."id"::text,
-      'title', s."name"::text, 'url', null::text))
+      'title', s."name"::text, 'url', '/finance'))
     from "better_supabase"."ledger_accounts" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'ledger_account')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'invoice', 'id', s."id"::text,
+      'title', s."title"::text, 'url', '/finance/payables'))
+    from "better_supabase"."invoices" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'invoice')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'product', 'id', s."id"::text,
@@ -397,19 +427,19 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'rfq', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/rfqs'))
     from "better_supabase"."rfqs" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'rfq')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'till', 'id', s."id"::text,
-      'title', s."name"::text, 'url', null::text))
+      'title', s."name"::text, 'url', '/tills'))
     from "better_supabase"."tills" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'till')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'order', 'id', s."id"::text,
-      'title', s."number"::text, 'url', null::text))
+      'title', s."number"::text, 'url', '/shop/orders/' || s."id"::text))
     from "better_supabase"."orders" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'order')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -421,7 +451,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'booking', 'id', s."id"::text,
-      'title', s."customer_name"::text, 'url', null::text))
+      'title', s."customer_name"::text, 'url', '/calendar'))
     from "better_supabase"."bookings" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'booking')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -462,14 +492,20 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'donation_fund')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'work_order', 'id', s."id"::text,
+      'type', 'warranty_claim', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
+    from "better_supabase"."warranty_claims" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'warranty_claim')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'work_order', 'id', s."id"::text,
+      'title', s."title"::text, 'url', '/field/dispatch'))
     from "better_supabase"."work_orders" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'work_order')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'shipment', 'id', s."id"::text,
-      'title', s."reference"::text, 'url', null::text))
+      'title', s."reference"::text, 'url', '/field/shipments'))
     from "better_supabase"."shipments" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'shipment')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -529,7 +565,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'form', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/forms/' || s."id"::text))
     from "better_supabase"."forms" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'form')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -547,7 +583,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'maintenance_plan', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/maintenance'))
     from "better_supabase"."maintenance_plans" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'maintenance_plan')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -559,7 +595,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'lims_sample', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/lims'))
     from "better_supabase"."lims_samples" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'lims_sample')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -589,7 +625,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'care_plan', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
+      'title', s."title"::text, 'url', '/care-plans'))
     from "better_supabase"."care_plans" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'care_plan')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -607,7 +643,7 @@ begin
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'document', 'id', s."id"::text,
-      'title', s."name"::text, 'url', null::text))
+      'title', s."name"::text, 'url', '/documents/' || s."id"::text))
     from "better_supabase"."documents" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'document')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
@@ -798,16 +834,6 @@ begin
           else true
         end)
       );
-    when 'invoice' then
-      return exists (
-        select 1 from "better_supabase"."invoices" s
-        where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'invoices.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'invoices.write'), false)
-          else true
-        end)
-      );
     when 'ledger_account' then
       return exists (
         select 1 from "better_supabase"."ledger_accounts" s
@@ -815,6 +841,16 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'ledger.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'ledger.manage'), false)
+          else true
+        end)
+      );
+    when 'invoice' then
+      return exists (
+        select 1 from "better_supabase"."invoices" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'invoices.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'invoices.write'), false)
           else true
         end)
       );
@@ -946,6 +982,17 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'donations.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'donations.manage'), false)
+          else true
+        end)
+      );
+    when 'warranty_claim' then
+      return exists (
+        select 1 from "better_supabase"."warranty_claims" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'warranty.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'warranty.write'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'warranty.write'), false)
           else true
         end)
       );
@@ -1467,16 +1514,6 @@ begin
           else false
         end
       );
-    when 'invoice' then
-      return exists (
-        select 1 from "better_supabase"."invoices" s
-        where s."id" = (can_subject_for.subject_id)::uuid
-          and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'invoices.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'invoices.write'), false)
-          else false
-        end
-      );
     when 'ledger_account' then
       return exists (
         select 1 from "better_supabase"."ledger_accounts" s
@@ -1484,6 +1521,16 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'ledger.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'ledger.manage'), false)
+          else false
+        end
+      );
+    when 'invoice' then
+      return exists (
+        select 1 from "better_supabase"."invoices" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'invoices.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'invoices.write'), false)
           else false
         end
       );
@@ -1615,6 +1662,17 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'donations.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'donations.manage'), false)
+          else false
+        end
+      );
+    when 'warranty_claim' then
+      return exists (
+        select 1 from "better_supabase"."warranty_claims" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'warranty.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'warranty.write'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'warranty.write'), false)
           else false
         end
       );

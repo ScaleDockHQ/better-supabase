@@ -15,6 +15,14 @@ export type SettingsTabId =
   | "billing"
   | "apiKeys"
   | "webhooks"
+  | "incomingWebhooks"
+  | "domains"
+  | "optionSets"
+  | "flags"
+  | "numbering"
+  | "securityEvents"
+  | "oauthApps"
+  | "searchSettings"
   | "signingKeys"
   | "sso"
   | "customFields"
@@ -54,6 +62,34 @@ export const settingsTabs: readonly SettingsTab[] = [
   { id: "billing", href: "/settings/billing", requires: "billing.read" },
   { id: "apiKeys", href: "/settings/api-keys", requires: "api_keys.own" },
   { id: "webhooks", href: "/settings/webhooks", requires: "webhooks.read" },
+  {
+    id: "incomingWebhooks",
+    href: "/settings/webhooks/incoming",
+    requires: "webhooks.read",
+  },
+  { id: "domains", href: "/settings/domains", requires: "domains.read" },
+  {
+    id: "optionSets",
+    href: "/settings/option-sets",
+    requires: "option_sets.read",
+  },
+  { id: "flags", href: "/settings/flags", requires: "flags.manage" },
+  {
+    id: "numbering",
+    href: "/settings/numbering",
+    requires: "numbering.assign",
+  },
+  {
+    id: "securityEvents",
+    href: "/settings/security/events",
+    requires: "audit.read",
+  },
+  {
+    id: "oauthApps",
+    href: "/settings/oauth-apps",
+    requires: "settings.manage",
+  },
+  { id: "searchSettings", href: "/settings/search", requires: "settings.read" },
   {
     id: "signingKeys",
     href: "/settings/signing-keys",

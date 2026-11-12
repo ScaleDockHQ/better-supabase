@@ -222,6 +222,15 @@
         "apps/examples/nextjs/src/**"
       ]
     },
+    "//#check:example-coverage": {
+      "inputs": [
+        "scripts/check-example-coverage.ts",
+        "apps/examples/nextjs/coverage/**",
+        "apps/examples/nextjs/src/app/**/page.tsx",
+        "packages/better-supabase/src/preset/catalog.generated.ts",
+        "packages/better-supabase/src/preset/presets.ts"
+      ]
+    },
     "//#check:naming": {
       "inputs": [
         "scripts/check-naming.ts",

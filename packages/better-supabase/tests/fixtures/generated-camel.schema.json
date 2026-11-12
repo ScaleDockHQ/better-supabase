@@ -2121,7 +2121,7 @@
     },
     "tasksRow": {
       "title": "Tasks",
-      "description": "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
+      "description": "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"",
       "type": "object",
       "properties": {
         "id": {
@@ -2200,7 +2200,7 @@
     },
     "tasksInsert": {
       "title": "Tasks insert",
-      "description": "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
+      "description": "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"",
       "type": "object",
       "properties": {
         "id": {
@@ -2271,7 +2271,7 @@
     },
     "tasksUpdate": {
       "title": "Tasks update",
-      "description": "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
+      "description": "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"",
       "type": "object",
       "properties": {
         "id": {
@@ -2683,6 +2683,30 @@
       },
       "required": [
         "full_name"
+      ],
+      "additionalProperties": false
+    },
+    "workBulkStateArgs": {
+      "title": "work_bulk_state arguments",
+      "type": "object",
+      "properties": {
+        "args": {},
+        "subject_id": {
+          "type": "string"
+        },
+        "subject_type": {
+          "type": "string"
+        },
+        "tenant": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "args",
+        "subject_id",
+        "subject_type",
+        "tenant"
       ],
       "additionalProperties": false
     },

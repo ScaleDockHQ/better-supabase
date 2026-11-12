@@ -455,7 +455,7 @@ export const tasksRow: z.ZodType<RowOf<'tasks'>> = z.object({
   assigneeId: z.guid().nullable(),
   projectId: z.guid(),
   rank: z.string(),
-}).meta({ title: "Tasks", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" });
+}).meta({ title: "Tasks", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"" });
 export const tasksInsert: z.ZodType<InsertOf<'tasks'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid(),
@@ -468,7 +468,7 @@ export const tasksInsert: z.ZodType<InsertOf<'tasks'>> = z.object({
   assigneeId: z.guid().nullable().exactOptional(),
   projectId: z.guid(),
   rank: z.string().exactOptional(),
-}).meta({ title: "Tasks insert", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" });
+}).meta({ title: "Tasks insert", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"" });
 export const tasksUpdate: z.ZodType<UpdateOf<'tasks'>> = z.object({
   id: z.guid().exactOptional(),
   organizationId: z.guid().exactOptional(),
@@ -481,7 +481,7 @@ export const tasksUpdate: z.ZodType<UpdateOf<'tasks'>> = z.object({
   assigneeId: z.guid().nullable().exactOptional(),
   projectId: z.guid().exactOptional(),
   rank: z.string().exactOptional(),
-}).meta({ title: "Tasks update", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"" });
+}).meta({ title: "Tasks update", description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"" });
 
 export const tasksViewRow: z.ZodType<RowOf<'tasksView'>> = z.object({
   id: z.guid(),
@@ -618,6 +618,13 @@ export const setMyAvatarPathArgs: z.ZodType<{ avatar_path: string }> = z.object(
 export const updateMyProfileArgs: z.ZodType<{ full_name: string }> = z.object({
   full_name: z.string(),
 }).meta({ title: "update_my_profile arguments" });
+
+export const workBulkStateArgs: z.ZodType<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = z.object({
+  args: z.json(),
+  subject_id: z.string(),
+  subject_type: z.string(),
+  tenant: z.guid(),
+}).meta({ title: "work_bulk_state arguments" });
 
 export const accountingAccountInput: z.ZodType<{ code: string; name: string; type: "asset" | "liability" | "equity" | "income" | "expense"; subtype?: string; parentId?: string; currency?: string; reconcilable?: boolean; normalSide?: "debit" | "credit"; defaultTaxCodeId?: string; active?: boolean; accountId?: string }> = z.object({
   code: z.string().min(1).max(50),
@@ -1378,6 +1385,12 @@ export const tillInput: z.ZodType<{ name: string; currency: string; accountId?: 
   accountId: z.string().nullable().meta({ description: "The accounting account that holds the till's cash." }).exactOptional(),
   location: z.string().max(200).nullable().exactOptional(),
 }).meta({ title: "TillInput" });
+
+export const checkoutSessionInput: z.ZodType<{ cartId: string; protocol: "acp" | "ucp"; idempotencyKey: string }> = z.object({
+  cartId: z.string().min(1),
+  protocol: z.enum(["acp", "ucp"]),
+  idempotencyKey: z.string().min(1).max(255).meta({ description: "The agent's Idempotency-Key header." }),
+}).meta({ title: "CheckoutSessionInput" });
 
 export const careRuleInput: z.ZodType<{ id?: string; kind: "dose_range" | "duplicate_therapy" | "interaction"; medicationIds: string[]; minDose?: number | null; maxDose?: number | null; maxPerDay?: number | null; severity?: "info" | "warning" | "critical"; message?: string | null; active?: boolean }> = z.object({
   id: z.guid().meta({ description: "Set to change a rule; leave out to add one." }).exactOptional(),

@@ -92,7 +92,7 @@ export const linkPerson = bsb.action(
 export const logActivity = bsb.action(
   {
     input: v.object({
-      subjectType: v.picklist(["company", "person", "customer"]),
+      subjectType: v.picklist(["company", "person", "customer", "deal"]),
       subjectId: Id,
       type: v.picklist(["call", "email", "meeting", "note"]),
       title: Name,

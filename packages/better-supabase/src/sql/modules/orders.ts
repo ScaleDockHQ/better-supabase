@@ -125,6 +125,7 @@ const NAMES: BlockSqlNames = {
       subject: {
         title: "number",
         permissions: { read: "read", write: "manage" },
+        search: { title: "number", body: [] },
         template: "template",
       },
     },

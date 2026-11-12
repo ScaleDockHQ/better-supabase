@@ -1,15 +1,18 @@
 "use server";
 
+import type { Result } from "better-supabase";
 import type { ConversationFilter } from "better-supabase/blocks/inbox";
 
-import { ok } from "better-supabase";
+import { dbError, err, ok } from "better-supabase";
 import { after } from "next/server";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { requireCaller, sqlResult } from "@/features/developer/postgres";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import type { answerHelp } from "./help-bot";
+import type { InboxSummary, MacroRow } from "./inbox-types";
 
 import {
   AssigneeFilter,
@@ -18,6 +21,7 @@ import {
   LATER_HOURS,
   Later,
   toConversationRow,
+  toDraftRow,
   toMessageRow,
   toScheduledRow,
 } from "./inbox-types";
@@ -35,30 +39,164 @@ async function answerLater(...args: HelpArgs): Promise<void> {
   await answerHelp(...args);
 }
 
+/** `ConversationFilter` without `readonly`, built field by field. */
+type DraftFilter = {
+  -readonly [K in keyof ConversationFilter]: ConversationFilter[K];
+};
+
+const PAGE_SIZE = 40;
 const Id = v.pipe(v.string(), v.uuid());
 const Body = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4000));
 const ConversationInput = v.object({ conversationId: Id });
+
+type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
+
+/**
+ * The simulator adapter's outbound side: a reply on a channel inbox is marked
+ * delivered, with a made-up platform id, so the thread shows what a real
+ * adapter reports. A deployment with a Slack, WhatsApp or email adapter drains
+ * the `inbox_outbound` jobs with `deliver` instead.
+ */
+async function simulateDelivery(
+  db: Db,
+  conversationId: string,
+  messageId: string,
+): Promise<void> {
+  const conversation = await db.inbox.conversations.get(conversationId);
+  const channel = conversation.ok ? conversation.data?.inbox?.channel : null;
+
+  if (!channel || channel === "in_app") {
+    return;
+  }
+
+  await bsb
+    .admin()
+    .inbox.deliveries.record({
+      messageId,
+      channel,
+      externalId: `sim-${messageId}`,
+      status: "delivered",
+    });
+}
 
 function laterInstant(later: Later): Temporal.Instant {
   return Temporal.Now.instant().add({ hours: LATER_HOURS[later] });
 }
 
-/** The list for the filters, loaded again by `useInbox` after each ping. */
+const Cursor = v.object({ id: Id, lastMessageAt: v.nullable(v.string()) });
+
+/**
+ * The queue for the filters, newest activity first: search, status, assignee
+ * and channel run in the database. `cursor` is the last row of the previous
+ * page. `useInbox` loads it again after each Realtime ping.
+ */
 export const loadConversations = bsb.action(
   {
-    input: v.object({ status: ConversationStatus, assignee: AssigneeFilter }),
+    input: v.object({
+      status: ConversationStatus,
+      assignee: AssigneeFilter,
+      channel: v.optional(v.string(), ""),
+      q: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(200)), ""),
+      cursor: v.optional(Cursor),
+    }),
     requireTenant: true,
   },
-  async ({ status, assignee }, { tenant, db }) => {
-    const filter: ConversationFilter = { status, limit: 50 };
+  async ({ status, assignee, channel, q, cursor }, { tenant, db }) => {
+    const filter: DraftFilter = { status, limit: PAGE_SIZE };
 
-    const listed = await db.inbox.conversations.list({
-      tenant,
-      filter: assignee === "anyone" ? filter : { ...filter, assignee },
-    });
+    if (assignee !== "anyone") {
+      filter.assignee = assignee;
+    }
+
+    if (channel !== "") {
+      filter.inboxId = channel;
+    }
+
+    if (q !== "") {
+      filter.search = q;
+    }
+
+    if (cursor !== undefined) {
+      filter.cursor = {
+        id: cursor.id,
+        lastMessageAt:
+          cursor.lastMessageAt === null
+            ? null
+            : Temporal.Instant.from(cursor.lastMessageAt),
+      };
+    }
+
+    const listed = await db.inbox.conversations.list({ tenant, filter });
 
     return listed.ok ? ok(listed.data.map(toConversationRow)) : listed;
   },
+);
+
+/**
+ * Reads a module table the Data API doesn't expose, as the caller, so the
+ * table's row level security still decides what comes back.
+ */
+async function queryAsCaller<T extends object>(
+  session: Parameters<typeof requireCaller>[0],
+  sql: string,
+  params: unknown[] = [],
+): Promise<Result<readonly T[]>> {
+  const caller = requireCaller(session);
+
+  if (!caller.ok) {
+    return caller;
+  }
+
+  const { connection, claims } = caller.data;
+
+  return sqlResult(() => connection.asUser(claims).queryRaw<T>(sql, params));
+}
+
+/** The channel accounts of the organization, for the queue's channel filter. */
+export const loadInboxes = bsb.action(
+  { requireTenant: true, permission: "inbox.read" },
+  async (_input, { session }) =>
+    queryAsCaller<InboxSummary>(
+      session,
+      `select id, name, channel from better_supabase.inboxes
+       where archived_at is null order by name`,
+    ),
+);
+
+/** The canned replies of the organization (macros), for the composer. */
+export const loadMacros = bsb.action(
+  { requireTenant: true, permission: "inbox.read" },
+  async (_input, { session }) =>
+    queryAsCaller<MacroRow>(
+      session,
+      `select id, name, channel, body from better_supabase.inbox_message_templates
+       order by name`,
+    ),
+);
+
+/** The caller's draft on the conversation and the AI drafts for the team. */
+export const loadDrafts = bsb.action(
+  { input: ConversationInput },
+  async ({ conversationId }, { db }) => {
+    const listed = await db.inbox.drafts.list(conversationId);
+
+    return listed.ok ? ok(listed.data.map(toDraftRow)) : listed;
+  },
+);
+
+/** Sends a draft as the caller, with the edited text. */
+export const sendDraft = bsb.action(
+  { input: v.object({ draftId: Id, body: Body }) },
+  async ({ draftId, body }, { db }) => {
+    const sent = await db.inbox.drafts.send({ draftId, edits: { body } });
+
+    return sent.ok ? ok(sent.data.id) : sent;
+  },
+);
+
+export const discardDraft = bsb.action(
+  { input: v.object({ draftId: Id }) },
+  async ({ draftId }, { db }) => db.inbox.drafts.discard(draftId),
 );
 
 /**
@@ -136,7 +274,10 @@ export const saveDraft = bsb.action(
 
 /** A reply to the contact, or with `note` an internal note only staff see. */
 export const reply = bsb.action(
-  { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },
+  {
+    input: v.object({ conversationId: Id, body: Body, note: v.boolean() }),
+    permission: "inbox.reply",
+  },
   async ({ conversationId, body, note }, { db }) => {
     const { messages } = db.inbox;
 
@@ -144,7 +285,35 @@ export const reply = bsb.action(
       ? await messages.note({ conversationId, body })
       : await messages.send({ conversationId, input: { body } });
 
-    return sent.ok ? ok(sent.data.id) : sent;
+    if (!sent.ok) {
+      return sent;
+    }
+
+    if (!note) {
+      await simulateDelivery(db, conversationId, sent.data.id);
+    }
+
+    return ok(sent.data.id);
+  },
+);
+
+/** Returns a bot conversation to the bot, or pauses the bot. */
+export const setBotMode = bsb.action(
+  {
+    input: v.object({
+      conversationId: Id,
+      mode: v.picklist(["bot", "human", "paused"]),
+    }),
+    permission: "inbox.assign",
+  },
+  async ({ conversationId, mode }, { db }) => {
+    const changed = await db.inbox.conversations.setBotMode({
+      conversationId,
+      mode,
+      reason: "set from the inbox",
+    });
+
+    return changed.ok ? ok(changed.data.botMode) : changed;
   },
 );
 
@@ -157,19 +326,6 @@ export const assign = bsb.action(
     });
 
     return assigned.ok ? ok(assigned.data.assigneeId) : assigned;
-  },
-);
-
-/** Hands a bot conversation to staff. */
-export const takeOver = bsb.action(
-  { input: ConversationInput },
-  async ({ conversationId }, { db }) => {
-    const changed = await db.inbox.conversations.handoff({
-      conversationId,
-      reason: "staff took over",
-    });
-
-    return changed.ok ? ok(changed.data.botMode) : changed;
   },
 );
 
@@ -273,5 +429,64 @@ export const sendHelp = bsb.action(
     }
 
     return ok(sent.data.id);
+  },
+);
+
+/**
+ * The simulator: a message that arrives on any channel inbox, as the platform's
+ * webhook would record it. The same contact on the same inbox continues one
+ * thread, so a test can hold a whole conversation without an external account.
+ */
+export const simulateInbound = bsb.action(
+  {
+    input: v.object({
+      inboxId: Id,
+      name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(120)),
+      address: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
+      subject: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(200))),
+      body: Body,
+    }),
+    requireTenant: true,
+    permission: "inbox.manage",
+  },
+  async ({ inboxId, name, address, subject, body }, { session }) => {
+    // Row level security shows the caller only inboxes of their organization,
+    // so the service call below never writes into another one.
+    const visible = await queryAsCaller<{ id: string }>(
+      session,
+      "select id from better_supabase.inboxes where id = $1",
+      [inboxId],
+    );
+
+    if (!visible.ok) {
+      return visible;
+    }
+
+    if (visible.data.length === 0) {
+      return err(
+        dbError("not_found", "That inbox is not in your organization"),
+      );
+    }
+
+    const key = address.toLowerCase();
+
+    const contact = address.includes("@")
+      ? { externalId: key, name, email: address }
+      : { externalId: key, name, phone: address };
+
+    const base = {
+      inboxId,
+      threadId: `sim:${inboxId}:${key}`,
+      contact,
+      message: { body },
+    };
+
+    const recorded = await bsb
+      .admin()
+      .inbox.inbound.record(
+        subject === undefined || subject === "" ? base : { ...base, subject },
+      );
+
+    return recorded.ok ? ok(recorded.data.conversationId) : recorded;
   },
 );

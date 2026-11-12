@@ -928,6 +928,15 @@ export type Functions = {
     };
     Returns: undefined;
   };
+  work_bulk_state: {
+    Args: {
+      args: Json | null;
+      subject_id: string | null;
+      subject_type: string | null;
+      tenant: string | null;
+    };
+    Returns: undefined;
+  };
 };
 
 export type TableName = keyof Models;
@@ -984,7 +993,7 @@ export type Extensions = readonly [ReturnType<typeof updatedAtExtension>, Return
 export const extensions: Extensions = [/*#__PURE__*/ updatedAtExtension(), /*#__PURE__*/ membershipsExtension(), /*#__PURE__*/ trashExtension()];
 
 /** The app's subject types, from `config.recordTypes`. */
-export const subjectTypes = ["message", "conversation", "channel", "company", "person", "deal", "course", "post", "activity", "quote", "work_item", "employee", "invoice", "ledger_account", "product", "product_variant", "rfq", "till", "order", "calendar_event", "booking", "asset", "asset_location", "lease", "expense_report", "expense_line", "donation_fund", "work_order", "shipment", "contract", "control", "compliance_policy", "qualification_type", "risk", "case", "inspection", "inspection_program", "inspection_finding", "form", "meeting", "meeting_decision", "maintenance_plan", "dam_usage_right", "lims_sample", "tax_code", "production_order", "work_center", "bank_account", "care_plan", "incident", "content_entry", "document", "customer", "drive_node", "organization", "application", "change_request", "project", "task"] as const;
+export const subjectTypes = ["message", "conversation", "channel", "company", "person", "deal", "course", "post", "activity", "quote", "work_item", "employee", "ledger_account", "invoice", "product", "product_variant", "rfq", "till", "order", "calendar_event", "booking", "asset", "asset_location", "lease", "expense_report", "expense_line", "donation_fund", "warranty_claim", "work_order", "shipment", "contract", "control", "compliance_policy", "qualification_type", "risk", "case", "inspection", "inspection_program", "inspection_finding", "form", "meeting", "meeting_decision", "maintenance_plan", "dam_usage_right", "lims_sample", "tax_code", "production_order", "work_center", "bank_account", "care_plan", "incident", "content_entry", "document", "customer", "drive_node", "organization", "application", "change_request", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };

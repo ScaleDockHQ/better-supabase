@@ -227,6 +227,15 @@ catalog:
   vue: 3.5.45
   workflow: 5.4.0
   yaml: 2.9.1
+  # Parts the shadcn CLI installs into the Next.js example (chat, command,
+  # chart, calendar, resizable) and the helpers its chat tests script with.
+  "@shadcn/helpers": 0.3.0
+  "@shadcn/react": 0.3.1
+  cmdk: 1.1.1
+  cn: 0.5.2
+  react-day-picker: 10.0.2
+  react-resizable-panels: 4.21.0
+  recharts: 3.8.0
   # Only the core package's zod generator fixture imports Zod, and `ai` needs it
   # as a peer (docs/decisions/0002). Lint rejects `zod` imports everywhere else.
   zod: 4.6.7

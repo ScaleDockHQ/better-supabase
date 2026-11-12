@@ -8,9 +8,15 @@ export type NavId =
   | "customers"
   | "people"
   | "hiring"
+  | "leave"
+  | "onboarding"
+  | "deadlines"
+  | "documentTemplates"
+  | "documentRegister"
   | "time"
   | "calendar"
   | "availability"
+  | "frontDesk"
   | "work"
   | "workGrid"
   | "projects"
@@ -20,6 +26,16 @@ export type NavId =
   | "deals"
   | "sequences"
   | "quotes"
+  | "salesHome"
+  | "pipelines"
+  | "forecasts"
+  | "segments"
+  | "queues"
+  | "scoring"
+  | "contracts"
+  | "commissions"
+  | "referrals"
+  | "customerSuccess"
   | "shop"
   | "inventory"
   | "manufacturing"
@@ -52,10 +68,26 @@ export type NavId =
   | "appraisals"
   | "warehouse"
   | "rfqs"
+  | "donations"
+  | "passes"
+  | "checkoutSessions"
+  | "collections"
+  | "reviews"
+  | "warranty"
+  | "leases"
+  | "assets"
   | "tills"
   | "shifts"
   | "finance"
   | "payables"
+  | "invoices"
+  | "expenses"
+  | "ledger"
+  | "accountingBooks"
+  | "billableTime"
+  | "recurring"
+  | "tax"
+  | "periods"
   | "care"
   | "observations"
   | "medications"
@@ -65,12 +97,17 @@ export type NavId =
   | "funding"
   | "notifications"
   | "workflows"
-  | "workflowBuilder"
+  | "workflowRuns"
   | "inbox"
   | "chat"
   | "assistant"
   | "knowledge"
   | "agentActivity"
+  | "agents"
+  | "prompts"
+  | "evals"
+  | "guardrails"
+  | "aiUsage"
   | "aiTasks"
   | "beta"
   | "islands"
@@ -83,11 +120,29 @@ export type NavId =
   | "aiProviders"
   | "settings";
 
+/** The product areas of the side navigation, in the order they render. */
+export const navAreas = [
+  "home",
+  "sales",
+  "commerce",
+  "operations",
+  "finance",
+  "people",
+  "work",
+  "content",
+  "quality",
+  "care",
+  "ai",
+  "admin",
+] as const;
+
+export type NavArea = (typeof navAreas)[number];
+
 export interface NavItem {
   readonly id: NavId;
   /** Without the locale prefix. */
   readonly href: AppHref;
-  readonly group: "workspace" | "quality" | "organization";
+  readonly area: NavArea;
   /**
    * Hidden from the menu without it, and the proxy answers the page with a 403
    * when the token's `permissions` claim lacks it.
@@ -98,363 +153,540 @@ export interface NavItem {
 }
 
 export const navItems: readonly NavItem[] = [
-  { id: "dashboard", href: "/", group: "workspace" },
-  { id: "myWork", href: "/my-work", group: "workspace" },
+  { id: "dashboard", href: "/", area: "home" },
+  { id: "myWork", href: "/my-work", area: "home" },
   {
     id: "customers",
     href: "/customers",
-    group: "workspace",
+    area: "sales",
     requires: "customers.read",
   },
-  { id: "work", href: "/work", group: "workspace", requires: "tasks.read" },
-  {
-    id: "workGrid",
-    href: "/work/grid",
-    group: "workspace",
-    requires: "tasks.read",
-  },
-  { id: "projects", href: "/projects", group: "workspace" },
+  { id: "work", href: "/work", area: "work", requires: "tasks.read" },
+  { id: "workGrid", href: "/work/grid", area: "work", requires: "tasks.read" },
+  { id: "projects", href: "/projects", area: "work" },
   {
     id: "approvals",
     href: "/approvals",
-    group: "workspace",
+    area: "work",
     requires: "approvals.read",
   },
-  {
-    id: "rules",
-    href: "/rules",
-    group: "workspace",
-    requires: "automations.read",
-  },
-  {
-    id: "people",
-    href: "/people",
-    group: "workspace",
-    requires: "employees.read",
-  },
+  { id: "rules", href: "/rules", area: "work", requires: "automations.read" },
+  { id: "people", href: "/people", area: "people", requires: "employees.read" },
   {
     id: "hiring",
     href: "/people/hiring",
-    group: "workspace",
+    area: "people",
     requires: "hiring.read",
+  },
+  {
+    id: "leave",
+    href: "/people/leave",
+    area: "people",
+    requires: "leave.request",
+  },
+  {
+    id: "onboarding",
+    href: "/people/onboarding",
+    area: "people",
+    requires: "enrollments.read",
+  },
+  {
+    id: "deadlines",
+    href: "/deadlines",
+    area: "work",
+    requires: "deadlines.read",
+  },
+  {
+    id: "documentTemplates",
+    href: "/documents/templates",
+    area: "content",
+    requires: "document_templates.read",
+  },
+  {
+    id: "documentRegister",
+    href: "/documents/register",
+    area: "content",
+    requires: "drive.read",
   },
   {
     id: "time",
     href: "/people/time",
-    group: "workspace",
+    area: "people",
     requires: "time_entries.track",
   },
   {
     id: "calendar",
     href: "/calendar",
-    group: "workspace",
+    area: "work",
     requires: "calendar.read",
   },
   {
     id: "availability",
     href: "/calendar/availability",
-    group: "workspace",
+    area: "work",
     requires: "bookings.manage",
+  },
+  {
+    id: "frontDesk",
+    href: "/calendar/front-desk",
+    area: "work",
+    requires: "calendar.read",
   },
   {
     id: "contacts",
     href: "/crm/contacts",
-    group: "workspace",
+    area: "sales",
     requires: "contacts.read",
   },
-  {
-    id: "deals",
-    href: "/crm/deals",
-    group: "workspace",
-    requires: "deals.read",
-  },
+  { id: "deals", href: "/crm/deals", area: "sales", requires: "deals.read" },
   {
     id: "sequences",
     href: "/crm/sequences",
-    group: "workspace",
+    area: "sales",
     requires: "sequences.read",
   },
+  { id: "quotes", href: "/crm/quotes", area: "sales", requires: "quotes.read" },
+  { id: "salesHome", href: "/crm", area: "sales", requires: "deals.read" },
   {
-    id: "quotes",
-    href: "/crm/quotes",
-    group: "workspace",
-    requires: "quotes.read",
+    id: "pipelines",
+    href: "/crm/pipelines",
+    area: "sales",
+    requires: "pipelines.read",
   },
-  { id: "shop", href: "/shop", group: "workspace", requires: "catalog.read" },
+  {
+    id: "forecasts",
+    href: "/crm/forecasts",
+    area: "sales",
+    requires: "forecasts.read",
+  },
+  {
+    id: "segments",
+    href: "/crm/segments",
+    area: "sales",
+    requires: "segments.read",
+  },
+  {
+    id: "queues",
+    href: "/crm/queues",
+    area: "sales",
+    requires: "assignment.read",
+  },
+  {
+    id: "scoring",
+    href: "/crm/scoring",
+    area: "sales",
+    requires: "scores.read",
+  },
+  {
+    id: "contracts",
+    href: "/crm/contracts",
+    area: "sales",
+    requires: "contracts.read",
+  },
+  {
+    id: "commissions",
+    href: "/crm/commissions",
+    area: "sales",
+    requires: "commissions.read",
+  },
+  {
+    id: "referrals",
+    href: "/crm/referrals",
+    area: "sales",
+    requires: "referrals.read",
+  },
+  {
+    id: "customerSuccess",
+    href: "/crm/success",
+    area: "sales",
+    requires: "scores.read",
+  },
+  { id: "shop", href: "/shop", area: "commerce", requires: "catalog.read" },
   {
     id: "inventory",
     href: "/shop/inventory",
-    group: "workspace",
+    area: "commerce",
     requires: "inventory.read",
   },
   {
     id: "manufacturing",
     href: "/manufacturing",
-    group: "workspace",
+    area: "operations",
     requires: "manufacturing.read",
   },
   {
     id: "production",
     href: "/production",
-    group: "workspace",
+    area: "operations",
     requires: "manufacturing.read",
   },
   {
     id: "banking",
     href: "/banking",
-    group: "workspace",
+    area: "finance",
     requires: "banking.read",
   },
   {
     id: "legalEntities",
     href: "/legal-entities",
-    group: "workspace",
+    area: "finance",
     requires: "legal_entities.read",
   },
   {
     id: "payrollExport",
     href: "/payroll",
-    group: "workspace",
+    area: "finance",
     requires: "payroll_export.read",
   },
   {
     id: "orders",
     href: "/shop/orders",
-    group: "workspace",
+    area: "commerce",
     requires: "orders.read",
   },
   {
     id: "dispatch",
     href: "/field/dispatch",
-    group: "workspace",
+    area: "operations",
     requires: "dispatch.read",
   },
   {
     id: "myDay",
     href: "/field/day",
-    group: "workspace",
+    area: "operations",
     requires: "dispatch.work",
   },
   {
     id: "shipments",
     href: "/field/shipments",
-    group: "workspace",
+    area: "operations",
     requires: "shipments.read",
   },
-  { id: "drive", href: "/drive", group: "workspace", requires: "drive.read" },
+  { id: "drive", href: "/drive", area: "content", requires: "drive.read" },
   {
     id: "documents",
     href: "/documents",
-    group: "workspace",
+    area: "content",
     requires: "documents.read",
   },
-  { id: "forms", href: "/forms", group: "workspace", requires: "forms.read" },
-  {
-    id: "courses",
-    href: "/courses",
-    group: "workspace",
-    requires: "courses.read",
-  },
+  { id: "forms", href: "/forms", area: "content", requires: "forms.read" },
+  { id: "courses", href: "/courses", area: "people", requires: "courses.read" },
   {
     id: "community",
     href: "/community",
-    group: "workspace",
+    area: "content",
     requires: "posts.read",
   },
   {
     id: "templates",
     href: "/templates",
-    group: "workspace",
+    area: "content",
     requires: "templates.read",
   },
-  {
-    id: "imports",
-    href: "/imports",
-    group: "workspace",
-    requires: "imports.manage",
-  },
-  { id: "trash", href: "/trash", group: "workspace", requires: "trash.read" },
-  { id: "metrics", href: "/metrics", group: "workspace" },
+  { id: "imports", href: "/imports", area: "work", requires: "imports.manage" },
+  { id: "trash", href: "/trash", area: "content", requires: "trash.read" },
+  { id: "metrics", href: "/metrics", area: "quality" },
   {
     id: "compliance",
     href: "/compliance",
-    group: "quality",
+    area: "quality",
     requires: "compliance.read",
   },
-  { id: "qualifications", href: "/qualifications", group: "quality" },
-  { id: "risks", href: "/risks", group: "quality", requires: "risks.read" },
-  { id: "cases", href: "/cases", group: "quality", requires: "cases.read" },
+  { id: "qualifications", href: "/qualifications", area: "people" },
+  { id: "risks", href: "/risks", area: "quality", requires: "risks.read" },
+  { id: "cases", href: "/cases", area: "quality", requires: "cases.read" },
   {
     id: "inspections",
     href: "/inspections",
-    group: "quality",
+    area: "quality",
     requires: "inspections.read",
   },
   {
     id: "meetings",
     href: "/meetings",
-    group: "workspace",
+    area: "work",
     requires: "meetings.read",
   },
-  { id: "dam", href: "/dam", group: "workspace", requires: "dam.read" },
-  { id: "lims", href: "/lims", group: "workspace", requires: "lims.read" },
-  { id: "rfqs", href: "/rfqs", group: "workspace", requires: "rfqs.read" },
-  { id: "tills", href: "/tills", group: "workspace", requires: "tills.read" },
+  { id: "dam", href: "/dam", area: "operations", requires: "dam.read" },
+  { id: "lims", href: "/lims", area: "operations", requires: "lims.read" },
+  { id: "rfqs", href: "/rfqs", area: "operations", requires: "rfqs.read" },
+  {
+    id: "donations",
+    href: "/shop/donations",
+    area: "commerce",
+    requires: "donations.read",
+  },
+  {
+    id: "warranty",
+    href: "/shop/warranty",
+    area: "commerce",
+    requires: "warranty.read",
+  },
+  {
+    id: "reviews",
+    href: "/shop/reviews",
+    area: "commerce",
+    requires: "reviews.manage",
+  },
+  {
+    id: "collections",
+    href: "/shop/collections",
+    area: "commerce",
+    requires: "collections.read",
+  },
+  {
+    id: "checkoutSessions",
+    href: "/shop/checkout-sessions",
+    area: "commerce",
+    requires: "agent_checkout.read",
+  },
+  {
+    id: "passes",
+    href: "/shop/passes",
+    area: "commerce",
+    requires: "passes.read",
+  },
+  {
+    id: "leases",
+    href: "/property/leases",
+    area: "operations",
+    requires: "leases.read",
+  },
+  {
+    id: "assets",
+    href: "/assets",
+    area: "operations",
+    requires: "assets.read",
+  },
+  { id: "tills", href: "/tills", area: "commerce", requires: "tills.read" },
   {
     id: "maintenance",
     href: "/maintenance",
-    group: "workspace",
+    area: "operations",
     requires: "maintenance.read",
   },
   {
     id: "appraisals",
     href: "/appraisals",
-    group: "workspace",
+    area: "people",
     requires: "appraisals.review",
   },
   {
     id: "warehouse",
     href: "/warehouse",
-    group: "workspace",
+    area: "operations",
     requires: "warehouse.pick",
   },
-  { id: "shifts", href: "/shifts", group: "workspace" },
+  { id: "shifts", href: "/shifts", area: "people" },
   {
     id: "finance",
     href: "/finance",
-    group: "workspace",
+    area: "finance",
     requires: "accounting.read",
   },
   {
     id: "payables",
     href: "/finance/payables",
-    group: "workspace",
+    area: "finance",
     requires: "invoices.read",
   },
-  { id: "care", href: "/care", group: "workspace", requires: "customers.read" },
+  {
+    id: "invoices",
+    href: "/finance/invoices",
+    area: "finance",
+    requires: "invoices.read",
+  },
+  {
+    id: "expenses",
+    href: "/finance/expenses",
+    area: "finance",
+    requires: "expenses.read",
+  },
+  {
+    id: "ledger",
+    href: "/finance/ledger",
+    area: "finance",
+    requires: "accounting.read",
+  },
+  {
+    id: "accountingBooks",
+    href: "/finance/accounting",
+    area: "finance",
+    requires: "accounting.read",
+  },
+  {
+    id: "billableTime",
+    href: "/finance/billable-time",
+    area: "finance",
+    requires: "billable_time.read",
+  },
+  {
+    id: "recurring",
+    href: "/finance/recurring",
+    area: "finance",
+    requires: "accounting.read",
+  },
+  { id: "tax", href: "/finance/tax", area: "finance", requires: "tax.read" },
+  {
+    id: "periods",
+    href: "/finance/periods",
+    area: "finance",
+    requires: "periods.read",
+  },
+  { id: "care", href: "/care", area: "care", requires: "customers.read" },
   {
     id: "observations",
     href: "/observations",
-    group: "workspace",
+    area: "care",
     requires: "observations.read",
   },
   {
     id: "medications",
     href: "/medications",
-    group: "workspace",
+    area: "care",
     requires: "medications.read",
   },
   {
     id: "careAlerts",
     href: "/care-alerts",
-    group: "workspace",
+    area: "care",
     requires: "clinical_decision_support.read",
   },
   {
     id: "prescriptions",
     href: "/prescriptions",
-    group: "workspace",
+    area: "care",
     requires: "e_prescribing.read",
   },
   {
     id: "carePlans",
     href: "/care-plans",
-    group: "workspace",
+    area: "care",
     requires: "care_plans.read",
   },
   {
     id: "funding",
     href: "/funding",
-    group: "workspace",
+    area: "finance",
     requires: "funding.read",
   },
-  { id: "notifications", href: "/notifications", group: "workspace" },
+  { id: "notifications", href: "/notifications", area: "home" },
   {
     id: "workflows",
     href: "/workflows",
-    group: "workspace",
+    area: "ai",
     requires: "workflows.read",
   },
   {
-    id: "workflowBuilder",
-    href: "/workflows/builder",
-    group: "workspace",
+    id: "workflowRuns",
+    href: "/workflows/runs",
+    area: "ai",
     requires: "workflows.read",
   },
-  { id: "inbox", href: "/inbox", group: "workspace", requires: "inbox.read" },
-  { id: "chat", href: "/chat", group: "workspace", requires: "messages.read" },
+  { id: "inbox", href: "/inbox", area: "work", requires: "inbox.read" },
+  { id: "chat", href: "/chat", area: "work", requires: "messages.read" },
   {
     id: "assistant",
     href: "/assistant",
-    group: "workspace",
+    area: "ai",
     requires: "ai_chat.create",
   },
   {
     id: "knowledge",
     href: "/knowledge",
-    group: "workspace",
+    area: "ai",
     requires: "knowledge.write",
   },
   {
     id: "agentActivity",
     href: "/assistant/activity",
-    group: "workspace",
+    area: "ai",
     requires: "ai_chat.create",
+  },
+  {
+    id: "agents",
+    href: "/assistant/agents",
+    area: "ai",
+    requires: "agents.read",
+  },
+  {
+    id: "prompts",
+    href: "/assistant/prompts",
+    area: "ai",
+    requires: "ai_chat.manage",
+  },
+  {
+    id: "evals",
+    href: "/assistant/evals",
+    area: "ai",
+    requires: "ai_chat.manage",
+  },
+  {
+    id: "guardrails",
+    href: "/assistant/guardrails",
+    area: "ai",
+    requires: "ai_chat.manage",
+  },
+  {
+    id: "aiUsage",
+    href: "/assistant/usage",
+    area: "ai",
+    requires: "ai_chat.read",
   },
   {
     id: "aiTasks",
     href: "/assistant/tasks",
-    group: "workspace",
+    area: "ai",
     requires: "ai_schedules.write",
   },
-  { id: "beta", href: "/beta", group: "workspace", flag: "beta-page" },
-  { id: "islands", href: "/islands", group: "workspace" },
+  { id: "beta", href: "/beta", area: "admin", flag: "beta-page" },
+  { id: "islands", href: "/islands", area: "admin" },
   {
     id: "members",
     href: "/settings/members",
-    group: "organization",
+    area: "admin",
     requires: "members.read",
   },
   {
     id: "teams",
     href: "/settings/teams",
-    group: "organization",
+    area: "admin",
     requires: "teams.read",
   },
   {
     id: "roles",
     href: "/settings/roles",
-    group: "organization",
+    area: "admin",
     requires: "members.read",
   },
   {
     id: "billing",
     href: "/settings/billing",
-    group: "organization",
+    area: "admin",
     requires: "billing.read",
   },
   {
     id: "apiKeys",
     href: "/settings/api-keys",
-    group: "organization",
+    area: "admin",
     requires: "api_keys.own",
   },
   {
     id: "audit",
     href: "/settings/audit",
-    group: "organization",
+    area: "admin",
     requires: "audit.read",
   },
   {
     id: "aiProviders",
     href: "/settings/ai-providers",
-    group: "organization",
+    area: "admin",
     requires: "ai_keys.manage",
   },
   {
     id: "settings",
     href: "/settings/organization",
-    group: "organization",
+    area: "admin",
     requires: "settings.read",
   },
 ];

@@ -135,6 +135,33 @@ export const checkRoot = (root: string, allow: Allow): Finding[] => {
 
     const feature = featureOf(rel);
 
+    // Pages of the signed-in app navigate instantly (ADR 0314): each one
+    // exports `instant = true`, or states why not in an `// instant:` comment.
+    if (/(^|\/)\(app\)\/(?:.+\/)?page\.tsx$/.test(rel)) {
+      if (
+        !/export\s+const\s+instant\s*=/.test(code) &&
+        !/^\s*\/\/\s*instant:\s*\S/m.test(source)
+      ) {
+        add(
+          file,
+          "instant-export",
+          "the page exports neither `instant = true` nor an `// instant: <reason>` comment",
+        );
+      }
+
+      const stage = /export\s+const\s+ensureStatic\s*=\s*["']([^"']*)["']/.exec(
+        code,
+      )?.[1];
+
+      if (stage !== undefined && stage !== "shell" && stage !== "prefetch") {
+        add(
+          file,
+          "ensure-static-value",
+          `ensureStatic is "${stage}"; use "shell" or "prefetch"`,
+        );
+      }
+    }
+
     if (isPage) {
       if (/from\s+["'][^"']*-queries["']/.test(code)) {
         add(

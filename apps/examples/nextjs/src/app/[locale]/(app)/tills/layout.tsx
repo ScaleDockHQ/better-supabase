@@ -9,7 +9,13 @@ export default function TillsLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "tills"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "tills",
+        "recordDetail",
+        "recordList",
+        "sales",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

@@ -49,6 +49,7 @@ export default {
     "search_notes": {"name":"search_notes","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"notes","returnsSet":true,"volatility":"stable","result":{"table":"notes"}},
     "search_notes_scores": {"name":"search_notes_scores","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"record","returnsSet":true,"volatility":"stable"},
     "set_my_avatar_path": {"name":"set_my_avatar_path","schema":"public","args":[{"name":"avatar_path","type":"text"}],"returns":"void","returnsSet":false,"volatility":"volatile"},
-    "update_my_profile": {"name":"update_my_profile","schema":"public","args":[{"name":"full_name","type":"text"}],"returns":"void","returnsSet":false,"volatility":"volatile"}
+    "update_my_profile": {"name":"update_my_profile","schema":"public","args":[{"name":"full_name","type":"text"}],"returns":"void","returnsSet":false,"volatility":"volatile"},
+    "work_bulk_state": {"name":"work_bulk_state","schema":"public","args":[{"name":"args","type":"jsonb"},{"name":"subject_id","type":"text"},{"name":"subject_type","type":"text"},{"name":"tenant","type":"uuid"}],"returns":"void","returnsSet":false,"volatility":"volatile"}
   }
 };

@@ -291,6 +291,16 @@ in `<folder>-cache.ts`. A tag you write yourself lives in `<folder>-cache.ts` to
 with a comment that states why rendering has to wait for a request. Read
 `.agents/skills/nextjs-app-architecture` before you add a feature.
 
+A page under `(app)` exports `instant = true`, or carries `// instant: <reason>`
+above its default export; `ensureStatic` is `"shell"` or `"prefetch"`. Pages that
+do not export `instant` yet sit in `scripts/app-architecture-allow.json`, and the
+list only shrinks as each area is converted. `apps/examples/nextjs/tests/routes.manifest.ts`
+lists every page with its archetype, seeded URL and database budget, and
+`routes-manifest.test.ts` fails when a page has no entry. The manifest generates
+one `expectInstant` case per instant page (`instant-routes.spec.ts`), one budget
+per route (`budgets.spec.ts`) and the cold, warm and client timings
+(`cold-warm.spec.ts`); `pnpm example:perf-report` merges the numbers.
+
 ## Library specs
 
 The example app cannot do these without a change in `packages/better-supabase`

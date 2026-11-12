@@ -53,22 +53,17 @@ export interface DirectoryEmployee {
   readonly directReports: number;
 }
 
+type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
+
 /**
  * Every employee who isn't offboarded, ordered as the org chart: each manager
- * before their reports, with the depth below the top.
+ * before their reports, with the depth below the top. The list route calls it
+ * with its own `db`; the page reads it through `loadDirectory`.
  */
-export async function loadDirectory(): Promise<
-  readonly DirectoryEmployee[] | null
-> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return null;
-  }
-
+export async function readDirectory(
+  db: Db,
+  tenant: string,
+): Promise<readonly DirectoryEmployee[]> {
   const chart = await db.employees
     .orgChart({ organizationId: tenant })
     .orThrow();
@@ -84,6 +79,76 @@ export async function loadDirectory(): Promise<
     depth: employee.depth,
     directReports: employee.directReports,
   }));
+}
+
+export async function loadDirectory(): Promise<
+  readonly DirectoryEmployee[] | null
+> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  const tenant = tenantOf(session);
+
+  return tenant ? readDirectory(db, tenant) : null;
+}
+
+export interface EmployeeDetail {
+  readonly employee: DirectoryEmployee;
+  readonly managerName: string | null;
+  readonly reports: readonly Pick<
+    DirectoryEmployee,
+    "id" | "name" | "jobTitle"
+  >[];
+  readonly contracts: readonly {
+    readonly id: string;
+    readonly hoursPerWeek: number | null;
+    readonly startsOn: string;
+    readonly endsOn: string | null;
+  }[];
+}
+
+/** One employee with their manager, direct reports and contracts. */
+export async function loadEmployee(
+  id: string,
+): Promise<EmployeeDetail | "not-found" | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const directory = await readDirectory(db, tenant);
+  const employee = directory.find((entry) => entry.id === id);
+
+  if (!employee) {
+    return "not-found";
+  }
+
+  const contracts = await db.employees.contracts(id);
+
+  return {
+    employee,
+    managerName:
+      directory.find((entry) => entry.id === employee.managerId)?.name ?? null,
+    reports: directory
+      .filter((entry) => entry.managerId === id)
+      .map(({ id: reportId, name, jobTitle }) => ({
+        id: reportId,
+        name,
+        jobTitle,
+      })),
+    contracts: contracts.ok
+      ? contracts.data.map((contract) => ({
+          id: contract.id,
+          hoursPerWeek: contract.hoursPerWeek ?? null,
+          startsOn: contract.startsOn.toString(),
+          endsOn: contract.endsOn?.toString() ?? null,
+        }))
+      : [],
+  };
 }
 
 export interface WeekCell {

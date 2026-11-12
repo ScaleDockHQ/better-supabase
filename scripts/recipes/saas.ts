@@ -423,10 +423,10 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     blocks: ["employees"],
     kind: "screen",
     description:
-      "A searchable list of employees with an org chart of who reports to whom.",
+      "A list of employees with server-side search, a status filter and a link to each record.",
     web: {
-      file: `${WEB_APP}/src/features/people/components/employee-directory.tsx`,
-      components: ["card", "empty", "skeleton"],
+      file: `${WEB_APP}/src/features/people/components/employee-overview.tsx`,
+      components: [],
       glue: [],
     },
   },

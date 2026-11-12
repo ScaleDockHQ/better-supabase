@@ -6,7 +6,7 @@
  * worktree.
  */
 import { execFileSync } from "node:child_process";
-import { writeFile } from "node:fs/promises";
+import { access, writeFile } from "node:fs/promises";
 import * as v from "valibot";
 
 const Stack = v.looseObject({
@@ -81,3 +81,18 @@ const lines = [
 await writeFile(".env.development.local", lines.join("\n"));
 
 console.log("Wrote .env.development.local");
+
+// The example app loads its own copy before the root file. A copy that names
+// an earlier stack's ports sends the first signed-in page into an error loop
+// (EX-922), so a copy that exists follows the stack too.
+const APP_COPY = "apps/examples/nextjs/.env.development.local";
+
+const hasAppCopy = await access(APP_COPY).then(
+  () => true,
+  () => false,
+);
+
+if (hasAppCopy) {
+  await writeFile(APP_COPY, lines.join("\n"));
+  console.log(`Wrote ${APP_COPY}`);
+}

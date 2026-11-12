@@ -1,6 +1,6 @@
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:3fe8379d257ec8458b0b6a7d66ab472099920d88b0d7c0830646be538bdeb230
+-- @bsb-hash sha256:97d1080c4e1ee563c9d07dc2ee8d591f2539d0f6b3563b23c735fc4fa267273b
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8,7 +8,7 @@
 -- Periods: one table of dated ranges per kind with a status, a lookup by date
 -- and a close protocol. Blocks add kinds through contributions; closing asks
 -- each kind's blockers first and runs its on-close step in the same transaction.
--- Kinds installed now: fiscal_period, commission_period.
+-- Kinds installed now: leave_year, fiscal_period, commission_period.
 create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -81,7 +81,7 @@ revoke execute on function "better_supabase"."create_period"(uuid, text, date, d
 grant execute on function "better_supabase"."create_period"(uuid, text, date, date) to authenticated, service_role;
 
 -- The period of a kind that holds a date, or null. A kind a block gave a
--- cadence (commission_period: month) gets its calendar period created the first time
+-- cadence (leave_year: year, commission_period: month) gets its calendar period created the first time
 -- a date in it is asked for. Needs periods.read.
 create or replace function "better_supabase"."period_for"(tenant uuid, kind text, on_date date)
 returns jsonb
@@ -105,6 +105,14 @@ begin
   if found then
     return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'status', v_row."status", 'closedAt', v_row."closed_at", 'closedBy', v_row."closed_by", 'createdAt', v_row."created_at");
   end if;
+  if period_for.kind = 'leave_year' then
+      insert into "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on")
+      values (period_for.tenant, period_for.kind, date_trunc('year', period_for.on_date::timestamp)::date, (date_trunc('year', period_for.on_date::timestamp) + case 'year' when 'week' then interval '1 week' when 'month' then interval '1 month' when 'quarter' then interval '3 months' else interval '1 year' end - interval '1 day')::date)
+      on conflict do nothing;
+      select * into v_row from "better_supabase"."periods" x
+      where x."tenant_id" = period_for.tenant and x."kind" = period_for.kind
+        and period_for.on_date between x."starts_on" and x."ends_on";
+    end if;
   if period_for.kind = 'commission_period' then
       insert into "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on")
       values (period_for.tenant, period_for.kind, date_trunc('month', period_for.on_date::timestamp)::date, (date_trunc('month', period_for.on_date::timestamp) + case 'month' when 'week' then interval '1 week' when 'month' then interval '1 month' when 'quarter' then interval '3 months' else interval '1 year' end - interval '1 day')::date)
@@ -158,6 +166,9 @@ begin
   select * into v_row from "better_supabase"."periods" x where x."id" = period_close_blockers.period_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'periods.read'), false))) then
     raise exception 'no such period' using errcode = 'P0002', hint = 'PERIOD_NOT_FOUND';
+  end if;
+  if v_row."kind" = 'leave_year' then
+    v_blockers := v_blockers || coalesce("better_supabase"."leave_range_close_blockers"(v_row."tenant_id", v_row."starts_on", v_row."ends_on"), '{}'::text[]);
   end if;
   if v_row."kind" = 'fiscal_period' then
     v_blockers := v_blockers || coalesce("better_supabase"."accounting_range_close_blockers"(v_row."tenant_id", v_row."starts_on", v_row."ends_on"), '{}'::text[]);
@@ -241,6 +252,9 @@ begin
   v_blockers := "better_supabase"."period_close_blockers"(v_row."id");
   if cardinality(v_blockers) > 0 then
     raise exception 'the period can''t close yet: %', array_to_string(v_blockers, ', ') using errcode = '55000', hint = 'PERIOD_CLOSE_BLOCKED', detail = jsonb_build_object('blockers', to_jsonb(v_blockers))::text;
+  end if;
+  if v_row."kind" = 'leave_year' then
+    perform "better_supabase"."leave_close_range"(v_row."tenant_id", v_row."starts_on", v_row."ends_on");
   end if;
   if v_row."kind" = 'fiscal_period' then
     perform "better_supabase"."accounting_close_range"(v_row."tenant_id", v_row."starts_on", v_row."ends_on");

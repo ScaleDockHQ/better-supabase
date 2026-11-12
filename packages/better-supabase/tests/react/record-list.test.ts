@@ -82,6 +82,38 @@ describe("useRecordListState", () => {
     expect(view.result.query).toMatchObject({ q: "acme", page: 2 });
   });
 
+  it("carries a facet from its URL key into the query and the query params", () => {
+    const { nuqs, writes } = fakeNuqs({
+      q: "acme",
+      status: ["active", "lead"],
+    });
+
+    const view = renderHook(
+      () =>
+        useRecordListState(
+          offset,
+          nuqs.useQueryStates(offset.nuqs((spec: Parser) => spec)),
+        ),
+      undefined,
+    );
+
+    expect(view.result.searchParams.toString()).toBe(
+      "q=acme&status=active%2Clead",
+    );
+    expect(view.result.query.facets).toEqual({ status: ["active", "lead"] });
+
+    view.result.set({ status: ["lead"] });
+    expect(writes.at(-1)).toEqual({
+      status: ["lead"],
+      page: null,
+      after: null,
+    });
+    expect(view.result.query.facets).toEqual({ status: ["lead"] });
+
+    view.result.set({ status: null });
+    expect(view.result.query.facets).toEqual({});
+  });
+
   it("falls back to the defaults when the list refuses the URL state", () => {
     const { nuqs } = fakeNuqs({ sort: "oldest", status: ["active"] });
 

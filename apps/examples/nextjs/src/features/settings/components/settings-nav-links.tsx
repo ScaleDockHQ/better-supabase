@@ -61,6 +61,38 @@ export function useTabLabel(): (id: SettingsTabId) => string {
         return t("Webhooks");
       }
 
+      case "incomingWebhooks": {
+        return t("Incoming webhooks");
+      }
+
+      case "domains": {
+        return t("Domains");
+      }
+
+      case "optionSets": {
+        return t("Option sets");
+      }
+
+      case "flags": {
+        return t("Flags");
+      }
+
+      case "numbering": {
+        return t("Numbering");
+      }
+
+      case "securityEvents": {
+        return t("Security events");
+      }
+
+      case "oauthApps": {
+        return t("OAuth apps");
+      }
+
+      case "searchSettings": {
+        return t("Search index");
+      }
+
       case "signingKeys": {
         return t("Signing keys");
       }

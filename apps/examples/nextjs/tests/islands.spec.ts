@@ -7,6 +7,8 @@ import { expectInstant } from "better-supabase/testing";
 import { Client } from "pg";
 import * as v from "valibot";
 
+import { navLink } from "./support/example-session";
+
 // The second `next start` playwright.config.ts runs on the same build and
 // remote cache directory.
 const SECOND_ORIGIN = "http://localhost:3101";
@@ -134,7 +136,7 @@ test("a page load makes one bootstrap call and at most one verification", async 
 
 test("the islands shell renders under the instant lock", async ({ page }) => {
   await page.goto("/customers");
-  const link = page.getByRole("link", { name: "Islands", exact: true });
+  const link = await navLink(page, "Islands", "Admin");
 
   await expect(link.first()).toBeVisible();
 

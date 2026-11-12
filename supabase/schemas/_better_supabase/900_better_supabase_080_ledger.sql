@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:752687206789c10077b08c0d6261da120db45fc79c1c63f1d06a5b125f14da6b
+-- @bsb-hash sha256:6d8534e6085102b24e1608b35c979fd38e19512502bd0052451902097b566766
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -960,8 +960,130 @@ create policy bsb_tenant_scope_update on "better_supabase"."ledger_holds" as res
 create policy bsb_tenant_scope_delete on "better_supabase"."ledger_holds" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_ledger_account_index"
+  after insert or delete or update of "id", "tenant_id", "name" on "better_supabase"."ledger_accounts"
+  for each row execute function "better_supabase"."search_index_row"('ledger_account', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.ledger_accounts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ledger_account","event_prefix":"ledger_account"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.ledger_transactions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ledger_transaction","event_prefix":"ledger_transaction"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.ledger_holds deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ledger_hold","event_prefix":"ledger_hold"}');
+
+-- blocks.ledger.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+-- Helpers for the module's policies and triggers have no entry point.
+
+
+create or replace function "api"."get_many"(tenant uuid, ids uuid[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_many"($1, $2) $$;
+revoke execute on function "api"."get_many"(uuid, uuid[]) from public, anon;
+grant execute on function "api"."get_many"(uuid, uuid[]) to authenticated, service_role;
+
+create or replace function "api"."open_ledger_account"(tenant uuid, kind text, code text, name text, unit text, scale smallint default 0, holder_type text default null, holder_id text default null, owner_id uuid default null, allow_negative boolean default false, read_permission text default null, metadata jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."open_ledger_account"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) $$;
+revoke execute on function "api"."open_ledger_account"(uuid, text, text, text, text, smallint, text, text, uuid, boolean, text, jsonb) from public, anon;
+grant execute on function "api"."open_ledger_account"(uuid, text, text, text, text, smallint, text, text, uuid, boolean, text, jsonb) to authenticated, service_role;
+
+create or replace function "api"."close_ledger_account"(account_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."close_ledger_account"($1) $$;
+revoke execute on function "api"."close_ledger_account"(uuid) from public, anon;
+grant execute on function "api"."close_ledger_account"(uuid) to authenticated, service_role;
+
+create or replace function "api"."post_ledger_transaction"(tenant uuid, kind text, lines jsonb, reference_type text default null, reference_id text default null, memo text default null, idempotency_key text default null, effective_at timestamptz default null, metadata jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."post_ledger_transaction"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."post_ledger_transaction"(uuid, text, jsonb, text, text, text, text, timestamptz, jsonb) from public, anon;
+grant execute on function "api"."post_ledger_transaction"(uuid, text, jsonb, text, text, text, text, timestamptz, jsonb) to authenticated, service_role;
+
+create or replace function "api"."reverse_ledger_transaction"(transaction_id uuid, memo text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."reverse_ledger_transaction"($1, $2) $$;
+revoke execute on function "api"."reverse_ledger_transaction"(uuid, text) from public, anon;
+grant execute on function "api"."reverse_ledger_transaction"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."place_ledger_hold"(account_id uuid, amount bigint, reference_type text default null, reference_id text default null, expires_at timestamptz default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."place_ledger_hold"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."place_ledger_hold"(uuid, bigint, text, text, timestamptz) from public, anon;
+grant execute on function "api"."place_ledger_hold"(uuid, bigint, text, text, timestamptz) to authenticated, service_role;
+
+create or replace function "api"."capture_ledger_hold"(hold_id uuid, to_account uuid, amount bigint default null, kind text default 'ledger.capture', memo text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."capture_ledger_hold"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."capture_ledger_hold"(uuid, uuid, bigint, text, text) from public, anon;
+grant execute on function "api"."capture_ledger_hold"(uuid, uuid, bigint, text, text) to authenticated, service_role;
+
+create or replace function "api"."release_ledger_hold"(hold_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."release_ledger_hold"($1) $$;
+revoke execute on function "api"."release_ledger_hold"(uuid) from public, anon;
+grant execute on function "api"."release_ledger_hold"(uuid) to authenticated, service_role;
+
+create or replace function "api"."expire_ledger_holds"(max_rows integer default 500)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."expire_ledger_holds"($1) $$;
+revoke execute on function "api"."expire_ledger_holds"(integer) from public, anon, authenticated;
+grant execute on function "api"."expire_ledger_holds"(integer) to service_role;
+
+create or replace function "api"."list_ledger_accounts"(tenant uuid, kind text default null, holder_type text default null, holder_id text default null, page_size integer default 100)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_ledger_accounts"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."list_ledger_accounts"(uuid, text, text, text, integer) from public, anon;
+grant execute on function "api"."list_ledger_accounts"(uuid, text, text, text, integer) to authenticated, service_role;
+
+create or replace function "api"."ledger_account_entries"(account_id uuid, before timestamptz default null, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."ledger_account_entries"($1, $2, $3) $$;
+revoke execute on function "api"."ledger_account_entries"(uuid, timestamptz, integer) from public, anon;
+grant execute on function "api"."ledger_account_entries"(uuid, timestamptz, integer) to authenticated, service_role;
+
+create or replace function "api"."get_ledger_transaction"(transaction_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_ledger_transaction"($1) $$;
+revoke execute on function "api"."get_ledger_transaction"(uuid) from public, anon;
+grant execute on function "api"."get_ledger_transaction"(uuid) to authenticated, service_role;

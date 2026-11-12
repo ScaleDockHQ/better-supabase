@@ -38,6 +38,19 @@ export const customerRuleFields = defineRuleFields(RULE_SUBJECT, {
   },
 });
 
+/**
+ * The company values a segment or score model may test (`/crm/segments` and
+ * `/crm/scoring`). `sync-rule-fields.ts` writes them with the customer fields.
+ */
+export const companyRuleFields = defineRuleFields("company", {
+  lifecycle: {
+    type: "select",
+    options: ["lead", "mql", "sql", "opportunity", "customer", "churned"],
+    operators: ["is", "is_not"],
+    nullable: false,
+  },
+});
+
 /** The condition every customer rule starts with; the editor locks it. */
 export const LOCKED_CONDITION = "lead-status";
 

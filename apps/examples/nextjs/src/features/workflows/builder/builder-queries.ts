@@ -1,5 +1,6 @@
 import type {
   WorkflowGraph,
+  WorkflowNodeKindRow,
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowTriggerKind,
@@ -35,6 +36,15 @@ export interface CredentialRow {
   readonly name: string;
 }
 
+/** A version as plain data; the graph loads on demand. */
+export interface VersionRow {
+  readonly id: string;
+  readonly version: number;
+  readonly status: "draft" | "published" | "archived";
+  readonly createdAt: string;
+  readonly publishedAt: string | null;
+}
+
 export interface BuilderDetail {
   readonly tenant: string;
   readonly definition: DefinitionRow;
@@ -45,35 +55,19 @@ export interface BuilderDetail {
     readonly graph: WorkflowGraph;
   } | null;
   readonly steps: readonly WorkflowStepInfo[];
+  /** The deployment's own node kinds, which the palette and inspector use. */
+  readonly kinds: readonly WorkflowNodeKindRow[];
+  readonly versions: readonly VersionRow[];
+  /** The tenant's other published definitions, for sub-workflow nodes. */
+  readonly definitions: readonly {
+    readonly id: string;
+    readonly name: string;
+  }[];
   readonly triggers: readonly TriggerRow[];
   readonly credentials: readonly CredentialRow[];
 }
 
 const EMPTY_GRAPH: WorkflowGraph = { nodes: [], edges: [] };
-
-/** The active organization's workflow definitions. */
-export async function getDefinitions(): Promise<readonly DefinitionRow[]> {
-  "use cache: private";
-  const { session, supabase } = await bsbCore.cached();
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return [];
-  }
-
-  const definitions = await builderFor(supabase)
-    .definitions.list({ tenant, limit: 100 })
-    .orThrow();
-
-  return definitions.map((definition) => ({
-    id: definition.id,
-    name: definition.name,
-    slug: definition.slug,
-    published: definition.published ?? null,
-    draft: definition.draft ?? false,
-    updatedAt: definition.updatedAt.toString(),
-  }));
-}
 
 /**
  * Everything the canvas needs for one definition; `null` when it isn't the
@@ -97,12 +91,15 @@ export async function getBuilderDetail(
     return null;
   }
 
-  const [versions, steps, triggers, credentials] = await Promise.all([
-    builder.versions.list(id, { limit: 50 }).orThrow(),
-    builder.steps.list({ limit: 200 }).orThrow(),
-    builder.triggers.list(id, { limit: 50 }).orThrow(),
-    builder.credentials.list(tenant, { limit: 100 }).orThrow(),
-  ]);
+  const [versions, steps, kinds, others, triggers, credentials] =
+    await Promise.all([
+      builder.versions.list(id, { limit: 50 }).orThrow(),
+      builder.steps.list({ limit: 200 }).orThrow(),
+      builder.nodeKinds.list().orThrow(),
+      builder.definitions.list({ tenant, limit: 100 }).orThrow(),
+      builder.triggers.list(id, { limit: 50 }).orThrow(),
+      builder.credentials.list(tenant, { limit: 100 }).orThrow(),
+    ]);
 
   const draftId = versions.find((version) => version.status === "draft")?.id;
 
@@ -133,6 +130,17 @@ export async function getBuilderDetail(
         ? null
         : { version: published.version, graph: published.graph ?? EMPTY_GRAPH },
     steps,
+    kinds,
+    versions: versions.map((version) => ({
+      id: version.id,
+      version: version.version,
+      status: version.status,
+      createdAt: version.createdAt.toString(),
+      publishedAt: version.publishedAt?.toString() ?? null,
+    })),
+    definitions: others
+      .filter((other) => other.id !== id && other.published !== undefined)
+      .map((other) => ({ id: other.id, name: other.name })),
     triggers: triggers.map((trigger) => ({
       id: trigger.id,
       kind: trigger.kind,

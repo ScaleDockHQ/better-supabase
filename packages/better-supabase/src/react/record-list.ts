@@ -9,6 +9,12 @@ import { useMemo } from "react";
 export interface RecordListUrl<Q> {
   /** The query with every default, for URL state the list refuses. */
   readonly defaults: Q;
+  /**
+   * The list's facets. nuqs holds each one under its own URL key (`status`),
+   * and the query holds them together under `facets`, so the hook needs the
+   * keys to move them.
+   */
+  readonly facets?: readonly { readonly key: string }[];
   parse(
     input: URLSearchParams,
   ): { readonly ok: true; readonly value: Q } | { readonly ok: false };
@@ -60,6 +66,32 @@ const present = (state: RecordListUrlState): Record<string, unknown> =>
   );
 
 /**
+ * The URL state in the shape of a query: the facet keys move under `facets`, as
+ * `toSearchParams` reads them.
+ */
+const asQuery = (
+  facetKeys: ReadonlySet<string>,
+  state: RecordListUrlState,
+): Record<string, unknown> => {
+  const query: Record<string, unknown> = {};
+  const facets: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(present(state))) {
+    if (facetKeys.has(key)) {
+      facets[key] = value;
+    } else {
+      query[key] = value;
+    }
+  }
+
+  if (Object.keys(facets).length > 0) {
+    query["facets"] = facets;
+  }
+
+  return query;
+};
+
+/**
  * A record list's URL state from nuqs, with the query params the server parses.
  * Filter and sort changes reset the page. better-supabase doesn't import nuqs:
  * pass what `useQueryStates` returns.
@@ -83,8 +115,13 @@ export function useRecordListState<Q>(
   const [state, setState] = queryStates;
 
   return useMemo(() => {
+    const facetKeys = new Set((list.facets ?? []).map((facet) => facet.key));
+
     // SAFETY: the state holds the values the list's own parsers produced.
-    const searchParams = list.toSearchParams(present(state) as Partial<Q>);
+    const searchParams = list.toSearchParams(
+      asQuery(facetKeys, state) as Partial<Q>,
+    );
+
     const parsed = list.parse(searchParams);
     const query = parsed.ok ? parsed.value : list.defaults;
 
