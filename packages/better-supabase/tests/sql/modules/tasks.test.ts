@@ -13,6 +13,41 @@ const body = (
     .join("\n");
 
 describe("tasks module", () => {
+  it("adds the configured columns to the task events' payloads", () => {
+    const sql = body(
+      "tasks",
+      {
+        modules: {
+          tasks: {
+            events: {
+              payload: {
+                "task.created": { customerId: "customer_id" },
+                "task.closed": { parentTaskId: "parent_id" },
+              },
+            },
+          },
+        },
+      },
+      ["outbox"],
+    );
+
+    expect(sql).toContain(
+      `'title', v_row."title") || jsonb_build_object('customerId', v_row."customer_id"))`,
+    );
+    expect(sql).toContain(
+      `|| jsonb_build_object('parentTaskId', new."parent_id"))`,
+    );
+    expect(() =>
+      body("tasks", {
+        modules: {
+          tasks: { events: { payload: { "task.moved": { a: "b" } } } },
+        },
+      }),
+    ).toThrow(
+      `blocks.tasks.events.payload names "task.moved", which module "tasks" doesn't record`,
+    );
+  });
+
   it("leaves out the lock when the app maps locked to null", () => {
     const kept = body("tasks");
     expect(kept).toContain('"locked" boolean not null default false');

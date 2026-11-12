@@ -302,6 +302,37 @@ describe("hooks and events", () => {
       }).emit(event),
     ).toThrow("blockSource must be a string");
   });
+
+  it("adds the configured columns of the event's row to its payload", () => {
+    const payloaded = (payload: Record<string, Record<string, string>>) =>
+      createModuleContext("demo", () => names, {
+        installed: ["demo", "outbox"],
+        modules: { demo: { events: { payload } } },
+      });
+
+    const event = {
+      type: "item.created",
+      payload: "jsonb_build_object('id', v_row.id)",
+      row: "v_row",
+    };
+
+    expect(
+      payloaded({ "item.created": { customerId: "customer_id" } }).emit(event),
+    ).toContain(
+      `emit_event('item.created', (jsonb_build_object('id', v_row.id) || jsonb_build_object('customerId', v_row."customer_id")), null`,
+    );
+    expect(
+      payloaded({ "item.updated": { customerId: "customer_id" } }).emit(event),
+    ).toContain("jsonb_build_object('id', v_row.id), null");
+    expect(() =>
+      payloaded({ "item.created": { customerId: "customer_id" } }).emit({
+        type: "item.created",
+        payload: "'{}'",
+      }),
+    ).toThrow(
+      `blocks.demo.events.payload names "item.created", which module "demo" records without a row`,
+    );
+  });
 });
 
 describe("module modes", () => {

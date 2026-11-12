@@ -191,6 +191,7 @@ export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
       payload: `jsonb_build_object('organizationId', ${alias}.${w("tenant")}, 'taskId', ${alias}.${w("id")}, 'subjectType', ${item}, 'subjectId', ${alias}.${w("id")}::text, 'title', ${alias}.${w("title")}${extra})`,
       subject: `'tasks/' || ${alias}.${w("id")}::text`,
       tenant: `${alias}.${w("tenant")}::text`,
+      row: alias,
       audit: false,
       ...(n.templates ? { live: `${alias}.${w("template")} is null` } : {}),
     });
