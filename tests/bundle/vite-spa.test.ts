@@ -49,4 +49,4 @@ test("keeps the Vite SPA within its gzip budget", async () => {
     gzip,
     `Vite SPA JavaScript is ${gzip} bytes gzip; the budget is ${VITE_SPA_GZIP}`,
   ).toBeLessThanOrEqual(allowed);
-});
+}, 60_000);

@@ -1763,7 +1763,10 @@ that calls a volatile function, or one written in PL/pgSQL, outside
 can't hoist a volatile call. Wrap the call in `(select fn(...))` so it runs once
 per statement, or replace a per-row check with a set helper such as
 `tenant_id in (select tenant_ids_with('key'))`. A helper called inside
-`(select ...)` is accepted even when it is volatile. Policies named `bsb_*`
+`(select ...)` is accepted even when it is volatile, and so is a set helper in
+the `from` of a subquery whose arguments read no column of the row, such as
+`id in (select t.id from thread_ids('key') as t(id))`: Postgres calls it once
+and rescans its result. Policies named `bsb_*`
 belong to a block module and are left to `upgrade`. Doctor reads the policy
 expressions and the functions they call from the catalog.
 

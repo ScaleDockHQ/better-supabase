@@ -164,7 +164,14 @@ const blockEntries = {
       functions: v.optional(stringRecord),
     }),
   ),
-  events: v.optional(v.boolean()),
+  events: v.optional(
+    v.union([
+      v.boolean(),
+      v.strictObject({
+        payload: v.optional(v.record(v.string(), stringRecord)),
+      }),
+    ]),
+  ),
   audit: v.optional(v.boolean()),
   api: v.optional(
     v.union([
@@ -205,6 +212,7 @@ const permissionsBlock = v.strictObject({
   ),
   platformClaim: v.optional(v.string()),
   scopes: v.optional(v.record(v.string(), strings)),
+  interactiveOnly: v.optional(strings),
   disabled: v.optional(
     v.strictObject({
       tenant: v.optional(v.union([v.string(), disabledRow])),
@@ -440,7 +448,10 @@ const authorization = v.strictObject({
   ),
   versions: v.optional(blockSchemas.authorizationVersionsSchema),
   delegation: v.optional(
-    v.strictObject({ scopes: v.optional(v.record(v.string(), strings)) }),
+    v.strictObject({
+      scopes: v.optional(v.record(v.string(), strings)),
+      interactiveOnly: v.optional(strings),
+    }),
   ),
   wildcards: v.optional(v.picklist(["all", "prefix", "none"])),
   problems: v.optional(strings),
@@ -748,6 +759,8 @@ const FLAT = {
               ),
             ),
             functionSchema: v.optional(v.string()),
+            dedupe: v.optional(v.picklist(["transaction"])),
+            dedupeKey: v.optional(v.pipe(v.array(v.string()), v.minLength(1))),
             when: v.optional(
               v.strictObject({
                 changed: v.pipe(v.array(v.string()), v.minLength(1)),

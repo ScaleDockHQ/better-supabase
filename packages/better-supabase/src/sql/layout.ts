@@ -31,6 +31,12 @@ export function moduleLayout(
     ...(config.authorization?.delegation?.scopes
       ? { delegationScopes: config.authorization.delegation.scopes }
       : {}),
+    ...(config.authorization?.delegation?.interactiveOnly
+      ? {
+          delegationInteractiveOnly:
+            config.authorization.delegation.interactiveOnly,
+        }
+      : {}),
     seedDefaults: config.seed.defaults,
     dir: config.sql.dir,
     prefix: config.sql.prefix,

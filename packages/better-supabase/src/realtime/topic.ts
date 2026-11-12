@@ -415,6 +415,17 @@ export interface TopicBroadcast extends Omit<
   readonly table: string;
   /** The column or lookup per placeholder. Defaults to snake_case columns. */
   readonly values?: Readonly<Record<string, TopicTriggerValue>>;
+  /**
+   * `"transaction"` sends each message once per transaction: a row whose topic,
+   * event and payload match one already sent in the same transaction is
+   * skipped, so a bulk write sends one message per key. `upgrade` writes it.
+   */
+  readonly dedupe?: "transaction";
+  /**
+   * The payload fields that tell two messages apart for `dedupe`, next to the
+   * topic and the event. Defaults to the whole payload.
+   */
+  readonly dedupeKey?: readonly string[];
 }
 
 /** A row change sent with `payload: "row"`. */
@@ -548,6 +559,8 @@ interface AnyTriggerOptions {
     | Readonly<Record<string, AnyTriggerValue | { readonly sql: string }>>;
   readonly topics?: readonly TriggerTopic<AnyTriggerValue>[];
   readonly functionSchema?: string;
+  /** `upgrade` turns the generated function's sends into `broadcast_once()`. */
+  readonly dedupe?: string;
   readonly when?: { readonly changed: readonly string[] };
   readonly columns?: readonly string[];
 }
@@ -882,6 +895,7 @@ export function defineTopic<
       columns !== undefined &&
       extra.length === 0 &&
       typeof trigger.event !== "object" &&
+      !trigger.dedupe &&
       (payload === undefined || typeof payload === "string") &&
       (changed === undefined || changed.when)
     ) {

@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:873ef230bd3d0566508c940a8c9549293c8915f1089b390586ebdbe0943a14ab
+-- @bsb-hash sha256:003df442d9018433eed8a42b84549739f693b5366385f3befee002d1a2d76469
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -47,6 +47,45 @@ as $$
     or (right(granted, 2) = '.*' and starts_with(wanted, left(granted, -1)))
 $$;
 
+-- True for a user's own session and for no token at all. False for an API
+-- key (api_key), an OAuth client (client_id) and an act chain (an agent, a
+-- delegation, support or impersonation).
+create or replace function better_supabase.interactive_session()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select auth.jwt() is null
+    or (auth.jwt() -> 'api_key' is null
+      and coalesce(auth.jwt() ->> 'client_id', '') = ''
+      and auth.jwt() -> 'act' is null)
+$$;
+
+-- The permission keys only a signed-in user gets (the built-in
+-- interactive-only operations, authorization.delegation.interactiveOnly and
+-- blocks.permissions.interactiveOnly): cap_allows refuses them to every
+-- other session, whatever its scopes.
+create or replace function better_supabase.interactive_only(permission text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(permission = any (array['organization.delete', 'organization.transfer_ownership']::text[]), false)
+$$;
+
+-- The roles only a signed-in user grants or takes away: the organization
+-- owner role. can_assign refuses them to every other session.
+create or replace function better_supabase.interactive_only_role(role text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select coalesce(role = 'owner', false)
+$$;
+
 -- The permission keys an OAuth scope grants a delegated token
 -- (authorization.delegation.scopes, blocks.permissions.scopes). A scope
 -- without an entry grants the key with its own name.
@@ -59,9 +98,11 @@ as $$
   select array[scope]
 $$;
 
--- False when the token is narrower than the permission: a permission cap
--- (bsb_permission_cap) without the key, or a delegated token whose scopes
--- don't map to it. True for every other token, the service role included.
+-- False when the token is narrower than the permission: an interactive-only
+-- key outside a user's own session, a permission cap (bsb_permission_cap)
+-- without the key, an API key (api_key) or a delegated token whose scopes
+-- don't map to it. An API key without scopes holds no permission. True
+-- for every other token, the service role included.
 -- 0.14 named the cap bs_permission_cap; 0.15 still reads it when the new
 -- claim is missing, so a cap from an older runAs keeps narrowing.
 create or replace function better_supabase.cap_allows(permission text)
@@ -73,11 +114,22 @@ set search_path = ''
 as $$
   select case
     when jwt is null then true
+    when better_supabase.interactive_only(cap_allows.permission)
+      and not better_supabase.interactive_session() then false
     when jsonb_typeof(cap) = 'array'
       and not exists (
         select 1 from jsonb_array_elements_text(cap) c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
+    when jsonb_typeof(jwt -> 'api_key') = 'object' then exists (
+      select 1
+      from jsonb_array_elements_text(case jsonb_typeof(jwt -> 'api_key' -> 'scopes')
+          when 'array' then jwt -> 'api_key' -> 'scopes'
+          else '[]'::jsonb
+        end) s(scope)
+      cross join lateral unnest(better_supabase.scope_permissions(s.scope)) k(key)
+      where better_supabase.permission_matches(k.key, cap_allows.permission)
+    )
     when coalesce(jwt ->> 'client_id', '') = ''
       and (jwt -> 'act' is null
         or (jsonb_typeof(jwt -> 'act') = 'object'
@@ -278,7 +330,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(auth.jwt() ->> 'role', '') = 'service_role' or better_supabase.can_assign_as(auth.uid(), can_assign.tenant, can_assign.role)
+  select coalesce(auth.jwt() ->> 'role', '') = 'service_role' or ((better_supabase.interactive_session() or not better_supabase.interactive_only_role(can_assign.role)) and better_supabase.can_assign_as(auth.uid(), can_assign.tenant, can_assign.role))
 $$;
 
 
@@ -462,6 +514,12 @@ revoke execute on function better_supabase.scope_permissions(text) from public;
 grant execute on function better_supabase.scope_permissions(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.cap_allows(text) from public;
 grant execute on function better_supabase.cap_allows(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.interactive_session() from public;
+grant execute on function better_supabase.interactive_session() to anon, authenticated, service_role;
+revoke execute on function better_supabase.interactive_only(text) from public;
+grant execute on function better_supabase.interactive_only(text) to anon, authenticated, service_role;
+revoke execute on function better_supabase.interactive_only_role(text) from public;
+grant execute on function better_supabase.interactive_only_role(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.operation_permission(text) from public;
 grant execute on function better_supabase.operation_permission(text) to anon, authenticated, service_role;
 revoke execute on function better_supabase.can(text, uuid, text) from public;

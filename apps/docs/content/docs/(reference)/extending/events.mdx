@@ -561,3 +561,26 @@ organizations, profiles and notifications. With the `outbox`
 module installed, modules also write their events with `emit_event` in the
 same transaction; `blocks.<module>.events: false` turns that off for one
 module.
+
+`blocks.<module>.events.payload` adds columns of the event's row to an
+event's payload, so an app that keeps its own columns on a block's table
+doesn't have to write a second event. Keys are the event type and then the
+payload key, values are column names:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  tasks: {
+    events: {
+      payload: {
+        "task.created": {
+          customerId: "customer_id",
+          templateId: "task_template_id",
+        },
+      },
+    },
+  },
+},
+```
+
+Rendering fails for a type the module doesn't record, and for an event the
+module writes without a row. The tasks block passes its row to every event.

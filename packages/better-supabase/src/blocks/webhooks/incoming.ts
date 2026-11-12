@@ -335,13 +335,16 @@ export function createIncomingWebhooks(
           };
         },
       ),
-    list: ({ tenant, subject }) =>
+    list: ({ tenant, subject, pageSize, skip, newestFirst }) =>
       call(
         "list_incoming_webhooks",
         {
           tenant,
           subject_type: subject?.type ?? null,
           subject_id: subject?.id ?? null,
+          page_size: pageSize ?? null,
+          skip: skip ?? 0,
+          newest_first: newestFirst ?? false,
         },
         (value) =>
           recordsOf(value, "list_incoming_webhooks").map(

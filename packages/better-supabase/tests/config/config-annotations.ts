@@ -205,6 +205,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "OAuth scope to the permission keys it grants a delegated token.",
   },
+  "auth.authorization.delegation.interactiveOnly": {
+    description:
+      "Permission keys no API key, OAuth client or agent gets, whatever its scopes; merged with blocks.permissions.interactiveOnly.",
+  },
   "database.vectorSearch": {
     description:
       "Embedding columns keyed by `table` or `schema.table`. The `vector-search` SQL module writes `search_<table>(query, k)` for each.",
@@ -337,6 +341,14 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "database.realtime.triggers[].functionSchema": {
     description:
       "Schema for a generated function. Defaults to better_supabase, which the Data API does not expose.",
+  },
+  "database.realtime.triggers[].dedupe": {
+    description:
+      "transaction sends each message once per transaction: a row whose topic, event and payload match one already sent in the same transaction is skipped, so a bulk write sends one message per key.",
+  },
+  "database.realtime.triggers[].dedupeKey": {
+    description:
+      "The payload fields that tell two messages apart for dedupe, next to the topic and the event. Defaults to the whole payload.",
   },
   "database.realtime.triggers[].when": {
     description:
@@ -552,6 +564,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "$defs.permissionsBlock.scopes": {
     description:
       "OAuth scope to the permission keys it grants a delegated token; merged over authorization.delegation.scopes.",
+  },
+  "$defs.permissionsBlock.interactiveOnly": {
+    description:
+      "Permission keys only a user's own session gets, added to the built-in interactive-only operations.",
   },
   "$defs.environment": {
     description:

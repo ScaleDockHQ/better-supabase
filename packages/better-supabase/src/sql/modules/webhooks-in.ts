@@ -7,6 +7,7 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   schemaPreamble,
   SERVICE_CALLER,
+  pageSize,
   sha256HexSql,
   updatedAt,
   fail,
@@ -326,6 +327,10 @@ ${renderPolicy(
     ["created_at", read("e", "createdAt")],
   ];
 
+  const created = read("e", "createdAt", e("id"));
+  const newest = "list_incoming_webhooks.newest_first";
+  const order = `case when ${newest} then ${created} end desc, case when ${newest} then ${e("id")} end desc, ${created}, ${e("id")}`;
+
   const subjectFilter = subjectColumns
     ? `
     and (list_incoming_webhooks.subject_type is null or ${e("subjectType")} = list_incoming_webhooks.subject_type)
@@ -537,22 +542,29 @@ $$;
 revoke execute on function ${ctx.fn("incoming_webhook_subject_readable")}(text, text, ${id}) from public, anon;
 grant execute on function ${ctx.fn("incoming_webhook_subject_readable")}(text, text, ${id}) to authenticated, service_role;
 ${readPolicy}
+drop function if exists ${ctx.fn("list_incoming_webhooks")}(${id}, text, text);
 -- A tenant's endpoints, or one subject's, without secrets; runs as the caller.
-create or replace function ${ctx.fn("list_incoming_webhooks")}(tenant ${id}, subject_type text default null, subject_id text default null)
+create or replace function ${ctx.fn("list_incoming_webhooks")}(tenant ${id}, subject_type text default null, subject_id text default null, page_size integer default null, skip integer default 0, newest_first boolean default false)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    ${listed.map(([name, value]) => `'${name}', ${value}`).join(",\n    ")}
-  ) order by ${read("e", "createdAt", e("id"))}), '[]'::jsonb)
-  from ${t} e
-  where ${e("tenant")} = list_incoming_webhooks.tenant${subjectFilter}
+  select coalesce(jsonb_agg(page.item order by page.n), '[]'::jsonb)
+  from (
+    select jsonb_build_object(
+      ${listed.map(([name, value]) => `'${name}', ${value}`).join(",\n      ")}
+    ) as item, row_number() over (order by ${order}) as n
+    from ${t} e
+    where ${e("tenant")} = list_incoming_webhooks.tenant${subjectFilter}
+    order by ${order}
+    limit case when list_incoming_webhooks.page_size is null then null else ${pageSize("list_incoming_webhooks.page_size", 50, 500)} end
+    offset greatest(coalesce(list_incoming_webhooks.skip, 0), 0)
+  ) page
 $$;
-revoke execute on function ${ctx.fn("list_incoming_webhooks")}(${id}, text, text) from public, anon;
-grant execute on function ${ctx.fn("list_incoming_webhooks")}(${id}, text, text) to authenticated, service_role;
+revoke execute on function ${ctx.fn("list_incoming_webhooks")}(${id}, text, text, integer, integer, boolean) from public, anon;
+grant execute on function ${ctx.fn("list_incoming_webhooks")}(${id}, text, text, integer, integer, boolean) to authenticated, service_role;
 ${cascades}
 drop function if exists ${ctx.fn("create_incoming_webhook")}(${id}, text, text, jsonb, text);
 -- Creates an endpoint and returns it with its token (and the signing secret
@@ -899,7 +911,7 @@ export const WEBHOOKS_IN: BlockSqlDefinition = {
     },
     options: ["maxBodyBytes", "secretStorage"],
   },
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -929,6 +941,12 @@ where e.secret is not null and e.secret_id is null;`;
         "Adopt mode over an app's endpoints table; incoming_webhook_by_token returns the endpoint's metadata for destinations.",
       sql: () => "",
     },
+    {
+      from: 4,
+      description:
+        "list_incoming_webhooks pages with page_size and skip, and newest_first lists the newest endpoints first.",
+      sql: () => "",
+    },
   ],
   contract: () => [
     {
@@ -948,7 +966,7 @@ where e.secret is not null and e.secret_id is null;`;
     },
     {
       name: "list_incoming_webhooks",
-      args: ["{id}", "text", "text"],
+      args: ["{id}", "text", "text", "integer", "integer", "boolean"],
       returns: "jsonb",
     },
     { name: "incoming_webhook_by_token", args: ["text"], returns: "record" },

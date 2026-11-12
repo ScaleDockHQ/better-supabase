@@ -40,14 +40,47 @@ const appSqlTexts = (context: DoctorContext): readonly TextFile[] =>
  * Whether a policy expression calls `schema.name` outside a `(select ...)`, the
  * form Postgres prints for an InitPlan.
  */
-function callsPerRow(expression: string, name: string): boolean {
+function callsPerRow(
+  expression: string,
+  name: string,
+  columns: ReadonlySet<string>,
+): boolean {
   const call = new RegExp(
     String.raw`(?<![\w.])(?<!select\s+)(?:"?\w+"?\.)?"?${escape(name)}"?\s*\(`,
     "gi",
   );
 
-  return call.test(expression);
+  return [...expression.matchAll(call)].some(
+    (match) =>
+      !/\b(?:from|join)\s+$/i.test(expression.slice(0, match.index)) ||
+      readsRow(argumentsAt(expression, match.index + match[0].length), columns),
+  );
 }
+
+function argumentsAt(expression: string, start: number): string {
+  let depth = 1;
+  let quoted = false;
+  let text = "";
+
+  for (let at = start; at < expression.length && depth > 0; at += 1) {
+    const char = expression.charAt(at);
+
+    if (char === "'") {
+      quoted = !quoted;
+    } else if (!quoted) {
+      depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+      text += depth > 0 ? char : "";
+    }
+  }
+
+  return text;
+}
+
+const readsRow = (args: string, columns: ReadonlySet<string>): boolean =>
+  args
+    .replaceAll(/::\s*"?\w+"?/g, "")
+    .split(/\W+/)
+    .some((word) => columns.has(word.toLowerCase()));
 
 /** The body of the first `create function` of `name` among the SQL files. */
 function functionSource(
@@ -220,7 +253,7 @@ const SCALE_CHECKS: readonly Rule[] = [
     severity: "warning",
     title: "A policy calls a volatile or PL/pgSQL function per row",
     description:
-      "A policy that calls a volatile function, or one written in PL/pgSQL, outside `(select ...)` runs it once for every row the statement reads, and a volatile function can't be hoisted or folded. A 100,000 row list then costs 100,000 calls. Wrap the call in `(select fn(...))` so Postgres evaluates it once per statement, or replace a per-row check with a set helper such as `tenant_id in (select tenant_ids_with('key'))`. A helper that is called inside `(select ...)` is accepted even when it is volatile. Policies named `bsb_*` belong to a block module and are left to `upgrade`.",
+      "A policy that calls a volatile function, or one written in PL/pgSQL, outside `(select ...)` runs it once for every row the statement reads, and a volatile function can't be hoisted or folded. A 100,000 row list then costs 100,000 calls. Wrap the call in `(select fn(...))` so Postgres evaluates it once per statement, or replace a per-row check with a set helper such as `tenant_id in (select tenant_ids_with('key'))`. A helper that is called inside `(select ...)` is accepted even when it is volatile, and so is a set helper in the `from` of a subquery whose arguments read no column of the row, such as `id in (select t.id from thread_ids('key') as t(id))`, because Postgres calls it once and rescans its result. Policies named `bsb_*` belong to a block module and are left to `upgrade`.",
     check(context) {
       const catalog = catalogOf(context);
 
@@ -236,6 +269,10 @@ const SCALE_CHECKS: readonly Rule[] = [
 
           const expressions = [policy.using, policy.check].filter(
             (text): text is string => text !== null,
+          );
+
+          const columns = new Set(
+            table.columns.map((column) => column.name.toLowerCase()),
           );
 
           return (policy.functions ?? []).flatMap((called) => {
@@ -259,7 +296,7 @@ const SCALE_CHECKS: readonly Rule[] = [
 
             if (
               !heavy ||
-              !expressions.some((text) => callsPerRow(text, name))
+              !expressions.some((text) => callsPerRow(text, name, columns))
             ) {
               return [];
             }

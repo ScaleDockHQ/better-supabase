@@ -2,6 +2,7 @@ import type { ResolvedConfig } from "../config/index.ts";
 import type { BlockSqlTopic } from "../sql/index.ts";
 import type { LoadedTopic, LoadedTriggerOptions } from "./topics.ts";
 
+import { BROADCAST_ONCE_SQL, dedupeTrigger } from "./broadcast-once.ts";
 import { CliError } from "./core/errors.ts";
 import { loadTopics } from "./topics.ts";
 
@@ -23,7 +24,7 @@ function triggerStatement(
   index: number,
 ): string {
   try {
-    return topic.trigger(table, options);
+    return dedupeTrigger(topic.trigger(table, options), options);
   } catch (error) {
     if (error instanceof TypeError) {
       throw new CliError(
@@ -134,7 +135,7 @@ export async function topicPolicyFile(
       let statement: string;
 
       try {
-        statement = topic.trigger(table, options);
+        statement = dedupeTrigger(topic.trigger(table, options), options);
       } catch (error) {
         if (error instanceof TypeError) {
           throw new CliError("config_invalid", `${where}: ${error.message}`);
@@ -163,8 +164,16 @@ export async function topicPolicyFile(
     ...skipped,
   ].join("\n");
 
+  const statements = [...triggerSql, ...declared];
+
+  const once = statements.some((each) =>
+    each.includes("better_supabase.broadcast_once("),
+  )
+    ? [BROADCAST_ONCE_SQL]
+    : [];
+
   return {
     path: policies.file,
-    contents: `${header}\n\n${[...written.map(sqlOf), ...triggerSql, ...declared].join("\n")}`,
+    contents: `${header}\n\n${[...written.map(sqlOf), ...once, ...statements].join("\n")}`,
   };
 }

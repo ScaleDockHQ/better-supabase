@@ -33,8 +33,8 @@ const coded = createSupabase(
 ).connect(executor);
 
 describe("db.$decode", () => {
-  it("renames database columns to the configured casing", () => {
-    const result = db.$decode("tags").row({ id: "t1", created_at: "x" });
+  it("renames database columns to the configured casing", async () => {
+    const result = await db.$decode("tags").row({ id: "t1", created_at: "x" });
 
     expect(result.ok && result.data).toMatchObject({
       id: "t1",
@@ -42,17 +42,17 @@ describe("db.$decode", () => {
     });
   });
 
-  it("returns a validation error for a value that is not an object", () => {
-    const result = db.$decode("tags").row(null);
+  it("returns a validation error for a value that is not an object", async () => {
+    const result = await db.$decode("tags").row(null);
 
     expect(!result.ok && result.error.kind).toBe("validation");
   });
 
-  it("decodes a list and reports a value that is not a list", () => {
-    const rows = db.$decode("tags").rows([{ id: "a" }, { id: "b" }]);
+  it("decodes a list and reports a value that is not a list", async () => {
+    const rows = await db.$decode("tags").rows([{ id: "a" }, { id: "b" }]);
 
     expect(rows.ok && rows.data.map((row) => row.id)).toEqual(["a", "b"]);
-    expect(db.$decode("tags").rows({}).ok).toBe(false);
+    expect((await db.$decode("tags").rows({})).ok).toBe(false);
   });
 
   it("throws for an unknown table", () => {
@@ -60,20 +60,27 @@ describe("db.$decode", () => {
     expect(() => db.$decode("nope")).toThrow(/unknown table/);
   });
 
-  it("reports a value a column codec rejects instead of throwing", () => {
-    const row = coded.$decode("tags").row({ id: "t1", created_at: "infinity" });
+  it("reports a value a column codec rejects instead of throwing", async () => {
+    const row = await coded
+      .$decode("tags")
+      .row({ id: "t1", created_at: "infinity" });
 
     expect(!row.ok && row.error.kind).toBe("invalid_value");
   });
 
-  it("rethrows a failure that is not a database error", () => {
-    expect(() =>
-      coded.$decode("tags").row({ id: "t1", created_at: "nope" }),
-    ).toThrow(RangeError);
+  it("returns a failure that is not a database error as an unexpected error", async () => {
+    const row = await coded
+      .$decode("tags")
+      .row({ id: "t1", created_at: "nope" });
+
+    expect(!row.ok && row.error).toMatchObject({
+      kind: "unexpected",
+      message: "Cannot parse: nope",
+    });
   });
 
-  it("stops a list at the first row that fails to decode", () => {
-    const rows = coded.$decode("tags").rows([
+  it("stops a list at the first row that fails to decode", async () => {
+    const rows = await coded.$decode("tags").rows([
       { id: "a", created_at: "2026-01-01T00:00:00Z" },
       { id: "b", created_at: "infinity" },
       { id: "c", created_at: "infinity" },
@@ -82,8 +89,8 @@ describe("db.$decode", () => {
     expect(!rows.ok && rows.error.kind).toBe("invalid_value");
   });
 
-  it("decodes embedded relations at every depth", () => {
-    const row = coded
+  it("decodes embedded relations at every depth", async () => {
+    const row = await coded
       .$decode("customerTags")
       .row({
         customer_id: "c1",
@@ -100,11 +107,47 @@ describe("db.$decode", () => {
     ).toBe("object");
   });
 
-  it("reports an embedded row that fails to decode", () => {
-    const row = coded
+  it("reports an embedded row that fails to decode", async () => {
+    const row = await coded
       .$decode("customerTags")
       .row({ customer_id: "c1", tag: { id: "t1", created_at: "infinity" } });
 
     expect(!row.ok && row.error.kind).toBe("invalid_value");
+  });
+});
+
+describe("db.$decode with lazy tables", () => {
+  it("loads the table and the embedded relations before it decodes", async () => {
+    const loaded: string[] = [];
+
+    const tableLoaders = Object.fromEntries(
+      Object.entries(schema.meta.tables).map(([key, table]) => [
+        key,
+        () => {
+          loaded.push(key);
+
+          return Promise.resolve(table);
+        },
+      ]),
+    );
+
+    const lazy = createSupabase(
+      defineSchema({
+        ...schema.meta,
+        tables: {},
+        lazyTables: true,
+        tableLoaders,
+      }),
+    ).connect(executor);
+
+    const row = await lazy
+      .$decode("customerTags")
+      .row({ customer_id: "c1", tag: { id: "t1", created_at: "x" } });
+
+    expect(row.ok && row.data).toMatchObject({
+      customerId: "c1",
+      tag: { id: "t1", createdAt: "x" },
+    });
+    expect(loaded.toSorted()).toEqual(["customerTags", "tags"]);
   });
 });
