@@ -176,7 +176,8 @@ describe.skipIf(!live)("qualifications", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where type like 'qualification%'",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'qualification%'",
+        [org],
       );
 
       expect(new Set(events.map((row) => row.type))).toEqual(
