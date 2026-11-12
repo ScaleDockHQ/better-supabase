@@ -30,4 +30,5 @@ paths:
   functions have explicit return types.
 - Deploys use Vercel Services from `vercel.json` (docs and marketing on one
   domain). It stays JSON until `@vercel/config` types `services` and
-  per-service rewrites; each service's `turbo-ignore` skips its build when its app is unaffected.
+  per-service rewrites. The project-wide `ignoreCommand` (`scripts/vercel-ignore-build.sh`) builds only when
+  `apps/docs`, `apps/marketing` or a package version changed.
