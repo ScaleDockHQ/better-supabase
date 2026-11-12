@@ -405,11 +405,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane 0
 
 - Scope: Tracking: Progress and Lane ownership sections, lane checklist
-- Status: PR open (link added once the PR exists)
+- Status: PR open #894
 - Branch: `docs/audit-lane-0`
-- PR: none yet
+- PR: [#894](https://github.com/ScaleDockHQ/better-supabase/pull/894)
 - Findings: none (docs only)
-- Log: 2026-11-12, lane 0 started from main after PR 887 merged.
+- Log: 2026-11-12, lane 0 started from main after PR 887 merged; PR #894 opened.
 
 ### Lane A
 
