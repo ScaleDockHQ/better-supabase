@@ -28,9 +28,13 @@ const options: NextOptions = {
  */
 export const bsbShell = createNext(betterSupabaseShell, options);
 
-/** The caller's keys from `my_permissions`, once per request. */
+/**
+ * The caller's keys from `my_permissions`, once per request. `context()`, not
+ * `cached()`: route handlers and actions have no cache scope (`cacheLife()`
+ * throws there, and the authorizer reported that as a 403).
+ */
 async function myPermissions(): Promise<readonly string[] | undefined> {
-  const { db } = await bsbShell.cached();
+  const { db } = await bsbShell.context();
   const result = await db.permissions.permissions();
 
   return result.ok ? result.data.keys : undefined;
