@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.62.0 (2026-11-12)
+
+- `blocks.<name>.events` takes `{ payload: { "<event type>": { <payload key>: "<column>" } } }`, which adds columns of the event's row to the payload the module writes to the outbox. An app that keeps its own columns on a block's table, such as a `customer_id` on `tasks`, no longer has to write a second `task.created` with them. Rendering fails for an event type the module doesn't record and for an event the module writes without a row. The tasks block passes its row to every event. `events: true` and `events: false` keep working.
+- Breaking: `db.$decode(table).row()` and `.rows()` return an `AsyncResult`, so `$decode` works with lazy tables (`gen.serverTables: "lazy"`). It loads the table and every table an embedded relation in the value reaches before it decodes; before, it threw `unknown table` for a table the process had not loaded yet. Add `await` where you read the result: `const customers = await db.$decode("customers").rows(rows)`. A failure that is not a database error is now an error result instead of a thrown exception.
+- `list_incoming_webhooks` and `hooks.list()` page: `pageSize` (up to 500) and `skip` return one page of a tenant's endpoints, and `newestFirst` lists the newest first. Without `pageSize` the call still returns every endpoint, oldest first. Run `better-supabase upgrade` to regenerate the `webhooks-in` module.
+
 ## 0.61.1 (2026-11-12)
 
 - `doctor` BS386 no longer flags a volatile set helper in the `from` of a policy subquery when its arguments read no column of the row, such as `id in (select t.id from thread_ids('key') as t(id))`. Postgres calls that function once and rescans its result. A helper whose arguments read the row is still flagged.
