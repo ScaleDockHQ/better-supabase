@@ -874,3 +874,13 @@ export const updateMyProfileArgs: TableSchema<{ full_name: string }> = tableSche
     full_name: {"kind":"string"},
   },
 });
+
+export const workBulkStateArgs: TableSchema<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = tableSchema({
+  title: "work_bulk_state arguments",
+  fields: {
+    args: {"kind":"json"},
+    subject_id: {"kind":"string"},
+    subject_type: {"kind":"string"},
+    tenant: {"kind":"uuid"},
+  },
+});

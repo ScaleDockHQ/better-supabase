@@ -622,6 +622,13 @@ export const updateMyProfileArgs: v.GenericSchema<{ full_name: string }> = v.pip
   full_name: v.string(),
 }), v.title("update_my_profile arguments"));
 
+export const workBulkStateArgs: v.GenericSchema<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = v.pipe(v.object({
+  args: json,
+  subject_id: v.string(),
+  subject_type: v.string(),
+  tenant: v.pipe(v.string(), v.uuid()),
+}), v.title("work_bulk_state arguments"));
+
 export const importCustomerResult: v.GenericSchema<Json> = json;
 
 export const importCustomerBatchResult: v.GenericSchema<Json> = json;

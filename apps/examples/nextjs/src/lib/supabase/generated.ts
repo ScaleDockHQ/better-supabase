@@ -928,6 +928,15 @@ export type Functions = {
     };
     Returns: undefined;
   };
+  work_bulk_state: {
+    Args: {
+      args: Json | null;
+      subject_id: string | null;
+      subject_type: string | null;
+      tenant: string | null;
+    };
+    Returns: undefined;
+  };
 };
 
 export type TableName = keyof Models;

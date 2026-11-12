@@ -2686,6 +2686,30 @@
       ],
       "additionalProperties": false
     },
+    "workBulkStateArgs": {
+      "title": "work_bulk_state arguments",
+      "type": "object",
+      "properties": {
+        "args": {},
+        "subject_id": {
+          "type": "string"
+        },
+        "subject_type": {
+          "type": "string"
+        },
+        "tenant": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "args",
+        "subject_id",
+        "subject_type",
+        "tenant"
+      ],
+      "additionalProperties": false
+    },
     "importCustomerResult": {
       "title": "import_customer result"
     },

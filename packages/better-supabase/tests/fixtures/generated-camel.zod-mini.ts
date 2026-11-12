@@ -618,6 +618,13 @@ export const updateMyProfileArgs: z.ZodMiniType<{ full_name: string }> = z.objec
   full_name: z.string(),
 }).check(z.meta({ title: "update_my_profile arguments" }));
 
+export const workBulkStateArgs: z.ZodMiniType<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = z.object({
+  args: z.json(),
+  subject_id: z.string(),
+  subject_type: z.string(),
+  tenant: z.guid(),
+}).check(z.meta({ title: "work_bulk_state arguments" }));
+
 export const importCustomerResult: z.ZodMiniType<Json> = z.json();
 
 export const importCustomerBatchResult: z.ZodMiniType<Json> = z.json();

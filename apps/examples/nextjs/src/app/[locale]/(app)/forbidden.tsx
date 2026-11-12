@@ -8,7 +8,6 @@ import {
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
-  EmptyTitle,
 } from "@/components/ui/empty";
 import { Link } from "@/i18n/navigation";
 
@@ -25,7 +24,9 @@ export default function Forbidden() {
         <EmptyMedia variant="icon">
           <LockIcon />
         </EmptyMedia>
-        <EmptyTitle>{t("You don't have access")}</EmptyTitle>
+        <h1 className="text-lg font-medium tracking-tight">
+          {t("You don't have access")}
+        </h1>
         <EmptyDescription>
           {t("Ask an admin of this organization for access.")}
         </EmptyDescription>

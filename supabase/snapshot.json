@@ -178993,8 +178993,8 @@
         "schema": "better_supabase",
         "name": "bulk_apply",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_chunk text[] := coalesce(bulk_apply.ids, array[]::text[]);\n  v_id text;\n  v_ok integer := 0;\n  v_failed integer := 0;\n  v_results jsonb := '[]'::jsonb;\n  v_message text;\n  v_hint text;\n  v_state text;\nbegin\n  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then\n    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';\n  end if;\n  if not (bulk_apply.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add'])) then\n    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end if;\n  if cardinality(v_chunk) > 500 then\n    raise exception 'more than 500 rows; start a background run' using errcode = '22023', hint = 'BULK_TOO_MANY';\n  end if;\n  foreach v_id in array v_chunk loop\n    begin\n      perform \"better_supabase\".\"bulk_row\"(bulk_apply.tenant, bulk_apply.subject_type, v_id, bulk_apply.action, coalesce(bulk_apply.args, '{}'::jsonb));\n      v_ok := v_ok + 1;\n      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', true));\n    exception when others then\n      get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint, v_state = returned_sqlstate;\n      if coalesce(bulk_apply.atomic, false) then\n        raise exception using message = v_message, hint = coalesce(v_hint, ''), errcode = v_state;\n      end if;\n      v_failed := v_failed + 1;\n      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', false, 'error', jsonb_build_object('code', nullif(v_hint, ''), 'message', v_message, 'sqlstate', v_state)));\n    end;\n  end loop;\n  return jsonb_build_object('total', cardinality(v_chunk), 'succeeded', v_ok, 'failed', v_failed, 'results', v_results);\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.bulk_apply(tenant uuid, subject_type text, ids text[], action text, args jsonb, atomic boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  v_chunk text[] := coalesce(bulk_apply.ids, array[]::text[]);\n  v_id text;\n  v_ok integer := 0;\n  v_failed integer := 0;\n  v_results jsonb := '[]'::jsonb;\n  v_message text;\n  v_hint text;\n  v_state text;\nbegin\n  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then\n    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';\n  end if;\n  if not (bulk_apply.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add'])) then\n    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end if;\n  if cardinality(v_chunk) > 500 then\n    raise exception 'more than 500 rows; start a background run' using errcode = '22023', hint = 'BULK_TOO_MANY';\n  end if;\n  foreach v_id in array v_chunk loop\n    begin\n      perform \"better_supabase\".\"bulk_row\"(bulk_apply.tenant, bulk_apply.subject_type, v_id, bulk_apply.action, coalesce(bulk_apply.args, '{}'::jsonb));\n      v_ok := v_ok + 1;\n      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', true));\n    exception when others then\n      get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint, v_state = returned_sqlstate;\n      if coalesce(bulk_apply.atomic, false) then\n        raise exception using message = v_message, hint = coalesce(v_hint, ''), errcode = v_state;\n      end if;\n      v_failed := v_failed + 1;\n      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', false, 'error', jsonb_build_object('code', nullif(v_hint, ''), 'message', v_message, 'sqlstate', v_state)));\n    end;\n  end loop;\n  return jsonb_build_object('total', cardinality(v_chunk), 'succeeded', v_ok, 'failed', v_failed, 'results', v_results);\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_chunk text[] := coalesce(bulk_apply.ids, array[]::text[]);\n  v_id text;\n  v_ok integer := 0;\n  v_failed integer := 0;\n  v_results jsonb := '[]'::jsonb;\n  v_message text;\n  v_hint text;\n  v_state text;\nbegin\n  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then\n    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';\n  end if;\n  if not (bulk_apply.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add', 'work.setState'])) then\n    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end if;\n  if cardinality(v_chunk) > 500 then\n    raise exception 'more than 500 rows; start a background run' using errcode = '22023', hint = 'BULK_TOO_MANY';\n  end if;\n  foreach v_id in array v_chunk loop\n    begin\n      perform \"better_supabase\".\"bulk_row\"(bulk_apply.tenant, bulk_apply.subject_type, v_id, bulk_apply.action, coalesce(bulk_apply.args, '{}'::jsonb));\n      v_ok := v_ok + 1;\n      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', true));\n    exception when others then\n      get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint, v_state = returned_sqlstate;\n      if coalesce(bulk_apply.atomic, false) then\n        raise exception using message = v_message, hint = coalesce(v_hint, ''), errcode = v_state;\n      end if;\n      v_failed := v_failed + 1;\n      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', false, 'error', jsonb_build_object('code', nullif(v_hint, ''), 'message', v_message, 'sqlstate', v_state)));\n    end;\n  end loop;\n  return jsonb_build_object('total', cardinality(v_chunk), 'succeeded', v_ok, 'failed', v_failed, 'results', v_results);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.bulk_apply(tenant uuid, subject_type text, ids text[], action text, args jsonb, atomic boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  v_chunk text[] := coalesce(bulk_apply.ids, array[]::text[]);\n  v_id text;\n  v_ok integer := 0;\n  v_failed integer := 0;\n  v_results jsonb := '[]'::jsonb;\n  v_message text;\n  v_hint text;\n  v_state text;\nbegin\n  if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then\n    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';\n  end if;\n  if not (bulk_apply.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add', 'work.setState'])) then\n    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end if;\n  if cardinality(v_chunk) > 500 then\n    raise exception 'more than 500 rows; start a background run' using errcode = '22023', hint = 'BULK_TOO_MANY';\n  end if;\n  foreach v_id in array v_chunk loop\n    begin\n      perform \"better_supabase\".\"bulk_row\"(bulk_apply.tenant, bulk_apply.subject_type, v_id, bulk_apply.action, coalesce(bulk_apply.args, '{}'::jsonb));\n      v_ok := v_ok + 1;\n      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', true));\n    exception when others then\n      get stacked diagnostics v_message = message_text, v_hint = pg_exception_hint, v_state = returned_sqlstate;\n      if coalesce(bulk_apply.atomic, false) then\n        raise exception using message = v_message, hint = coalesce(v_hint, ''), errcode = v_state;\n      end if;\n      v_failed := v_failed + 1;\n      v_results := v_results || jsonb_build_array(jsonb_build_object('id', v_id, 'ok', false, 'error', jsonb_build_object('code', nullif(v_hint, ''), 'message', v_message, 'sqlstate', v_state)));\n    end;\n  end loop;\n  return jsonb_build_object('total', cardinality(v_chunk), 'succeeded', v_ok, 'failed', v_failed, 'results', v_results);\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -179051,8 +179051,8 @@
         "schema": "better_supabase",
         "name": "bulk_row",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_tag uuid;\nbegin\n  case bulk_row.action\n    when 'tags.set' then\n      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'add', '[]'::jsonb)) loop\n        perform \"better_supabase\".\"tag\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);\n      end loop;\n      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'remove', '[]'::jsonb)) loop\n        perform \"better_supabase\".\"untag\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);\n      end loop;\n    when 'stateMachine.transition' then\n      perform \"better_supabase\".\"transition\"(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason', bulk_row.args -> 'actor');\n    when 'relations.link' then\n      perform \"better_supabase\".\"link\"(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');\n    when 'trash.trash' then\n      perform \"better_supabase\".\"trash\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);\n    when 'collections.add' then\n      perform \"better_supabase\".\"add_collection_entries\"((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);\n    else\n      raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end case;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.bulk_row(tenant uuid, subject_type text, subject_id text, action text, args jsonb)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  v_tag uuid;\nbegin\n  case bulk_row.action\n    when 'tags.set' then\n      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'add', '[]'::jsonb)) loop\n        perform \"better_supabase\".\"tag\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);\n      end loop;\n      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'remove', '[]'::jsonb)) loop\n        perform \"better_supabase\".\"untag\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);\n      end loop;\n    when 'stateMachine.transition' then\n      perform \"better_supabase\".\"transition\"(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason', bulk_row.args -> 'actor');\n    when 'relations.link' then\n      perform \"better_supabase\".\"link\"(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');\n    when 'trash.trash' then\n      perform \"better_supabase\".\"trash\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);\n    when 'collections.add' then\n      perform \"better_supabase\".\"add_collection_entries\"((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);\n    else\n      raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end case;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_tag uuid;\nbegin\n  case bulk_row.action\n    when 'tags.set' then\n      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'add', '[]'::jsonb)) loop\n        perform \"better_supabase\".\"tag\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);\n      end loop;\n      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'remove', '[]'::jsonb)) loop\n        perform \"better_supabase\".\"untag\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);\n      end loop;\n    when 'stateMachine.transition' then\n      perform \"better_supabase\".\"transition\"(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason', bulk_row.args -> 'actor');\n    when 'relations.link' then\n      perform \"better_supabase\".\"link\"(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');\n    when 'trash.trash' then\n      perform \"better_supabase\".\"trash\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);\n    when 'collections.add' then\n      perform \"better_supabase\".\"add_collection_entries\"((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);\n    when 'work.setState' then\n      perform \"public\".\"work_bulk_state\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);\n    else\n      raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end case;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.bulk_row(tenant uuid, subject_type text, subject_id text, action text, args jsonb)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  v_tag uuid;\nbegin\n  case bulk_row.action\n    when 'tags.set' then\n      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'add', '[]'::jsonb)) loop\n        perform \"better_supabase\".\"tag\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);\n      end loop;\n      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'remove', '[]'::jsonb)) loop\n        perform \"better_supabase\".\"untag\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);\n      end loop;\n    when 'stateMachine.transition' then\n      perform \"better_supabase\".\"transition\"(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason', bulk_row.args -> 'actor');\n    when 'relations.link' then\n      perform \"better_supabase\".\"link\"(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');\n    when 'trash.trash' then\n      perform \"better_supabase\".\"trash\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);\n    when 'collections.add' then\n      perform \"better_supabase\".\"add_collection_entries\"((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);\n    when 'work.setState' then\n      perform \"public\".\"work_bulk_state\"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);\n    else\n      raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end case;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -268506,8 +268506,8 @@
         "schema": "better_supabase",
         "name": "start_bulk",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_id uuid;\n  v_total integer := cardinality(coalesce(start_bulk.ids, array[]::text[]));\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then\n    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';\n  end if;\n  if not (start_bulk.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add'])) then\n    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end if;\n  if v_total > 100000 then\n    raise exception 'a background run takes at most 100000 rows' using errcode = '22023', hint = 'BULK_TOO_MANY';\n  end if;\n  \n  insert into \"better_supabase\".\"bulk_runs\" (\"tenant_id\", \"subject_type\", \"action\", \"args\", \"ids\", \"created_by\")\n  values (start_bulk.tenant, start_bulk.subject_type, start_bulk.action, coalesce(start_bulk.args, '{}'::jsonb), coalesce(start_bulk.ids, array[]::text[]), auth.uid())\n  returning \"id\" into v_id;\n  perform \"better_supabase\".\"enqueue_job\"(queue => 'bulk-actions', payload => jsonb_build_object('run', v_id), dedupe_key => 'bulk:' || v_id::text, dedupe_running => false);\n  return jsonb_build_object('id', v_id, 'total', v_total, 'topic', 'bulk:' || v_id::text);\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.start_bulk(tenant uuid, subject_type text, ids text[], action text, args jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_id uuid;\n  v_total integer := cardinality(coalesce(start_bulk.ids, array[]::text[]));\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then\n    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';\n  end if;\n  if not (start_bulk.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add'])) then\n    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end if;\n  if v_total > 100000 then\n    raise exception 'a background run takes at most 100000 rows' using errcode = '22023', hint = 'BULK_TOO_MANY';\n  end if;\n  \n  insert into \"better_supabase\".\"bulk_runs\" (\"tenant_id\", \"subject_type\", \"action\", \"args\", \"ids\", \"created_by\")\n  values (start_bulk.tenant, start_bulk.subject_type, start_bulk.action, coalesce(start_bulk.args, '{}'::jsonb), coalesce(start_bulk.ids, array[]::text[]), auth.uid())\n  returning \"id\" into v_id;\n  perform \"better_supabase\".\"enqueue_job\"(queue => 'bulk-actions', payload => jsonb_build_object('run', v_id), dedupe_key => 'bulk:' || v_id::text, dedupe_running => false);\n  return jsonb_build_object('id', v_id, 'total', v_total, 'topic', 'bulk:' || v_id::text);\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_id uuid;\n  v_total integer := cardinality(coalesce(start_bulk.ids, array[]::text[]));\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then\n    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';\n  end if;\n  if not (start_bulk.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add', 'work.setState'])) then\n    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end if;\n  if v_total > 100000 then\n    raise exception 'a background run takes at most 100000 rows' using errcode = '22023', hint = 'BULK_TOO_MANY';\n  end if;\n  \n  insert into \"better_supabase\".\"bulk_runs\" (\"tenant_id\", \"subject_type\", \"action\", \"args\", \"ids\", \"created_by\")\n  values (start_bulk.tenant, start_bulk.subject_type, start_bulk.action, coalesce(start_bulk.args, '{}'::jsonb), coalesce(start_bulk.ids, array[]::text[]), auth.uid())\n  returning \"id\" into v_id;\n  perform \"better_supabase\".\"enqueue_job\"(queue => 'bulk-actions', payload => jsonb_build_object('run', v_id), dedupe_key => 'bulk:' || v_id::text, dedupe_running => false);\n  return jsonb_build_object('id', v_id, 'total', v_total, 'topic', 'bulk:' || v_id::text);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.start_bulk(tenant uuid, subject_type text, ids text[], action text, args jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_id uuid;\n  v_total integer := cardinality(coalesce(start_bulk.ids, array[]::text[]));\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then\n    raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';\n  end if;\n  if not (start_bulk.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add', 'work.setState'])) then\n    raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';\n  end if;\n  if v_total > 100000 then\n    raise exception 'a background run takes at most 100000 rows' using errcode = '22023', hint = 'BULK_TOO_MANY';\n  end if;\n  \n  insert into \"better_supabase\".\"bulk_runs\" (\"tenant_id\", \"subject_type\", \"action\", \"args\", \"ids\", \"created_by\")\n  values (start_bulk.tenant, start_bulk.subject_type, start_bulk.action, coalesce(start_bulk.args, '{}'::jsonb), coalesce(start_bulk.ids, array[]::text[]), auth.uid())\n  returning \"id\" into v_id;\n  perform \"better_supabase\".\"enqueue_job\"(queue => 'bulk-actions', payload => jsonb_build_object('run', v_id), dedupe_key => 'bulk:' || v_id::text, dedupe_running => false);\n  return jsonb_build_object('id', v_id, 'total', v_total, 'topic', 'bulk:' || v_id::text);\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -279809,6 +279809,52 @@
         "prorows": null,
         "behavior": "VOLATILE",
         "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3002888,
+        "schema": "public",
+        "name": "work_bulk_state",
+        "language": "plpgsql",
+        "definition": "\ndeclare\n  v_to text := work_bulk_state.args ->> 'to';\nbegin\n  if not better_supabase.actor_may_write() then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if not (\n    (auth.role() = 'service_role')\n    or coalesce(better_supabase.can('tenant', work_bulk_state.tenant, 'tasks.write'), false)\n  ) then\n    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';\n  end if;\n  if v_to is null then\n    raise exception 'args.to is required' using errcode = '22023', hint = 'BULK_STATE_ARGS';\n  end if;\n  perform set_config('better_supabase.transition_reason', coalesce(work_bulk_state.args ->> 'reason', ''), true);\n  update better_supabase.work_items x\n  set state = v_to\n  where x.id = work_bulk_state.subject_id::uuid\n    and x.tenant_id = work_bulk_state.tenant\n    and x.archived_at is null;\n  if not found then\n    perform set_config('better_supabase.transition_reason', '', true);\n    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';\n  end if;\n  perform set_config('better_supabase.transition_reason', '', true);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION public.work_bulk_state(tenant uuid, subject_type text, subject_id text, args jsonb)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_to text := work_bulk_state.args ->> 'to';\nbegin\n  if not better_supabase.actor_may_write() then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if not (\n    (auth.role() = 'service_role')\n    or coalesce(better_supabase.can('tenant', work_bulk_state.tenant, 'tasks.write'), false)\n  ) then\n    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';\n  end if;\n  if v_to is null then\n    raise exception 'args.to is required' using errcode = '22023', hint = 'BULK_STATE_ARGS';\n  end if;\n  perform set_config('better_supabase.transition_reason', coalesce(work_bulk_state.args ->> 'reason', ''), true);\n  update better_supabase.work_items x\n  set state = v_to\n  where x.id = work_bulk_state.subject_id::uuid\n    and x.tenant_id = work_bulk_state.tenant\n    and x.archived_at is null;\n  if not found then\n    perform set_config('better_supabase.transition_reason', '', true);\n    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';\n  end if;\n  perform set_config('better_supabase.transition_reason', '', true);\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "args",
+            "type_id": 3802,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "subject_id",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "subject_type",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "tenant",
+            "type_id": 2950,
+            "has_default": false
+          }
+        ],
+        "argument_types": "tenant uuid, subject_type text, subject_id text, args jsonb",
+        "identity_argument_types": "tenant uuid, subject_type text, subject_id text, args jsonb",
+        "return_type_id": 2278,
+        "return_type": "void",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
         "config_params": {
           "search_path": "\"\""
         }
@@ -306718,8 +306764,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000087,
@@ -353386,8 +353431,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000369,
@@ -353832,8 +353876,7 @@
               "UPDATE"
             ]
           }
-        ],
-        "large": true
+        ]
       },
       {
         "id": 1000371,
@@ -374445,6 +374488,18 @@
             "predicate": null
           },
           {
+            "name": "search_documents_tenant_updated_idx",
+            "columns": [
+              "tenant_id",
+              "updated_at"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": true,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "search_documents_title_trgm_idx",
             "columns": [
               "title_search"
@@ -374556,8 +374611,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000499,
@@ -394359,6 +394413,19 @@
             "predicate": null
           },
           {
+            "name": "customers_organization_id_created_at_id_idx",
+            "columns": [
+              "organization_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "customers_organization_id_created_by_idx",
             "columns": [
               "organization_id",
@@ -394538,8 +394605,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000623,
@@ -395102,8 +395168,7 @@
             ]
           }
         ],
-        "columnGrants": [],
-        "large": true
+        "columnGrants": []
       },
       {
         "id": 1000627,
@@ -427215,6 +427280,20 @@
           "search_path": "\"\""
         },
         "execute": []
+      },
+      {
+        "schema": "public",
+        "name": "work_bulk_state",
+        "signature": "tenant uuid, subject_type text, subject_id text, args jsonb",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": [
+          "authenticated"
+        ]
       }
     ],
     "hooks": [
