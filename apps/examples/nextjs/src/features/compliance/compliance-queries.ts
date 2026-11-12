@@ -168,3 +168,67 @@ async function loadPurposes(): Promise<readonly PurposeRow[] | null> {
 export function getPurposes(): Promise<Loaded<readonly PurposeRow[]>> {
   return settle(loadPurposes);
 }
+
+/** A control as the framework page lists it, serializable. */
+export interface ControlRow {
+  readonly id: string;
+  readonly code: string;
+  readonly title: string;
+  readonly status: "failing" | "not_applicable" | "not_started" | "passing";
+  readonly source: string | null;
+  readonly jurisdiction: string | null;
+}
+
+export interface FrameworkDetail {
+  readonly name: string;
+  readonly version: string | null;
+  readonly controls: readonly ControlRow[];
+}
+
+async function loadFramework(
+  frameworkId: string,
+): Promise<FrameworkDetail | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const [posture, controls] = await Promise.all([
+    db.compliance.posture({ organizationId: tenant, frameworkId }).orThrow(),
+    db.compliance
+      .controls({ organizationId: tenant, frameworkId, pageSize: 200 })
+      .orThrow(),
+  ]);
+
+  const [framework] = posture;
+
+  if (!framework) {
+    return null;
+  }
+
+  return {
+    name: framework.name,
+    version: framework.version ?? null,
+    controls: controls.map((control) => ({
+      id: control.id,
+      code: control.code,
+      title: control.title,
+      status: control.status,
+      source: control.source ?? null,
+      jurisdiction: control.jurisdiction ?? null,
+    })),
+  };
+}
+
+/**
+ * One framework with its controls; `no-organization` also covers a missing
+ * framework.
+ */
+export function getFramework(
+  frameworkId: string,
+): Promise<Loaded<FrameworkDetail>> {
+  return settle(() => loadFramework(frameworkId));
+}

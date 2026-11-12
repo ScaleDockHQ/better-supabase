@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Link } from "@/i18n/navigation";
 
 import { getPosture } from "../compliance-queries";
 
@@ -122,7 +123,14 @@ export async function ControlPosture() {
           return (
             <Card key={framework.frameworkId}>
               <CardHeader>
-                <CardTitle>{framework.name}</CardTitle>
+                <CardTitle>
+                  <Link
+                    href={`/compliance/${framework.frameworkId}`}
+                    className="hover:underline"
+                  >
+                    {framework.name}
+                  </Link>
+                </CardTitle>
                 <CardDescription>
                   {t(
                     "{passing, number} of {applicable, number} controls passing",

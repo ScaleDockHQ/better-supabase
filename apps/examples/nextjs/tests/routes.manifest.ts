@@ -36,6 +36,42 @@ export interface RouteEntry {
 
 export const ROUTES: readonly RouteEntry[] = [
   {
+    route: "/announcements",
+    archetype: "overview",
+    url: "/announcements",
+    maxCalls: 9,
+    maxWaves: 2,
+    instant: true,
+    scale: false,
+  },
+  {
+    route: "/announcements/[id]",
+    archetype: "detail",
+    url: null,
+    maxCalls: 12,
+    maxWaves: 3,
+    instant: true,
+    scale: false,
+  },
+  {
+    route: "/compliance/[framework]",
+    archetype: "detail",
+    url: null,
+    maxCalls: 12,
+    maxWaves: 3,
+    instant: true,
+    scale: false,
+  },
+  {
+    route: "/metrics/[key]",
+    archetype: "detail",
+    url: null,
+    maxCalls: 12,
+    maxWaves: 3,
+    instant: true,
+    scale: false,
+  },
+  {
     route: "/settings/marketplace",
     archetype: "overview",
     url: "/settings/marketplace",
