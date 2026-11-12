@@ -823,11 +823,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane D
 
 - Scope: Shared recurrence, digest and money cores
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-d`
 - PR: none yet
 - Findings: EX-1290, EX-1291, EX-1293, EX-1315, EX-1316
-- Log: 2026-11-12, planned.
+- Log: 2026-11-12, planned. 2026-11-12, lane D started from main in `../bsb-audit-d`.
 
 ### Lane E
 
