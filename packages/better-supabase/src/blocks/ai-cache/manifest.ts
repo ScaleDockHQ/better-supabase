@@ -12,6 +12,9 @@ export const aiCacheBlock: BlockOf<"ai-cache", typeof createAiCache> =
     options: { "ai-cache": aiCacheSqlOptions },
     create: createAiCache,
     category: "ai",
+    entities: {
+      ai_cache: { mutability: "append-only", emits: { create: false } },
+    },
     description:
       "Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.",
   });

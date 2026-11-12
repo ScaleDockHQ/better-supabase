@@ -23,6 +23,13 @@ export const enrollmentsBlock: BlockOf<
   create: createEnrollments,
   record: enrollmentsBinding,
   category: "people",
+  entities: {
+    enrollment_program: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    enrollment: { mutability: "state-machine", emits: { create: true } },
+  },
   description:
     "Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.",
 });

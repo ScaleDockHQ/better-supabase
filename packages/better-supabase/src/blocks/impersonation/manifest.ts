@@ -17,6 +17,7 @@ export const impersonationBlock: Block<
   options: { impersonation: impersonationSqlOptions },
   events: impersonationEvents,
   category: "admin",
+  entities: { support_session: { mutability: "state-machine" } },
   description:
     "Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.",
   recipes: ["support-session-banner"],

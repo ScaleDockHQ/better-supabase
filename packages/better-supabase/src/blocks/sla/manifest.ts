@@ -31,6 +31,9 @@ export const slaBlock: BlockOf<
   create: createSla,
   record: slaBinding,
   category: "work",
+  entities: {
+    sla_policy: { mutability: "editable", emits: { update: false } },
+  },
   description:
     "Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.",
   recipes: ["sla-badges"],

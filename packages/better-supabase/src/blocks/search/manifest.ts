@@ -20,6 +20,7 @@ export const searchBlock: BlockOf<
   create: createSearch,
   client: "search",
   category: "work",
+  entities: { search: { mutability: "append-only", emits: { create: false } } },
   description:
     "A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
   recipes: ["command-search"],

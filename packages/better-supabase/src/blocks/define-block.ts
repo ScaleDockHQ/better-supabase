@@ -8,6 +8,7 @@ import type { EventMap, Events } from "../core/block-events.ts";
 import type { PresetSubjectOptions } from "../preset/fields.ts";
 import type { BlockContext } from "./create-blocks.ts";
 import type { BlockSchemas } from "./entity-schema.ts";
+import type { BlockEntities } from "./entity-surface.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 import type { AnyRecordBinding } from "./record-bindings.ts";
@@ -144,6 +145,12 @@ export interface BlockDefinition<
    */
   readonly schemas?: BlockSchemas;
   /**
+   * What each entity the block owns declares about itself (ADR 0689): how it
+   * changes, how it sorts and facets, and which methods record an event. The
+   * capability matrix in the audit report is generated from it.
+   */
+  readonly entities?: BlockEntities;
+  /**
    * The read methods each event pattern (`"task.*"`) makes stale, for
    * `invalidateOnBlockEvents`. An event no pattern matches makes every read
    * method of the block stale.
@@ -231,6 +238,8 @@ export interface Block<
   readonly recipes: readonly string[];
   /** Standard Schemas for what the client takes, by entity key. */
   readonly schemas: BlockSchemas;
+  /** What each entity declares about itself, by entity key. */
+  readonly entities: BlockEntities;
   /**
    * The read methods each event pattern (`"task.*"`) makes stale, for
    * `invalidateOnBlockEvents`. An event no pattern matches makes every read
@@ -300,6 +309,7 @@ export interface AnyBlock {
   readonly description: string;
   readonly recipes: readonly string[];
   readonly schemas?: BlockSchemas;
+  readonly entities?: BlockEntities;
   readonly invalidates?: BlockInvalidates;
   readonly record?: AnyRecordBinding | undefined;
   readonly extension?: string | undefined;
@@ -414,6 +424,7 @@ function blockOf<
     description: parts.description ?? "",
     recipes: parts.recipes ?? [],
     schemas: parts.schemas ?? {},
+    entities: parts.entities ?? {},
     invalidates: parts.invalidates ?? {},
     record: parts.record,
     extension: parts.extension,

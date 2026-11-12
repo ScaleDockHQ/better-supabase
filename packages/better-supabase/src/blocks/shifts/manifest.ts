@@ -26,6 +26,16 @@ export const shiftsBlock: BlockOf<"shifts", typeof createShifts, ShiftsEvents> =
     create: createShifts,
     recipes: ["roster-board"],
     category: "people",
+    entities: {
+      shift: { mutability: "editable", emits: { create: true, update: false } },
+      shift_template: { mutability: "editable", emits: { update: false } },
+      shift_assignment: {
+        mutability: "state-machine",
+        emits: { create: true },
+      },
+      shift_swap: { mutability: "state-machine", emits: { create: false } },
+      shift_availability: { mutability: "editable", emits: { update: false } },
+    },
     description:
       "Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.",
   });

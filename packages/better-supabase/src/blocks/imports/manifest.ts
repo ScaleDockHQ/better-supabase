@@ -18,6 +18,9 @@ export const importsBlock: BlockOf<
   events: importsEvents,
   create: createImports,
   category: "database",
+  entities: {
+    import: { mutability: "state-machine", emits: { create: false } },
+  },
   description:
     "Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.",
   recipes: ["csv-import-wizard", "upsert-import"],

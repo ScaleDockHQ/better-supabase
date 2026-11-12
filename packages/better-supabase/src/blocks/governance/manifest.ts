@@ -30,6 +30,9 @@ export const governanceBlock: BlockOf<"governance", typeof createGovernance> =
     composes: governanceParts,
     create: createGovernance,
     category: "admin",
+    entities: {
+      governance: { mutability: "append-only", emits: { create: false } },
+    },
     description:
       "Audit, field history and data lifecycle installed together for records that need a trail and a retention policy.",
   });

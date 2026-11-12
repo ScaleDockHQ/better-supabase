@@ -15,6 +15,7 @@ export const outboxBlock: BlockOf<"outbox", typeof createOutbox> = defineBlock({
   options: { outbox: outboxSqlOptions },
   create: createOutbox,
   category: "automation",
+  entities: { outbox: { mutability: "append-only", emits: { create: false } } },
   description:
     "Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.",
   env: [

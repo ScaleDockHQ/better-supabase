@@ -24,5 +24,8 @@ export const learningBlock: BlockOf<"learning", typeof createLearning> =
     composes: learningParts,
     create: createLearning,
     category: "people",
+    entities: {
+      learning: { mutability: "append-only", emits: { create: false } },
+    },
     description: "Courses and enrollments installed together for training.",
   });

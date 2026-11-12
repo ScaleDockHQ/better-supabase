@@ -18,6 +18,12 @@ export const assignmentBlock: BlockOf<
   schemas: { assignment_queue: { input: assignmentQueueInputSchema } },
   create: createAssignment,
   category: "work",
+  entities: {
+    assignment_queue: {
+      mutability: "editable",
+      emits: { update: false, delete: false },
+    },
+  },
   description:
     "Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.",
 });

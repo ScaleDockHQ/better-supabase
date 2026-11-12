@@ -54,6 +54,7 @@ export const saasBlock: BlockOf<"saas", typeof createSaas> = defineBlock({
   composes: saasParts,
   create: createSaas,
   category: "tenancy",
+  entities: { saa: { mutability: "read-only" } },
   description:
     "Organizations, teams, profiles, billing, entitlements, notifications, audit, API keys, settings, onboarding and the outbox installed together for a multi-tenant product.",
 });

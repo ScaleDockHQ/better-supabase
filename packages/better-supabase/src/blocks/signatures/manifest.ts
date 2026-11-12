@@ -23,6 +23,12 @@ export const signaturesBlock: BlockOf<
   record: signaturesBinding,
   create: createSignatures,
   category: "content",
+  entities: {
+    signature_request: {
+      mutability: "state-machine",
+      emits: { create: false },
+    },
+  },
   description:
     "Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.",
 });

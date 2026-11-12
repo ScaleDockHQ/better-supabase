@@ -18,6 +18,13 @@ export const timeEntriesBlock: BlockOf<
   events: timeEntriesEvents,
   create: createTimeEntries,
   category: "people",
+  entities: {
+    time_entry: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    timesheet: { mutability: "state-machine", emits: { create: false } },
+  },
   description:
     "Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.",
   recipes: ["timesheet"],

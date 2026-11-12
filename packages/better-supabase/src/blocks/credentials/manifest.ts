@@ -17,6 +17,12 @@ export const credentialsBlock: Block<
   options: { credentials: credentialsSqlOptions },
   events: credentialsEvents,
   category: "developer",
+  entities: {
+    credential: {
+      mutability: "editable",
+      emits: { update: true, delete: true },
+    },
+  },
   description:
     "Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.",
   recipes: ["connector-setup"],

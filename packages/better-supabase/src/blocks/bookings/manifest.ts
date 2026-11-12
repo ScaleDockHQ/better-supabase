@@ -19,6 +19,7 @@ export const bookingsBlock: BlockOf<
   create: createBookings,
   client: "bookings",
   category: "scheduling",
+  entities: { booking: { mutability: "state-machine" } },
   description:
     "Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.",
   recipes: ["booking-page", "availability-editor"],

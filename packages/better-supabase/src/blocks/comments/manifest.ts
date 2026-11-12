@@ -21,6 +21,12 @@ export const commentsBlock: BlockOf<
   create: createComments,
   record: commentsBinding,
   category: "collaboration",
+  entities: {
+    comment: {
+      mutability: "append-only",
+      emits: { create: false, delete: false },
+    },
+  },
   description:
     "Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).",
   recipes: ["comment-thread", "record-page", "my-work", "subject-timeline"],

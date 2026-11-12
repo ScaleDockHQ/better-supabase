@@ -20,6 +20,12 @@ export const contentBlock: BlockOf<
   schemas: { content_entry: { input: contentEntryInputSchema } },
   create: createContent,
   category: "content",
+  entities: {
+    content_entry: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+  },
   description:
     "Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.",
   schedules: [

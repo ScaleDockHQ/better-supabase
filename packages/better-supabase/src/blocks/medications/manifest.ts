@@ -27,6 +27,17 @@ export const medicationsBlock: BlockOf<
   create: createMedications,
   recipes: ["medication-chart"],
   category: "people",
+  entities: {
+    medication: { mutability: "editable", emits: { update: false } },
+    medication_order: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+    medication_administration: {
+      mutability: "state-machine",
+      emits: { create: true },
+    },
+  },
   description:
     "A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.",
 });

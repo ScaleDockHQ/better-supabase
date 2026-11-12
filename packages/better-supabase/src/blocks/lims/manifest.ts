@@ -21,6 +21,14 @@ export const limsBlock: BlockOf<"lims", typeof createLims, LimsEvents> =
     create: createLims,
     recipes: [],
     category: "work",
+    entities: {
+      lims_sample: { mutability: "state-machine" },
+      lims_method: {
+        mutability: "editable",
+        emits: { create: true, update: true },
+      },
+      lims_result: { mutability: "state-machine", emits: { create: true } },
+    },
     description:
       "Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.",
   });

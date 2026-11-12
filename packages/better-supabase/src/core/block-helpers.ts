@@ -188,6 +188,48 @@ export interface ListPage<Item> {
   readonly totalCapped?: boolean;
 }
 
+/**
+ * The options every block's `page` takes (ADR 0690): free text, one sort,
+ * filters whose values are lists, a keyset cursor and a page size. A filter
+ * with several values matches any of them.
+ */
+export interface PageOptions {
+  /** Free text matched against the entity's searchable columns. */
+  readonly q?: string;
+  /** A sortable column from the entity's `sorts`, and its direction. */
+  readonly sort?: { readonly by: string; readonly direction?: "asc" | "desc" };
+  /** Column to the values it may hold (any of them matches). */
+  readonly filters?: Readonly<Record<string, readonly string[]>>;
+  /** The previous page's `nextCursor`. */
+  readonly after?: readonly string[];
+  /** The most items to return. Each entity documents its default and cap. */
+  readonly limit?: number;
+}
+
+/**
+ * A count with the honesty flag: `exact` is `false` when the count stopped at a
+ * cap or came from an estimate.
+ */
+export interface Count {
+  readonly value: number;
+  readonly exact: boolean;
+}
+
+/** One value of a facet and how many rows hold it. */
+export interface FacetValue {
+  readonly value: string;
+  readonly count: Count;
+}
+
+/**
+ * The values of one facet column under the same filters as the page, from
+ * `facets(options)`.
+ */
+export interface FacetResult {
+  readonly facet: string;
+  readonly values: readonly FacetValue[];
+}
+
 /** A paged list result with its rows left as they are. */
 export function pageRowsOf(
   value: unknown,

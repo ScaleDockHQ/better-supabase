@@ -17,6 +17,12 @@ export const savedViewsBlock: BlockOf<
   create: createSavedViews,
   client: "saved-views",
   category: "work",
+  entities: {
+    saved_view: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+  },
   description:
     "Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.",
   recipes: ["record-form", "record-grid", "work-item-grid"],

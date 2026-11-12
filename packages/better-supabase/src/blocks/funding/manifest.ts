@@ -20,6 +20,19 @@ export const fundingBlock: BlockOf<
   schemas: { funding_award: { input: fundingAwardInputSchema } },
   create: createFunding,
   category: "commerce",
+  entities: {
+    funding_product: { mutability: "editable", emits: { update: false } },
+    funding_award: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+    funding_delivery: { mutability: "state-machine" },
+    funding_claim: {
+      mutability: "state-machine",
+      emits: { create: true, delete: true },
+    },
+    funding_claim_line: { mutability: "read-only" },
+  },
   description:
     "Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.",
 });

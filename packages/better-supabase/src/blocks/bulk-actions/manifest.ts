@@ -18,6 +18,7 @@ export const bulkActionsBlock: BlockOf<
   events: bulkActionsEvents,
   create: createBulkActions,
   category: "work",
+  entities: { bulk_run: { mutability: "state-machine" } },
   description:
     "One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.",
   recipes: ["bulk-action-bar"],

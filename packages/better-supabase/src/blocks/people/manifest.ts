@@ -38,6 +38,7 @@ export const peopleBlock: BlockOf<"people", typeof createPeople> = defineBlock({
   composes: peopleParts,
   create: createPeople,
   category: "people",
+  entities: { people: { mutability: "append-only", emits: { create: false } } },
   description:
     "Employees, leave, shifts, payroll export, qualifications and enrollments installed together for HR.",
 });

@@ -29,6 +29,21 @@ export const inspectionsBlock: BlockOf<
   create: createInspections,
   recipes: ["inspection-program-calendar", "inspection-run"],
   category: "work",
+  entities: {
+    inspection: {
+      mutability: "editable",
+      emits: { create: false, update: true },
+    },
+    inspection_program: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+    inspection_finding: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    inspection_member: { mutability: "read-only" },
+  },
   description:
     "Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.",
   schedules: [

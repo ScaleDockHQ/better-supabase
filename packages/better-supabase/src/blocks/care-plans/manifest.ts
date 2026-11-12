@@ -31,6 +31,28 @@ export const carePlansBlock: BlockOf<
   create: createCarePlans,
   recipes: ["care-plan-editor", "care-plan-evaluations"],
   category: "people",
+  entities: {
+    care_plan: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+    care_plan_problem: {
+      mutability: "editable",
+      emits: { create: false, update: false },
+    },
+    care_plan_goal: {
+      mutability: "editable",
+      emits: { create: false, update: false },
+    },
+    care_plan_action: {
+      mutability: "editable",
+      emits: { create: false, update: false },
+    },
+    care_plan_evaluation: {
+      mutability: "append-only",
+      emits: { create: true },
+    },
+  },
   description:
     "Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.",
   schedules: [

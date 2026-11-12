@@ -17,6 +17,9 @@ export const warrantyBlock: BlockOf<
   create: createWarranty,
   recipes: [],
   category: "work",
+  entities: {
+    warranty_claim: { mutability: "state-machine", emits: { create: true } },
+  },
   description:
     "Warranty claims for an asset: the supplier or manufacturer, the covered amount, a status, a decision and attachments on the claim.",
 });

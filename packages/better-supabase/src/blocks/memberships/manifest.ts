@@ -9,6 +9,7 @@ export const membershipsBlock: Block<"memberships"> = defineBlock({
   sql: ["memberships"],
   options: { memberships: membershipsSqlOptions },
   category: "tenancy",
+  entities: { membership: { mutability: "read-only" } },
   description:
     "Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.",
   extension: "membershipsExtension",

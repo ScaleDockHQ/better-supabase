@@ -12,6 +12,7 @@ export const sessionsBlock: BlockOf<"sessions", typeof createSessions> =
     options: { sessions: sessionsSqlOptions },
     create: createSessions,
     category: "identity",
+    entities: { session: { mutability: "read-only" } },
     description:
       "session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.",
     recipes: ["sessions-list"],

@@ -35,6 +35,9 @@ export const supportBlock: BlockOf<"support", typeof createSupport> =
     create: createSupport,
     defaults: TICKETS,
     category: "work",
+    entities: {
+      support: { mutability: "append-only", emits: { create: false } },
+    },
     description:
       "Inbox, tasks, service levels and a knowledge base installed together for a support team.",
   });

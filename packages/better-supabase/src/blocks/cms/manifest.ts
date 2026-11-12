@@ -34,6 +34,7 @@ export const cmsBlock: BlockOf<"cms", typeof createCms> = defineBlock({
   create: createCms,
   defaults: PUBLIC_MEDIA,
   category: "content",
+  entities: { cm: { mutability: "read-only" } },
   description:
     "Content, versions, approvals and attachments installed together for publishing.",
 });

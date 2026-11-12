@@ -63,6 +63,7 @@ export const crmBlock: BlockOf<"crm", typeof createCrm> = defineBlock({
   composes: crmParts,
   create: createCrm,
   category: "crm",
+  entities: { crm: { mutability: "append-only", emits: { create: false } } },
   description:
     "Contacts, pipelines, deals, quotes, goals, activities, mail sync, sequences, segments, assignment, enrichment, forecasts and lead scoring installed together for sales teams.",
 });

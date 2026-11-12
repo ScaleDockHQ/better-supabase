@@ -17,6 +17,12 @@ export const inboxBlock: BlockOf<"inbox", typeof createInbox, InboxEvents> =
     create: createInbox,
     client: "inbox",
     category: "messaging",
+    entities: {
+      inbox: {
+        mutability: "editable",
+        emits: { create: false, update: false },
+      },
+    },
     description:
       "Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.",
     recipes: ["inbox-threads"],

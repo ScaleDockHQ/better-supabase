@@ -18,6 +18,9 @@ export const ePrescribingBlock: BlockOf<
   create: createEPrescribing,
   recipes: [],
   category: "people",
+  entities: {
+    prescription: { mutability: "state-machine", emits: { create: true } },
+  },
   description:
     "Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.",
 });

@@ -18,6 +18,10 @@ export const documentsBlock: BlockOf<
   events: documentsEvents,
   create: createDocuments,
   category: "content",
+  entities: {
+    document: { mutability: "state-machine", emits: { create: true } },
+    document_suggestion: { mutability: "read-only" },
+  },
   description:
     "Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.",
   recipes: ["document-editor"],

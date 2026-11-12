@@ -26,6 +26,12 @@ export const shipmentsBlock: BlockOf<
   create: createShipments,
   record: shipmentsBinding,
   category: "commerce",
+  entities: {
+    shipment: { mutability: "state-machine", emits: { create: true } },
+    shipment_package: { mutability: "read-only" },
+    shipment_tracking_event: { mutability: "read-only" },
+    shipment_line: { mutability: "read-only" },
+  },
   description:
     "Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.",
   recipes: ["shipment-tracking"],

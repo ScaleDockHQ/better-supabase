@@ -9,6 +9,7 @@ export const createdByBlock: Block<"created-by"> = defineBlock({
   sql: ["created-by"],
   options: { "created-by": createdBySqlOptions },
   category: "identity",
+  entities: { created_by: { mutability: "read-only" } },
   description:
     "Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.",
   extension: "createdByExtension",

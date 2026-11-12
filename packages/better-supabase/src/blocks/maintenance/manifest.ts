@@ -25,6 +25,22 @@ export const maintenanceBlock: BlockOf<
   create: createMaintenance,
   recipes: [],
   category: "work",
+  entities: {
+    maintenance_plan: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    maintenance_plan_part: { mutability: "read-only" },
+    maintenance_meter: { mutability: "append-only", emits: { create: false } },
+    maintenance_meter_reading: {
+      mutability: "append-only",
+      emits: { create: true },
+    },
+    maintenance_calibration: {
+      mutability: "append-only",
+      emits: { create: true },
+    },
+  },
   description:
     "Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.",
 });

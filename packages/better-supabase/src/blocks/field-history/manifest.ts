@@ -20,6 +20,9 @@ export const fieldHistoryBlock: BlockOf<
   record: fieldHistoryBinding,
   create: createFieldHistory,
   category: "database",
+  entities: {
+    field_history: { mutability: "append-only", emits: { create: false } },
+  },
   description:
     "The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.",
 });
