@@ -67,13 +67,19 @@ describe("the entity surface of a manifest", () => {
   it("only declares emits for methods an entity has", () => {
     for (const block of BLOCK_MANIFESTS) {
       for (const [key, surface] of entriesOf(block)) {
-        for (const method of Object.keys(surface.emits ?? {})) {
-          expect(ENTITY_METHODS, `${block.name}.${key}`).toContain(method);
-        }
+        const methods = Object.keys(surface.emits ?? {});
 
-        if (surface.mutability === "read-only") {
-          expect(surface.emits ?? {}, `${block.name}.${key}`).toStrictEqual({});
-        }
+        expect(
+          methods.filter(
+            (method) => !ENTITY_METHODS.some((each) => each === method),
+          ),
+          `${block.name}.${key}`,
+        ).toStrictEqual([]);
+
+        expect(
+          surface.mutability === "read-only" ? methods : [],
+          `${block.name}.${key}`,
+        ).toStrictEqual([]);
       }
     }
   });
@@ -82,7 +88,7 @@ describe("the entity surface of a manifest", () => {
     const wrong: string[] = [];
 
     for (const block of BLOCK_MANIFESTS) {
-      const types = block.events.types.map((type) => String(type));
+      const types = block.events.types;
 
       for (const [key, surface] of entriesOf(block)) {
         const emits = Object.values(surface.emits ?? {}).some(Boolean);

@@ -19,7 +19,7 @@ describe("the entity matrix generated from the manifests", () => {
     const matrix = entityMatrix();
 
     for (const block of BLOCK_MANIFESTS) {
-      for (const key of Object.keys(block.entities)) {
+      for (const key of Object.keys(block.entities ?? {})) {
         expect(matrix).toContain(`| ${block.name}`);
         expect(matrix).toContain(key);
       }
