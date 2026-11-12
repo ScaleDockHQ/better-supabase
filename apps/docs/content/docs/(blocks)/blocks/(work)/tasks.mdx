@@ -180,6 +180,8 @@ Columns you add to `tasks` with `alter table` in your own schema files are field
 | `task.created`, `task.updated`, `task.assigned`, `task.reopened`, `task.archived`, `task.deleted` | `organizationId`, `taskId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds`, `addedIds` |
 | `task.closed`                                                                                     | the same, with `state` and `closeReason`                                                             |
 
+`blocks.tasks.events.payload` adds columns of the task row to an event, such as `{ "task.created": { customerId: "customer_id" } }` ([details](/docs/extending/events)).
+
 ## Hooks
 
 The module calls `before_task_create(tenant, attrs jsonb)`, `after_task_create(work_item uuid)`, `before_task_update(work_item uuid, field text, value jsonb)` and `after_task_update(work_item uuid, field text)`. A `before_` hook raises to refuse; in `update`, that refuses only its change.

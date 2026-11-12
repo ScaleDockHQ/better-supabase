@@ -22,6 +22,7 @@ export interface BlockSqlEmit {
   readonly tenant?: string;
   /** A `text` idempotency key expression. */
   readonly key?: string;
+  readonly row?: string;
 }
 
 /**

@@ -1,5 +1,53 @@
 # better-supabase
 
+## 0.62.0
+
+### Minor Changes
+
+- [#862](https://github.com/ScaleDockHQ/better-supabase/pull/862) [`5be172a`](https://github.com/ScaleDockHQ/better-supabase/commit/5be172a83c6ff8f03cf44a27f21ca4c5259c6a14) Thanks [@mick340](https://github.com/mick340)! - `blocks.<name>.events` takes `{ payload: { "<event type>": { <payload key>: "<column>" } } }`, which adds columns of the event's row to the payload the module writes to the outbox. An app that keeps its own columns on a block's table, such as a `customer_id` on `tasks`, no longer has to write a second `task.created` with them. Rendering fails for an event type the module doesn't record and for an event the module writes without a row. The tasks block passes its row to every event. `events: true` and `events: false` keep working.
+
+- [#862](https://github.com/ScaleDockHQ/better-supabase/pull/862) [`3cd9da5`](https://github.com/ScaleDockHQ/better-supabase/commit/3cd9da5bf6268bcf87201d6bb91d5a57019fd9d2) Thanks [@mick340](https://github.com/mick340)! - Breaking: `db.$decode(table).row()` and `.rows()` return an `AsyncResult`, so `$decode` works with lazy tables (`gen.serverTables: "lazy"`). It loads the table and every table an embedded relation in the value reaches before it decodes; before, it threw `unknown table` for a table the process had not loaded yet. Add `await` where you read the result: `const customers = await db.$decode("customers").rows(rows)`. A failure that is not a database error is now an error result instead of a thrown exception.
+
+- [#862](https://github.com/ScaleDockHQ/better-supabase/pull/862) [`b651b42`](https://github.com/ScaleDockHQ/better-supabase/commit/b651b42af9e851b042f59e6f65d791499e6f91a0) Thanks [@mick340](https://github.com/mick340)! - `list_incoming_webhooks` and `hooks.list()` page: `pageSize` (up to 500) and `skip` return one page of a tenant's endpoints, and `newestFirst` lists the newest first. Without `pageSize` the call still returns every endpoint, oldest first. Run `better-supabase upgrade` to regenerate the `webhooks-in` module.
+
+## 0.61.1
+
+### Patch Changes
+
+- [#860](https://github.com/ScaleDockHQ/better-supabase/pull/860) [`7f9046f`](https://github.com/ScaleDockHQ/better-supabase/commit/7f9046fd36dd977cd51f1d99fcda2e7340c1622e) Thanks [@mick340](https://github.com/mick340)! - `doctor` BS386 no longer flags a volatile set helper in the `from` of a policy subquery when its arguments read no column of the row, such as `id in (select t.id from thread_ids('key') as t(id))`. Postgres calls that function once and rescans its result. A helper whose arguments read the row is still flagged.
+
+## 0.61.0
+
+### Minor Changes
+
+- [#857](https://github.com/ScaleDockHQ/better-supabase/pull/857) [`4bda275`](https://github.com/ScaleDockHQ/better-supabase/commit/4bda2757cb610bb4acc6744b63b09f0d00e92a19) Thanks [@mick340](https://github.com/mick340)! - Security, behaviour change: an API key now holds only the permissions its scopes map to. `cap_allows`, and so `member_can`, `can` and every policy and module that asks them, checks a request with an `api_key` claim against the key's scopes, mapped through `blocks.permissions.scopes`. A key with `*` holds every permission except the interactive-only ones, and a key with no scopes holds none. Before, a personal key held every non-interactive permission of its user whatever its scopes, and only policies that called `has_scope` narrowed it.
+  
+  To migrate, find the keys whose access shrinks (`select id, name, scopes from better_supabase.api_keys where scopes = '{}'`) and give each the scopes it needs, or rotate it with new scopes, before you deploy. Run `better-supabase upgrade` to regenerate the `permissions` module. The API keys docs page has a section on scopes and permissions.
+
+- [#840](https://github.com/ScaleDockHQ/better-supabase/pull/840) [`64c4acb`](https://github.com/ScaleDockHQ/better-supabase/commit/64c4acbae741deb02e8c591f0ce0c5d6f3036c25) Thanks [@mick340](https://github.com/mick340)! - `database.realtime.triggers` and a topic's `broadcast` entries take `dedupe: "transaction"`, which sends each topic, event and payload once per transaction, so a bulk write or an audit log filled row by row sends one message per key instead of one per row. `dedupeKey` names the payload fields that tell messages apart. `upgrade` writes the trigger with `better_supabase.broadcast_once()`, and the function itself, into the `realtime.policies` output. It keeps the hashes in a transaction-local setting, so a commit or rollback clears them and a rolled-back transaction sends nothing.
+
+### Patch Changes
+
+- [#838](https://github.com/ScaleDockHQ/better-supabase/pull/838) [`733cde6`](https://github.com/ScaleDockHQ/better-supabase/commit/733cde6fa9ca3988c7b5e7fa9ba6a53d15b15d83) Thanks [@martijn00](https://github.com/martijn00)! - `fromBase64` removes ASCII whitespace before it computes the padding, so Postgres `encode(..., 'base64')` output wrapped every 76 characters decodes.
+
+- [#838](https://github.com/ScaleDockHQ/better-supabase/pull/838) [`733cde6`](https://github.com/ScaleDockHQ/better-supabase/commit/733cde6fa9ca3988c7b5e7fa9ba6a53d15b15d83) Thanks [@martijn00](https://github.com/martijn00)! - Fix the drive set readers (`drive_readable_ids` and `drive_drive_readable_ids`) with provider row grants. They now ask the provider's `rowsWith` function once per mapped role, with the candidate ids as one `text[]`, instead of once per node. Run `bsb sql upgrade` to apply the new function bodies.
+
+- [#854](https://github.com/ScaleDockHQ/better-supabase/pull/854) [`6672502`](https://github.com/ScaleDockHQ/better-supabase/commit/6672502a5e66c1e26b72db2f974f366b0349f13c) Thanks [@mick340](https://github.com/mick340)! - Security: ownership transfer, organization deletion, impersonation start, platform invitations and SSO management are now interactive-only. `cap_allows` refuses their permission keys to an API key, an OAuth client and an agent or other `act` chain, whatever the token's scopes, and `can_assign` refuses the organization owner role to the same callers. `create_api_key` refuses an interactive-only key as a scope with `API_KEY_FORBIDDEN`, and existing keys that carry one get nothing from it. Add keys with `blocks.permissions.interactiveOnly` or `authorization.delegation.interactiveOnly`. An API key, OAuth client or agent that creates or rotates a key may only give it scopes the token holds itself. Run `better-supabase upgrade` to regenerate the `permissions` and `api-keys` modules.
+
+- [#838](https://github.com/ScaleDockHQ/better-supabase/pull/838) [`733cde6`](https://github.com/ScaleDockHQ/better-supabase/commit/733cde6fa9ca3988c7b5e7fa9ba6a53d15b15d83) Thanks [@martijn00](https://github.com/martijn00)! - `--json` keeps a command's warnings in the `warnings` field of the result document on stdout. The line on stderr stays.
+
+- [#838](https://github.com/ScaleDockHQ/better-supabase/pull/838) [`733cde6`](https://github.com/ScaleDockHQ/better-supabase/commit/733cde6fa9ca3988c7b5e7fa9ba6a53d15b15d83) Thanks [@martijn00](https://github.com/martijn00)! - The package ships `api/naming.json` and exports it as `better-supabase/api/naming.json`, the file the 0.58 migration guide, `codemod` and doctor rule BS260 point to.
+
+- [#838](https://github.com/ScaleDockHQ/better-supabase/pull/838) [`733cde6`](https://github.com/ScaleDockHQ/better-supabase/commit/733cde6fa9ca3988c7b5e7fa9ba6a53d15b15d83) Thanks [@martijn00](https://github.com/martijn00)! - The pgTAP helper `tests.age_import_run` is a plpgsql function, so the pgtap module loads without the imports block installed.
+
+- [#838](https://github.com/ScaleDockHQ/better-supabase/pull/838) [`733cde6`](https://github.com/ScaleDockHQ/better-supabase/commit/733cde6fa9ca3988c7b5e7fa9ba6a53d15b15d83) Thanks [@martijn00](https://github.com/martijn00)! - Say `config.recordTypes` in error messages, generated comments, JSDoc and docs where they said `config.subjects`, the key `recordTypes` replaced in 0.54. `scripts/check-naming.ts` now fails on a former config key in a comment, a string or a docs page. Run `better-supabase gen` to refresh the comment in `generated.ts`.
+
+- [#838](https://github.com/ScaleDockHQ/better-supabase/pull/838) [`733cde6`](https://github.com/ScaleDockHQ/better-supabase/commit/733cde6fa9ca3988c7b5e7fa9ba6a53d15b15d83) Thanks [@martijn00](https://github.com/martijn00)! - `AuthzSubjectSeed` has a `tenant` field: the tenant a bootstrap subject is restricted to by the provider's `subjectForTenant`, or `null` for the whole subject. `accessFor` sets it from the new `Bootstrap.subjectTenant`, which the bootstrap wrapper reports as `subject_tenant` (run `bsb upgrade` to regenerate it). An authorizer that caches the seed by user and version must key it by the tenant, and `testAuthorizer` checks that a seed for another tenant is ignored.
+
+- [#838](https://github.com/ScaleDockHQ/better-supabase/pull/838) [`733cde6`](https://github.com/ScaleDockHQ/better-supabase/commit/733cde6fa9ca3988c7b5e7fa9ba6a53d15b15d83) Thanks [@martijn00](https://github.com/martijn00)! - Describe CLI result v2 and the exit codes 0, 1, 2, 65, 130 and 143 in the `better-supabase` skill, in place of the v1 envelope and the unused exit code 3. A docs test now compares the skill's exit codes with the CLI errors page.
+
+- [#838](https://github.com/ScaleDockHQ/better-supabase/pull/838) [`733cde6`](https://github.com/ScaleDockHQ/better-supabase/commit/733cde6fa9ca3988c7b5e7fa9ba6a53d15b15d83) Thanks [@martijn00](https://github.com/martijn00)! - Stop writing `drop event trigger if exists` into the declarative `900_better_supabase_999_unscoped.sql` file, which `supabase db schema declarative sync` rejects. `better-supabase sql upgrade --check` now fails when a declarative module file contains a `drop event trigger` line. Run `better-supabase upgrade` to rewrite the file.
+
 ## 0.60.0
 
 ### Minor Changes

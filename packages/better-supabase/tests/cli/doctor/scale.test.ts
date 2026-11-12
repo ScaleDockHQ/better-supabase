@@ -136,6 +136,29 @@ describe("BS386 per-row policy functions", () => {
     ).toEqual([]);
   });
 
+  it("accepts a set helper in an uncorrelated in (select ... from fn())", async () => {
+    for (const using of [
+      "id in (select t.id::uuid from public.can_read('participant') as t(id))",
+      "(id IN ( SELECT (t.id)::uuid AS id FROM public.can_read('participant'::text) t(id)))",
+    ]) {
+      expect(await run(context(withPolicy(using)), "BS386")).toEqual([]);
+    }
+  });
+
+  it("flags a set helper whose arguments read the row", async () => {
+    const findings = await run(
+      context(
+        withPolicy(
+          "id in (select t.id from public.can_read(organization_id) as t(id))",
+        ),
+      ),
+      "BS386",
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.target).toBe("public.notes:read");
+  });
+
   it("leaves the blocks' own policies to upgrade", async () => {
     const renamed = snapshot(
       (tables) => {

@@ -724,6 +724,19 @@ export const OPERATIONS = {
 /** An operation name, `<module>.<action>`. */
 export type Operation = keyof typeof OPERATIONS;
 
+/**
+ * The operations only a signed-in user may run: an API key, an OAuth client or
+ * an agent never gets their keys, whatever its scopes say.
+ */
+export const INTERACTIVE_ONLY_OPERATIONS: readonly Operation[] = [
+  "organizations.transferOwnership",
+  "organizations.delete",
+  "data-lifecycle.delete",
+  "impersonation.start",
+  "invitations.invitePlatform",
+  "sso.manage",
+];
+
 /** The modules with operations. */
 export type OperationModule = Operation extends `${infer M}.${string}`
   ? M

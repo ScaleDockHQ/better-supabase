@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-in
--- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:7fbb5d985186c97b813b4178c4790ede91051e05baae133df4d8a9e23ac1baf3
+-- @bsb-block webhooks-in@5 managed
+-- @bsb-hash sha256:b3bca7fd47101771d8c83dd4c5fecd9a978a77aed0a7f48b9f1eb3f98af90c85
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,39 +49,43 @@ as $$
 $$;
 revoke execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."incoming_webhook_subject_readable"(text, text, uuid) to authenticated, service_role;
-
-
 -- A tenant's endpoints, or one subject's, without secrets; runs as the caller.
-create or replace function "better_supabase"."list_incoming_webhooks"(tenant uuid, subject_type text default null, subject_id text default null)
+create or replace function "better_supabase"."list_incoming_webhooks"(tenant uuid, subject_type text default null, subject_id text default null, page_size integer default null, skip integer default 0, newest_first boolean default false)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id', e."id",
-    'tenant', e."organization_id",
-    'name', e."name",
-    'verify', e."verification",
-    'signature_header', e."signature_header",
-    'enabled', e."enabled",
-    'max_body_bytes', 1048576,
-    'receive_count', 0,
-    'last_received_at', null,
-    'last_status', null,
-    'metadata', e."settings",
-    'subject_type', null,
-    'subject_id', null,
-    'created_by', e."created_by",
-    'created_at', e."created_at"
-  ) order by e."created_at"), '[]'::jsonb)
-  from "centrakit"."inbound_webhooks" e
-  where e."organization_id" = list_incoming_webhooks.tenant
+  select coalesce(jsonb_agg(page.item order by page.n), '[]'::jsonb)
+  from (
+    select jsonb_build_object(
+      'id', e."id",
+      'tenant', e."organization_id",
+      'name', e."name",
+      'verify', e."verification",
+      'signature_header', e."signature_header",
+      'enabled', e."enabled",
+      'max_body_bytes', 1048576,
+      'receive_count', 0,
+      'last_received_at', null,
+      'last_status', null,
+      'metadata', e."settings",
+      'subject_type', null,
+      'subject_id', null,
+      'created_by', e."created_by",
+      'created_at', e."created_at"
+    ) as item, row_number() over (order by case when list_incoming_webhooks.newest_first then e."created_at" end desc, case when list_incoming_webhooks.newest_first then e."id" end desc, e."created_at", e."id") as n
+    from "centrakit"."inbound_webhooks" e
+    where e."organization_id" = list_incoming_webhooks.tenant
     and list_incoming_webhooks.subject_type is null and list_incoming_webhooks.subject_id is null
+    order by case when list_incoming_webhooks.newest_first then e."created_at" end desc, case when list_incoming_webhooks.newest_first then e."id" end desc, e."created_at", e."id"
+    limit case when list_incoming_webhooks.page_size is null then null else least(greatest(coalesce(list_incoming_webhooks.page_size, 50), 1), 500) end
+    offset greatest(coalesce(list_incoming_webhooks.skip, 0), 0)
+  ) page
 $$;
-revoke execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text, integer, integer, boolean) from public, anon;
+grant execute on function "better_supabase"."list_incoming_webhooks"(uuid, text, text, integer, integer, boolean) to authenticated, service_role;
 -- Creates an endpoint and returns it with its token (and the signing secret
 -- for standard-webhooks and hmac-sha256), shown once.
 create or replace function "better_supabase"."create_incoming_webhook"(

@@ -122,9 +122,19 @@ against someone who can read the traffic. `receive` compares it in constant
 time and never stores that header, even when `keepHeaders` names it.
 
 Members with `webhooks.read` read their tenant's endpoints, including
-`receive_count`, `last_received_at` and `last_status`. `hooks.list(tenant)`
+`receive_count`, `last_received_at` and `last_status`. `hooks.list({ tenant })`
 returns them without secrets through `list_incoming_webhooks`, which runs as
-the caller.
+the caller. It lists every endpoint, oldest first. `pageSize` (up to 500) and
+`skip` return one page, and `newestFirst` reverses the order:
+
+```ts
+const page = await hooks.list({
+  tenant: organizationId,
+  pageSize: 50,
+  skip: 100,
+  newestFirst: true,
+});
+```
 
 ### Endpoints that belong to a record
 
@@ -149,9 +159,9 @@ await hooks.create({
   name: "Form submissions",
   subject: { type: "workflow", id: workflowId },
 });
-const forWorkflow = await hooks.list(organizationId, {
-  type: "workflow",
-  id: workflowId,
+const forWorkflow = await hooks.list({
+  tenant: organizationId,
+  subject: { type: "workflow", id: workflowId },
 });
 ```
 

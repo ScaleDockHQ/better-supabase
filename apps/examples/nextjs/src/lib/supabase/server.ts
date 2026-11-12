@@ -50,7 +50,7 @@ export function sessionStats() {
  * or truncated. The authorizer calls it once per request.
  */
 async function myPermissions(): Promise<readonly string[] | undefined> {
-  // Not `bsb.cached()`: a Server Action checks permissions too, and a private
+  // Not a private cache scope: a Server Action checks permissions too, and a private
   // cache scope can't open there (EX-1107).
   const { db } = await bsb.context();
   const result = await db.permissions.permissions();

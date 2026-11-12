@@ -249,7 +249,14 @@ describe("createIncomingWebhooks", () => {
       lastStatus: 202,
       metadata: {},
     });
-    expect(fake.calls[1]!.values).toEqual(["t", "workflow", null]);
+    expect(fake.calls[1]!.values).toEqual([
+      "t",
+      "workflow",
+      null,
+      null,
+      0,
+      false,
+    ]);
   });
 
   it("manages endpoints through the module's functions", async () => {

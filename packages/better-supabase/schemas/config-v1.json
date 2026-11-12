@@ -684,6 +684,19 @@
                     "type": "string",
                     "description": "Schema for a generated function. Defaults to better_supabase, which the Data API does not expose."
                   },
+                  "dedupe": {
+                    "enum": ["transaction"],
+                    "type": "string",
+                    "description": "transaction sends each message once per transaction: a row whose topic, event and payload match one already sent in the same transaction is skipped, so a bulk write sends one message per key."
+                  },
+                  "dedupeKey": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "description": "The payload fields that tell two messages apart for dedupe, next to the topic and the event. Defaults to the whole payload."
+                  },
                   "when": {
                     "type": "object",
                     "properties": {
@@ -1452,6 +1465,13 @@
                     }
                   },
                   "description": "OAuth scope to the permission keys it grants a delegated token."
+                },
+                "interactiveOnly": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Permission keys no API key, OAuth client or agent gets, whatever its scopes; merged with blocks.permissions.interactiveOnly."
                 }
               },
               "additionalProperties": false
@@ -3732,7 +3752,26 @@
           "additionalProperties": false
         },
         "events": {
-          "type": "boolean"
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
         },
         "audit": {
           "type": "boolean"
@@ -4011,7 +4050,26 @@
           "additionalProperties": false
         },
         "events": {
-          "type": "boolean"
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "payload": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
         },
         "audit": {
           "type": "boolean"
@@ -4069,6 +4127,13 @@
             }
           },
           "description": "OAuth scope to the permission keys it grants a delegated token; merged over authorization.delegation.scopes."
+        },
+        "interactiveOnly": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Permission keys only a user's own session gets, added to the built-in interactive-only operations."
         },
         "disabled": {
           "type": "object",
