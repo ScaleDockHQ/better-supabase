@@ -43,19 +43,37 @@ const appSqlTexts = (context: DoctorContext): readonly TextFile[] =>
 function callsPerRow(
   expression: string,
   name: string,
+  table: string,
   columns: ReadonlySet<string>,
+  fallbackAllowed = false,
 ): boolean {
   const call = new RegExp(
     String.raw`(?<![\w.])(?<!select\s+)(?:"?\w+"?\.)?"?${escape(name)}"?\s*\(`,
     "gi",
   );
 
-  return [...expression.matchAll(call)].some(
-    (match) =>
-      !/\b(?:from|join)\s+$/i.test(expression.slice(0, match.index)) ||
-      readsRow(argumentsAt(expression, match.index + match[0].length), columns),
-  );
+  return [...expression.matchAll(call)].some((match) => {
+    const before = expression.slice(0, match.index);
+
+    if (fallbackAllowed && AFTER_SET.test(before)) {
+      return false;
+    }
+
+    return (
+      !/(?:\b(?:from|join)\s+(?:\(\s*)*(?:lateral\s+)?|,\s*lateral\s+)$/i.test(
+        before,
+      ) ||
+      readsRow(
+        argumentsAt(expression, match.index + match[0].length),
+        table,
+        columns,
+      )
+    );
+  });
 }
+
+const AFTER_SET =
+  /\bin\s*\(\s*select\b[^()]*(?:\([^()]*\)[^()]*)*\)\s*\)*\s*or\s*$/i;
 
 function argumentsAt(expression: string, start: number): string {
   let depth = 1;
@@ -76,9 +94,16 @@ function argumentsAt(expression: string, start: number): string {
   return text;
 }
 
-const readsRow = (args: string, columns: ReadonlySet<string>): boolean =>
+const readsRow = (
+  args: string,
+  table: string,
+  columns: ReadonlySet<string>,
+): boolean =>
   args
     .replaceAll(/::\s*"?\w+"?/g, "")
+    .replaceAll(/"?(\w+)"?\s*\.\s*"?\w+"?/g, (qualified, owner: string) =>
+      owner.toLowerCase() === table.toLowerCase() ? qualified : "",
+    )
     .split(/\W+/)
     .some((word) => columns.has(word.toLowerCase()));
 
@@ -251,9 +276,10 @@ const SCALE_CHECKS: readonly Rule[] = [
   {
     code: "BS386",
     severity: "warning",
-    title: "A policy calls a volatile or PL/pgSQL function per row",
+    title:
+      "A policy calls a volatile, PL/pgSQL or non-inlinable function per row",
     description:
-      "A policy that calls a volatile function, or one written in PL/pgSQL, outside `(select ...)` runs it once for every row the statement reads, and a volatile function can't be hoisted or folded. A 100,000 row list then costs 100,000 calls. Wrap the call in `(select fn(...))` so Postgres evaluates it once per statement, or replace a per-row check with a set helper such as `tenant_id in (select tenant_ids_with('key'))`. A helper that is called inside `(select ...)` is accepted even when it is volatile, and so is a set helper in the `from` of a subquery whose arguments read no column of the row, such as `id in (select t.id from thread_ids('key') as t(id))`, because Postgres calls it once and rescans its result. Policies named `bsb_*` belong to a block module and are left to `upgrade`.",
+      "A policy that calls a volatile function, or one written in PL/pgSQL, outside `(select ...)` runs it once for every row the statement reads, and a volatile function can't be hoisted or folded. A 100,000 row list then costs 100,000 calls. Wrap the call in `(select fn(...))` so Postgres evaluates it once per statement, or replace a per-row check with a set helper such as `tenant_id in (select tenant_ids_with('key'))`. A helper that is called inside `(select ...)` is accepted even when it is volatile, and so is a set helper in the `from` of a subquery whose arguments read no column of the row, such as `id in (select t.id from thread_ids('key') as t(id))`, because Postgres calls it once and rescans its result. In a select policy a function that is `security definer` or has a `set` clause counts too, even when it is a stable SQL function, because Postgres never inlines it, so `can_note(notes, 'read')` runs once per row. Such a call is accepted as the `or` fallback after a set check, as in `id in (select note_ids('read')) or can_note(notes, 'read')`, because it then runs only for rows outside the set, such as a row the statement itself inserted. Policies named `bsb_*` belong to a block module and are left to `upgrade`.",
     check(context) {
       const catalog = catalogOf(context);
 
@@ -294,10 +320,25 @@ const SCALE_CHECKS: readonly Rule[] = [
                 candidate.language === "plpgsql",
             );
 
-            if (
-              !heavy ||
-              !expressions.some((text) => callsPerRow(text, name, columns))
-            ) {
+            const opaque =
+              (policy.command === "select" || policy.command === "all") &&
+              overloads.some(
+                (candidate) =>
+                  candidate.securityDefiner ||
+                  Object.keys(candidate.settings).length > 0,
+              );
+
+            const perRow =
+              (heavy &&
+                expressions.some((text) =>
+                  callsPerRow(text, name, table.name, columns),
+                )) ||
+              (opaque &&
+                expressions.some((text) =>
+                  callsPerRow(text, name, table.name, columns, true),
+                ));
+
+            if (!perRow) {
               return [];
             }
 
