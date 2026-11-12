@@ -1,6 +1,6 @@
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:ebf2ae6c428121301597832e4f8d1ad44ce90a0edebe3b1c4a8fa4c2c1bb8436
+-- @bsb-hash sha256:3f5ea1c06d356c897ba739b8177e4cd4a4587dca83d601e857d96b44755388ae
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,7 +89,7 @@ begin
       raise exception 'Not allowed to create API keys for every tenant' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
     end if;
   end if;
-  if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s = any ('{organization.delete,organization.transfer_ownership,platform.invite,sso.manage}'::text[])) then
+  if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s = any ('{impersonation.start,organization.delete,organization.transfer_ownership,platform.invite,sso.manage}'::text[])) then
     raise exception 'Only a signed-in user may use this permission, so an API key cannot carry it' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
   end if;
   if (auth.jwt() -> 'api_key' is not null

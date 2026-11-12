@@ -1,6 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:1952e72fc1bf02a35d19ee269803288a9ba6502703548b28cafb6f9410c2d175
+-- @bsb-hash sha256:6e2753a651bde8aa65d8b125f8b10cbbfb0660a3f9f3aefefb2e970be92b3381
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -853,6 +853,9 @@ begin
     when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'banking.read'), false)
     when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'care_plans.read'), false)
     when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'incidents.read'), false)
+    when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'advisories.read'), false)
+    when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'advisories.read'), false)
+    when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'advisories.read'), false)
     when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'content.read'), false)
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'documents.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (submit_form.subject_id)::uuid and s."organization_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'customers.read'), false)

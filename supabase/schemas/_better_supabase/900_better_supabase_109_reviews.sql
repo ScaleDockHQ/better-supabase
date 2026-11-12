@@ -1,6 +1,6 @@
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:d83cc1ad3ce944e2f33466dccecdaf52f89d50e6588776c124def9d3cb43afa0
+-- @bsb-hash sha256:d415bc6842938c010930643cb50f2c46ff8f7290fb479d9e1aff4d5369536ca9
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,6 +112,9 @@ begin
     when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'banking.read'), false)
     when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'care_plans.read'), false)
     when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'incidents.read'), false)
+    when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'advisories.read'), false)
+    when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'advisories.read'), false)
+    when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'advisories.read'), false)
     when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'content.read'), false)
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'documents.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (review_subject_readable.subject_id)::uuid and s."organization_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'customers.read'), false)

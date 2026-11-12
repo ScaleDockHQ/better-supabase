@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:d6ba12ee49b55959e63904a6e5455c2413728c3639a7516cc5b0f3d438a1bdd6
+-- @bsb-hash sha256:2548cf05df22817fe5ae504eb87778e7c19791bc333e79e39bc5fde75b03971e
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -34,7 +34,7 @@ grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
 create policy bsb_approval_requests_read on "better_supabase"."approval_requests"
   for select to authenticated
-  using (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('ai_tool_approval')) or "requested_by" = (select auth.uid()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('support_request', 'ai_tool_approval')) or "requested_by" = (select auth.uid()));
 
 create table "better_supabase"."approval_decisions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -202,6 +202,9 @@ begin
       return false;
     end if;
   end if;
+  if v_req."subject_type" = 'support_request' then
+    return "better_supabase"."support_request_approvable"(v_req."subject_id"::uuid);
+  end if;
   if v_req."subject_type" = 'ai_tool_approval' then
     return "better_supabase"."ai_tool_approval_approvable"(v_req."subject_id");
   end if;
@@ -290,7 +293,8 @@ begin
   where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
     and ((q.bsb_me = q."requested_by" and q."policy" ->> 'mode' = 'confirm')
       or ((q.bsb_me is distinct from q."requested_by" or coalesce((q."policy" ->> 'selfApproval')::boolean, false))
-        and (case when q."subject_type" = 'ai_tool_approval' then ("better_supabase"."ai_tool_approval_approvable"(q."subject_id"))
+        and (case when q."subject_type" = 'support_request' then ("better_supabase"."support_request_approvable"(q."subject_id"::uuid))
+          when q."subject_type" = 'ai_tool_approval' then ("better_supabase"."ai_tool_approval_approvable"(q."subject_id"))
           else (((coalesce((q.bsb_step -> 'approvers') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
     or ((q.bsb_step -> 'approvers') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'approvers') ->> 'permission'))
     or ((q.bsb_step -> 'approvers') ->> 'role' is not null and exists (
@@ -441,6 +445,9 @@ declare
 begin
   select * into v_req from "better_supabase"."approval_requests" r where r."id" = approval_finalize.request_id;
   v_run := v_req."policy" -> 'run';
+  if v_req."subject_type" = 'support_request' then
+    perform "better_supabase"."apply_support_approval"(v_req."subject_id"::uuid, auth.uid());
+  end if;
   if v_req."subject_type" = 'ai_tool_approval' then
     perform "better_supabase"."apply_ai_tool_approval"(v_req."subject_id", true, (select x."comment" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" order by x."created_at" desc, x."id" desc limit 1));
   end if;
@@ -1130,6 +1137,9 @@ begin
     when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'banking.read'), false)
     when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'care_plans.read'), false)
     when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'incidents.read'), false)
+    when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'advisories.read'), false)
+    when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'advisories.read'), false)
+    when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'advisories.read'), false)
     when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'content.read'), false)
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'documents.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (request_approval.subject_id)::uuid and s."organization_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'customers.read'), false)
@@ -1294,6 +1304,9 @@ begin
     metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
   );
     perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
+    if v_req."subject_type" = 'support_request' then
+      perform "better_supabase"."close_support_request"(v_req."subject_id"::uuid);
+    end if;
     if v_req."subject_type" = 'ai_tool_approval' then
       perform "better_supabase"."apply_ai_tool_approval"(v_req."subject_id", false, decide_approval.comment);
     end if;
@@ -1386,7 +1399,7 @@ begin
   if jsonb_array_length(request_approval_items.items) > 200 then
     raise exception 'a request takes at most 200 items' using errcode = '22023', hint = 'APPROVAL_ITEMS_INVALID';
   end if;
-  if request_approval_items.subject_type in ('ai_tool_approval') then
+  if request_approval_items.subject_type in ('support_request', 'ai_tool_approval') then
     raise exception 'the module that filed this request decides it, so it takes no items' using errcode = '22023', hint = 'APPROVAL_ITEMS_UNSUPPORTED';
   end if;
   for v_item in select e.value from jsonb_array_elements(request_approval_items.items) e loop
@@ -1717,7 +1730,7 @@ begin
   if not "better_supabase"."approval_eligible"(v_req."id") then
     raise exception 'not an approver for this step' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
   end if;
-  if v_req."subject_type" in ('ai_tool_approval') then
+  if v_req."subject_type" in ('support_request', 'ai_tool_approval') then
     raise exception 'the module that filed this request decides who approves it' using errcode = '22023', hint = 'APPROVAL_DELEGATE_INVALID';
   end if;
   if delegate_approval.to_user is null or delegate_approval.to_user = auth.uid() or delegate_approval.to_user = v_req."requested_by" then
@@ -1803,7 +1816,7 @@ begin
     raise exception 'approval request not found' using errcode = 'P0002', hint = 'APPROVAL_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_req."requested_by" = auth.uid(), false) or "better_supabase"."approval_eligible"(v_req."id")
-    or (coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.read'), false) and (not v_req."subject_type" in ('ai_tool_approval') and (v_req."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'warranty_claim', 'appraisal') or (case when v_req."subject_type" = 'drive_node' then coalesce(case when v_req."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((v_req."subject_id")::uuid, 'viewer') end, false) else case v_req."subject_type"
+    or (coalesce(better_supabase.can('tenant', v_req."tenant_id", 'approvals.read'), false) and (not v_req."subject_type" in ('support_request', 'ai_tool_approval') and (v_req."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'warranty_claim', 'appraisal') or (case when v_req."subject_type" = 'drive_node' then coalesce(case when v_req."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((v_req."subject_id")::uuid, 'viewer') end, false) else case v_req."subject_type"
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'messages.read'), false)
     when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'messages.read'), false)
@@ -1855,6 +1868,9 @@ begin
     when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'banking.read'), false)
     when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'care_plans.read'), false)
     when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'incidents.read'), false)
+    when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'advisories.read'), false)
+    when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'advisories.read'), false)
+    when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'advisories.read'), false)
     when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'content.read'), false)
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'documents.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_req."subject_id")::uuid and s."organization_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'customers.read'), false)
@@ -1910,7 +1926,7 @@ begin
     from "better_supabase"."approval_requests" r
     where r."id" = any (get_approvals.request_ids)
       and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."requested_by" = auth.uid(), false) or "better_supabase"."approval_eligible"(r."id")
-        or (coalesce(better_supabase.can('tenant', r."tenant_id", 'approvals.read'), false) and (not r."subject_type" in ('ai_tool_approval') and (r."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'warranty_claim', 'appraisal') or (case when r."subject_type" = 'drive_node' then coalesce(case when r."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((r."subject_id")::uuid, 'viewer') end, false) else case r."subject_type"
+        or (coalesce(better_supabase.can('tenant', r."tenant_id", 'approvals.read'), false) and (not r."subject_type" in ('support_request', 'ai_tool_approval') and (r."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'warranty_claim', 'appraisal') or (case when r."subject_type" = 'drive_node' then coalesce(case when r."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((r."subject_id")::uuid, 'viewer') end, false) else case r."subject_type"
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'messages.read'), false)
     when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'messages.read'), false)
@@ -1962,6 +1978,9 @@ begin
     when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'banking.read'), false)
     when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'care_plans.read'), false)
     when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'incidents.read'), false)
+    when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'advisories.read'), false)
+    when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'advisories.read'), false)
+    when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'advisories.read'), false)
     when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'content.read'), false)
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'documents.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (r."subject_id")::uuid and s."organization_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'customers.read'), false)
@@ -2002,7 +2021,7 @@ begin
       and (list_approvals.before is null or x."created_at" < list_approvals.before)
       and case
         when list_approvals.assigned then x."id" in (select "better_supabase"."approval_eligible_ids"(list_approvals.tenant))
-        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (not x."subject_type" in ('ai_tool_approval') and (x."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'warranty_claim', 'appraisal') or (case when x."subject_type" = 'drive_node' then coalesce(case when x."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((x."subject_id")::uuid, 'viewer') end, false) else case x."subject_type"
+        else x."requested_by" = auth.uid() or (v_read and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (not x."subject_type" in ('support_request', 'ai_tool_approval') and (x."subject_type" in ('access_request', 'purchase_requisition', 'timesheet', 'leave_request', 'expense_report', 'content_entry', 'care_plan_action', 'case', 'warranty_claim', 'appraisal') or (case when x."subject_type" = 'drive_node' then coalesce(case when x."subject_id" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((x."subject_id")::uuid, 'viewer') end, false) else case x."subject_type"
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
     when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
@@ -2054,6 +2073,9 @@ begin
     when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'banking.read'), false)
     when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'care_plans.read'), false)
     when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'incidents.read'), false)
+    when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'advisories.read'), false)
+    when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'advisories.read'), false)
+    when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'advisories.read'), false)
     when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'content.read'), false)
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'documents.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'customers.read'), false)
@@ -2255,7 +2277,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."approval_requests" a
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('ai_tool_approval')) or "requested_by" = (select auth.uid()))
+    or (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('support_request', 'ai_tool_approval')) or "requested_by" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."approval_requests" as restrictive
   for insert to public

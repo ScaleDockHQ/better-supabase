@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:1df25f9c22ec74e1054ba09621caca89e2fe4a0c0e60cda95cca38c02df71509
+-- @bsb-hash sha256:3a8f58d7ed50b8869e670dd036c21e455dcc1b1763f61250a9e7f214757ccbed
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,7 +71,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select coalesce(permission = any (array['organization.delete', 'organization.transfer_ownership', 'platform.invite', 'sso.manage']::text[]), false)
+  select coalesce(permission = any (array['impersonation.start', 'organization.delete', 'organization.transfer_ownership', 'platform.invite', 'sso.manage']::text[]), false)
 $$;
 
 -- The roles only a signed-in user grants or takes away: the organization
@@ -178,6 +178,9 @@ as $$
     when 'activities.read' then 'activities.read'
     when 'activities.readRestricted' then 'activities.read_restricted'
     when 'activities.write' then 'activities.write'
+    when 'advisories.publish' then 'advisories.publish'
+    when 'advisories.read' then 'advisories.read'
+    when 'advisories.write' then 'advisories.write'
     when 'agent-checkout.manage' then 'agent_checkout.manage'
     when 'agent-checkout.read' then 'agent_checkout.read'
     when 'agent-checkout.write' then 'agent_checkout.write'
@@ -351,6 +354,9 @@ as $$
     when 'hiring.manage' then 'hiring.manage'
     when 'hiring.read' then 'hiring.read'
     when 'hiring.write' then 'hiring.write'
+    when 'impersonation.read' then 'impersonation.read'
+    when 'impersonation.revoke' then 'impersonation.revoke'
+    when 'impersonation.start' then 'impersonation.start'
     when 'imports.manage' then 'imports.manage'
     when 'inbox.assign' then 'inbox.assign'
     when 'inbox.manage' then 'inbox.manage'

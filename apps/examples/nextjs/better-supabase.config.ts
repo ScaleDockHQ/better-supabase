@@ -648,6 +648,18 @@ export default defineConfig({
     "e-prescribing": {},
     incidents: {},
     reminders: {},
+    // Security advisories for the example's own software: products, versions,
+    // vulnerabilities and published CSAF and OpenVEX documents (ADR 0188).
+    advisories: {},
+    // mfa_satisfied() for restrictive policies, with the factor setup on
+    // /settings/security.
+    mfa: {},
+    // Email and chat identities linked to app users by a one-time code.
+    identities: {},
+    // Time-limited, approved, read-only support sessions at /settings/support.
+    impersonation: {},
+    // Vercel Marketplace provider state, read at /settings/integrations/vercel.
+    "vercel-marketplace": {},
     "drive-files": {},
     // Contributors add files to a shared folder without seeing what's in it.
     // Controlled documents get a number, an approved effective version and a

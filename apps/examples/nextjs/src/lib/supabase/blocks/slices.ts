@@ -648,6 +648,13 @@ export const ePrescribingConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `advisories` instance's config slice. */
+export const advisoriesConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `manufacturing` instance's config slice. */
 export const manufacturingConfig = {
   schema: "better_supabase",
@@ -789,6 +796,13 @@ export const grantsConfig = {
 
 /** The `hiring` instance's config slice. */
 export const hiringConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `identities` instance's config slice. */
+export const identitiesConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},
@@ -950,6 +964,13 @@ export const metricsConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `mfa` instance's config slice. */
+export const mfaConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `notifications` instance's config slice. */
 export const notificationsConfig = {
   schema: "better_supabase",
@@ -1098,6 +1119,13 @@ export const automationsConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `vercel-marketplace` instance's config slice. */
+export const vercelMarketplaceConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `saved-views` instance's config slice. */
 export const savedViewsConfig = {
   schema: "better_supabase",
@@ -1195,6 +1223,13 @@ export const streamsConfig = {
 
 /** The `subjects` instance's config slice. */
 export const subjectsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `impersonation` instance's config slice. */
+export const impersonationConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},

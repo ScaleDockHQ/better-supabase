@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:992a4bce513a97edc8102e90a0a27b028587bcd2155d892ed0ee0dbf0969d00d
+-- @bsb-hash sha256:dce22ddfb74ccf87beafd84567961379301e4a948698494e06a04ad527dbf1c5
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -297,6 +297,18 @@ begin
       select s."tenant_id", s."title"::text, null, null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."incidents" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'advisory' then
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."tracking_id"::text, s."summary"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."advisories" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
+    when 'vulnerability' then
+      select s."tenant_id", s."vuln_id"::text, nullif(concat_ws(E'\n', s."summary"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."vulnerabilities" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'content_entry' then
@@ -665,6 +677,20 @@ begin
   if search_reindex.subject_type is null or search_reindex.subject_type = 'incident' then
     for v_id in select s."id"::text from "better_supabase"."incidents" s loop
       if "better_supabase"."search_refresh"('incident', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'advisory' then
+    for v_id in select s."id"::text from "better_supabase"."advisories" s loop
+      if "better_supabase"."search_refresh"('advisory', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'vulnerability' then
+    for v_id in select s."id"::text from "better_supabase"."vulnerabilities" s loop
+      if "better_supabase"."search_refresh"('vulnerability', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;

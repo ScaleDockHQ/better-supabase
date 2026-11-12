@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:2fc55da33523628f4d1afada3e9bfb79598a90df086791cacf0292108c1d149e
+-- @bsb-hash sha256:306e6094b75adb7f836722450eb7a33db978664d495404cd85a52ed56543207a
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -43,7 +43,7 @@ create policy bsb_timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('timeline.read'))
     and ("subject_type" is null or "subject_id" is null
-      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[]))
+      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")));
 -- The deliveries of the notifications about a registered subject, for
 -- list_activity. Deliveries are readable only by their recipient, so this
@@ -62,7 +62,7 @@ begin
   from "better_supabase"."notification_deliveries" d
   join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
-  where activity_subject_deliveries.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
+  where activity_subject_deliveries.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
     and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
       or (coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'timeline.read'), false) and coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'notifications.send'), false)))
     and ev."tenant_id" = activity_subject_deliveries.tenant
@@ -134,7 +134,7 @@ declare
   v_rows jsonb;
   v_table text;
 begin
-  if list_activity.subject_id is not null and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
+  if list_activity.subject_id is not null and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
     and not "better_supabase"."activity_subject_readable"(list_activity.subject_type, list_activity.subject_id) then
     return '[]'::jsonb;
   end if;
@@ -191,6 +191,9 @@ begin
       when 'bank_account' then 'better_supabase.bank_accounts'
       when 'care_plan' then 'better_supabase.care_plans'
       when 'incident' then 'better_supabase.incidents'
+      when 'advisory' then 'better_supabase.advisories'
+      when 'advisory_product' then 'better_supabase.advisory_products'
+      when 'vulnerability' then 'better_supabase.vulnerabilities'
       when 'content_entry' then 'better_supabase.content_entries'
       when 'document' then 'better_supabase.documents'
       when 'customer' then 'public.customers'
@@ -215,11 +218,11 @@ begin
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
       and (list_activity.before is null or y."occurred_at" < list_activity.before)
       and not ((y."type" = 'status.changed' and list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
       and list_activity.subject_type = any ('{work_item,change_request,drive_node,warranty_claim}'::text[])
       and (list_activity.sources is null or 'transition' = any (list_activity.sources)))
         or (y."type" in ('message.sent', 'comment.posted') and list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
       and (list_activity.sources is null or 'message' = any (list_activity.sources))))
     order by y."occurred_at" desc, y."id" desc
     limit v_limit)
@@ -240,7 +243,7 @@ begin
       r."created_at" as at, r."id"::text as id
     from "better_supabase"."workflow_runs" r
     where list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
       and (list_activity.sources is null or 'run' = any (list_activity.sources))
       and r."tenant_id" = list_activity.tenant
       and r."subject_type" = list_activity.subject_type
@@ -253,7 +256,7 @@ begin
       h."created_at" as at, h."id"::text as id
     from "better_supabase"."status_history" h
     where list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
       and list_activity.subject_type = any ('{work_item,change_request,drive_node,warranty_claim}'::text[])
       and (list_activity.sources is null or 'transition' = any (list_activity.sources))
       and h."tenant_id" = list_activity.tenant
@@ -268,7 +271,7 @@ begin
     from "better_supabase"."messages" m
     join "better_supabase"."conversations" c on c."id" = m."conversation_id"
     where list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])
       and (list_activity.sources is null or 'message' = any (list_activity.sources))
       and c."tenant_id" = list_activity.tenant
       and c."subject_type" = list_activity.subject_type
@@ -307,7 +310,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('timeline.read'))
     and ("subject_type" is null or "subject_id" is null
-      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[]))
+      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."timeline_entries" as restrictive

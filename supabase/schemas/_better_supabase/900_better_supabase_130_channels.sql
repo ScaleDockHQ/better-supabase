@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:15fa859772f0bacb117ad3a34fc7de3c3d2343722c35f17186bb51c360b982af
+-- @bsb-hash sha256:56c7ee0250b91c7aad79e721d8dac59e99f7385655ca18398f30456d51dec0a4
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -126,6 +126,9 @@ begin
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'advisory' then (select s."tenant_id"::text from "better_supabase"."advisories" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'advisory_product' then (select s."tenant_id"::text from "better_supabase"."advisory_products" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'vulnerability' then (select s."tenant_id"::text from "better_supabase"."vulnerabilities" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
