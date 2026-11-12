@@ -1,5 +1,19 @@
 # better-supabase
 
+## 0.63.0
+
+### Minor Changes
+
+- [#873](https://github.com/ScaleDockHQ/better-supabase/pull/873) [`89a76c0`](https://github.com/ScaleDockHQ/better-supabase/commit/89a76c0190418c9f4b0811703115a4a73d901a5e) Thanks [@mick340](https://github.com/mick340)! - `notifications.page` sorts by `order` (`newest`, `oldest`, `type`, `subject` or `status`, with `_desc` forms) and filters on `excludeTypes`, `subjectIds` and `anyOf` groups, so a view such as "everything that is not an open request" pages in SQL. `search` in `list` and `page` also matches the actor's name when the `profiles` module is installed. Both return up to 500 items (was 200), and `page` returns the `limit` it applied, so a caller sees when a request was clamped. `notification_page` takes `exclude_types`, `subject_ids`, `any_of` and `order_by`; the notifications module goes to version 11.
+
+- [#873](https://github.com/ScaleDockHQ/better-supabase/pull/873) [`89a76c0`](https://github.com/ScaleDockHQ/better-supabase/commit/89a76c0190418c9f4b0811703115a4a73d901a5e) Thanks [@mick340](https://github.com/mick340)! - A queue schedule can name a `probe`, a SQL function without arguments that returns whether there is work. A due schedule whose probe returns `false` stays due and enqueues nothing, so every-minute schedules stop enqueueing a job on each idle drain tick. The outbox, webhooks-out and webhook-inbox modules add `outbox_has_work()`, `webhook_deliveries_has_work()` and `webhook_inbox_has_work()` to use as probes. `listSchedules` returns each schedule's probe, and `ensureSchedules` rewrites a schedule whose probe changed. The queue module goes to version 12.
+
+### Patch Changes
+
+- [#873](https://github.com/ScaleDockHQ/better-supabase/pull/873) [`84da781`](https://github.com/ScaleDockHQ/better-supabase/commit/84da781454215ca421ba98049279e4dffc9dd8db) Thanks [@mick340](https://github.com/mick340)! - Doctor BS219 attributes a containment filter in a function to the tables that function names. Before, it joined every function definition together, so a function that only named a table flagged that table's jsonb column whenever any other function used `?` or `@>` on a column of the same name.
+
+- [#873](https://github.com/ScaleDockHQ/better-supabase/pull/873) [`c1e2c07`](https://github.com/ScaleDockHQ/better-supabase/commit/c1e2c079d91ad5a7121fb7b25f37893e31c914f7) Thanks [@mick340](https://github.com/mick340)! - `unreported_usage` reads each tenant's plans and entitlements once and each quota once per tenant and meter, instead of once per counter row, and computes each window start once per tenant, period and day. On 1,000 counters of 20 tenants it calls `tenant_entitlements` 20 times instead of 1,008 and `usage_window_start` 102 times instead of 1,000.
+
 ## 0.62.0
 
 ### Minor Changes
