@@ -671,9 +671,9 @@ describe("IrBuilder.selection", () => {
         { alias: "id", column: "id" },
         { alias: "name", column: "name" },
         { alias: "slug", column: "slug" },
+        { alias: "brand", column: "brand" },
         { alias: "createdAt", column: "created_at" },
         { alias: "updatedAt", column: "updated_at" },
-        { alias: "brand", column: "brand" },
       ],
       includes: [],
     });

@@ -1,18 +1,18 @@
 {
   "en/login.html": {
     "raw": 33240,
-    "gzip": 7811
+    "gzip": 7673
   },
   "en/login.rsc": {
     "raw": 16540,
     "gzip": 5204
   },
   "en/customers.html": {
-    "raw": 26731,
-    "gzip": 5612
+    "raw": 26457,
+    "gzip": 5458
   },
   "en/projects.html": {
-    "raw": 26354,
-    "gzip": 5635
+    "raw": 26080,
+    "gzip": 5478
   }
 }

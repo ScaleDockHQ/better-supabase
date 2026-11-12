@@ -43,3 +43,7 @@ the same reason as in 0027: only local stacks and CI apply this history.
 After pulling it, run `pnpm supabase:reset`. The next squash needs three
 checks: the schemas no declarative file owns, the managed schemas and the
 permission catalog. CI's schema drift check catches the first.
+
+## Baselines
+
+The Next.js server baselines rose by about 80 bytes of raw JavaScript per route after the squash, with the turbo, Supabase CLI and Next.js bumps in the same branch. The baselines were raised once by hand in `tests/next-build/server-baseline.json`; the update command still never raises one.
