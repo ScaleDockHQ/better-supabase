@@ -179,6 +179,41 @@ export function withRelatedTables(
   };
 }
 
+/**
+ * Loads `key` and the unloaded tables that the relations named in `value` reach
+ * from it.
+ */
+export async function loadReachedTables(
+  meta: SchemaMeta,
+  key: string,
+  value: unknown,
+  register: (table: SchemaMeta["tables"][string]) => void,
+): Promise<void> {
+  const load = meta.tableLoaders?.[key];
+
+  if (meta.tables[key] === undefined && load !== undefined) {
+    await loadTable(meta, key, load, register);
+  }
+
+  const table = meta.tables[key];
+
+  if (table === undefined) {
+    return;
+  }
+
+  const names = argumentNames(value, new Set());
+  let missing = missingTargets(meta, table, names);
+
+  while (missing.length > 0) {
+    await Promise.all(
+      missing.map(([target, loader]) =>
+        loadTable(meta, target, loader, register),
+      ),
+    );
+    missing = missingTargets(meta, table, names);
+  }
+}
+
 /** Loads function metadata once, on the first `rpc` call. */
 export async function ensureFunctions(meta: SchemaMeta): Promise<void> {
   if (
