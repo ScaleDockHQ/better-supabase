@@ -414,11 +414,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane A
 
 - Scope: Entity surface in the manifest and core list types
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-a`
 - PR: none yet
 - Findings: EX-1208, EX-1216, EX-1352
-- Log: 2026-11-12, planned.
+- Log: 2026-11-12, lane A started from main in `../bsb-audit-a`.
 
 ### Lane B
 
