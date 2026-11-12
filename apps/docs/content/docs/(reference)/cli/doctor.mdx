@@ -645,7 +645,8 @@ index.
 `.contains()`, `.containedBy()` and `.overlaps()` filters, can only use a GIN
 index; without one, every query reads the table. Doctor looks in the
 policies, the functions in the exposed schemas and the files in
-`tooling.doctor.sources`. Use `jsonb_path_ops` when you only filter with `@>`, which
+`tooling.doctor.sources`. A function counts for a table only when its own
+definition names the table and filters the column. Use `jsonb_path_ops` when you only filter with `@>`, which
 makes the index smaller; leave it out for `?`:
 
 ```sql
