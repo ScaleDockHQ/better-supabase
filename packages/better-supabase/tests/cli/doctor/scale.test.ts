@@ -263,6 +263,19 @@ describe("BS386 non-inlinable functions in select policies", () => {
     }
   });
 
+  it("flags a per-row check after a set check that does not pass the whole row", async () => {
+    const findings = await run(
+      context(
+        withPolicy(
+          "((employee_id IN ( SELECT public.own_employee_ids() AS own_employee_ids)) OR public.can_note(id))",
+        ),
+      ),
+      "BS386",
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+
   it("flags the check when the set check is an and, not an or", async () => {
     const findings = await run(
       context(
