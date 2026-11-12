@@ -7,7 +7,7 @@ import { AsyncResult, err, ok } from "../../core/result.ts";
 export type BucketUnit = "hour" | "day" | "week" | "month" | "quarter" | "year";
 
 /** The arguments of the function the `@bsb buckets` tag renders. */
-export interface DateBucketParams {
+export interface DateBucketArgs {
   readonly unit: BucketUnit;
   readonly tz: string;
   readonly from_at: string | null;
@@ -33,7 +33,7 @@ export interface ListDateBucketsOptions {
    * Calls the rendered function, for example `(args) =>
    * db.$rpc("orders_date_buckets", args)`.
    */
-  readonly rpc: (args: DateBucketParams) => PromiseLike<Result<unknown>>;
+  readonly rpc: (args: DateBucketArgs) => PromiseLike<Result<unknown>>;
   readonly unit: BucketUnit;
   /** IANA time zone the buckets start in. Default `UTC`. */
   readonly timeZone?: string;
