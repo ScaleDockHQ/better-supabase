@@ -397,3 +397,289 @@ and confirmed two of the generator gaps above. The details and ids are in
 - Permission keys still come from hand-written catalog migrations (EX-807,
   EX-1232, EX-1603), and `gen` rewrites every `*_subject_readable` function when
   a block with subjects is added (EX-1604).
+
+## Progress
+
+Each lane edits only its own subsection, in its first commit (`in progress`), once its PR is open and when it merges. Subsections stay separated by blank lines so parallel branches do not conflict. The program runs parallel PRs as a one-off exception to `.agents/rules/git-workflow.mdc`, which is unchanged; each PR body says "audit program, lane X".
+
+### Lane 0
+
+- Scope: Tracking: Progress and Lane ownership sections, lane checklist
+- Status: PR open #894
+- Branch: `docs/audit-lane-0`
+- PR: [#894](https://github.com/ScaleDockHQ/better-supabase/pull/894)
+- Findings: none (docs only)
+- Log: 2026-11-12, lane 0 started from main after PR 887 merged; PR #894 opened.
+
+### Lane A
+
+- Scope: Entity surface in the manifest and core list types
+- Status: planned
+- Branch: `feat/audit-a`
+- PR: none yet
+- Findings: EX-1208, EX-1216, EX-1352
+- Log: 2026-11-12, planned.
+
+### Lane B
+
+- Scope: Event verbs, hint prefix rule, one key per block
+- Status: planned
+- Branch: `feat/audit-b`
+- PR: none yet
+- Findings: EX-1230, EX-1233, EX-1234
+- Log: 2026-11-12, planned.
+
+### Lane C
+
+- Scope: Field-aware invalid_input, generated messages, locale
+- Status: planned
+- Branch: `feat/audit-c`
+- PR: none yet
+- Findings: EX-1235, EX-1236, EX-1317
+- Log: 2026-11-12, planned.
+
+### Lane D
+
+- Scope: Shared recurrence, digest and money cores
+- Status: planned
+- Branch: `feat/audit-d`
+- PR: none yet
+- Findings: EX-1290, EX-1291, EX-1293, EX-1315, EX-1316
+- Log: 2026-11-12, planned.
+
+### Lane E
+
+- Scope: Example follow-up block fixes
+- Status: planned
+- Branch: `feat/audit-e`
+- PR: none yet
+- Findings: EX-1602, EX-1604, EX-1605, EX-1606, EX-1607, EX-1610, EX-1612, EX-1613, EX-1614
+- Log: 2026-11-12, planned.
+
+### Lane F
+
+- Scope: pgTAP per block check and MCP mapping
+- Status: planned
+- Branch: `feat/audit-f`
+- PR: none yet
+- Findings: EX-1269, EX-1351, EX-1354
+- Log: 2026-11-12, planned.
+
+### Lane G1
+
+- Scope: Shared page, facets and count implementation
+- Status: planned
+- Branch: `feat/audit-g1`
+- PR: none yet
+- Findings: EX-1200 to EX-1205, EX-1215
+- Log: 2026-11-12, planned.
+
+### Lane G2
+
+- Scope: List contract rollout: work and collaboration
+- Status: planned
+- Branch: `feat/audit-g2`
+- PR: none yet
+- Findings: EX-1200 to EX-1205, EX-1215
+- Log: 2026-11-12, planned.
+
+### Lane G3
+
+- Scope: List contract rollout: commerce
+- Status: planned
+- Branch: `feat/audit-g3`
+- PR: none yet
+- Findings: EX-1200 to EX-1205, EX-1215
+- Log: 2026-11-12, planned.
+
+### Lane G4
+
+- Scope: List contract rollout: crm, people and scheduling
+- Status: planned
+- Branch: `feat/audit-g4`
+- PR: none yet
+- Findings: EX-1200 to EX-1205, EX-1215
+- Log: 2026-11-12, planned.
+
+### Lane G5
+
+- Scope: List contract rollout: all other categories
+- Status: planned
+- Branch: `feat/audit-g5`
+- PR: none yet
+- Findings: EX-1200 to EX-1205, EX-1215
+- Log: 2026-11-12, planned.
+
+### Lane H
+
+- Scope: Generated permission keys, role defaults and scopes
+- Status: planned
+- Branch: `feat/audit-h`
+- PR: none yet
+- Findings: EX-1231, EX-1232, EX-1322, EX-1330, EX-1603
+- Log: 2026-11-12, planned.
+
+### Lane J
+
+- Scope: expectedVersion, idempotencyKey and optimistic controllers
+- Status: planned
+- Branch: `feat/audit-j`
+- PR: none yet
+- Findings: EX-1212, EX-1213, EX-1214
+- Log: 2026-11-12, planned.
+
+### Lane K
+
+- Scope: Client, controller and hooks trio, record bindings
+- Status: planned
+- Branch: `feat/audit-k`
+- PR: none yet
+- Findings: EX-1237, EX-1238, EX-1319, EX-1326
+- Log: 2026-11-12, planned.
+
+### Lane N
+
+- Scope: Subject labels, party core, manifest links and concerns
+- Status: planned
+- Branch: `feat/audit-n`
+- PR: none yet
+- Findings: EX-1266, EX-1292, EX-1295, EX-1296
+- Log: 2026-11-12, planned.
+
+### Lane I
+
+- Scope: Archive, restore and purge everywhere
+- Status: planned
+- Branch: `feat/audit-i`
+- PR: none yet
+- Findings: EX-1206, EX-1207, EX-1230 (verb adoption)
+- Log: 2026-11-12, planned.
+
+### Lane L
+
+- Scope: Bulk, export, import target and job shape
+- Status: planned
+- Branch: `feat/audit-l`
+- PR: none yet
+- Findings: EX-1209, EX-1210, EX-1211, EX-1324
+- Log: 2026-11-12, planned.
+
+### Lane M1
+
+- Scope: defineEntityPage, list query, route, index
+- Status: planned
+- Branch: `feat/audit-m1`
+- PR: none yet
+- Findings: EX-1260, EX-1261, EX-1265, EX-1270
+- Log: 2026-11-12, planned.
+
+### Lane M2
+
+- Scope: Generated columns, detail frame and forms
+- Status: planned
+- Branch: `feat/audit-m2`
+- PR: none yet
+- Findings: EX-1262, EX-1263
+- Log: 2026-11-12, planned.
+
+### Lane M3
+
+- Scope: Generated seed, nav, route manifest, coverage, message keys
+- Status: planned
+- Branch: `feat/audit-m3`
+- PR: none yet
+- Findings: EX-1264, EX-1267, EX-1268
+- Log: 2026-11-12, planned.
+
+### Lane M4
+
+- Scope: Example on generated output, app list helpers removed
+- Status: planned
+- Branch: `feat/audit-m4`
+- PR: none yet
+- Findings: EX-1294, EX-1327
+- Log: 2026-11-12, planned.
+
+### Lane O1
+
+- Scope: Personal data, retention, history tabs, partition
+- Status: planned
+- Branch: `feat/audit-o1`
+- PR: none yet
+- Findings: EX-1310, EX-1311, EX-1323, EX-1325
+- Log: 2026-11-12, planned.
+
+### Lane O2
+
+- Scope: Plan limits, quota, method meters
+- Status: planned
+- Branch: `feat/audit-o2`
+- PR: none yet
+- Findings: EX-1312, EX-1313, EX-1314
+- Log: 2026-11-12, planned.
+
+### Lane O3
+
+- Scope: Offline, public events, impersonation actor, flags, invitations
+- Status: planned
+- Branch: `feat/audit-o3`
+- PR: none yet
+- Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329
+- Log: 2026-11-12, planned.
+
+### Lane P
+
+- Scope: Generated skill references, final matrix, close the report
+- Status: planned
+- Branch: `feat/audit-p`
+- PR: none yet
+- Findings: EX-1350
+- Log: 2026-11-12, planned.
+
+## Lane ownership
+
+ADR numbers and migration slots are reserved per lane so parallel branches never collide. A lane that needs more than its ten ADRs asks in its PR; it never takes another lane's range.
+
+- ADR ranges: ten numbers per lane, starting at 0689 (the highest existing ADR is 0688). Lane 0 writes no ADR.
+- Migration slots: a lane names its migrations `202612DDhhmmss_<name>.sql` with `DD` equal to the lane's slot, so two lanes never pick the same timestamp. Existing migrations end on 20261112, so every slot sorts after them.
+
+| Lane | ADR range    | Migration slot | Folders and files it owns                                                                                                                                                              |
+| ---- | ------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | none         | none           | none (`docs/agents` only)                                                                                                                                                              |
+| A    | 0689 to 0698 | 20261201hhmmss | `src/blocks/define-block.ts`, `src/core/block-helpers.ts`, `src/blocks/entity-schema.ts`, `catalog:check`; one `entities` entry in every block manifest (additive, one line per block) |
+| B    | 0699 to 0708 | 20261202hhmmss | hint catalogs (`block-hints.ts` and each block's hints), `check:naming`; renames across the 13 non-conforming blocks and the webhooks family                                           |
+| C    | 0709 to 0718 | 20261203hhmmss | `src/core` error types, `hint-codes.generated.ts`, the errors docs page, `problem.ts`; the example's `use-error-message.ts`                                                            |
+| D    | 0719 to 0728 | 20261204hhmmss | `bookings`, `maintenance`, the recurrence, digest and money cores, the list kit; docs and skills that mention `flows`                                                                  |
+| E    | 0729 to 0738 | 20261205hhmmss | `field-encryption`, `vercel-marketplace`, `impersonation`, `SessionProvider`, `api` typing, doctor and `gen` (subject and search drift)                                                |
+| F    | 0739 to 0748 | 20261206hhmmss | `check:naming` pgTAP rule, the MCP mapping doc and test, `supabase/tests`                                                                                                              |
+| G1   | 0749 to 0758 | 20261207hhmmss | shared page, facets and count helpers in `src/core`; the ten blocks that already page                                                                                                  |
+| G2   | 0759 to 0768 | 20261208hhmmss | categories work and collaboration                                                                                                                                                      |
+| G3   | 0769 to 0778 | 20261209hhmmss | category commerce                                                                                                                                                                      |
+| G4   | 0779 to 0788 | 20261210hhmmss | categories crm, people and scheduling                                                                                                                                                  |
+| G5   | 0789 to 0798 | 20261211hhmmss | categories admin, ai, automation, content, database, developer, growth, identity, messaging and tenancy                                                                                |
+| H    | 0799 to 0808 | 20261212hhmmss | `permissions-model.ts`, `gen` permission output, API key and OAuth scopes, a new migration (never edit pushed ones)                                                                    |
+| J    | 0809 to 0818 | 20261213hhmmss | idempotency block, block controllers, `expectedVersion` and `STALE_WRITE` in `src/core`                                                                                                |
+| K    | 0819 to 0828 | 20261214hhmmss | client, controller and hooks files of every block (one file set per block), record bindings for invoices, quotes, deals, risks, employees, leave, expenses and bookings                |
+| N    | 0829 to 0838 | 20261215hhmmss | `subjects`, the new `party` core, manifest `links` and `concerns`, search registration defaults                                                                                        |
+| I    | 0839 to 0848 | 20261216hhmmss | split by category like G: record entities in every category (starts after B and H merge)                                                                                               |
+| L    | 0849 to 0858 | 20261217hhmmss | bulk-actions, export stream, `importTarget`, jobs; blocks that already declare bulk, export or import                                                                                  |
+| M1   | 0859 to 0868 | 20261218hhmmss | `defineEntityPage` in the page generator, `scale_list_<entity>.test.sql`, doctor index check                                                                                           |
+| M2   | 0869 to 0878 | 20261219hhmmss | page generator output for columns, detail frame and forms                                                                                                                              |
+| M3   | 0879 to 0888 | 20261220hhmmss | page generator output for seed, nav, route manifest, coverage and message keys                                                                                                         |
+| M4   | 0889 to 0898 | 20261221hhmmss | example app (`apps/examples/*`): delete `block-list.ts`, `block-status-list.ts`, `array-list.ts`, `simple-list.ts`, `admin-list.ts` and the finance registry                           |
+| O1   | 0899 to 0908 | 20261222hhmmss | data-lifecycle, consents, field-history and `personalData`, retention and partition declarations                                                                                       |
+| O2   | 0909 to 0918 | 20261223hhmmss | entitlements, plan limit, quota and meter declarations                                                                                                                                 |
+| O3   | 0919 to 0928 | 20261224hhmmss | offline streams, public events and webhook catalog, impersonation actor, entity flags, invitations                                                                                     |
+| P    | 0929 to 0938 | 20261225hhmmss | generated skill references under `packages/better-supabase/skills`, the capability matrix in the audit report                                                                          |
+
+The last reserved ADR is 0938; the next free number for later work is 0939.
+
+### Waves and dependency order
+
+1. Wave 0, serial: lane 0.
+2. Wave 1, parallel after lane 0: A, B, C, D, E and F.
+3. Wave 2, parallel after A merges: G (G1 first, then G2 to G5), H, J, K and N, plus O1 to O3 planning. G, H, J, K and N touch different files.
+4. Wave 3, after the waves above: I needs B and H; L needs G; M1 to M4 need G, H and C (M1 to M4 merge in order); O1 to O3 need A.
+5. Wave 4, last: P needs M, I, L and O.
+
+Block folders have one owning lane per wave. Lanes that roll out across all blocks (G, I, K) split by category, and the categories in the table above never overlap.
