@@ -9,32 +9,3 @@ export const STATUS_VARIANT: Record<
   hidden: "secondary",
   removed: "destructive-light",
 };
-
-export function statusLabel(
-  t: (message: string) => string,
-  status: ModerationStatus,
-): string {
-  switch (status) {
-    case "pending": {
-      return t("Pending");
-    }
-
-    case "visible": {
-      return t("Visible");
-    }
-
-    case "hidden": {
-      return t("Hidden");
-    }
-
-    case "removed": {
-      return t("Removed");
-    }
-
-    default: {
-      const unreachable: never = status;
-
-      return unreachable;
-    }
-  }
-}

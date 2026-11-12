@@ -1,3 +1,5 @@
+import type { ContentStatus } from "better-supabase/blocks/content";
+
 import { FileTextIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { refresh } from "next/cache";
@@ -29,7 +31,7 @@ import {
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
 import { getContentEntries } from "../content-queries";
-import { CONTENT_STATUS_VARIANT, contentStatusLabel } from "./content-labels";
+import { CONTENT_STATUS_VARIANT } from "./content-labels";
 import { ContentRowActions } from "./content-row-actions";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
@@ -84,6 +86,13 @@ export async function ContentList() {
     );
   }
 
+  const statusLabels: Record<ContentStatus, string> = {
+    draft: t("Draft"),
+    scheduled: t("Scheduled"),
+    published: t("Published"),
+    archived: t("Archived"),
+  };
+
   return (
     <Table>
       <TableHeader>
@@ -107,7 +116,7 @@ export async function ContentList() {
             <TableCell className="capitalize">{row.type}</TableCell>
             <TableCell>
               <Badge variant={CONTENT_STATUS_VARIANT[row.status]}>
-                {contentStatusLabel(t, row.status)}
+                {statusLabels[row.status]}
               </Badge>
             </TableCell>
             <TableCell className="text-xs text-muted-foreground">

@@ -1,3 +1,5 @@
+import type { AnnouncementSeverity } from "better-supabase/blocks/announcements";
+
 import { MegaphoneIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { refresh } from "next/cache";
@@ -29,7 +31,7 @@ import {
 import { Link } from "@/i18n/navigation";
 
 import { getAnnouncements } from "../announcements-queries";
-import { ANNOUNCEMENT_VARIANT, severityLabel } from "./announcement-labels";
+import { ANNOUNCEMENT_VARIANT } from "./announcement-labels";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
 async function retry() {
@@ -83,6 +85,13 @@ export async function AnnouncementList() {
     );
   }
 
+  const severityLabels: Record<AnnouncementSeverity, string> = {
+    info: t("Info"),
+    success: t("Success"),
+    warning: t("Warning"),
+    critical: t("Critical"),
+  };
+
   return (
     <Table>
       <TableHeader>
@@ -105,7 +114,7 @@ export async function AnnouncementList() {
             </TableCell>
             <TableCell>
               <Badge variant={ANNOUNCEMENT_VARIANT[row.severity]}>
-                {severityLabel(t, row.severity)}
+                {severityLabels[row.severity]}
               </Badge>
             </TableCell>
             <TableCell className="text-xs text-muted-foreground">

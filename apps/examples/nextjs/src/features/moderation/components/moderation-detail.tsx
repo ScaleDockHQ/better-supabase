@@ -1,3 +1,5 @@
+import type { ModerationStatus } from "better-supabase/blocks/moderation";
+
 import { getExtracted, getFormatter } from "next-intl/server";
 import { notFound } from "next/navigation";
 
@@ -16,7 +18,7 @@ import { can } from "@/features/user/user-permissions";
 
 import { getItem } from "../moderation-queries";
 import { DecideButtons } from "./decide-buttons";
-import { statusLabel, STATUS_VARIANT } from "./moderation-labels";
+import { STATUS_VARIANT } from "./moderation-labels";
 
 /** One moderated subject: its reports and the log of decisions. */
 export async function ModerationDetail({
@@ -43,13 +45,20 @@ export async function ModerationDetail({
       timeStyle: "short",
     });
 
+  const statusLabels: Record<ModerationStatus, string> = {
+    pending: t("Pending"),
+    visible: t("Visible"),
+    hidden: t("Hidden"),
+    removed: t("Removed"),
+  };
+
   return (
     <RecordDetailFrame
       title={`${item.subjectType} ${item.subjectId.slice(0, 8)}`}
       description={item.reason ?? undefined}
       status={
         <Badge variant={STATUS_VARIANT[item.status]}>
-          {statusLabel(t, item.status)}
+          {statusLabels[item.status]}
         </Badge>
       }
       actions={
@@ -103,7 +112,7 @@ export async function ModerationDetail({
             <div key={action.id} className="flex items-center gap-2">
               <Badge variant="outline">{action.action}</Badge>
               <span className="text-muted-foreground">
-                {statusLabel(t, action.toStatus)}
+                {statusLabels[action.toStatus]}
                 {action.reason ? ` · ${action.reason}` : ""}
               </span>
               <span className="ml-auto text-xs text-muted-foreground">

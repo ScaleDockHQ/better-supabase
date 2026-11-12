@@ -1,3 +1,5 @@
+import type { ModerationStatus } from "better-supabase/blocks/moderation";
+
 import { ShieldCheckIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { refresh } from "next/cache";
@@ -40,7 +42,7 @@ import { Link } from "@/i18n/navigation";
 import { getBans, getQueue } from "../moderation-queries";
 import { DecideButtons } from "./decide-buttons";
 import { LiftBanButton } from "./lift-ban-button";
-import { statusLabel, STATUS_VARIANT } from "./moderation-labels";
+import { STATUS_VARIANT } from "./moderation-labels";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
 async function retry() {
@@ -87,6 +89,13 @@ export async function ModerationQueue() {
       dateStyle: "medium",
       timeStyle: "short",
     });
+
+  const statusLabels: Record<ModerationStatus, string> = {
+    pending: t("Pending"),
+    visible: t("Visible"),
+    hidden: t("Hidden"),
+    removed: t("Removed"),
+  };
 
   return (
     <>
@@ -138,7 +147,7 @@ export async function ModerationQueue() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={STATUS_VARIANT[row.status]}>
-                        {statusLabel(t, row.status)}
+                        {statusLabels[row.status]}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">

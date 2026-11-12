@@ -1,3 +1,5 @@
+import type { IncidentStatus } from "better-supabase/blocks/incidents";
+
 import { getExtracted, getFormatter } from "next-intl/server";
 import { notFound } from "next/navigation";
 
@@ -15,11 +17,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
 import { getIncident } from "../incidents-queries";
-import {
-  SEVERITY_VARIANT,
-  STATUS_VARIANT,
-  statusLabel,
-} from "./incident-labels";
+import { SEVERITY_VARIANT, STATUS_VARIANT } from "./incident-labels";
 import { IncidentUpdateForm } from "./incident-update-form";
 
 /** One incident: head, description and the timeline with the update form. */
@@ -41,6 +39,13 @@ export async function IncidentDetail({ id }: { id: string }) {
       timeStyle: "short",
     });
 
+  const statusLabels: Record<IncidentStatus, string> = {
+    investigating: t("Investigating"),
+    identified: t("Identified"),
+    monitoring: t("Monitoring"),
+    resolved: t("Resolved"),
+  };
+
   return (
     <RecordDetailFrame
       title={incident.title}
@@ -51,7 +56,7 @@ export async function IncidentDetail({ id }: { id: string }) {
             {incident.severity.toUpperCase()}
           </Badge>
           <Badge variant={STATUS_VARIANT[incident.status]}>
-            {statusLabel(t, incident.status)}
+            {statusLabels[incident.status]}
           </Badge>
         </>
       }
@@ -110,7 +115,7 @@ export async function IncidentDetail({ id }: { id: string }) {
                   <li key={update.id} className="flex flex-col gap-1 text-sm">
                     <div className="flex items-center gap-2">
                       <Badge variant={STATUS_VARIANT[update.status]}>
-                        {statusLabel(t, update.status)}
+                        {statusLabels[update.status]}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {when(update.createdAt)}

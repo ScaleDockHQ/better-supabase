@@ -23,32 +23,3 @@ export const STATUS_VARIANT: Record<IncidentStatus, Variant> = {
   monitoring: "info-light",
   resolved: "success-light",
 };
-
-export function statusLabel(
-  t: (message: string) => string,
-  status: IncidentStatus,
-): string {
-  switch (status) {
-    case "investigating": {
-      return t("Investigating");
-    }
-
-    case "identified": {
-      return t("Identified");
-    }
-
-    case "monitoring": {
-      return t("Monitoring");
-    }
-
-    case "resolved": {
-      return t("Resolved");
-    }
-
-    default: {
-      const unreachable: never = status;
-
-      return unreachable;
-    }
-  }
-}

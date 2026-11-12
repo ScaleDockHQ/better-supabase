@@ -1,3 +1,5 @@
+import type { AdvisoryStatus } from "better-supabase/blocks/advisories";
+
 import { ShieldAlertIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
@@ -34,11 +36,7 @@ import {
   getVulnerabilities,
 } from "../advisories-queries";
 import { AdvisoriesLoadError } from "./advisories-load-error";
-import {
-  ADVISORY_STATUS_VARIANT,
-  advisoryStatusLabel,
-  severityVariant,
-} from "./advisory-labels";
+import { ADVISORY_STATUS_VARIANT, severityVariant } from "./advisory-labels";
 import { ProductDialog } from "./product-dialog";
 import { PublishAdvisoryButton } from "./publish-advisory-button";
 import { TrackVulnerabilityDialog } from "./track-vulnerability-dialog";
@@ -56,6 +54,12 @@ export async function AdvisoryList() {
   if (!result.ok) {
     return <AdvisoriesLoadError title={t("The advisories didn't load")} />;
   }
+
+  const statusLabels: Record<AdvisoryStatus, string> = {
+    draft: t("Draft"),
+    interim: t("Interim"),
+    final: t("Final"),
+  };
 
   return (
     <Card>
@@ -110,7 +114,7 @@ export async function AdvisoryList() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={ADVISORY_STATUS_VARIANT[advisory.status]}>
-                      {advisoryStatusLabel(t, advisory.status)}
+                      {statusLabels[advisory.status]}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">

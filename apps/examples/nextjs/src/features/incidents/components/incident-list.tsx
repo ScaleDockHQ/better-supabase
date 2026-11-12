@@ -1,3 +1,5 @@
+import type { IncidentStatus } from "better-supabase/blocks/incidents";
+
 import { SirenIcon, TriangleAlertIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { refresh } from "next/cache";
@@ -29,11 +31,7 @@ import {
 import { Link } from "@/i18n/navigation";
 
 import { getIncidents } from "../incidents-queries";
-import {
-  SEVERITY_VARIANT,
-  STATUS_VARIANT,
-  statusLabel,
-} from "./incident-labels";
+import { SEVERITY_VARIANT, STATUS_VARIANT } from "./incident-labels";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
 async function retry() {
@@ -97,6 +95,13 @@ export async function IncidentList() {
       b.startedAt.localeCompare(a.startedAt),
   );
 
+  const statusLabels: Record<IncidentStatus, string> = {
+    investigating: t("Investigating"),
+    identified: t("Identified"),
+    monitoring: t("Monitoring"),
+    resolved: t("Resolved"),
+  };
+
   return (
     <Table>
       <TableHeader>
@@ -122,7 +127,7 @@ export async function IncidentList() {
             </TableCell>
             <TableCell>
               <Badge variant={STATUS_VARIANT[row.status]}>
-                {statusLabel(t, row.status)}
+                {statusLabels[row.status]}
               </Badge>
             </TableCell>
             <TableCell className="text-xs text-muted-foreground">

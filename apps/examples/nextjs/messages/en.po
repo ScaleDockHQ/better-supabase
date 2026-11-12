@@ -2548,6 +2548,21 @@ msgid "The advisories didn't load"
 msgstr "The advisories didn't load"
 
 #: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.gh-ZpR"
+msgid "Interim"
+msgstr "Interim"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.6_JzkW"
+msgid "Final"
+msgstr "Final"
+
+#: src/features/advisories/components/advisory-sections.tsx
 msgctxt "advisories.iTDZy_"
 msgid "Published advisories are served as CSAF 2.0 documents under /.well-known/csaf."
 msgstr "Published advisories are served as CSAF 2.0 documents under /.well-known/csaf."
@@ -3741,6 +3756,30 @@ msgstr "Try again in a moment."
 msgctxt "announcements.62nsdy"
 msgid "Retry"
 msgstr "Retry"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.we4Lby"
+msgid "Info"
+msgstr "Info"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.xrKHS6"
+msgid "Success"
+msgstr "Success"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.3SVI5p"
+msgid "Warning"
+msgstr "Warning"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.2pzTGC"
+msgid "Critical"
+msgstr "Critical"
 
 #: src/features/announcements/components/announcement-detail.tsx
 msgctxt "announcements.3X21Vj"
@@ -7760,6 +7799,26 @@ msgid "The framework didn't load"
 msgstr "The framework didn't load"
 
 #: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.rFsne8"
+msgid "Passing"
+msgstr "Passing"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.tKELc3"
+msgid "Failing"
+msgstr "Failing"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.xTTP0x"
+msgid "Not started"
+msgstr "Not started"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.61zy45"
+msgid "Not applicable"
+msgstr "Not applicable"
+
+#: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.JW6TBv"
 msgid "Version {version}, {count, number} controls"
 msgstr "Version {version}, {count, number} controls"
@@ -7813,6 +7872,26 @@ msgstr "No entries yet"
 msgctxt "content.ZJb3qm"
 msgid "Pages and posts you write here are published to the public site when you say so."
 msgstr "Pages and posts you write here are published to the public site when you say so."
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.cXAlMR"
+msgid "Scheduled"
+msgstr "Scheduled"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.w7tf2z"
+msgid "Published"
+msgstr "Published"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
 
 #: src/features/content/components/content-list.tsx
 #: src/features/content/components/create-entry-dialog.tsx
@@ -15014,6 +15093,33 @@ msgid "Cancel scheduled reply"
 msgstr "Cancel scheduled reply"
 
 #: src/features/incidents/components/incident-detail.tsx
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents._GKH_w"
+msgid "Investigating"
+msgstr "Investigating"
+
+#: src/features/incidents/components/incident-detail.tsx
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.7cv4Uf"
+msgid "Identified"
+msgstr "Identified"
+
+#: src/features/incidents/components/incident-detail.tsx
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.1P6GMj"
+msgid "Monitoring"
+msgstr "Monitoring"
+
+#: src/features/incidents/components/incident-detail.tsx
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.W6nSYE"
+msgid "Resolved"
+msgstr "Resolved"
+
+#: src/features/incidents/components/incident-detail.tsx
 msgctxt "incidents.Bg_umm"
 msgid "Started {when}"
 msgstr "Started {when}"
@@ -15042,11 +15148,6 @@ msgstr "Members only"
 msgctxt "incidents.AcAA5x"
 msgid "Components"
 msgstr "Components"
-
-#: src/features/incidents/components/incident-detail.tsx
-msgctxt "incidents.W6nSYE"
-msgid "Resolved"
-msgstr "Resolved"
 
 #: src/features/incidents/components/incident-detail.tsx
 msgctxt "incidents.jMbtTS"
@@ -15124,21 +15225,6 @@ msgstr "Status"
 msgctxt "incidents.TDUfVk"
 msgid "Started"
 msgstr "Started"
-
-#: src/features/incidents/components/incident-update-form.tsx
-msgctxt "incidents._GKH_w"
-msgid "Investigating"
-msgstr "Investigating"
-
-#: src/features/incidents/components/incident-update-form.tsx
-msgctxt "incidents.7cv4Uf"
-msgid "Identified"
-msgstr "Identified"
-
-#: src/features/incidents/components/incident-update-form.tsx
-msgctxt "incidents.1P6GMj"
-msgid "Monitoring"
-msgstr "Monitoring"
 
 #: src/features/incidents/components/incident-update-form.tsx
 msgctxt "incidents.lyG6Lg"
@@ -18801,6 +18887,30 @@ msgstr "Ban lifted"
 msgctxt "moderation.IbW1Dd"
 msgid "Lift ban"
 msgstr "Lift ban"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.eKEL_g"
+msgid "Pending"
+msgstr "Pending"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation._TlAIY"
+msgid "Visible"
+msgstr "Visible"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.ThUvIL"
+msgid "Hidden"
+msgstr "Hidden"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.KGzfLt"
+msgid "Removed"
+msgstr "Removed"
 
 #: src/features/moderation/components/moderation-detail.tsx
 #: src/features/moderation/components/moderation-queue.tsx

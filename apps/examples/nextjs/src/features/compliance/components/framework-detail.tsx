@@ -38,35 +38,6 @@ async function retry() {
   refresh();
 }
 
-function statusLabel(
-  t: (message: string) => string,
-  status: ControlRow["status"],
-): string {
-  switch (status) {
-    case "passing": {
-      return t("Passing");
-    }
-
-    case "failing": {
-      return t("Failing");
-    }
-
-    case "not_started": {
-      return t("Not started");
-    }
-
-    case "not_applicable": {
-      return t("Not applicable");
-    }
-
-    default: {
-      const unreachable: never = status;
-
-      return unreachable;
-    }
-  }
-}
-
 const STATUS_VARIANT: Record<
   ControlRow["status"],
   "destructive-light" | "secondary" | "success-light"
@@ -111,6 +82,13 @@ export async function FrameworkDetail({
 
   const { name, version, controls } = state.data;
 
+  const statusLabels: Record<ControlRow["status"], string> = {
+    passing: t("Passing"),
+    failing: t("Failing"),
+    not_started: t("Not started"),
+    not_applicable: t("Not applicable"),
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -152,7 +130,7 @@ export async function FrameworkDetail({
                   </TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[control.status]}>
-                      {statusLabel(t, control.status)}
+                      {statusLabels[control.status]}
                     </Badge>
                   </TableCell>
                 </TableRow>

@@ -9,32 +9,3 @@ export const CONTENT_STATUS_VARIANT: Record<
   published: "success-light",
   archived: "warning-light",
 };
-
-export function contentStatusLabel(
-  t: (message: string) => string,
-  status: ContentStatus,
-): string {
-  switch (status) {
-    case "draft": {
-      return t("Draft");
-    }
-
-    case "scheduled": {
-      return t("Scheduled");
-    }
-
-    case "published": {
-      return t("Published");
-    }
-
-    case "archived": {
-      return t("Archived");
-    }
-
-    default: {
-      const unreachable: never = status;
-
-      return unreachable;
-    }
-  }
-}
