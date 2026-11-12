@@ -618,6 +618,13 @@ export const updateMyProfileArgs: z.ZodType<{ full_name: string }> = z.object({
   full_name: z.string(),
 }).meta({ title: "update_my_profile arguments" });
 
+export const workBulkStateArgs: z.ZodType<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = z.object({
+  args: z.json(),
+  subject_id: z.string(),
+  subject_type: z.string(),
+  tenant: z.guid(),
+}).meta({ title: "work_bulk_state arguments" });
+
 export const importCustomerResult: z.ZodType<Json> = z.json();
 
 export const importCustomerBatchResult: z.ZodType<Json> = z.json();

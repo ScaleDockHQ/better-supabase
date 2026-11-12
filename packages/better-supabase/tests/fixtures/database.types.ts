@@ -935,6 +935,15 @@ export type Database = {
       }
       set_my_avatar_path: { Args: { avatar_path: string }; Returns: undefined }
       update_my_profile: { Args: { full_name: string }; Returns: undefined }
+      work_bulk_state: {
+        Args: {
+          args: Json
+          subject_id: string
+          subject_type: string
+          tenant: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       note_kind: "call" | "meeting" | "email"

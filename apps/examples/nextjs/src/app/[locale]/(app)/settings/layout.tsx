@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 
-import { NextIntlClientProvider, useMessages } from "next-intl";
+import { NextIntlClientProvider, useExtracted, useMessages } from "next-intl";
 
 import { APP_NAMESPACES, pick } from "@/i18n/namespaces";
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   const messages = useMessages();
+  const t = useExtracted("settings");
 
   return (
     <NextIntlClientProvider
@@ -45,6 +46,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         "webhooks",
       ])}
     >
+      <h1 className="sr-only">{t("Settings")}</h1>
       {children}
     </NextIntlClientProvider>
   );

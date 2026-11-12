@@ -58,6 +58,10 @@ create index customers_organization_id_status_name_idx on public.customers (orga
 -- the plan reads every row of the tenant and sorts it (ADR 0652).
 create index customers_organization_id_name_idx on public.customers (organization_id, name);
 
+-- The newest sort orders by created_at and id; without this index the plan
+-- reads every row of the tenant (513 ms at 1,100,000 rows, EX-015).
+create index customers_organization_id_created_at_id_idx on public.customers (organization_id, created_at desc, id desc);
+
 create index customers_active_idx on public.customers (organization_id, created_at desc)
   where archived_at is null;
 
