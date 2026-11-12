@@ -1988,7 +1988,9 @@
   ],
   "allowlist": {
     "env": [],
-    "typeNames": [],
+    "typeNames": [
+      "DateBucketArgs"
+    ],
     "subpaths": []
   }
 }

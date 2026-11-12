@@ -459,11 +459,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane F
 
 - Scope: pgTAP per block check and MCP mapping
-- Status: planned
+- Status: PR open #896
 - Branch: `feat/audit-f`
-- PR: none yet
+- PR: [#896](https://github.com/ScaleDockHQ/better-supabase/pull/896)
 - Findings: EX-1269, EX-1351, EX-1354
 - Log: 2026-11-12, planned.
+  2026-11-12, lane F started from main (3220ac7c6a).
+  2026-11-12, PR #896 opened: pgTAP rule (87 blocks allowlisted), MCP mapping doc and test; EX-100 to EX-108 and EX-700 to EX-706 are on main.
 
 ### Lane G1
 
