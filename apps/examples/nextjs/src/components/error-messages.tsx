@@ -1,11 +1,16 @@
 "use client";
 
+import type { DbError } from "better-supabase";
 import type { ReactNode } from "react";
 
 import { createErrorMessages } from "better-supabase";
-import { blockErrorMessage } from "better-supabase/blocks/messages";
 import { ErrorMessagesProvider } from "better-supabase/react";
 import { useExtracted } from "next-intl";
+import { useEffect, useState } from "react";
+
+import { loadBlockErrorMessage } from "@/lib/block-error-messages";
+
+type BlockMessage = (error: DbError) => string | undefined;
 
 /**
  * Words a `DbError` once for every component below it that calls
@@ -13,10 +18,20 @@ import { useExtracted } from "next-intl";
  * other kinds get a translated sentence. Server Actions can't read the locale
  * root param, so they return the error and the client words it.
  * `createErrorMessages` fails to compile when a new error kind has no entry.
- * The layouts that render it list the `errors` namespace.
+ * The layouts that render it list the `errors` namespace. The hint messages are
+ * 110 KB of text, so they load after hydration instead of in every route's
+ * first-load JavaScript; an error before then shows its kind's sentence.
  */
 export function ErrorMessages({ children }: { children: ReactNode }) {
   const t = useExtracted("errors");
+  const [blockMessage, setBlockMessage] = useState<BlockMessage>();
+
+  useEffect(() => {
+    void loadBlockErrorMessage().then((load) => {
+      setBlockMessage(() => load);
+    });
+  }, []);
+
   const exists = t("That already exists.");
   const fields = t("Check the highlighted fields and try again.");
   const stale = t("Someone else changed this. Reload and try again.");
@@ -53,7 +68,7 @@ export function ErrorMessages({ children }: { children: ReactNode }) {
 
   return (
     <ErrorMessagesProvider
-      messages={(error) => blockErrorMessage(error) ?? kindMessage(error)}
+      messages={(error) => blockMessage?.(error) ?? kindMessage(error)}
     >
       {children}
     </ErrorMessagesProvider>
