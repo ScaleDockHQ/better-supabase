@@ -138,6 +138,7 @@ const config: KnipConfig = {
         "src/features/composites/composites-actions.ts",
         // The docs recipes read these files; the pages use the server-rendered versions.
         "src/features/audit/components/audit-log-table.tsx",
+        "src/features/shop/components/inventory-table.tsx",
         "src/features/notifications/components/notification-list.tsx",
         "src/features/workflows/builder/components/workflow-canvas.tsx",
         "src/features/workflows/components/workflow-runs.tsx",

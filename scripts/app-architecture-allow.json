@@ -97,7 +97,6 @@
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/settings/teams/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/settings/webhooks/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/shifts/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/shop/inventory/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/shop/kitchen/board/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/shop/kitchen/page.tsx",
     "instant-export apps/examples/nextjs/src/app/[locale]/(app)/shop/orders/[id]/page.tsx",
