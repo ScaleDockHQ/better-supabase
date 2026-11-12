@@ -1,8 +1,11 @@
 "use client";
 
+import type {
+  BulkSelectionActions,
+  BulkSelectionSnapshot,
+} from "better-supabase/blocks/bulk-actions";
 import type { TaskState } from "better-supabase/blocks/tasks";
 
-import { useAction } from "better-supabase/react";
 import { Trash2Icon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState } from "react";
@@ -33,12 +36,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { WorkItemRow } from "../work-types";
 
 import { useStateLabel } from "../use-work-labels";
-import { runWorkBulkAction } from "../work-actions";
 import { WORK_ITEM_STATES } from "../work-types";
 
 interface BulkFailure {
@@ -55,59 +56,60 @@ interface BulkFailure {
  */
 export function BulkActionBar({
   selected,
-  onSettled,
+  bulk,
 }: {
   selected: readonly Pick<WorkItemRow, "id" | "identifier">[];
-  onSettled: (failedIds: readonly string[]) => void;
+  bulk: BulkSelectionSnapshot & BulkSelectionActions;
 }) {
   const t = useExtracted("work");
-  const errorMessage = useErrorMessage();
   const stateLabel = useStateLabel();
   const [to, setTo] = useState<TaskState | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [failures, setFailures] = useState<readonly BulkFailure[]>([]);
-  const bulk = useAction(runWorkBulkAction);
 
   const identifiers = new Map(selected.map((row) => [row.id, row.identifier]));
 
   const run = async (
     input: { action: "state"; to: TaskState } | { action: "delete" },
   ): Promise<void> => {
-    const ids = selected.map((row) => row.id);
-    const result = await bulk.run({ ...input, ids });
+    const outcome = await bulk.run(
+      input.action === "state"
+        ? { action: "state", args: { to: input.to } }
+        : { action: "delete" },
+    );
 
-    if (!result.ok) {
-      toast.error(errorMessage(result.error));
-
+    // The grid's `run` already showed the error of a call that threw.
+    if (outcome?.mode !== "now") {
       return;
     }
 
-    const { succeeded, failed } = result.data;
+    const failed = outcome.results.flatMap((row) =>
+      row.ok || row.error === null ? [] : [{ id: row.id, error: row.error }],
+    );
 
     setFailures(
       failed.map((row) => ({
         id: row.id,
         identifier: identifiers.get(row.id) ?? row.id,
-        message: row.message === "" ? t("No reason given.") : row.message,
+        message:
+          row.error.message === "" ? t("No reason given.") : row.error.message,
       })),
     );
 
     if (failed.length === 0) {
       toast.success(
         t("{count, plural, one {# item updated} other {# items updated}}", {
-          count: succeeded,
+          count: outcome.succeeded,
         }),
       );
     } else {
       toast.warning(
         t("{failed, number} of {total, number} items failed", {
           failed: failed.length,
-          total: result.data.total,
+          total: outcome.total,
         }),
       );
     }
-
-    onSettled(failed.map((row) => row.id));
   };
 
   const stateItems = WORK_ITEM_STATES.map((state) => ({
@@ -227,7 +229,7 @@ export function BulkActionBar({
             variant="ghost"
             disabled={bulk.pending}
             onClick={() => {
-              onSettled([]);
+              bulk.clear();
             }}
           >
             <XIcon />

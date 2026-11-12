@@ -60,6 +60,7 @@ export const DISPATCH_NAMES: BlockSqlNames = {
       subject: {
         title: "title",
         permissions: { read: "read", write: "manage" },
+        search: { title: "title", body: [] },
       },
     },
     dispatch_route: { table: "routes", singular: "dispatch_route" },

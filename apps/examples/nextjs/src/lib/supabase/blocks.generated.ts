@@ -13,6 +13,7 @@ import type { AccessRequestsEvents } from "better-supabase/blocks/access-request
 import type { AccountingEvents } from "better-supabase/blocks/accounting";
 import type { AgentsEvents } from "better-supabase/blocks/agents";
 import type { AiChatEvents } from "better-supabase/blocks/ai-chat";
+import type { AiGuardrailsEvents } from "better-supabase/blocks/ai-guardrails";
 import type { AiKeysEvents } from "better-supabase/blocks/ai-keys";
 import type { AnnouncementsEvents } from "better-supabase/blocks/announcements";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
@@ -24,11 +25,15 @@ import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
 import type { CarePlansEvents } from "better-supabase/blocks/care-plans";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
+import type { CollectionsEvents } from "better-supabase/blocks/collections";
 import type { ConnectorsEvents } from "better-supabase/blocks/connectors";
 import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
 import type { DataLifecycleEvents } from "better-supabase/blocks/data-lifecycle";
 import type { DealsEvents } from "better-supabase/blocks/deals";
 import type { DocumentsEvents } from "better-supabase/blocks/documents";
+import type { DomainsEvents } from "better-supabase/blocks/domains";
+import type { ReviewsEvents } from "better-supabase/blocks/reviews";
+import type { LeaveEvents } from "better-supabase/blocks/leave";
 import type { LedgerEvents } from "better-supabase/blocks/ledger";
 import type { AssetsEvents } from "better-supabase/blocks/assets";
 import type { ScoresEvents } from "better-supabase/blocks/scores";
@@ -60,12 +65,14 @@ import type { DamEvents } from "better-supabase/blocks/dam";
 import type { LimsEvents } from "better-supabase/blocks/lims";
 import type { AppraisalsEvents } from "better-supabase/blocks/appraisals";
 import type { WarehouseEvents } from "better-supabase/blocks/warehouse";
+import type { WarrantyEvents } from "better-supabase/blocks/warranty";
 import type { RfqsEvents } from "better-supabase/blocks/rfqs";
 import type { TillsEvents } from "better-supabase/blocks/tills";
 import type { PeriodsEvents } from "better-supabase/blocks/periods";
 import type { DeadlinesEvents } from "better-supabase/blocks/deadlines";
 import type { CommissionsEvents } from "better-supabase/blocks/commissions";
 import type { ReferralsEvents } from "better-supabase/blocks/referrals";
+import type { AgentCheckoutEvents } from "better-supabase/blocks/agent-checkout";
 import type { ClinicalDecisionSupportEvents } from "better-supabase/blocks/clinical-decision-support";
 import type { EPrescribingEvents } from "better-supabase/blocks/e-prescribing";
 import type { ManufacturingEvents } from "better-supabase/blocks/manufacturing";
@@ -100,6 +107,7 @@ import type { NumberingEvents } from "better-supabase/blocks/numbering";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ContactsEvents } from "better-supabase/blocks/contacts";
+import type { OptionSetsEvents } from "better-supabase/blocks/option-sets";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { PromotionsEvents } from "better-supabase/blocks/promotions";
 import type { PushEvents } from "better-supabase/blocks/push";
@@ -112,6 +120,7 @@ import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { ServiceAccountsEvents } from "better-supabase/blocks/service-accounts";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { ShareLinksEvents } from "better-supabase/blocks/share-links";
+import type { SecurityEventsEvents } from "better-supabase/blocks/security-events";
 import type { SigningKeysEvents } from "better-supabase/blocks/signing-keys";
 import type { SlaEvents } from "better-supabase/blocks/sla";
 import type { SsoEvents } from "better-supabase/blocks/sso";
@@ -124,6 +133,7 @@ import type { TimeEntriesEvents } from "better-supabase/blocks/time-entries";
 import type { TrashEvents } from "better-supabase/blocks/trash";
 import type { VersionsEvents } from "better-supabase/blocks/versions";
 import type { WaitlistEvents } from "better-supabase/blocks/waitlist";
+import type { IncomingWebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
@@ -136,6 +146,7 @@ import { financeBlock as financeBlockInstance } from "better-supabase/blocks/fin
 import { supportBlock as supportBlockInstance } from "better-supabase/blocks/support";
 import { projectsBlock as projectsBlockInstance } from "better-supabase/blocks/projects";
 import { serviceBlock as serviceBlockInstance } from "better-supabase/blocks/service";
+import { peopleBlock as peopleBlockInstance } from "better-supabase/blocks/people";
 import { recruitingBlock as recruitingBlockInstance } from "better-supabase/blocks/recruiting";
 import { schedulingBlock as schedulingBlockInstance } from "better-supabase/blocks/scheduling";
 import { learningBlock as learningBlockInstance } from "better-supabase/blocks/learning";
@@ -150,7 +161,9 @@ import { accountingBlock as accountingBlockInstance } from "better-supabase/bloc
 import { agentsBlock as agentsBlockInstance } from "better-supabase/blocks/agents";
 import { aiCacheBlock as aiCacheBlockInstance } from "better-supabase/blocks/ai-cache";
 import { aiChatBlock as aiChatBlockInstance } from "better-supabase/blocks/ai-chat";
+import { aiEvalsBlock as aiEvalsBlockInstance } from "better-supabase/blocks/ai-evals";
 import { aiFilesBlock as aiFilesBlockInstance } from "better-supabase/blocks/ai-files";
+import { aiGuardrailsBlock as aiGuardrailsBlockInstance } from "better-supabase/blocks/ai-guardrails";
 import { aiKeysBlock as aiKeysBlockInstance } from "better-supabase/blocks/ai-keys";
 import { aiSchedulesBlock as aiSchedulesBlockInstance } from "better-supabase/blocks/ai-schedules";
 import { announcementsBlock as announcementsBlockInstance } from "better-supabase/blocks/announcements";
@@ -163,12 +176,16 @@ import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/bl
 import { calendarBlock as calendarBlockInstance } from "better-supabase/blocks/calendar";
 import { carePlansBlock as carePlansBlockInstance } from "better-supabase/blocks/care-plans";
 import { catalogBlock as catalogBlockInstance } from "better-supabase/blocks/catalog";
+import { collectionsBlock as collectionsBlockInstance } from "better-supabase/blocks/collections";
 import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/comments";
 import { connectorsBlock as connectorsBlockInstance } from "better-supabase/blocks/connectors";
 import { customFieldsBlock as customFieldsBlockInstance } from "better-supabase/blocks/custom-fields";
 import { dataLifecycleBlock as dataLifecycleBlockInstance } from "better-supabase/blocks/data-lifecycle";
 import { dealsBlock as dealsBlockInstance } from "better-supabase/blocks/deals";
 import { documentsBlock as documentsBlockInstance } from "better-supabase/blocks/documents";
+import { domainsBlock as domainsBlockInstance } from "better-supabase/blocks/domains";
+import { reviewsBlock as reviewsBlockInstance } from "better-supabase/blocks/reviews";
+import { leaveBlock as leaveBlockInstance } from "better-supabase/blocks/leave";
 import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledger";
 import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
 import { scoresBlock as scoresBlockInstance } from "better-supabase/blocks/scores";
@@ -201,12 +218,14 @@ import { damBlock as damBlockInstance } from "better-supabase/blocks/dam";
 import { limsBlock as limsBlockInstance } from "better-supabase/blocks/lims";
 import { appraisalsBlock as appraisalsBlockInstance } from "better-supabase/blocks/appraisals";
 import { warehouseBlock as warehouseBlockInstance } from "better-supabase/blocks/warehouse";
+import { warrantyBlock as warrantyBlockInstance } from "better-supabase/blocks/warranty";
 import { rfqsBlock as rfqsBlockInstance } from "better-supabase/blocks/rfqs";
 import { tillsBlock as tillsBlockInstance } from "better-supabase/blocks/tills";
 import { periodsBlock as periodsBlockInstance } from "better-supabase/blocks/periods";
 import { deadlinesBlock as deadlinesBlockInstance } from "better-supabase/blocks/deadlines";
 import { commissionsBlock as commissionsBlockInstance } from "better-supabase/blocks/commissions";
 import { referralsBlock as referralsBlockInstance } from "better-supabase/blocks/referrals";
+import { agentCheckoutBlock as agentCheckoutBlockInstance } from "better-supabase/blocks/agent-checkout";
 import { clinicalDecisionSupportBlock as clinicalDecisionSupportBlockInstance } from "better-supabase/blocks/clinical-decision-support";
 import { ePrescribingBlock as ePrescribingBlockInstance } from "better-supabase/blocks/e-prescribing";
 import { manufacturingBlock as manufacturingBlockInstance } from "better-supabase/blocks/manufacturing";
@@ -232,8 +251,11 @@ import { importsBlock as importsBlockInstance } from "better-supabase/blocks/imp
 import { inboxBlock as inboxBlockInstance } from "better-supabase/blocks/inbox";
 import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
 import { invoicesBlock as invoicesBlockInstance } from "better-supabase/blocks/invoices";
+import { idempotencyBlock as idempotencyBlockInstance } from "better-supabase/blocks/queue";
+import { promptsBlock as promptsBlockInstance } from "better-supabase/blocks/prompts";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { rateLimitBlock as rateLimitBlockInstance } from "better-supabase/blocks/queue";
+import { webhookInboxBlock as webhookInboxBlockInstance } from "better-supabase/blocks/queue";
 import { knowledgeBlock as knowledgeBlockInstance } from "better-supabase/blocks/knowledge";
 import { memoryBlock as memoryBlockInstance } from "better-supabase/blocks/memory";
 import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
@@ -253,6 +275,7 @@ import { ordersBlock as ordersBlockInstance } from "better-supabase/blocks/order
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { contactsBlock as contactsBlockInstance } from "better-supabase/blocks/contacts";
+import { optionSetsBlock as optionSetsBlockInstance } from "better-supabase/blocks/option-sets";
 import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { promotionsBlock as promotionsBlockInstance } from "better-supabase/blocks/promotions";
@@ -269,6 +292,7 @@ import { serviceAccountsBlock as serviceAccountsBlockInstance } from "better-sup
 import { sessionsBlock as sessionsBlockInstance } from "better-supabase/blocks/sessions";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { shareLinksBlock as shareLinksBlockInstance } from "better-supabase/blocks/share-links";
+import { securityEventsBlock as securityEventsBlockInstance } from "better-supabase/blocks/security-events";
 import { signingKeysBlock as signingKeysBlockInstance } from "better-supabase/blocks/signing-keys";
 import { slaBlock as slaBlockInstance } from "better-supabase/blocks/sla";
 import { ssoBlock as ssoBlockInstance } from "better-supabase/blocks/sso";
@@ -283,6 +307,7 @@ import { trashBlock as trashBlockInstance } from "better-supabase/blocks/trash";
 import { usageBlock as usageBlockInstance } from "better-supabase/blocks/usage";
 import { versionsBlock as versionsBlockInstance } from "better-supabase/blocks/versions";
 import { waitlistBlock as waitlistBlockInstance } from "better-supabase/blocks/waitlist";
+import { incomingWebhooksBlock as incomingWebhooksBlockInstance } from "better-supabase/blocks/webhooks";
 import { webhooksBlock as webhooksBlockInstance } from "better-supabase/blocks/webhooks";
 import { workflowEditorBlock as workflowEditorBlockInstance } from "better-supabase/blocks/workflow-editor";
 import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks/workflows";
@@ -310,6 +335,7 @@ export const blocks = {
   support: supportBlockInstance,
   projects: projectsBlockInstance,
   service: serviceBlockInstance,
+  people: peopleBlockInstance,
   recruiting: recruitingBlockInstance,
   scheduling: schedulingBlockInstance,
   learning: learningBlockInstance,
@@ -324,7 +350,9 @@ export const blocks = {
   agents: agentsBlockInstance,
   "ai-cache": aiCacheBlockInstance,
   "ai-chat": aiChatBlockInstance,
+  "ai-evals": aiEvalsBlockInstance,
   "ai-files": aiFilesBlockInstance,
+  "ai-guardrails": aiGuardrailsBlockInstance,
   "ai-keys": aiKeysBlockInstance,
   "ai-schedules": aiSchedulesBlockInstance,
   announcements: announcementsBlockInstance,
@@ -337,12 +365,16 @@ export const blocks = {
   calendar: calendarBlockInstance,
   "care-plans": carePlansBlockInstance,
   catalog: catalogBlockInstance,
+  collections: collectionsBlockInstance,
   comments: commentsBlockInstance,
   connectors: connectorsBlockInstance,
   "custom-fields": customFieldsBlockInstance,
   "data-lifecycle": dataLifecycleBlockInstance,
   deals: dealsBlockInstance,
   documents: documentsBlockInstance,
+  domains: domainsBlockInstance,
+  reviews: reviewsBlockInstance,
+  leave: leaveBlockInstance,
   ledger: ledgerBlockInstance,
   assets: assetsBlockInstance,
   scores: scoresBlockInstance,
@@ -375,12 +407,14 @@ export const blocks = {
   lims: limsBlockInstance,
   appraisals: appraisalsBlockInstance,
   warehouse: warehouseBlockInstance,
+  warranty: warrantyBlockInstance,
   rfqs: rfqsBlockInstance,
   tills: tillsBlockInstance,
   periods: periodsBlockInstance,
   deadlines: deadlinesBlockInstance,
   commissions: commissionsBlockInstance,
   referrals: referralsBlockInstance,
+  "agent-checkout": agentCheckoutBlockInstance,
   "clinical-decision-support": clinicalDecisionSupportBlockInstance,
   "e-prescribing": ePrescribingBlockInstance,
   manufacturing: manufacturingBlockInstance,
@@ -406,8 +440,11 @@ export const blocks = {
   inbox: inboxBlockInstance,
   inventory: inventoryBlockInstance,
   invoices: invoicesBlockInstance,
+  idempotency: idempotencyBlockInstance,
+  prompts: promptsBlockInstance,
   queue: queueBlockInstance,
   "rate-limit": rateLimitBlockInstance,
+  "webhook-inbox": webhookInboxBlockInstance,
   knowledge: knowledgeBlockInstance,
   memory: memoryBlockInstance,
   messaging: messagingBlockInstance,
@@ -427,6 +464,7 @@ export const blocks = {
   organizations: organizationsBlockInstance,
   outbox: outboxBlockInstance,
   contacts: contactsBlockInstance,
+  "option-sets": optionSetsBlockInstance,
   pipelines: pipelinesBlockInstance,
   profiles: profilesBlockInstance,
   promotions: promotionsBlockInstance,
@@ -443,6 +481,7 @@ export const blocks = {
   sessions: sessionsBlockInstance,
   settings: settingsBlockInstance,
   "share-links": shareLinksBlockInstance,
+  "security-events": securityEventsBlockInstance,
   "signing-keys": signingKeysBlockInstance,
   sla: slaBlockInstance,
   sso: ssoBlockInstance,
@@ -457,6 +496,7 @@ export const blocks = {
   usage: usageBlockInstance,
   versions: versionsBlockInstance,
   waitlist: waitlistBlockInstance,
+  "incoming-webhooks": incomingWebhooksBlockInstance,
   webhooks: webhooksBlockInstance,
   tasks: workItemsBlock,
   facilities: facilitiesBlock,
@@ -485,7 +525,7 @@ export const appTableEventSchemas = {
 } as const;
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & WarrantyEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -526,6 +566,9 @@ export const blockEvents: Events<BlockEvents> = {
     "agent.published",
     "agent.uninstalled",
     "agent.updated",
+    "agent_mandate.consumed",
+    "agent_mandate.created",
+    "agent_mandate.revoked",
     "ai_chat.share_revoked",
     "ai_chat.shared",
     "ai_chat_message.completed",
@@ -635,6 +678,13 @@ export const blockEvents: Events<BlockEvents> = {
     "catalog.price_changed",
     "channel.created",
     "channel.updated",
+    "checkout_session.completed",
+    "checkout_session.created",
+    "checkout_session.updated",
+    "collection.archived",
+    "collection.created",
+    "collection.entry_added",
+    "collection.entry_removed",
     "commission.accrued",
     "commission.reversed",
     "commission_plan.created",
@@ -815,11 +865,16 @@ export const blockEvents: Events<BlockEvents> = {
     "funding_claim.responded",
     "funding_claim.sent",
     "funding_delivery.registered",
+    "guardrail.blocked",
     "guest.accepted",
     "guest.invited",
     "guest.revoked",
     "guest_grant.created",
     "guest_grant.revoked",
+    "hostname.added",
+    "hostname.deleted",
+    "hostname.primary_changed",
+    "hostname.verified",
     "import.completed",
     "import.entity_completed",
     "import.failed",
@@ -835,6 +890,12 @@ export const blockEvents: Events<BlockEvents> = {
     "incident_filing.submitted",
     "incident_postmortem.published",
     "incident_profile.updated",
+    "incoming_webhook.created",
+    "incoming_webhook.deleted",
+    "incoming_webhook.enabled_changed",
+    "incoming_webhook.secret_rotated",
+    "incoming_webhook.token_rotated",
+    "incoming_webhook.updated",
     "inspection.cancelled",
     "inspection.closed",
     "inspection.completed",
@@ -893,6 +954,13 @@ export const blockEvents: Events<BlockEvents> = {
     "lease.paid",
     "lease.renewed",
     "lease.terminated",
+    "leave_balance.adjusted",
+    "leave_request.approved",
+    "leave_request.cancelled",
+    "leave_request.rejected",
+    "leave_request.requested",
+    "leave_request.split",
+    "leave_request.updated",
     "ledger_account.closed",
     "ledger_account.opened",
     "ledger_hold.captured",
@@ -978,6 +1046,11 @@ export const blockEvents: Events<BlockEvents> = {
     "observation.recorded",
     "observation_definition.created",
     "observation_definition.updated",
+    "option_set.created",
+    "option_set.updated",
+    "option_set_item.archived",
+    "option_set_item.created",
+    "option_set_item.updated",
     "order.cancelled",
     "order.completed",
     "order.drafted",
@@ -1104,6 +1177,11 @@ export const blockEvents: Events<BlockEvents> = {
     "reservation.released",
     "return.received",
     "return.requested",
+    "review.deleted",
+    "review.published",
+    "review.rejected",
+    "review.replied",
+    "review.submitted",
     "rfq.awarded",
     "rfq.cancelled",
     "rfq.closed",
@@ -1121,6 +1199,7 @@ export const blockEvents: Events<BlockEvents> = {
     "risk.updated",
     "risk_matrix.created",
     "risk_matrix.updated",
+    "saved_item.reminded",
     "saved_view.created",
     "saved_view.deleted",
     "saved_view.updated",
@@ -1167,6 +1246,9 @@ export const blockEvents: Events<BlockEvents> = {
     "sla.completed",
     "sla.escalated",
     "sla.warned",
+    "ssf_stream.created",
+    "ssf_stream.deleted",
+    "ssf_stream.status_changed",
     "sso_domain.created",
     "sso_domain.deleted",
     "sso_domain.updated",
@@ -1232,6 +1314,10 @@ export const blockEvents: Events<BlockEvents> = {
     "version.restored",
     "waitlist_entry.approved",
     "waitlist_entry.rejected",
+    "warranty_claim.closed",
+    "warranty_claim.created",
+    "warranty_claim.decided",
+    "warranty_claim.submitted",
     "webhook_endpoint.delivered",
     "webhook_endpoint.disabled",
     "webhook_endpoint.failed",
@@ -1294,6 +1380,9 @@ export const blockEventSchemas = {
   "agent.published": true,
   "agent.uninstalled": true,
   "agent.updated": true,
+  "agent_mandate.consumed": true,
+  "agent_mandate.created": true,
+  "agent_mandate.revoked": true,
   "ai_chat.share_revoked": true,
   "ai_chat.shared": true,
   "ai_chat_message.completed": true,
@@ -1403,6 +1492,13 @@ export const blockEventSchemas = {
   "catalog.price_changed": true,
   "channel.created": true,
   "channel.updated": true,
+  "checkout_session.completed": true,
+  "checkout_session.created": true,
+  "checkout_session.updated": true,
+  "collection.archived": true,
+  "collection.created": true,
+  "collection.entry_added": true,
+  "collection.entry_removed": true,
   "commission.accrued": true,
   "commission.reversed": true,
   "commission_plan.created": true,
@@ -1583,11 +1679,16 @@ export const blockEventSchemas = {
   "funding_claim.responded": true,
   "funding_claim.sent": true,
   "funding_delivery.registered": true,
+  "guardrail.blocked": true,
   "guest.accepted": true,
   "guest.invited": true,
   "guest.revoked": true,
   "guest_grant.created": true,
   "guest_grant.revoked": true,
+  "hostname.added": true,
+  "hostname.deleted": true,
+  "hostname.primary_changed": true,
+  "hostname.verified": true,
   "import.completed": true,
   "import.entity_completed": true,
   "import.failed": true,
@@ -1603,6 +1704,12 @@ export const blockEventSchemas = {
   "incident_filing.submitted": true,
   "incident_postmortem.published": true,
   "incident_profile.updated": true,
+  "incoming_webhook.created": true,
+  "incoming_webhook.deleted": true,
+  "incoming_webhook.enabled_changed": true,
+  "incoming_webhook.secret_rotated": true,
+  "incoming_webhook.token_rotated": true,
+  "incoming_webhook.updated": true,
   "inspection.cancelled": true,
   "inspection.closed": true,
   "inspection.completed": true,
@@ -1661,6 +1768,13 @@ export const blockEventSchemas = {
   "lease.paid": true,
   "lease.renewed": true,
   "lease.terminated": true,
+  "leave_balance.adjusted": true,
+  "leave_request.approved": true,
+  "leave_request.cancelled": true,
+  "leave_request.rejected": true,
+  "leave_request.requested": true,
+  "leave_request.split": true,
+  "leave_request.updated": true,
   "ledger_account.closed": true,
   "ledger_account.opened": true,
   "ledger_hold.captured": true,
@@ -1746,6 +1860,11 @@ export const blockEventSchemas = {
   "observation.recorded": true,
   "observation_definition.created": true,
   "observation_definition.updated": true,
+  "option_set.created": true,
+  "option_set.updated": true,
+  "option_set_item.archived": true,
+  "option_set_item.created": true,
+  "option_set_item.updated": true,
   "order.cancelled": true,
   "order.completed": true,
   "order.drafted": true,
@@ -1872,6 +1991,11 @@ export const blockEventSchemas = {
   "reservation.released": true,
   "return.received": true,
   "return.requested": true,
+  "review.deleted": true,
+  "review.published": true,
+  "review.rejected": true,
+  "review.replied": true,
+  "review.submitted": true,
   "rfq.awarded": true,
   "rfq.cancelled": true,
   "rfq.closed": true,
@@ -1889,6 +2013,7 @@ export const blockEventSchemas = {
   "risk.updated": true,
   "risk_matrix.created": true,
   "risk_matrix.updated": true,
+  "saved_item.reminded": true,
   "saved_view.created": true,
   "saved_view.deleted": true,
   "saved_view.updated": true,
@@ -1935,6 +2060,9 @@ export const blockEventSchemas = {
   "sla.completed": true,
   "sla.escalated": true,
   "sla.warned": true,
+  "ssf_stream.created": true,
+  "ssf_stream.deleted": true,
+  "ssf_stream.status_changed": true,
   "sso_domain.created": true,
   "sso_domain.deleted": true,
   "sso_domain.updated": true,
@@ -2000,6 +2128,10 @@ export const blockEventSchemas = {
   "version.restored": true,
   "waitlist_entry.approved": true,
   "waitlist_entry.rejected": true,
+  "warranty_claim.closed": true,
+  "warranty_claim.created": true,
+  "warranty_claim.decided": true,
+  "warranty_claim.submitted": true,
   "webhook_endpoint.delivered": true,
   "webhook_endpoint.disabled": true,
   "webhook_endpoint.failed": true,
@@ -2030,11 +2162,25 @@ export const blockEventSchemas = {
  * @public
  */
 export const urls = {
+  booking: () => "/calendar",
+  carePlan: () => "/care-plans",
   product: () => "/shop",
   deal: () => "/crm/deals",
-  employee: () => "/people",
+  document: (v: { readonly id: string | number }) => `/documents/${String(v.id)}`,
+  ledgerAccount: () => "/finance",
+  workOrder: () => "/field/dispatch",
+  shipment: () => "/field/shipments",
+  maintenancePlan: () => "/maintenance",
+  limsSample: () => "/lims",
+  rfq: () => "/rfqs",
+  till: () => "/tills",
+  employee: (v: { readonly id: string | number }) => `/people/${String(v.id)}`,
+  form: (v: { readonly id: string | number }) => `/forms/${String(v.id)}`,
+  invoice: () => "/finance/payables",
+  order: (v: { readonly id: string | number }) => `/shop/orders/${String(v.id)}`,
   company: (v: { readonly id: string | number }) => `/crm/contacts/${String(v.id)}`,
   person: (v: { readonly id: string | number }) => `/crm/contacts/${String(v.id)}`,
+  quote: (v: { readonly id: string | number }) => `/crm/quotes/${String(v.id)}`,
   workItem: () => "/work",
   customer: (v: { readonly id: string | number }) => `/customers/${String(v.id)}`,
   application: () => "/people/hiring",

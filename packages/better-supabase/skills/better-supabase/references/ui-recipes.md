@@ -378,124 +378,447 @@ A search dialog over the search index, with favorites and recents before the use
 Web, with shadcn components:
 
 ```bash
-npx shadcn add button dialog input
+npx shadcn add button command dialog kbd
 ```
 
 ```bash
 npx shadcn add @better-supabase/use-search
 ```
 
-```tsx title="apps/examples/nextjs/src/features/search/components/command-search.tsx"
+```tsx title="apps/examples/nextjs/src/features/search/components/command-center.tsx"
 "use client";
 
-import { SearchIcon } from "lucide-react";
-import { useExtracted } from "next-intl";
+import type { LucideIcon } from "lucide-react";
 
+import { useTheme } from "@wrksz/themes/client";
+import {
+  ArrowRightIcon,
+  BotIcon,
+  ClockIcon,
+  CompassIcon,
+  LanguagesIcon,
+  MonitorIcon,
+  MoonIcon,
+  PlusIcon,
+  RotateCwIcon,
+  SearchIcon,
+  StarIcon,
+  SunIcon,
+  UserPlusIcon,
+} from "lucide-react";
+import { hasLocale, useExtracted, useLocale } from "next-intl";
+import { useState } from "react";
+
+import type { CommandSearchItem } from "@/hooks/use-search";
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+  CommandDialog,
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CreateOrganizationDialog } from "@/features/organization/components/create-organization-dialog";
 import { useCommandSearch } from "@/hooks/use-search";
-import { Link, toAppHref } from "@/i18n/navigation";
+import { usePathname, useRouter, toAppHref } from "@/i18n/navigation";
+import { routing } from "@/i18n/routing";
 import { searchConfig } from "@/lib/supabase/blocks/slices";
+
+import { useSubjectTypeLabel } from "../use-subject-type-label";
+import { CommandSearchTrigger } from "./command-search-trigger";
+import { OrganizationCommands } from "./organization-commands";
+
+/** A page of the side menu the caller may open. */
+export interface CommandPage {
+  readonly id: string;
+  /** Without the locale prefix. */
+  readonly href: string;
+  readonly label: string;
+}
 
 /** The API schema `gen` wrote for the search block. */
 const API_SCHEMA = searchConfig.api;
 
-/** Cmd+K over the search index: customers by name, plus recents and favorites. */
-export function CommandSearch() {
+/** Pages listed before the user types; typing searches all of them. */
+const PAGES_WHEN_EMPTY = 6;
+
+const LOCALE_NAMES = { en: "English", nl: "Nederlands" } as const;
+
+/** Every word of `query` appears in one of the texts. */
+function matches(query: string, ...texts: readonly string[]): boolean {
+  const haystack = texts.join(" ").toLowerCase();
+
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word !== "")
+    .every((word) => haystack.includes(word));
+}
+
+interface CommandAction {
+  readonly id: string;
+  readonly label: string;
+  readonly keywords: string;
+  readonly icon: LucideIcon;
+  readonly run: () => void;
+}
+
+/**
+ * Cmd+K over the app: records from every subject the search block indexes (one
+ * call to `search(q)` per typing burst, answered by Postgres under the caller's
+ * access), recents and favorites, actions, and the pages of the menu. The code
+ * loads on the first intent (ADR 0483), so it stays out of every route's first
+ * load.
+ */
+export function CommandCenter({
+  pages,
+  canCreateCustomer,
+}: {
+  pages: readonly CommandPage[];
+  canCreateCustomer: boolean;
+}) {
   const t = useExtracted("search");
-  const search = useCommandSearch({ schema: API_SCHEMA });
+  const typeLabel = useSubjectTypeLabel();
+  const router = useRouter();
+  const pathname = usePathname();
+  const locale = useLocale();
+  const { setTheme } = useTheme();
+  const [creatingOrganization, setCreatingOrganization] = useState(false);
+  const search = useCommandSearch({ schema: API_SCHEMA, limit: 30 });
+  const query = search.query.trim();
 
-  const heading = (key: string) => {
-    if (key === "favorites") {
-      return t("Favorites");
-    }
-
-    if (key === "recents") {
-      return t("Recent");
-    }
-
-    if (key === "customer") {
-      return t("Customers");
-    }
-
-    return key;
+  const go = (href: string) => {
+    search.setOpen(false);
+    router.push(toAppHref(href));
   };
+
+  const open = (item: CommandSearchItem) => {
+    if (item.url === null) {
+      return;
+    }
+
+    const href = item.url;
+    void search.select(item);
+    router.push(toAppHref(href));
+  };
+
+  const actions: readonly CommandAction[] = [
+    ...(canCreateCustomer
+      ? [
+          {
+            id: "new-customer",
+            label: t("New customer"),
+            keywords: t("create add customer"),
+            icon: UserPlusIcon,
+            run: () => {
+              go("/customers?new=1");
+            },
+          },
+        ]
+      : []),
+    {
+      id: "new-organization",
+      label: t("Create organization"),
+      keywords: t("new organization workspace"),
+      icon: PlusIcon,
+      run: () => {
+        search.setOpen(false);
+        setCreatingOrganization(true);
+      },
+    },
+    {
+      id: "theme-light",
+      label: t("Light theme"),
+      keywords: t("theme appearance light"),
+      icon: SunIcon,
+      run: () => {
+        setTheme("light");
+        search.setOpen(false);
+      },
+    },
+    {
+      id: "theme-dark",
+      label: t("Dark theme"),
+      keywords: t("theme appearance dark"),
+      icon: MoonIcon,
+      run: () => {
+        setTheme("dark");
+        search.setOpen(false);
+      },
+    },
+    {
+      id: "theme-system",
+      label: t("System theme"),
+      keywords: t("theme appearance system"),
+      icon: MonitorIcon,
+      run: () => {
+        setTheme("system");
+        search.setOpen(false);
+      },
+    },
+    ...routing.locales
+      .filter((option) => option !== locale)
+      .map((option) => ({
+        id: `locale-${option}`,
+        label: t("Switch language to {language}", {
+          language: LOCALE_NAMES[option],
+        }),
+        keywords: t("language locale"),
+        icon: LanguagesIcon,
+        run: () => {
+          search.setOpen(false);
+
+          if (hasLocale(routing.locales, option)) {
+            router.replace(pathname, { locale: option });
+          }
+        },
+      })),
+  ];
+
+  const shownActions =
+    query === ""
+      ? actions
+      : actions.filter((action) =>
+          matches(query, action.label, action.keywords),
+        );
+
+  const shownPages =
+    query === ""
+      ? pages.slice(0, PAGES_WHEN_EMPTY)
+      : pages.filter((page) => matches(query, page.label, page.href));
+
+  const waiting = search.loading && search.results.length === 0;
+  const noMatches = query !== "" && !search.loading;
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label={t("Search")}
-        aria-keyshortcuts="Meta+K Control+K"
+      <CommandSearchTrigger
         onClick={() => {
           search.setOpen(true);
         }}
+      />
+      <CommandDialog
+        open={search.open}
+        onOpenChange={search.setOpen}
+        title={t("Search")}
+        description={t(
+          "Find records, run an action or open a page. Press Escape to close.",
+        )}
+        className="sm:max-w-xl"
       >
-        <SearchIcon />
-        <span className="hidden sm:inline">{t("Search")}</span>
-        <kbd className="hidden text-xs text-muted-foreground sm:inline">⌘K</kbd>
-      </Button>
-      <Dialog open={search.open} onOpenChange={search.setOpen}>
-        <DialogContent className="gap-4 sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t("Search")}</DialogTitle>
-            <DialogDescription>
-              {t("Find a customer by name, even with a typo.")}
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            type="search"
+        <Command shouldFilter={false} loop>
+          <CommandInput
             value={search.query}
-            onChange={(event) => {
-              search.setQuery(event.target.value);
-            }}
-            placeholder={t("Search customers")}
-            aria-label={t("Search customers")}
+            onValueChange={search.setQuery}
+            placeholder={t("Search records, actions and pages")}
+            aria-label={t("Search records, actions and pages")}
           />
-          <div className="max-h-80 overflow-y-auto" aria-live="polite">
+          <CommandList aria-live="polite">
             {search.error === undefined ? null : (
-              <p className="text-sm text-destructive">
-                {t("Search failed. Try again.")}
-              </p>
+              <div className="p-1">
+                <Alert variant="destructive">
+                  <AlertTitle>{t("Search failed")}</AlertTitle>
+                  <AlertDescription className="flex items-center justify-between gap-2">
+                    {t("Records could not load. Actions and pages still work.")}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        // The controller queries again only when the trimmed text changes.
+                        const again = search.query;
+                        search.setQuery("");
+                        search.setQuery(again);
+                      }}
+                    >
+                      <RotateCwIcon />
+                      {t("Retry")}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              </div>
             )}
-            {search.groups.length === 0 && !search.loading ? (
-              <p className="text-sm text-muted-foreground">
-                {search.query.trim() === ""
-                  ? t("Type to search.")
-                  : t("No matches.")}
+
+            {query === "" ? (
+              <>
+                {search.groups.map((group) => (
+                  <CommandGroup
+                    key={group.key}
+                    heading={
+                      group.key === "favorites" ? t("Favorites") : t("Recent")
+                    }
+                  >
+                    {group.items.map((item) => (
+                      <CommandItem
+                        key={`${group.key}:${item.subjectType}:${item.subjectId}`}
+                        value={`${group.key}:${item.subjectType}:${item.subjectId}`}
+                        disabled={item.url === null}
+                        onSelect={() => {
+                          open(item);
+                        }}
+                      >
+                        {group.key === "favorites" ? (
+                          <StarIcon />
+                        ) : (
+                          <ClockIcon />
+                        )}
+                        <span className="truncate">
+                          {item.title ?? item.subjectId}
+                        </span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {typeLabel(item.subjectType)}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ))}
+              </>
+            ) : (
+              <>
+                {search.groups.map((group) => (
+                  <CommandGroup key={group.key} heading={typeLabel(group.key)}>
+                    {group.items.map((item) => (
+                      <CommandItem
+                        key={`${item.subjectType}:${item.subjectId}`}
+                        value={`${item.subjectType}:${item.subjectId}`}
+                        disabled={item.url === null}
+                        onSelect={() => {
+                          open(item);
+                        }}
+                      >
+                        <span className="truncate">
+                          {item.title ?? item.subjectId}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ))}
+                {waiting ? (
+                  <CommandGroup heading={t("Records")}>
+                    <div className="flex flex-col gap-2 p-2" aria-busy="true">
+                      <Skeleton className="h-5 w-3/4" />
+                      <Skeleton className="h-5 w-1/2" />
+                      <Skeleton className="h-5 w-2/3" />
+                    </div>
+                  </CommandGroup>
+                ) : null}
+                <CommandGroup>
+                  <CommandItem
+                    value={`all:${query}`}
+                    onSelect={() => {
+                      go(`/search?q=${encodeURIComponent(query)}`);
+                    }}
+                  >
+                    <SearchIcon />
+                    {t("See all results for {query}", { query })}
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+
+            {shownActions.length === 0 ? null : (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t("Actions")}>
+                  {shownActions.map((action) => (
+                    <CommandItem
+                      key={action.id}
+                      value={`action:${action.id}`}
+                      onSelect={action.run}
+                    >
+                      <action.icon />
+                      {action.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            <OrganizationCommands
+              query={query}
+              onSwitched={() => {
+                search.setOpen(false);
+              }}
+            />
+
+            {shownPages.length === 0 ? null : (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t("Go to")}>
+                  {shownPages.map((page) => (
+                    <CommandItem
+                      key={page.id}
+                      value={`page:${page.id}`}
+                      onPointerEnter={() => {
+                        router.prefetch(toAppHref(page.href));
+                      }}
+                      onSelect={() => {
+                        go(page.href);
+                      }}
+                    >
+                      <CompassIcon />
+                      {page.label}
+                      <ArrowRightIcon className="ml-auto opacity-50" />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+
+            {query === "" ? null : (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t("Assistant")}>
+                  <CommandItem
+                    value="ask-assistant"
+                    onSelect={() => {
+                      go(`/assistant?ask=${encodeURIComponent(query)}`);
+                    }}
+                  >
+                    <BotIcon />
+                    {t("Ask the assistant: {query}", { query })}
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+
+            {noMatches &&
+            search.results.length === 0 &&
+            shownActions.length === 0 &&
+            shownPages.length === 0 ? (
+              <p className="px-3 py-4 text-center text-sm text-muted-foreground">
+                {t("No records match. Ask the assistant or see all results.")}
               </p>
             ) : null}
-            {search.groups.map((group) => (
-              <section key={group.key} className="mb-3">
-                <h3 className="mb-1 text-xs font-medium text-muted-foreground">
-                  {heading(group.key)}
-                </h3>
-                <ul>
-                  {group.items.map((item) => (
-                    <li key={`${item.subjectType}:${item.subjectId}`}>
-                      <Link
-                        href={toAppHref(item.url)}
-                        onClick={() => void search.select(item)}
-                        className="block rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:bg-muted"
-                      >
-                        {item.title ?? item.subjectId}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
+          </CommandList>
+          <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <KbdGroup>
+                <Kbd>↑</Kbd>
+                <Kbd>↓</Kbd>
+              </KbdGroup>
+              {t("to move")}
+            </span>
+            <span className="flex items-center gap-1">
+              <Kbd>↵</Kbd>
+              {t("to open")}
+            </span>
+            <span className="flex items-center gap-1">
+              <Kbd>Esc</Kbd>
+              {t("to close")}
+            </span>
           </div>
-        </DialogContent>
-      </Dialog>
+        </Command>
+      </CommandDialog>
+      <CreateOrganizationDialog
+        open={creatingOrganization}
+        onOpenChange={setCreatingOrganization}
+      />
     </>
   );
 }
@@ -2272,6 +2595,7 @@ import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Empty,
   EmptyContent,
@@ -2400,6 +2724,8 @@ function JoinedCell({ row }: MemberCell) {
 interface MemberActions {
   readonly changeRole: (member: Member, role: Role) => Promise<void>;
   readonly removeMember: (member: Member) => Promise<void>;
+  readonly selected: ReadonlySet<string>;
+  readonly toggle: (userId: string, on: boolean) => void;
 }
 
 const MemberActionsContext = createContext<MemberActions | null>(null);
@@ -2412,6 +2738,29 @@ function useMemberActions(): MemberActions {
   }
 
   return actions;
+}
+
+function SelectCell({ row }: MemberCell) {
+  const t = useExtracted("members");
+  const { selected, toggle } = useMemberActions();
+  const member = row.original;
+
+  if (member.roleChoices.length === 0) {
+    return null;
+  }
+
+  return (
+    <Checkbox
+      checked={selected.has(member.userId)}
+      disabled={member.busy}
+      aria-label={t("Select {name}", {
+        name: member.name ?? member.email ?? "",
+      })}
+      onCheckedChange={(checked) => {
+        toggle(member.userId, checked);
+      }}
+    />
+  );
 }
 
 function RoleCell({ row }: MemberCell) {
@@ -2558,12 +2907,33 @@ export function MemberTable({
     [remove, t, errorMessage],
   );
 
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [bulkRole, setBulkRole] = useState<Role | null>(null);
+  const [applying, setApplying] = useState(false);
+
+  const toggle = useCallback((userId: string, on: boolean) => {
+    setSelected((current) => {
+      const next = new Set(current);
+
+      if (on) {
+        next.add(userId);
+      } else {
+        next.delete(userId);
+      }
+
+      return next;
+    });
+  }, []);
+
   const actions = useMemo(
-    () => ({ changeRole, removeMember }),
-    [changeRole, removeMember],
+    () => ({ changeRole, removeMember, selected, toggle }),
+    [changeRole, removeMember, selected, toggle],
   );
 
   const columns: ColumnDef<ReadOnlyGridFeatures, MemberRow>[] = [
+    ...(canUpdateRole
+      ? [{ id: "select", header: "", cell: SelectCell, size: 40 }]
+      : []),
     { id: "member", header: t("Member"), cell: MemberCellView, size: 280 },
     { accessorKey: "role", header: t("Role"), cell: RoleCell, size: 150 },
     { id: "teams", header: t("Teams"), cell: TeamsCell, size: 200 },
@@ -2604,6 +2974,36 @@ export function MemberTable({
     getRowId: (row) => row.userId,
   });
 
+  const applyBulkRole = async () => {
+    if (!bulkRole) {
+      return;
+    }
+
+    setApplying(true);
+    let changed = 0;
+
+    for (const userId of selected) {
+      const result = await setRole({ userId, role: bulkRole });
+
+      if (result.ok) {
+        changed += 1;
+      } else {
+        toast.error(errorMessage(result.error));
+      }
+    }
+
+    setApplying(false);
+    setSelected(new Set());
+
+    if (changed > 0) {
+      toast.success(
+        t("{count, plural, one {# role updated} other {# roles updated}}", {
+          count: changed,
+        }),
+      );
+    }
+  };
+
   const clearFilters = () => {
     setSearch("");
     setRoleFilter(ALL_ROLES);
@@ -2642,6 +3042,60 @@ export function MemberTable({
             </SelectContent>
           </Select>
         </div>
+        {selected.size > 0 ? (
+          <div
+            className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-2"
+            data-testid="members-bulk-bar"
+          >
+            <span className="text-sm">
+              {t("{count, number} selected", { count: selected.size })}
+            </span>
+            <Select
+              value={bulkRole}
+              items={assignable.map((role) => ({
+                value: role,
+                label: roleLabel(role),
+              }))}
+              onValueChange={(value) => {
+                setBulkRole(v.is(Role, value) ? value : null);
+              }}
+            >
+              <SelectTrigger
+                size="sm"
+                className="w-40"
+                aria-label={t("New role")}
+              >
+                <SelectValue placeholder={t("Change role to")} />
+              </SelectTrigger>
+              <SelectContent>
+                {assignable.map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {roleLabel(role)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              disabled={!bulkRole || applying}
+              onClick={() => {
+                void applyBulkRole();
+              }}
+            >
+              {t("Apply")}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={applying}
+              onClick={() => {
+                setSelected(new Set());
+              }}
+            >
+              {t("Clear selection")}
+            </Button>
+          </div>
+        ) : null}
         <div data-testid="members">
           <DataGrid
             table={table}
@@ -4351,34 +4805,44 @@ export function TwoFactorCard({
 
 ## Inbox with threads
 
-A shared inbox of conversations with status tabs, an assignee filter and the open thread beside the list. It calls `useInbox` from `@/hooks/use-inbox`; the [inbox block](https://bettersupabase.com/blocks/inbox) must be installed (`npx better-supabase add inbox`). Page: https://bettersupabase.com/recipes/inbox-threads.
+A shared inbox queue with search and status, assignee and channel filters in the URL; each row opens its thread beside the list. It calls `useInbox` from `@/hooks/use-inbox`; the [inbox block](https://bettersupabase.com/blocks/inbox) must be installed (`npx better-supabase add inbox`). Page: https://bettersupabase.com/recipes/inbox-threads.
 
 Web, with shadcn components:
 
 ```bash
-npx shadcn add badge empty select tabs
+npx shadcn add badge button empty input select skeleton
 ```
 
 ```bash
 npx shadcn add @better-supabase/use-inbox
 ```
 
-```tsx title="apps/examples/nextjs/src/features/inbox/components/inbox-view.tsx"
+```tsx title="apps/examples/nextjs/src/features/inbox/components/conversation-queue.tsx"
 "use client";
 
-import { InboxIcon } from "lucide-react";
-import { useExtracted, useFormatter } from "next-intl";
-import { useState } from "react";
-import * as v from "valibot";
+import { useAction } from "better-supabase/react";
+import { InboxIcon, SearchIcon } from "lucide-react";
+import { useExtracted, useFormatter, useNow } from "next-intl";
+import { useParams } from "next/navigation";
+import {
+  debounce,
+  parseAsString,
+  parseAsStringLiteral,
+  useQueryStates,
+} from "nuqs";
+import { useEffect, useEffectEvent, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/reui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -4386,18 +4850,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useInbox } from "@/hooks/use-inbox";
+import { Link, toAppHref } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
 
-import type { ConversationRow } from "../inbox-types";
+import type { ConversationRow, InboxSummary } from "../inbox-types";
 
-import { loadConversations } from "../inbox-actions";
+import { loadConversations, loadInboxes } from "../inbox-actions";
 import { unwrap } from "../inbox-load";
-import { AssigneeFilter, ConversationStatus } from "../inbox-types";
-import { ConversationPanel } from "./conversation-panel";
+import { QUEUE_ASSIGNEES, QUEUE_STATUSES, slaStateOf } from "../inbox-types";
+import { ChannelBadge, SlaBadge } from "./conversation-badges";
 
-export function InboxView({
+const ALL_CHANNELS = "all";
+
+const queueParsers = {
+  q: parseAsString.withDefault(""),
+  status: parseAsStringLiteral(QUEUE_STATUSES).withDefault("open"),
+  assignee: parseAsStringLiteral(QUEUE_ASSIGNEES).withDefault("anyone"),
+  channel: parseAsString.withDefault(""),
+};
+
+/**
+ * The conversation queue: search, status, assignee and channel run in the
+ * database (`loadConversations`), the filters live in the URL, and Realtime
+ * pings reload the list without refetching the page. A row links to
+ * `/inbox/<id>` and keeps the filters, so the thread opens beside the queue.
+ */
+export function ConversationQueue({
   organizationId,
   initial,
 }: {
@@ -4405,187 +4885,372 @@ export function InboxView({
   initial: readonly ConversationRow[];
 }) {
   const t = useExtracted("inbox");
-  const [status, setStatus] = useState<ConversationStatus>("open");
-  const [assignee, setAssignee] = useState<AssigneeFilter>("anyone");
-  const [selected, setSelected] = useState<string | null>(null);
+
+  const [filters, setFilters] = useQueryStates(queueParsers, {
+    limitUrlUpdates: debounce(300),
+  });
+
+  const inboxes = useAction(loadInboxes);
+
+  const loadChannels = useEffectEvent(() => {
+    void inboxes.run(undefined);
+  });
+
+  useEffect(() => {
+    loadChannels();
+  }, []);
+
+  const channelItems = [
+    { value: ALL_CHANNELS, label: t("All channels") },
+    ...(inboxes.data ?? []).map((inbox: InboxSummary) => ({
+      value: inbox.id,
+      label: inbox.name,
+    })),
+  ];
+
+  const statusItems = [
+    { value: "open", label: t("Open") },
+    { value: "pending", label: t("Pending") },
+    { value: "snoozed", label: t("Snoozed") },
+    { value: "resolved", label: t("Resolved") },
+    { value: "all", label: t("All statuses") },
+  ];
 
   const assigneeItems = [
     { value: "anyone", label: t("Anyone") },
     { value: "me", label: t("Mine") },
     { value: "unassigned", label: t("Unassigned") },
-  ] satisfies readonly { value: AssigneeFilter; label: string }[];
+  ];
+
+  const isDefault =
+    filters.status === "open" &&
+    filters.assignee === "anyone" &&
+    filters.channel === "" &&
+    filters.q === "";
 
   return (
-    <div className="grid min-h-128 gap-4 lg:grid-cols-3">
-      <section aria-label={t("Conversations")} className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Tabs
-            value={status}
-            onValueChange={(value) => {
-              if (!v.is(ConversationStatus, value)) {
-                return;
-              }
-
-              setStatus(value);
-            }}
-          >
-            <TabsList>
-              <TabsTrigger value="open">{t("Open")}</TabsTrigger>
-              <TabsTrigger value="pending">{t("Pending")}</TabsTrigger>
-              <TabsTrigger value="resolved">{t("Resolved")}</TabsTrigger>
-              <TabsTrigger value="all">{t("All")}</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Select
-            value={assignee}
-            items={assigneeItems}
-            onValueChange={(value) => {
-              if (!v.is(AssigneeFilter, value)) {
-                return;
-              }
-
-              setAssignee(value);
-            }}
-          >
-            <SelectTrigger
-              size="sm"
-              className="w-32"
-              aria-label={t("Assignee")}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {assigneeItems.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <ConversationList
-          key={`${status}:${assignee}`}
-          organizationId={organizationId}
-          status={status}
-          assignee={assignee}
-          initial={status === "open" && assignee === "anyone" ? initial : []}
-          selected={selected}
-          onSelect={setSelected}
+    <section
+      aria-label={t("Conversations")}
+      className="flex h-full min-h-0 flex-col gap-3 p-3"
+    >
+      <div className="relative">
+        <SearchIcon
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
         />
-      </section>
-      {selected === null ? (
-        <Empty className="border lg:col-span-2">
-          <EmptyHeader>
-            <EmptyTitle>{t("Pick a conversation")}</EmptyTitle>
-            <EmptyDescription>
-              {t("Its messages, notes and actions show here.")}
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <div className="lg:col-span-2">
-          <ConversationPanel key={selected} conversationId={selected} />
-        </div>
-      )}
-    </div>
+        <Input
+          type="search"
+          value={filters.q}
+          placeholder={t("Search conversations")}
+          aria-label={t("Search conversations")}
+          className="pl-8"
+          onChange={(event) => {
+            void setFilters({ q: event.target.value });
+          }}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Select
+          value={filters.status}
+          items={statusItems}
+          onValueChange={(value) => {
+            const status = QUEUE_STATUSES.find((item) => item === value);
+
+            if (status !== undefined) {
+              void setFilters({ status });
+            }
+          }}
+        >
+          <SelectTrigger size="sm" className="w-full" aria-label={t("Status")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {statusItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filters.assignee}
+          items={assigneeItems}
+          onValueChange={(value) => {
+            const assignee = QUEUE_ASSIGNEES.find((item) => item === value);
+
+            if (assignee !== undefined) {
+              void setFilters({ assignee });
+            }
+          }}
+        >
+          <SelectTrigger
+            size="sm"
+            className="flex-1"
+            aria-label={t("Assignee")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {assigneeItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filters.channel === "" ? ALL_CHANNELS : filters.channel}
+          items={channelItems}
+          onValueChange={(value) => {
+            void setFilters({
+              channel: value === null || value === ALL_CHANNELS ? "" : value,
+            });
+          }}
+        >
+          <SelectTrigger
+            size="sm"
+            className="col-span-2 w-full"
+            aria-label={t("Channel")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {channelItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <QueueRows
+        key={`${filters.status}:${filters.assignee}:${filters.channel}:${filters.q}`}
+        organizationId={organizationId}
+        status={filters.status}
+        assignee={filters.assignee}
+        channel={filters.channel}
+        q={filters.q}
+        initial={isDefault ? initial : null}
+        onClear={() => {
+          void setFilters({
+            q: "",
+            status: "open",
+            assignee: "anyone",
+            channel: "",
+          });
+        }}
+      />
+    </section>
   );
 }
 
-function ConversationList({
+const PAGE_SIZE = 40;
+
+function QueueRows({
   organizationId,
   status,
   assignee,
+  channel,
+  q,
   initial,
-  selected,
-  onSelect,
+  onClear,
 }: {
   organizationId: string;
-  status: ConversationStatus;
-  assignee: AssigneeFilter;
-  initial: readonly ConversationRow[];
-  selected: string | null;
-  onSelect: (id: string) => void;
+  status: ConversationRow["status"] | "all";
+  assignee: (typeof QUEUE_ASSIGNEES)[number];
+  channel: string;
+  q: string;
+  initial: readonly ConversationRow[] | null;
+  onClear: () => void;
 }) {
   const t = useExtracted("inbox");
   const format = useFormatter();
+  const selected = useParams<{ conversation?: string }>().conversation;
+  const [search] = useQueryStates(queueParsers);
+  const [more, setMore] = useState<readonly ConversationRow[]>([]);
+  const nowDate = useNow({ updateInterval: 60_000 });
+  const now = nowDate.getTime();
 
   const inbox = useInbox({
     organizationId,
-    load: async () => unwrap(await loadConversations({ status, assignee })),
+    load: async () =>
+      unwrap(await loadConversations({ status, assignee, channel, q })),
   });
 
-  const conversations = inbox.items ?? initial;
+  const next = useAction(loadConversations);
 
-  // Staff reads send no broadcast, so an opened conversation clears its badge here.
-  const [openedAt, setOpenedAt] = useState<ReadonlyMap<string, number>>(
-    () => new Map(),
-  );
+  const first = inbox.items ?? initial;
 
-  const unread = (conversation: ConversationRow): boolean => {
-    const opened = openedAt.get(conversation.id);
-
-    return (
-      conversation.unread &&
-      (opened === undefined ||
-        (conversation.lastMessageAt !== null &&
-          Date.parse(conversation.lastMessageAt) > opened))
-    );
-  };
-
-  return conversations.length === 0 ? (
-    <Empty className="border">
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <InboxIcon />
-        </EmptyMedia>
-        <EmptyTitle>{t("No conversations")}</EmptyTitle>
-        <EmptyDescription>
-          {t("Open Help in the header to start one as a customer.")}
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
-  ) : (
-    <ul className="divide-y rounded-xl border">
-      {conversations.map((conversation) => (
-        <li key={conversation.id}>
-          <button
-            type="button"
-            aria-current={selected === conversation.id ? "true" : undefined}
-            className={cn(
-              "flex w-full flex-col gap-1 px-4 py-3 text-left text-sm hover:bg-muted/50",
-              selected === conversation.id && "bg-muted",
-            )}
+  if (first === null) {
+    return inbox.error === undefined || inbox.error === null ? (
+      <QueueSkeleton />
+    ) : (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyTitle>{t("The queue did not load")}</EmptyTitle>
+          <EmptyDescription>
+            {inbox.error instanceof Error
+              ? inbox.error.message
+              : t("Check your connection and try again.")}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => {
-              setOpenedAt((current) =>
-                new Map(current).set(conversation.id, Date.now()),
-              );
-              onSelect(conversation.id);
+              void inbox.refresh();
             }}
           >
-            <span className="flex items-center gap-2">
-              <span className="flex-1 truncate font-medium">
-                {conversation.contactName || t("Visitor")}
-              </span>
-              {unread(conversation) ? <Badge>{t("New")}</Badge> : null}
-            </span>
-            <span className="truncate">
-              {conversation.subject ?? t("No subject")}
-            </span>
-            <span className="flex gap-2 text-xs text-muted-foreground">
-              <span className="flex-1 truncate">{conversation.preview}</span>
-              {conversation.lastMessageAt ? (
-                <span className="tabular-nums">
-                  {format.dateTime(new Date(conversation.lastMessageAt), {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })}
+            {t("Retry")}
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  const rows = [...first, ...more];
+  const last = rows.at(-1);
+  const hasMore = first.length >= PAGE_SIZE && more.length % PAGE_SIZE === 0;
+
+  const query = new URLSearchParams();
+
+  if (search.q !== "") {
+    query.set("q", search.q);
+  }
+
+  if (search.status !== "open") {
+    query.set("status", search.status);
+  }
+
+  if (search.assignee !== "anyone") {
+    query.set("assignee", search.assignee);
+  }
+
+  if (search.channel !== "") {
+    query.set("channel", search.channel);
+  }
+
+  const suffix = query.size === 0 ? "" : `?${query.toString()}`;
+
+  if (rows.length === 0) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <InboxIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("No conversations")}</EmptyTitle>
+          <EmptyDescription>
+            {t(
+              "Nothing matches these filters. Clear them, or use the simulator to receive a message.",
+            )}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button variant="outline" size="sm" onClick={onClear}>
+            {t("Clear filters")}
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  return (
+    <ul className="-mx-3 min-h-0 flex-1 divide-y overflow-y-auto border-y">
+      {rows.map((conversation) => {
+        const sla = slaStateOf(conversation, now);
+
+        return (
+          <li key={conversation.id}>
+            <Link
+              href={toAppHref(`/inbox/${conversation.id}${suffix}`)}
+              aria-current={selected === conversation.id ? "page" : undefined}
+              prefetch={false}
+              className={cn(
+                "flex flex-col gap-1 px-3 py-3 text-sm transition-colors hover:bg-muted/50",
+                selected === conversation.id && "bg-muted",
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "flex-1 truncate",
+                    conversation.unread ? "font-semibold" : "font-medium",
+                  )}
+                >
+                  {conversation.contactName || t("Visitor")}
                 </span>
-              ) : null}
-            </span>
-          </button>
+                {conversation.unread ? (
+                  <Badge variant="primary-light">{t("New")}</Badge>
+                ) : null}
+                {conversation.lastMessageAt ? (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {format.relativeTime(
+                      new Date(conversation.lastMessageAt),
+                      now,
+                    )}
+                  </span>
+                ) : null}
+              </span>
+              <span className="truncate">
+                {conversation.subject ?? t("No subject")}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {conversation.preview}
+              </span>
+              <span className="flex flex-wrap items-center gap-1">
+                <ChannelBadge channel={conversation.channel} />
+                <SlaBadge state={sla} />
+                {conversation.assigneeId === null ? (
+                  <Badge variant="secondary">{t("Unassigned")}</Badge>
+                ) : null}
+                {conversation.botMode === "bot" ? (
+                  <Badge variant="secondary">{t("Bot")}</Badge>
+                ) : null}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+      {hasMore && last ? (
+        <li className="p-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            disabled={next.pending}
+            onClick={() => {
+              void next
+                .run({
+                  status,
+                  assignee,
+                  channel,
+                  q,
+                  cursor: { id: last.id, lastMessageAt: last.lastMessageAt },
+                })
+                .then((result) => {
+                  if (result.ok) {
+                    setMore((current) => [...current, ...result.data]);
+                  }
+                });
+            }}
+          >
+            {t("Load more")}
+          </Button>
         </li>
-      ))}
+      ) : null}
     </ul>
+  );
+}
+
+export function QueueSkeleton() {
+  return (
+    <div className="flex flex-col gap-2" aria-busy="true">
+      {Array.from({ length: 6 }, (_, index) => (
+        <Skeleton key={index} className="h-20 w-full" />
+      ))}
+    </div>
   );
 }
 ```
@@ -5877,7 +6542,13 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
+import type { MessageBranch, ModelOption } from "../assistant-queries";
+
+import { switchChatBranch } from "../assistant-actions";
 import { ChatView } from "./chat-view";
+
+const NO_MODELS: readonly ModelOption[] = [];
+const NO_BRANCHES: readonly MessageBranch[] = [];
 
 export type ChatMode = "standard" | "durable" | "research";
 
@@ -5885,24 +6556,52 @@ interface PanelProps {
   readonly id: string;
   readonly messages: UIMessage[];
   readonly streaming: boolean;
+  readonly models: readonly ModelOption[];
+  readonly model: string | undefined;
+  readonly onModelChange: (model: string) => void;
+  readonly branches: readonly MessageBranch[];
 }
 
 /**
  * The answer streams from the request; a reload picks it up from the stream
  * store.
  */
-function StandardPanel({ id, messages }: PanelProps) {
+function StandardPanel({
+  id,
+  messages,
+  models,
+  model,
+  onModelChange,
+  branches,
+}: PanelProps) {
   const router = useRouter();
 
   const chat = useAssistant({
     id,
     messages,
+    ...(model === undefined ? {} : { model }),
     onFinish: () => {
       router.refresh();
     },
   });
 
-  return <ChatView id={id} chat={chat} />;
+  return (
+    <ChatView
+      id={id}
+      chat={chat}
+      models={models}
+      {...(model === undefined ? {} : { model })}
+      onModelChange={onModelChange}
+      branches={branches}
+      onSwitchBranch={(messageId) => {
+        void switchChatBranch({ chatId: id, messageId }).then(() => {
+          router.refresh();
+        });
+      }}
+      uploads
+      rating
+    />
+  );
 }
 
 /**
@@ -5928,7 +6627,7 @@ function DurablePanel({
     },
   });
 
-  return <ChatView id={id} chat={chat} />;
+  return <ChatView id={id} chat={chat} uploads rating />;
 }
 
 /**
@@ -5941,12 +6640,18 @@ export function AssistantChat({
   streaming = false,
   initialMode = "standard",
   durableAvailable,
+  models = NO_MODELS,
+  initialModel,
+  branches = NO_BRANCHES,
 }: {
   id: string;
   messages: UIMessage[];
   streaming?: boolean;
   initialMode?: ChatMode;
   durableAvailable: boolean;
+  models?: readonly ModelOption[];
+  initialModel?: string | undefined;
+  branches?: readonly MessageBranch[];
 }) {
   const t = useExtracted("assistant");
 
@@ -5960,7 +6665,19 @@ export function AssistantChat({
     { mode: "research", label: t("Research") },
   ];
 
-  const panel = { id, messages, streaming };
+  const [model, setModel] = useState<string | undefined>(
+    initialModel ?? models[0]?.id,
+  );
+
+  const panel = {
+    id,
+    messages,
+    streaming,
+    models,
+    model,
+    onModelChange: setModel,
+    branches,
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -6752,7 +7469,7 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
             <TableRow key={run.id}>
               <TableCell>
                 <Link
-                  href={`/workflows/${run.id}`}
+                  href={`/workflows/runs/${run.id}`}
                   prefetch
                   className="font-medium"
                 >
@@ -12159,7 +12876,16 @@ export async function ContactDetail({ id }: { id: string }) {
           </CardContent>
         </Card>
         <Suspense fallback={<ActivityTimelineSkeleton />}>
-          <ActivityTimeline subject={{ type: contact.kind, id: contact.id }} />
+          <AfterNavigation>
+            <ActivityTimeline
+              subject={{ type: contact.kind, id: contact.id }}
+            />
+          </AfterNavigation>
+        </Suspense>
+        <Suspense fallback={<ContactSalesPanelSkeleton />}>
+          <AfterNavigation>
+            <ContactSalesPanel type={contact.kind} id={contact.id} />
+          </AfterNavigation>
         </Suspense>
       </div>
       {contact.kind === "company" ? (
@@ -13435,7 +14161,57 @@ export function WorkItemGrid({
   const sortLabel = useSortLabel();
   const [navigating, startTransition] = useTransition();
   const [search, setSearch] = useState(query.q);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // The controller outlives renders, so it reads the latest message formatter.
+  const latestErrorMessage = useLatest(errorMessage);
+
+  const { view: bulk } = useController(
+    () =>
+      createBulkSelectionController({
+        run: async ({ rows: ids, action, args }) => {
+          const to = WORK_ITEM_STATES.find((state) => state === args?.["to"]);
+
+          const result = await runWorkBulkAction(
+            action === "state" && to !== undefined
+              ? { action: "state", ids: [...ids], to }
+              : { action: "delete", ids: [...ids] },
+          );
+
+          if (!result.ok) {
+            toast.error(latestErrorMessage.current(result.error));
+            throw new Error(result.error.message);
+          }
+
+          const failed = new Map(
+            result.data.failed.map((row) => [row.id, row]),
+          );
+
+          return {
+            mode: "now",
+            total: result.data.total,
+            succeeded: result.data.succeeded,
+            failed: failed.size,
+            results: ids.map((id) => {
+              const row = failed.get(id);
+
+              return {
+                id,
+                ok: row === undefined,
+                error: row
+                  ? {
+                      code: row.code ?? undefined,
+                      message: row.message,
+                      sqlstate: undefined,
+                    }
+                  : null,
+              };
+            }),
+          };
+        },
+      }),
+    [latestErrorMessage],
+  );
+
+  const selected = new Set(bulk.selected);
 
   const onEditError = (error: DbError) => {
     toast.error(workErrorHint(error.hint) ?? errorMessage(error));
@@ -13607,14 +14383,7 @@ export function WorkItemGrid({
           )}
         </div>
       </div>
-      {canBulk ? (
-        <BulkActionBar
-          selected={selectedRows}
-          onSettled={(failedIds) => {
-            setSelected(new Set(failedIds));
-          }}
-        />
-      ) : null}
+      {canBulk ? <BulkActionBar selected={selectedRows} bulk={bulk} /> : null}
       <Table>
         <TableHeader>
           <TableRow>
@@ -13625,9 +14394,11 @@ export function WorkItemGrid({
                   indeterminate={selection.length > 0 && !allSelected}
                   aria-label={t("Select all")}
                   onCheckedChange={(checked) => {
-                    setSelected(
-                      checked ? new Set(rows.map((row) => row.id)) : new Set(),
-                    );
+                    if (checked) {
+                      bulk.selectMany(rows.map((row) => row.id));
+                    } else {
+                      bulk.clear();
+                    }
                   }}
                 />
               </TableHead>
@@ -13666,17 +14437,11 @@ export function WorkItemGrid({
                         identifier: row.identifier,
                       })}
                       onCheckedChange={(checked) => {
-                        setSelected((current) => {
-                          const next = new Set(current);
-
-                          if (checked) {
-                            next.add(row.id);
-                          } else {
-                            next.delete(row.id);
-                          }
-
-                          return next;
-                        });
+                        if (checked) {
+                          bulk.select(row.id);
+                        } else {
+                          bulk.deselect(row.id);
+                        }
                       }}
                     />
                   </TableCell>
@@ -14498,59 +15263,60 @@ npx shadcn add alert alert-dialog button select
  */
 export function BulkActionBar({
   selected,
-  onSettled,
+  bulk,
 }: {
   selected: readonly Pick<WorkItemRow, "id" | "identifier">[];
-  onSettled: (failedIds: readonly string[]) => void;
+  bulk: BulkSelectionSnapshot & BulkSelectionActions;
 }) {
   const t = useExtracted("work");
-  const errorMessage = useErrorMessage();
   const stateLabel = useStateLabel();
   const [to, setTo] = useState<TaskState | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [failures, setFailures] = useState<readonly BulkFailure[]>([]);
-  const bulk = useAction(runWorkBulkAction);
 
   const identifiers = new Map(selected.map((row) => [row.id, row.identifier]));
 
   const run = async (
     input: { action: "state"; to: TaskState } | { action: "delete" },
   ): Promise<void> => {
-    const ids = selected.map((row) => row.id);
-    const result = await bulk.run({ ...input, ids });
+    const outcome = await bulk.run(
+      input.action === "state"
+        ? { action: "state", args: { to: input.to } }
+        : { action: "delete" },
+    );
 
-    if (!result.ok) {
-      toast.error(errorMessage(result.error));
-
+    // The grid's `run` already showed the error of a call that threw.
+    if (outcome?.mode !== "now") {
       return;
     }
 
-    const { succeeded, failed } = result.data;
+    const failed = outcome.results.flatMap((row) =>
+      row.ok || row.error === null ? [] : [{ id: row.id, error: row.error }],
+    );
 
     setFailures(
       failed.map((row) => ({
         id: row.id,
         identifier: identifiers.get(row.id) ?? row.id,
-        message: row.message === "" ? t("No reason given.") : row.message,
+        message:
+          row.error.message === "" ? t("No reason given.") : row.error.message,
       })),
     );
 
     if (failed.length === 0) {
       toast.success(
         t("{count, plural, one {# item updated} other {# items updated}}", {
-          count: succeeded,
+          count: outcome.succeeded,
         }),
       );
     } else {
       toast.warning(
         t("{failed, number} of {total, number} items failed", {
           failed: failed.length,
-          total: result.data.total,
+          total: outcome.total,
         }),
       );
     }
-
-    onSettled(failed.map((row) => row.id));
   };
 
   const stateItems = WORK_ITEM_STATES.map((state) => ({
@@ -14670,7 +15436,7 @@ export function BulkActionBar({
             variant="ghost"
             disabled={bulk.pending}
             onClick={() => {
-              onSettled([]);
+              bulk.clear();
             }}
           >
             <XIcon />
@@ -15012,21 +15778,16 @@ export function RelatedItemsPanelSkeleton() {
 
 ## Employee directory
 
-A searchable list of employees with an org chart of who reports to whom. It loads its data on the server through the block's client; the [employees block](https://bettersupabase.com/blocks/employees) must be installed (`npx better-supabase add employees`). Page: https://bettersupabase.com/recipes/employee-directory.
+A list of employees with server-side search, a status filter and a link to each record. It loads its data on the server through the block's client; the [employees block](https://bettersupabase.com/blocks/employees) must be installed (`npx better-supabase add employees`). Page: https://bettersupabase.com/recipes/employee-directory.
 
-Web, with shadcn components:
+Web, with no shadcn components.
 
-```bash
-npx shadcn add card empty skeleton
-```
-
-```tsx title="apps/examples/nextjs/src/features/people/components/employee-directory.tsx"
+```tsx title="apps/examples/nextjs/src/features/people/components/employee-overview.tsx"
 /**
- * Render inside `<Suspense>`: the employees as an org chart, each manager above
- * their reports, with a search. Private details open in a sheet for callers
- * with `employees.read_sensitive`.
+ * Render inside `<Suspense>`: every employee on the list kit, with the add
+ * action for callers who can write.
  */
-export async function EmployeeDirectory() {
+export async function EmployeeOverview() {
   const [t, permissions] = await Promise.all([
     getExtracted("people"),
     getPermissions(),
@@ -15042,61 +15803,34 @@ export async function EmployeeDirectory() {
     return null;
   }
 
-  const canWrite = can(permissions, "employees.write");
-  const canViewSensitive = can(permissions, "employees.read_sensitive");
+  if (directory.kind === "error") {
+    return <PeopleLoadError title={t("The directory didn't load")} />;
+  }
 
-  const managers =
-    directory.kind === "ok"
-      ? directory.data.map((employee) => ({
-          value: employee.id,
-          label: employee.name,
-        }))
-      : [];
-
-  const addEmployee = canWrite ? (
-    <AddEmployeeDialog
-      managers={managers}
-      canViewSensitive={canViewSensitive}
-    />
-  ) : null;
+  const managers = directory.data.map((employee) => ({
+    value: employee.id,
+    label: employee.name,
+  }));
 
   return (
-    <Card data-recipe="employee-directory">
-      <CardHeader>
-        <CardTitle>{t("Employees")}</CardTitle>
-        <CardDescription>
-          {t("Everyone in the organization and who they report to.")}
-        </CardDescription>
-        {addEmployee && managers.length > 0 ? (
-          <CardAction>{addEmployee}</CardAction>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        {directory.kind === "error" ? (
-          <PeopleLoadError title={t("The directory didn't load")} />
-        ) : directory.data.length === 0 ? (
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <UsersIcon />
-              </EmptyMedia>
-              <EmptyTitle>{t("No employees yet")}</EmptyTitle>
-              <EmptyDescription>
-                {canWrite
-                  ? t("Add the first employee to start the org chart.")
-                  : t("Ask an admin to add employees.")}
-              </EmptyDescription>
-            </EmptyHeader>
-            {addEmployee ? <EmptyContent>{addEmployee}</EmptyContent> : null}
-          </Empty>
-        ) : (
-          <EmployeeTable
-            employees={directory.data}
-            canViewSensitive={canViewSensitive}
+    <div className="flex flex-col gap-4">
+      {can(permissions, "employees.write") ? (
+        <div className="flex justify-end">
+          <AddEmployeeDialog
+            managers={managers}
+            canViewSensitive={can(permissions, "employees.read_sensitive")}
           />
+        </div>
+      ) : null}
+      <EmployeeRecordList
+        initial={pageBlockRows(
+          employeeList,
+          employeeSpec,
+          directory.data,
+          employeeList.defaults,
         )}
-      </CardContent>
-    </Card>
+      />
+    </div>
   );
 }
 ```
@@ -15563,9 +16297,10 @@ export async function RosterBoard() {
             {shifts
               .filter((shift) => shift.day === day)
               .map((shift) => (
-                <div
+                <Link
                   key={shift.id}
-                  className="flex flex-col gap-2 rounded-md border p-2"
+                  href={`/shifts/${shift.id}?on=${shift.day}`}
+                  className="flex flex-col gap-2 rounded-md border p-2 transition-colors hover:bg-muted/50"
                 >
                   <span className="text-sm">
                     {time(shift.startsAt)} – {time(shift.endsAt)}
@@ -15594,7 +16329,7 @@ export async function RosterBoard() {
                       })}
                     </span>
                   ) : null}
-                </div>
+                </Link>
               ))}
           </div>
         ))}
@@ -18647,6 +19382,8 @@ export async function CalendarView({
 }: {
   query: Record<string, string | string[] | undefined>;
 }) {
+  // The current month is read from the clock, which a prerender may not do.
+  await io();
   const first = firstOfMonth(query["month"], "UTC");
   const weeks = weeksOf(first);
   const from = weeks[0]?.[0] ?? first;
@@ -18659,7 +19396,6 @@ export async function CalendarView({
     getExtracted("calendar"),
     getFormatter(),
     settle(() => loadCalendarMonth(from.toString(), until.toString())),
-    io(),
   ]);
 
   if (!can(permissions, "calendar.read")) {
@@ -27122,62 +27858,46 @@ The organization's risks in a data grid with their residual band, status and nex
 Web, with shadcn components:
 
 ```bash
-npx shadcn add alert badge button empty skeleton @reui/data-grid @reui/frame
+npx shadcn add badge @reui/data-grid
 ```
 
-```tsx title="apps/examples/nextjs/src/features/risks/components/risk-register.tsx"
+```tsx title="apps/examples/nextjs/src/features/risks/components/risk-record-list.tsx"
 "use client";
 
-import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import type { RiskStatus } from "better-supabase/blocks/risks";
+import type { CellContext } from "@tanstack/react-table";
 
-import { useTable } from "@tanstack/react-table";
-import { ShieldAlertIcon, TriangleAlertIcon } from "lucide-react";
+import { ShieldAlertIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 
+import type { RecordListColumns } from "@/components/record-list/record-list-grid";
+import type { RecordListPage } from "@/components/record-list/record-list-types";
 import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/reui/alert";
-import { Badge } from "@/components/reui/badge";
-import {
-  DataGrid,
-  DataGridContainer,
-} from "@/components/reui/data-grid/data-grid";
-import { readOnlyGridFeatures } from "@/components/reui/data-grid/data-grid-features-read-only";
-import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
-import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
-import {
-  Frame,
-  FrameDescription,
-  FrameHeader,
-  FramePanel,
-  FrameTitle,
-} from "@/components/reui/frame";
-import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { RecordListView } from "@/components/record-list/record-list-view";
+import { Link } from "@/i18n/navigation";
 
-import type { BandTone, Loaded, RiskRow } from "../risks-queries";
+import type { RiskRow } from "../risk-rows";
 
-const TONE_VARIANT = {
-  low: "success-light",
-  medium: "warning-light",
-  high: "destructive-light",
-  critical: "destructive",
-} as const satisfies Record<BandTone, string>;
+import { useRiskListState } from "../use-risk-list-state";
+import { RiskBandBadge } from "./risk-band-badge";
+import { RiskStatusBadge, useRiskStatusLabel } from "./risk-status-badge";
+
+const STATUSES = ["identified", "assessed", "treating", "accepted", "closed"];
+const BANDS = ["low", "medium", "high", "critical"];
+
+const CATEGORIES = [
+  "quality",
+  "safety",
+  "environment",
+  "security",
+  "compliance",
+  "operational",
+  "financial",
+  "strategic",
+];
+
+const capitalized = (value: string): string =>
+  value.charAt(0).toUpperCase() + value.slice(1);
 
 type RiskCell = CellContext<ReadOnlyGridFeatures, RiskRow>;
 
@@ -27190,53 +27910,23 @@ function NumberCell({ row }: RiskCell) {
 }
 
 function TitleCell({ row }: RiskCell) {
-  return <span className="font-medium">{row.original.title}</span>;
-}
-
-function BandCell({ row }: RiskCell) {
-  const t = useExtracted("risks");
-  const { band, tone, score } = row.original;
-
-  return band === null || tone === null ? (
-    <span className="text-muted-foreground">{t("Not assessed")}</span>
-  ) : (
-    <Badge variant={TONE_VARIANT[tone]}>
-      {t("{band} · {score, number}", { band, score: score ?? 0 })}
-    </Badge>
+  return (
+    <Link
+      href={`/risks/${row.original.id}`}
+      prefetch
+      className="font-medium hover:underline"
+    >
+      {row.original.title}
+    </Link>
   );
 }
 
+function BandCell({ row }: RiskCell) {
+  return <RiskBandBadge {...row.original} />;
+}
+
 function StatusCell({ row }: RiskCell) {
-  const t = useExtracted("risks");
-  const status: RiskStatus = row.original.status;
-
-  switch (status) {
-    case "identified": {
-      return <Badge variant="secondary">{t("Identified")}</Badge>;
-    }
-
-    case "assessed": {
-      return <Badge variant="info-light">{t("Assessed")}</Badge>;
-    }
-
-    case "treating": {
-      return <Badge variant="warning-light">{t("Treating")}</Badge>;
-    }
-
-    case "accepted": {
-      return <Badge variant="success-light">{t("Accepted")}</Badge>;
-    }
-
-    case "closed": {
-      return <Badge variant="secondary">{t("Closed")}</Badge>;
-    }
-
-    default: {
-      const unknown: never = status;
-
-      return unknown;
-    }
-  }
+  return <RiskStatusBadge status={row.original.status} />;
 }
 
 function ReviewCell({ row }: RiskCell) {
@@ -27255,12 +27945,24 @@ function ReviewCell({ row }: RiskCell) {
   );
 }
 
-function RiskGrid({ risks }: { risks: readonly RiskRow[] }) {
+/**
+ * The risk register on the list kit: the URL holds the search, the status,
+ * category and band filters and the keyset cursor; the list route serves every
+ * state but the default first page, which the server renders. The block orders
+ * by residual score, so there is no sort control.
+ */
+export function RiskRecordList({
+  initial,
+}: {
+  initial: RecordListPage<RiskRow>;
+}) {
   const t = useExtracted("risks");
+  const statusLabel = useRiskStatusLabel();
+  const list = useRiskListState();
 
-  const columns: ColumnDef<ReadOnlyGridFeatures, RiskRow>[] = [
+  const columns: RecordListColumns<RiskRow> = [
     { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 100 },
-    { accessorKey: "title", header: t("Risk"), cell: TitleCell, size: 260 },
+    { accessorKey: "title", header: t("Risk"), cell: TitleCell, size: 280 },
     { accessorKey: "category", header: t("Category"), size: 140 },
     { accessorKey: "band", header: t("Residual"), cell: BandCell, size: 150 },
     { accessorKey: "status", header: t("Status"), cell: StatusCell, size: 120 },
@@ -27272,100 +27974,40 @@ function RiskGrid({ risks }: { risks: readonly RiskRow[] }) {
     },
   ];
 
-  const table = useTable({
-    features: readOnlyGridFeatures,
-    columns,
-    data: [...risks],
-    getRowId: (row) => row.id,
-  });
-
   return (
-    <DataGrid
-      table={table}
-      recordCount={risks.length}
-      tableLayout={{ dense: true }}
-    >
-      <DataGridContainer>
-        <DataGridScrollArea>
-          <DataGridTable />
-        </DataGridScrollArea>
-      </DataGridContainer>
-    </DataGrid>
-  );
-}
-
-/**
- * The organization's risk register: each risk with its residual band and the
- * date of its next review, the highest residual score first.
- */
-export function RiskRegister({ state }: { state: Loaded<readonly RiskRow[]> }) {
-  const t = useExtracted("risks");
-  const router = useRouter();
-  const [retrying, startRetry] = useTransition();
-
-  if (state.kind === "no-organization") {
-    return null;
-  }
-
-  return (
-    <Frame spacing="sm" data-recipe="risk-register">
-      <FrameHeader className="gap-0.5">
-        <FrameTitle>{t("Risk register")}</FrameTitle>
-        <FrameDescription>
-          {t(
-            "Every identified risk with its residual rating after controls. A review moves the next review date ahead by the risk's interval.",
-          )}
-        </FrameDescription>
-      </FrameHeader>
-      <FramePanel>
-        {state.kind === "error" ? (
-          <Alert variant="destructive">
-            <TriangleAlertIcon />
-            <AlertTitle>{t("The risk register didn't load")}</AlertTitle>
-            <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
-            <AlertAction>
-              <Button
-                size="sm"
-                variant="outline"
-                type="button"
-                disabled={retrying}
-                onClick={() => {
-                  startRetry(() => {
-                    router.refresh();
-                  });
-                }}
-              >
-                {t("Retry")}
-              </Button>
-            </AlertAction>
-          </Alert>
-        ) : state.data.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <ShieldAlertIcon />
-              </EmptyMedia>
-              <EmptyTitle>{t("No risks yet")}</EmptyTitle>
-              <EmptyDescription>
-                {t(
-                  "Register a risk with its cause and consequence, then assess it against the organization's matrix.",
-                )}
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <a
-                className="text-sm underline underline-offset-4"
-                href="https://bettersupabase.com/docs/blocks/risks"
-              >
-                {t("Read the risks guide")}
-              </a>
-            </EmptyContent>
-          </Empty>
-        ) : (
-          <RiskGrid risks={state.data} />
-        )}
-      </FramePanel>
-    </Frame>
+    <RecordListView
+      list={list}
+      endpoint="/api/risks/list"
+      initial={initial}
+      columns={columns}
+      facets={[
+        {
+          key: "status",
+          label: t("Status"),
+          values: STATUSES,
+          valueLabel: statusLabel,
+        },
+        {
+          key: "category",
+          label: t("Category"),
+          values: CATEGORIES,
+          valueLabel: capitalized,
+        },
+        {
+          key: "band",
+          label: t("Residual"),
+          values: BANDS,
+          valueLabel: capitalized,
+        },
+      ]}
+      sorts={[]}
+      searchLabel={t("Search risks")}
+      emptyIcon={<ShieldAlertIcon />}
+      emptyTitle={t("No risks found")}
+      emptyDescription={t(
+        "Register a risk with its cause and consequence, then assess it against the organization's matrix, or change the filters.",
+      )}
+    />
   );
 }
 ```

@@ -49,6 +49,26 @@ export function useNavLabel(): (id: NavId) => string {
         return t("Hiring");
       }
 
+      case "leave": {
+        return t("Leave");
+      }
+
+      case "onboarding": {
+        return t("Onboarding");
+      }
+
+      case "deadlines": {
+        return t("Deadlines");
+      }
+
+      case "documentRegister": {
+        return t("Document register");
+      }
+
+      case "documentTemplates": {
+        return t("Document templates");
+      }
+
       case "time": {
         return t("Time");
       }
@@ -59,6 +79,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "availability": {
         return t("Availability");
+      }
+
+      case "frontDesk": {
+        return t("Front desk");
       }
 
       case "contacts": {
@@ -75,6 +99,46 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "quotes": {
         return t("Quotes");
+      }
+
+      case "salesHome": {
+        return t("Sales overview");
+      }
+
+      case "pipelines": {
+        return t("Pipelines");
+      }
+
+      case "forecasts": {
+        return t("Forecasts");
+      }
+
+      case "segments": {
+        return t("Segments");
+      }
+
+      case "queues": {
+        return t("Queues");
+      }
+
+      case "scoring": {
+        return t("Scoring");
+      }
+
+      case "contracts": {
+        return t("Contracts");
+      }
+
+      case "commissions": {
+        return t("Commissions");
+      }
+
+      case "referrals": {
+        return t("Referrals");
+      }
+
+      case "customerSuccess": {
+        return t("Customer success");
       }
 
       case "shop": {
@@ -193,6 +257,38 @@ export function useNavLabel(): (id: NavId) => string {
         return t("Requests for quotation");
       }
 
+      case "donations": {
+        return t("Donations");
+      }
+
+      case "warranty": {
+        return t("Warranty");
+      }
+
+      case "reviews": {
+        return t("Reviews");
+      }
+
+      case "collections": {
+        return t("Collections");
+      }
+
+      case "checkoutSessions": {
+        return t("Checkout sessions");
+      }
+
+      case "passes": {
+        return t("Passes");
+      }
+
+      case "leases": {
+        return t("Leases");
+      }
+
+      case "assets": {
+        return t("Asset register");
+      }
+
       case "tills": {
         return t("Tills");
       }
@@ -219,6 +315,38 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "payables": {
         return t("Payables");
+      }
+
+      case "invoices": {
+        return t("Invoices");
+      }
+
+      case "expenses": {
+        return t("Expenses");
+      }
+
+      case "ledger": {
+        return t("Ledger");
+      }
+
+      case "accountingBooks": {
+        return t("Books");
+      }
+
+      case "billableTime": {
+        return t("Billable time");
+      }
+
+      case "recurring": {
+        return t("Recurring charges");
+      }
+
+      case "tax": {
+        return t("Tax");
+      }
+
+      case "periods": {
+        return t("Periods");
       }
 
       case "care": {
@@ -257,8 +385,8 @@ export function useNavLabel(): (id: NavId) => string {
         return t("Workflows");
       }
 
-      case "workflowBuilder": {
-        return t("Workflow builder");
+      case "workflowRuns": {
+        return t("Workflow runs");
       }
 
       case "inbox": {
@@ -279,6 +407,26 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "agentActivity": {
         return t("Agent activity");
+      }
+
+      case "agents": {
+        return t("Agents");
+      }
+
+      case "prompts": {
+        return t("Prompts");
+      }
+
+      case "evals": {
+        return t("Evals");
+      }
+
+      case "guardrails": {
+        return t("Guardrails");
+      }
+
+      case "aiUsage": {
+        return t("AI usage");
       }
 
       case "aiTasks": {

@@ -1,0 +1,151 @@
+// #region recipe:risk-register
+"use client";
+
+import type { CellContext } from "@tanstack/react-table";
+
+import { ShieldAlertIcon } from "lucide-react";
+import { useExtracted, useFormatter } from "next-intl";
+
+import type { RecordListColumns } from "@/components/record-list/record-list-grid";
+import type { RecordListPage } from "@/components/record-list/record-list-types";
+import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
+
+import { RecordListView } from "@/components/record-list/record-list-view";
+import { Link } from "@/i18n/navigation";
+
+import type { RiskRow } from "../risk-rows";
+
+import { useRiskListState } from "../use-risk-list-state";
+import { RiskBandBadge } from "./risk-band-badge";
+import { RiskStatusBadge, useRiskStatusLabel } from "./risk-status-badge";
+
+const STATUSES = ["identified", "assessed", "treating", "accepted", "closed"];
+const BANDS = ["low", "medium", "high", "critical"];
+
+const CATEGORIES = [
+  "quality",
+  "safety",
+  "environment",
+  "security",
+  "compliance",
+  "operational",
+  "financial",
+  "strategic",
+];
+
+const capitalized = (value: string): string =>
+  value.charAt(0).toUpperCase() + value.slice(1);
+
+type RiskCell = CellContext<ReadOnlyGridFeatures, RiskRow>;
+
+function NumberCell({ row }: RiskCell) {
+  return (
+    <span className="font-mono text-xs text-muted-foreground">
+      {row.original.number}
+    </span>
+  );
+}
+
+function TitleCell({ row }: RiskCell) {
+  return (
+    <Link
+      href={`/risks/${row.original.id}`}
+      prefetch
+      className="font-medium hover:underline"
+    >
+      {row.original.title}
+    </Link>
+  );
+}
+
+function BandCell({ row }: RiskCell) {
+  return <RiskBandBadge {...row.original} />;
+}
+
+function StatusCell({ row }: RiskCell) {
+  return <RiskStatusBadge status={row.original.status} />;
+}
+
+function ReviewCell({ row }: RiskCell) {
+  const format = useFormatter();
+  const { nextReviewOn } = row.original;
+
+  return nextReviewOn === null ? (
+    <span className="text-muted-foreground">–</span>
+  ) : (
+    <span className="tabular-nums">
+      {format.dateTime(new Date(nextReviewOn), {
+        dateStyle: "medium",
+        timeZone: "UTC",
+      })}
+    </span>
+  );
+}
+
+/**
+ * The risk register on the list kit: the URL holds the search, the status,
+ * category and band filters and the keyset cursor; the list route serves every
+ * state but the default first page, which the server renders. The block orders
+ * by residual score, so there is no sort control.
+ */
+export function RiskRecordList({
+  initial,
+}: {
+  initial: RecordListPage<RiskRow>;
+}) {
+  const t = useExtracted("risks");
+  const statusLabel = useRiskStatusLabel();
+  const list = useRiskListState();
+
+  const columns: RecordListColumns<RiskRow> = [
+    { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 100 },
+    { accessorKey: "title", header: t("Risk"), cell: TitleCell, size: 280 },
+    { accessorKey: "category", header: t("Category"), size: 140 },
+    { accessorKey: "band", header: t("Residual"), cell: BandCell, size: 150 },
+    { accessorKey: "status", header: t("Status"), cell: StatusCell, size: 120 },
+    {
+      accessorKey: "nextReviewOn",
+      header: t("Next review"),
+      cell: ReviewCell,
+      size: 140,
+    },
+  ];
+
+  return (
+    <RecordListView
+      list={list}
+      endpoint="/api/risks/list"
+      initial={initial}
+      columns={columns}
+      facets={[
+        {
+          key: "status",
+          label: t("Status"),
+          values: STATUSES,
+          valueLabel: statusLabel,
+        },
+        {
+          key: "category",
+          label: t("Category"),
+          values: CATEGORIES,
+          valueLabel: capitalized,
+        },
+        {
+          key: "band",
+          label: t("Residual"),
+          values: BANDS,
+          valueLabel: capitalized,
+        },
+      ]}
+      sorts={[]}
+      searchLabel={t("Search risks")}
+      emptyIcon={<ShieldAlertIcon />}
+      emptyTitle={t("No risks found")}
+      emptyDescription={t(
+        "Register a risk with its cause and consequence, then assess it against the organization's matrix, or change the filters.",
+      )}
+    />
+  );
+}
+
+// #endregion recipe:risk-register

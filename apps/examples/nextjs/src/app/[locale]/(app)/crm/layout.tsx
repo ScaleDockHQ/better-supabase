@@ -9,7 +9,14 @@ export default function CrmLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "crm", "sequences"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "crm",
+        "recordDetail",
+        "recordList",
+        "sales",
+        "sequences",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

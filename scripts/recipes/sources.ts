@@ -59,8 +59,8 @@ export const RECIPES: readonly RecipeSource[] = [
       "A search dialog over the search index, with favorites and recents before the user types.",
     hook: { name: "useCommandSearch", entry: "@/hooks/use-search" },
     web: {
-      file: `${WEB_APP}/src/features/search/components/command-search.tsx`,
-      components: ["button", "dialog", "input"],
+      file: `${WEB_APP}/src/features/search/components/command-center.tsx`,
+      components: ["button", "command", "dialog", "kbd"],
       glue: ["use-search"],
     },
     native: {
@@ -389,11 +389,11 @@ export const RECIPES: readonly RecipeSource[] = [
     blocks: ["inbox"],
     kind: "screen",
     description:
-      "A shared inbox of conversations with status tabs, an assignee filter and the open thread beside the list.",
+      "A shared inbox queue with search and status, assignee and channel filters in the URL; each row opens its thread beside the list.",
     hook: { name: "useInbox", entry: "@/hooks/use-inbox" },
     web: {
-      file: `${WEB_APP}/src/features/inbox/components/inbox-view.tsx`,
-      components: ["badge", "empty", "select", "tabs"],
+      file: `${WEB_APP}/src/features/inbox/components/conversation-queue.tsx`,
+      components: ["badge", "button", "empty", "input", "select", "skeleton"],
       glue: ["use-inbox"],
     },
   },

@@ -5,6 +5,8 @@ import type { Page } from "@playwright/test";
 import { instant } from "@next/playwright";
 import { expect, test } from "@playwright/test";
 
+import { navLink } from "./support/example-session";
+
 // Each test states which content is visible before uncached work resolves
 // (under `instant()`'s lock) and which streams in after it. They need a `next
 // build` with the testing API exposed, like instant.spec.ts, and the local
@@ -23,7 +25,7 @@ test("the customers list paints its heading before the rows", async ({
 }) => {
   await signIn(page);
   await page.goto("/");
-  const link = page.getByRole("link", { name: "Customers", exact: true });
+  const link = await navLink(page, "Customers", "Sales");
 
   await expect(link.first()).toBeVisible();
 
@@ -103,7 +105,7 @@ test("the sign-up form is static and the sign-in link is instant", async ({
 test("the assistant paints its heading before the chats", async ({ page }) => {
   await signIn(page);
   await page.goto("/");
-  const link = page.getByRole("link", { name: "Assistant", exact: true });
+  const link = await navLink(page, "Assistant", "AI");
 
   await expect(link.first()).toBeVisible();
 
@@ -120,7 +122,7 @@ test("the assistant paints its heading before the chats", async ({ page }) => {
 test("the projects frame paints before the project data", async ({ page }) => {
   await signIn(page);
   await page.goto("/");
-  const link = page.getByRole("link", { name: "Projects", exact: true });
+  const link = await navLink(page, "Projects", "Work");
 
   await expect(link.first()).toBeVisible();
 
@@ -130,4 +132,102 @@ test("the projects frame paints before the project data", async ({ page }) => {
 
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
   });
+});
+
+test("a customer search keeps the grid and writes the URL", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/customers");
+
+  const search = page.getByRole("searchbox", { name: "Search customers" });
+  const row = page.getByRole("link", { name: "Road Runner Inc" });
+
+  await expect(row).toBeVisible();
+  await search.fill("Road");
+
+  await expect(page).toHaveURL(/[?&]q=Road/);
+  await expect(row).toBeVisible();
+  await expect(page.getByTestId("record-list")).toBeVisible();
+});
+
+test("the risks overview paints its heading before the register", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/");
+  const link = await navLink(page, "Risks", "Quality");
+
+  await expect(link.first()).toBeVisible();
+
+  await instant(page, async () => {
+    await link.first().click();
+    await page.waitForURL((url) => url.pathname === "/risks");
+
+    await expect(page.getByRole("heading", { name: "Risks" })).toBeVisible();
+    await expect(page.getByTestId("record-list")).toHaveCount(0);
+  });
+
+  await expect(page.getByTestId("record-list")).toBeVisible();
+});
+
+test("the warranty overview paints its heading before the claims", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/");
+  const link = await navLink(page, "Warranty", "Commerce");
+
+  await expect(link.first()).toBeVisible();
+
+  await instant(page, async () => {
+    await link.first().click();
+    await page.waitForURL((url) => url.pathname === "/shop/warranty");
+
+    await expect(
+      page.getByRole("heading", { name: "Warranty claims" }),
+    ).toBeVisible();
+    await expect(page.getByTestId("record-list")).toHaveCount(0);
+  });
+
+  await expect(page.getByTestId("record-list")).toBeVisible();
+});
+
+test("a risk search writes the URL and keeps the register", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/risks");
+
+  const search = page.getByRole("searchbox", { name: "Search risks" });
+
+  await expect(page.getByTestId("record-list")).toBeVisible();
+  await search.fill("supplier");
+
+  await expect(page).toHaveURL(/[?&]q=supplier/);
+  await expect(page.getByTestId("record-list")).toBeVisible();
+});
+
+test("the inbox keeps its queue while a conversation opens", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/inbox");
+  const row = page.getByRole("link", { name: /Invoice 1042 is overdue/ });
+
+  await expect(row).toBeVisible();
+
+  await instant(page, async () => {
+    await row.click();
+    await page.waitForURL((url) => url.pathname.startsWith("/inbox/"));
+
+    // The queue is the layout, so it stays; the thread streams in after it.
+    await expect(
+      page.getByRole("searchbox", { name: "Search conversations" }),
+    ).toBeVisible();
+    await expect(page.getByText("Earlier conversations")).toHaveCount(0);
+  });
+
+  await expect(page.getByText("Earlier conversations")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Reply" })).toBeVisible();
 });

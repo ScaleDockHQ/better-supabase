@@ -24,9 +24,9 @@ as $$
     where pr.variant_id = first_variant.id
       and pr.currency = shop_products.currency
       and pr.price_list_id is null
-      and (pr.valid_from is null or pr.valid_from <= now())
-      and (pr.valid_until is null or pr.valid_until > now())
-    order by pr.valid_from desc nulls last
+      and (pr.starts_at is null or pr.starts_at <= now())
+      and (pr.expires_at is null or pr.expires_at > now())
+    order by pr.starts_at desc nulls last
     limit 1
   ) price on true
   left join lateral (

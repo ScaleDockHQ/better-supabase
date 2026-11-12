@@ -1,17 +1,23 @@
+import { LayoutTemplateIcon, WaypointsIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { ScheduleForm } from "@/features/workflows/components/schedule-controls";
+import { buttonVariants } from "@/components/ui/button";
+import { PermissionGate } from "@/features/user/components/permission-gate";
+import { CreateDefinitionForm } from "@/features/workflows/builder/components/create-definition-form";
 import {
-  ScheduleList,
-  ScheduleListSkeleton,
-} from "@/features/workflows/components/schedule-list";
-import {
-  TenantWorkflowRuns,
-  TenantWorkflowRunsSkeleton,
-} from "@/features/workflows/components/tenant-workflow-runs";
-import { WorkflowActions } from "@/features/workflows/components/workflow-actions";
+  DefinitionList,
+  DefinitionListSkeleton,
+} from "@/features/workflows/builder/components/definition-list";
+import { Link } from "@/i18n/navigation";
+
+// A prefetch of this list stays static; the rows render on navigation.
+export const ensureStatic = "prefetch";
+
+// A navigation here paints the header and the list skeleton at once
+// (tests/loading-sequences.spec.ts).
+export const instant = true;
 
 export default function WorkflowsPage() {
   const t = useExtracted("workflows");
@@ -21,22 +27,37 @@ export default function WorkflowsPage() {
       <PageHeader
         title={t("Workflows")}
         description={t(
-          "Durable runs on the Workflow SDK with the Supabase World. The list stays live over Realtime.",
+          "Workflows the organization draws on a canvas, published in versions and run on the Workflow SDK.",
         )}
-        actions={<WorkflowActions />}
+        actions={
+          <>
+            <Link
+              href="/workflows/templates"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <LayoutTemplateIcon />
+              {t("Templates")}
+            </Link>
+            <Link
+              href="/workflows/runs"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <WaypointsIcon />
+              {t("Runs")}
+            </Link>
+            <Suspense fallback={null}>
+              <PermissionGate permission="workflow_editor.write">
+                <CreateDefinitionForm />
+              </PermissionGate>
+            </Suspense>
+          </>
+        }
       />
-      <div data-recipe="workflow-runs">
-        <Suspense fallback={<TenantWorkflowRunsSkeleton />}>
-          <TenantWorkflowRuns />
-        </Suspense>
-      </div>
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">{t("Schedules")}</h2>
-        <Suspense fallback={<ScheduleListSkeleton />}>
-          <ScheduleList />
-        </Suspense>
-        <ScheduleForm />
-      </section>
+      <Suspense fallback={<DefinitionListSkeleton />}>
+        <PermissionGate permission="workflow_editor.read">
+          <DefinitionList />
+        </PermissionGate>
+      </Suspense>
     </>
   );
 }

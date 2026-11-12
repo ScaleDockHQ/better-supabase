@@ -1,0 +1,88 @@
+-- better-supabase module: reserved-slugs
+-- @bsb-block reserved-slugs@1 managed
+-- @bsb-hash sha256:8efcb09b1f1dc9316613c941ec86edff65e57035f67a3f839483a60ae4c71e64
+-- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create table "better_supabase"."reserved_slugs" (
+  "slug" text primary key,
+  "reason" text
+);
+alter table "better_supabase"."reserved_slugs" enable row level security;
+-- enforce_slug runs as the writer, service_role included, and reads this list.
+grant select on "better_supabase"."reserved_slugs" to anon, authenticated, service_role;
+create policy bsb_reserved_slugs_read on "better_supabase"."reserved_slugs"
+  for select to anon, authenticated, service_role
+  using (true);
+
+-- 'invalid' for a malformed slug or one outside 1 to 63 characters
+-- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
+create or replace function better_supabase.slug_problem(slug text)
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select case
+    when slug is null then null
+    when slug !~ '^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$' then 'invalid'
+    when slug ~ '--' then 'invalid'
+    when length(slug) < 1 or length(slug) > 63 then 'invalid'
+    when exists (select 1 from "better_supabase"."reserved_slugs" r where r."slug" = slug_problem.slug) then 'reserved'
+  end
+$$;
+
+create or replace function better_supabase.enforce_slug()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  value text := to_jsonb(new) ->> coalesce(tg_argv[0], 'slug');
+  problem text := better_supabase.slug_problem(value);
+begin
+  if problem = 'invalid' then
+    raise exception 'Invalid slug "%"', value using errcode = '23514', hint = 'SLUG_INVALID';
+  elsif problem = 'reserved' then
+    raise exception 'The slug "%" is reserved', value using errcode = '23514', hint = 'SLUG_RESERVED';
+  end if;
+  return new;
+end;
+$$;
+
+-- select better_supabase.track_slug('public.organizations');
+create or replace function better_supabase.track_slug(target regclass, column_name text default 'slug')
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  execute format('drop trigger if exists bsb_slug on %s', target);
+  execute format(
+    'create trigger bsb_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
+    column_name,
+    target,
+    column_name
+  );
+end;
+$$;
+
+-- enforce_slug runs as the writer, so the check stays callable by authenticated.
+revoke execute on function better_supabase.slug_problem(text) from public, anon;
+grant execute on function better_supabase.slug_problem(text) to authenticated, service_role;
+revoke execute on function better_supabase.track_slug(regclass, text) from public, anon, authenticated;
+
+-- blocks.reserved-slugs.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."slug_problem"(slug text)
+returns text
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."slug_problem"($1) $$;
+revoke execute on function "api"."slug_problem"(text) from public, anon;
+grant execute on function "api"."slug_problem"(text) to authenticated, service_role;

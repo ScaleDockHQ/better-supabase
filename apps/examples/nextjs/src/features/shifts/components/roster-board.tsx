@@ -29,6 +29,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "@/i18n/navigation";
 
 import { getRoster } from "../shifts-queries";
 
@@ -161,9 +162,10 @@ export async function RosterBoard() {
             {shifts
               .filter((shift) => shift.day === day)
               .map((shift) => (
-                <div
+                <Link
                   key={shift.id}
-                  className="flex flex-col gap-2 rounded-md border p-2"
+                  href={`/shifts/${shift.id}?on=${shift.day}`}
+                  className="flex flex-col gap-2 rounded-md border p-2 transition-colors hover:bg-muted/50"
                 >
                   <span className="text-sm">
                     {time(shift.startsAt)} – {time(shift.endsAt)}
@@ -192,7 +194,7 @@ export async function RosterBoard() {
                       })}
                     </span>
                   ) : null}
-                </div>
+                </Link>
               ))}
           </div>
         ))}

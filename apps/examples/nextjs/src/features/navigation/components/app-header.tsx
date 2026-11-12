@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 
 import { useExtracted } from "next-intl";
+import { Suspense } from "react";
 
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { HelpSheetLazy } from "@/features/inbox/components/help-sheet-lazy";
 import { UnreadBadge } from "@/features/notifications/components/unread-badge";
 import { CommandSearchLazy } from "@/features/search/components/command-search-lazy";
+import { CommandSearchNav } from "@/features/search/components/command-search-nav";
 
 /**
  * Synchronous, so it is part of the static shell of every page. The layout
@@ -25,7 +27,10 @@ export function AppHeader({ breadcrumbs }: { breadcrumbs: ReactNode }) {
       <Separator orientation="vertical" className="mr-2 h-4" />
       {breadcrumbs}
       <div className="ml-auto flex items-center gap-1">
-        <CommandSearchLazy />
+        {/* The closed button paints at once; the pages the caller may open stream in behind it. */}
+        <Suspense fallback={<CommandSearchLazy />}>
+          <CommandSearchNav />
+        </Suspense>
         <HelpSheetLazy />
         <UnreadBadge />
       </div>

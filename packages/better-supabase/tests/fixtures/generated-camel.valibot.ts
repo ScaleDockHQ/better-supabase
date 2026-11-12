@@ -458,7 +458,7 @@ export const tasksRow: v.GenericSchema<RowOf<'tasks'>> = v.pipe(v.object({
   assigneeId: v.nullable(v.pipe(v.string(), v.uuid())),
   projectId: v.pipe(v.string(), v.uuid()),
   rank: v.string(),
-}), v.title("Tasks"), v.description("@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\""));
+}), v.title("Tasks"), v.description("@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\""));
 export const tasksInsert: v.GenericSchema<InsertOf<'tasks'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -471,7 +471,7 @@ export const tasksInsert: v.GenericSchema<InsertOf<'tasks'>> = v.pipe(v.object({
   assigneeId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   projectId: v.pipe(v.string(), v.uuid()),
   rank: v.exactOptional(v.string()),
-}), v.title("Tasks insert"), v.description("@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\""));
+}), v.title("Tasks insert"), v.description("@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\""));
 export const tasksUpdate: v.GenericSchema<UpdateOf<'tasks'>> = v.pipe(v.object({
   id: v.exactOptional(v.pipe(v.string(), v.uuid())),
   organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
@@ -484,7 +484,7 @@ export const tasksUpdate: v.GenericSchema<UpdateOf<'tasks'>> = v.pipe(v.object({
   assigneeId: v.exactOptional(v.nullable(v.pipe(v.string(), v.uuid()))),
   projectId: v.exactOptional(v.pipe(v.string(), v.uuid())),
   rank: v.exactOptional(v.string()),
-}), v.title("Tasks update"), v.description("@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\""));
+}), v.title("Tasks update"), v.description("@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\""));
 
 export const tasksViewRow: v.GenericSchema<RowOf<'tasksView'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
@@ -621,6 +621,13 @@ export const setMyAvatarPathArgs: v.GenericSchema<{ avatar_path: string }> = v.p
 export const updateMyProfileArgs: v.GenericSchema<{ full_name: string }> = v.pipe(v.object({
   full_name: v.string(),
 }), v.title("update_my_profile arguments"));
+
+export const workBulkStateArgs: v.GenericSchema<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = v.pipe(v.object({
+  args: json,
+  subject_id: v.string(),
+  subject_type: v.string(),
+  tenant: v.pipe(v.string(), v.uuid()),
+}), v.title("work_bulk_state arguments"));
 
 export const importCustomerResult: v.GenericSchema<Json> = json;
 

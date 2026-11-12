@@ -43,6 +43,8 @@ import { deadline, invalidTuning } from "./timeout.ts";
  */
 let extras: DbExtras | undefined;
 
+const FULL_RUNTIME_SLOT = Symbol.for("better-supabase.connection-runtime.full");
+
 /**
  * Turns one definition into a `db`. Lives apart from the definition class so
  * entries that only read the definition (the proxy, the sessions runtime) do
@@ -634,6 +636,20 @@ function connectorOf(definition: Definition): Connector {
  */
 export function provideLeanConnectionRuntime(withExtras?: DbExtras): void {
   extras ??= withExtras;
+
+  // A bundler can load this module twice (a server layer and a client-app
+  // layer) while the runtime slot lives on globalThis. A lean install that ran
+  // after the full one would otherwise replace it and drop `$search`.
+  // SAFETY: the slot holds `true` or nothing; no other code reads it.
+  const host = globalThis as { [FULL_RUNTIME_SLOT]?: true };
+
+  if (withExtras === undefined && host[FULL_RUNTIME_SLOT] === true) {
+    return;
+  }
+
+  if (withExtras !== undefined) {
+    host[FULL_RUNTIME_SLOT] = true;
+  }
 
   installConnectionRuntime({
     connect: (definition, source, context, options) =>

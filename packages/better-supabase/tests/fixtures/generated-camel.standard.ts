@@ -629,7 +629,7 @@ export const tagsUpdate: TableSchema<UpdateOf<'tags'>> = tableSchema({
 
 export const tasksRow: TableSchema<RowOf<'tasks'>> = tableSchema({
   title: "Tasks",
-  description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
+  description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"",
   fields: {
     id: { kind: "uuid" },
     organizationId: { kind: "uuid" },
@@ -647,7 +647,7 @@ export const tasksRow: TableSchema<RowOf<'tasks'>> = tableSchema({
 
 export const tasksInsert: TableSchema<InsertOf<'tasks'>> = tableSchema({
   title: "Tasks insert",
-  description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
+  description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"",
   fields: {
     id: { kind: "uuid", optional: true },
     organizationId: { kind: "uuid" },
@@ -665,7 +665,7 @@ export const tasksInsert: TableSchema<InsertOf<'tasks'>> = tableSchema({
 
 export const tasksUpdate: TableSchema<UpdateOf<'tasks'>> = tableSchema({
   title: "Tasks update",
-  description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} rank=rank rank-group=status; events include=\"status, project_id\"",
+  description: "@bsb subject type=task id-type=uuid tenant=organization_id title=title url=/projects/{project_id} search rank=rank rank-group=status; events include=\"status, project_id\"",
   fields: {
     id: { kind: "uuid", optional: true },
     organizationId: { kind: "uuid", optional: true },
@@ -872,5 +872,15 @@ export const updateMyProfileArgs: TableSchema<{ full_name: string }> = tableSche
   title: "update_my_profile arguments",
   fields: {
     full_name: {"kind":"string"},
+  },
+});
+
+export const workBulkStateArgs: TableSchema<{ args: Json; subject_id: string; subject_type: string; tenant: string }> = tableSchema({
+  title: "work_bulk_state arguments",
+  fields: {
+    args: {"kind":"json"},
+    subject_id: {"kind":"string"},
+    subject_type: {"kind":"string"},
+    tenant: {"kind":"uuid"},
   },
 });

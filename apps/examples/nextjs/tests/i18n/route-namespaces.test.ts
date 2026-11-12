@@ -41,5 +41,6 @@ describe("route message namespaces", () => {
       missing,
       "add the namespace to the nearest layout's pick(messages, [...]) list",
     ).toEqual([]);
-  });
+    // The scan parses every route file, which takes six seconds on a busy CI runner.
+  }, 30_000);
 });

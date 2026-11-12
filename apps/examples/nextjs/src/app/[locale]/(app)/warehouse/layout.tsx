@@ -9,7 +9,13 @@ export default function WarehouseLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "warehouse"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "warehouse",
+        "recordDetail",
+        "recordList",
+        "sales",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

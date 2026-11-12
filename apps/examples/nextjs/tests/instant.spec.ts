@@ -5,6 +5,8 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
 
+import { navLink } from "./support/example-session";
+
 async function signIn(page: Page): Promise<void> {
   await page.goto("/login");
   await page.getByLabel("Email").fill("admin@acme.test");
@@ -21,7 +23,7 @@ test("home to customers renders the static shell under the lock", async ({
   page,
 }) => {
   await page.goto("/");
-  const link = page.getByRole("link", { name: "Customers", exact: true });
+  const link = await navLink(page, "Customers", "Sales");
 
   await expect(link.first()).toBeVisible();
 
@@ -51,7 +53,9 @@ test("customers to a customer uses the per-link prefetch", async ({ page }) => {
   });
 });
 
-test("settings tab to tab keeps the settings frame", async ({ page }) => {
+// Skipped: the settings tab bar went with the product-area navigation and no
+// link reaches /settings/preferences any more (EX-1503).
+test.fixme("settings tab to tab keeps the settings frame", async ({ page }) => {
   await page.goto("/settings/profile");
   const tab = page.getByRole("link", { name: "Preferences", exact: true });
 

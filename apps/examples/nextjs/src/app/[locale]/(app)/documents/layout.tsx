@@ -9,7 +9,7 @@ export default function DocumentsLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "documents"])}
+      messages={pick(messages, [...APP_NAMESPACES, "documents", "recordList"])}
     >
       {children}
     </NextIntlClientProvider>

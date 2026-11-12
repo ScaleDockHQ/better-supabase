@@ -9,6 +9,9 @@ import {
 } from "@/features/assistant/components/stored-chat";
 import { Link } from "@/i18n/navigation";
 
+// The back link paints at once; the stored chat streams in.
+export const instant = true;
+
 /** The back link is the static shell; the stored chat streams in. */
 export default function AssistantChatPage({
   params,

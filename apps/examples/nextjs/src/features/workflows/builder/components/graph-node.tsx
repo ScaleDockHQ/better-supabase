@@ -2,58 +2,43 @@
 
 import type { Edge, Node, NodeProps } from "@xyflow/react";
 import type {
-  WorkflowBuiltinNodeKind,
   WorkflowGraph,
   WorkflowGraphNode,
   WorkflowNodeKind,
   WorkflowNodeRunStatus,
 } from "better-supabase/blocks/workflow-editor";
-import type { LucideIcon } from "lucide-react";
 
 import { Handle, Position } from "@xyflow/react";
-import { isBuiltinNodeKind } from "better-supabase/blocks/workflow-editor";
-import {
-  BoxIcon,
-  ClockIcon,
-  GitBranchIcon,
-  HandIcon,
-  PlayIcon,
-  SquareFunctionIcon,
-} from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/reui/badge";
+import { Card } from "@/components/ui/card";
+
+import { KindIcon } from "../../kind-icon";
 
 export type NodeConfig = NonNullable<WorkflowGraphNode["config"]>;
 
 export interface GraphNodeData extends Record<string, unknown> {
   readonly kind: WorkflowNodeKind;
   readonly label: string;
-  readonly step?: string;
+  readonly step?: string | undefined;
   readonly config: NodeConfig;
-  /** Whether one of the app's own node kinds takes true and false branches. */
+  /** Whether the kind takes true and false branches. */
   readonly branches?: boolean;
   /** The node's status in the run the overlay shows. */
-  readonly status?: WorkflowNodeRunStatus;
+  readonly status?: WorkflowNodeRunStatus | undefined;
+  /** The worst validation problem on the node. */
+  readonly issue?: "error" | "warning" | undefined;
 }
 
 export type GraphFlowNode = Node<GraphNodeData, "graph">;
 
-const ICONS = {
-  trigger: PlayIcon,
-  step: SquareFunctionIcon,
-  sleep: ClockIcon,
-  approval: HandIcon,
-  condition: GitBranchIcon,
-} satisfies Record<WorkflowBuiltinNodeKind, LucideIcon>;
-
-const STATUS_RING = {
-  running: "ring-2 ring-sky-500",
-  waiting: "ring-2 ring-amber-500",
-  completed: "ring-2 ring-emerald-500",
-  failed: "ring-2 ring-red-500",
-  skipped: "opacity-60",
-} satisfies Record<WorkflowNodeRunStatus, string>;
+const STATUS_BADGE = {
+  running: "info-light",
+  waiting: "warning-light",
+  completed: "success-light",
+  failed: "destructive-light",
+  skipped: "secondary",
+} as const satisfies Record<WorkflowNodeRunStatus, string>;
 
 const branches = (data: GraphNodeData): boolean =>
   data.kind === "condition" ||
@@ -61,28 +46,29 @@ const branches = (data: GraphNodeData): boolean =>
   data.branches === true;
 
 function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
-  const Icon = isBuiltinNodeKind(data.kind) ? ICONS[data.kind] : BoxIcon;
-
   return (
-    <div
-      className={cn(
-        "w-52 rounded-lg border bg-card px-3 py-2 text-sm text-card-foreground shadow-sm",
-        selected && "border-primary",
-        data.status === undefined ? undefined : STATUS_RING[data.status],
-      )}
+    <Card
+      size="sm"
+      className="w-56 gap-1 overflow-visible data-[issue=error]:ring-2 data-[issue=error]:ring-destructive/60 data-[issue=warning]:ring-2 data-[issue=warning]:ring-warning/60 data-[selected=true]:ring-2 data-[selected=true]:ring-primary data-[status=completed]:ring-2 data-[status=completed]:ring-success data-[status=failed]:ring-2 data-[status=failed]:ring-destructive data-[status=running]:ring-2 data-[status=running]:ring-info data-[status=skipped]:opacity-60 data-[status=waiting]:ring-2 data-[status=waiting]:ring-warning"
+      data-selected={selected}
+      data-issue={data.issue}
+      data-status={data.status}
       data-testid={`graph-node-${data.kind}`}
     >
       {data.kind === "trigger" ? null : (
         <Handle type="target" position={Position.Top} />
       )}
-      <div className="flex items-center gap-2">
-        <Icon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate font-medium">{data.label}</span>
+      <div className="flex items-center gap-2 px-(--card-spacing)">
+        <KindIcon
+          kind={data.kind}
+          className="size-4 shrink-0 text-muted-foreground"
+        />
+        <span className="truncate text-sm font-medium">{data.label}</span>
       </div>
-      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 px-(--card-spacing) text-xs text-muted-foreground">
         <span className="truncate font-mono">{data.step ?? data.kind}</span>
         {data.status === undefined ? null : (
-          <Badge variant="outline">{data.status}</Badge>
+          <Badge variant={STATUS_BADGE[data.status]}>{data.status}</Badge>
         )}
       </div>
       {branches(data) ? (
@@ -99,7 +85,7 @@ function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
             position={Position.Bottom}
             className="left-2/3!"
           />
-          <div className="mt-1 flex justify-around text-xs text-muted-foreground uppercase">
+          <div className="flex justify-around text-xs text-muted-foreground uppercase">
             <span>true</span>
             <span>false</span>
           </div>
@@ -107,7 +93,7 @@ function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
       ) : (
         <Handle type="source" position={Position.Bottom} />
       )}
-    </div>
+    </Card>
   );
 }
 

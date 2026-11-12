@@ -2483,6 +2483,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "customerName",
+                "body": []
               }
             }
           }
@@ -2818,6 +2822,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -3388,6 +3396,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "read": "read",
                 "write": "manage"
               },
+              "search": {
+                "title": "number",
+                "body": []
+              },
               "template": "template"
             }
           },
@@ -3567,6 +3579,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           }
@@ -4537,6 +4553,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "read": "read",
                 "write": "write"
               },
+              "search": {
+                "title": "title",
+                "body": []
+              },
               "template": "template"
             }
           }
@@ -4674,6 +4694,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               },
               "template": "template"
             }
@@ -5479,6 +5503,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -5591,6 +5619,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -6047,6 +6079,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           }
@@ -6134,6 +6170,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -6393,6 +6433,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -6501,6 +6545,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "reference",
+                "body": []
               }
             }
           },
@@ -6638,6 +6686,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -6864,6 +6916,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -8851,6 +8907,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -10245,6 +10305,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -10757,6 +10821,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -11200,6 +11268,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -11340,6 +11412,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },

@@ -9,7 +9,13 @@ export default function BankingLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "banking"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "finance",
+        "recordDetail",
+        "recordList",
+        "banking",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

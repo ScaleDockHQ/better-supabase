@@ -1,10 +1,11 @@
 import { tenantOf } from "better-supabase/next";
 import { getExtracted, getFormatter } from "next-intl/server";
-import { navigation } from "next/cache";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { AfterNavigation } from "@/components/record-detail/after-navigation";
+import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -59,8 +60,6 @@ async function ShareLinksSection({
   customerId: string;
   canCreate: boolean;
 }) {
-  await navigation();
-
   const links = await getShareLinks(customerId);
 
   return (
@@ -81,8 +80,6 @@ async function AttachmentsSection({
   canUpload: boolean;
   canRemove: boolean;
 }) {
-  await navigation();
-
   const files = await getAttachments(customerId);
 
   if (files.kind === "hidden") {
@@ -106,8 +103,6 @@ async function RelationsSection({
   customerId: string;
   canManage: boolean;
 }) {
-  await navigation();
-
   const relations = await getRelations(customerId);
 
   return (
@@ -128,8 +123,6 @@ async function VersionsSection({
   canSave: boolean;
   canRestore: boolean;
 }) {
-  await navigation();
-
   const versions = await getVersions(customerId);
 
   return (
@@ -149,8 +142,6 @@ async function SlaSection({
   customerId: string;
   canCreatePolicy: boolean;
 }) {
-  await navigation();
-
   const clocks = await getSlaClocks(customerId);
 
   return (
@@ -169,8 +160,6 @@ async function TimelineSection({
   customerId: string;
   authors: Readonly<Record<string, string>>;
 }) {
-  await navigation();
-
   const timeline = await getTimeline(customerId);
 
   return <CustomerTimeline timeline={timeline} authors={authors} />;
@@ -212,79 +201,166 @@ export async function CustomerDetail({ id }: { id: string }) {
   const customerId = customer.id;
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-3">
-      <div className="flex flex-col gap-6 lg:col-span-2">
-        <div className="flex items-center gap-4">
-          {customer.logoUrl ? (
-            <Image
-              src={customer.logoUrl}
-              width={56}
-              height={56}
-              alt=""
-              className="rounded-xl"
-            />
-          ) : (
-            <span className="flex size-14 items-center justify-center rounded-xl bg-muted text-lg font-semibold text-muted-foreground">
-              {initials(customer.name, null)}
-            </span>
-          )}
-          <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {customer.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {t("Customer since {date}", {
-                date: format.dateTime(new Date(customer.createdAt), {
-                  dateStyle: "long",
-                }),
-              })}
-            </p>
-          </div>
-          <CustomerStatus status={customer.status} />
-        </div>
-
-        {can(permissions, "reactions.read") ? (
-          <ReactionsBar
-            customerId={customerId}
-            canReact={can(permissions, "reactions.create")}
+    <RecordDetailFrame
+      leading={
+        customer.logoUrl ? (
+          <Image
+            src={customer.logoUrl}
+            width={56}
+            height={56}
+            alt=""
+            className="rounded-xl"
           />
-        ) : null}
+        ) : (
+          <span className="flex size-14 items-center justify-center rounded-xl bg-muted text-lg font-semibold text-muted-foreground">
+            {initials(customer.name, null)}
+          </span>
+        )
+      }
+      title={customer.name}
+      description={t("Customer since {date}", {
+        date: format.dateTime(new Date(customer.createdAt), {
+          dateStyle: "long",
+        }),
+      })}
+      status={<CustomerStatus status={customer.status} />}
+      aside={
+        <>
+          <Suspense fallback={<CustomerTimelineSkeleton />}>
+            <AfterNavigation>
+              <TimelineSection customerId={customerId} authors={authors} />
+            </AfterNavigation>
+          </Suspense>
+          {can(permissions, "sla.read") ? (
+            <Suspense fallback={<SlaBadgesSkeleton />}>
+              <AfterNavigation>
+                <SlaSection
+                  customerId={customerId}
+                  canCreatePolicy={can(permissions, "sla.manage")}
+                />
+              </AfterNavigation>
+            </Suspense>
+          ) : null}
+          {can(permissions, "share_links.read") ? (
+            <Suspense fallback={<ShareLinkDialogSkeleton />}>
+              <AfterNavigation>
+                <ShareLinksSection
+                  customerId={customerId}
+                  canCreate={can(permissions, "share_links.create")}
+                />
+              </AfterNavigation>
+            </Suspense>
+          ) : null}
+          {teams ? (
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>{t("Owner team")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <OwnerTeamSelect
+                  customerId={customer.id}
+                  ownerTeamId={customer.ownerTeamId}
+                  teams={teams
+                    .filter(
+                      (team) =>
+                        team.status === "active" ||
+                        team.id === customer.ownerTeamId,
+                    )
+                    .map((team) => ({ id: team.id, name: team.name }))}
+                  disabled={!can(permissions, "customers.write")}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+          <Card size="sm" data-recipe="tag-input">
+            <CardHeader>
+              <CardTitle>{t("Tags")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TagInput subject={{ type: "customer", id: customer.id }} />
+            </CardContent>
+          </Card>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>{t("Recent notes")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {customer.notes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t("No notes yet.")}
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {customer.notes.map((note) => (
+                    <li
+                      key={note.id}
+                      className="flex flex-col items-start gap-1 text-sm"
+                    >
+                      <p>{note.body}</p>
+                      <Badge variant="outline">{note.kind}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+          {can(permissions, "customers.write") ? (
+            <Card size="sm">
+              <CardContent>
+                <CustomerLogoForm customerId={customer.id} />
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
+      }
+    >
+      {can(permissions, "reactions.read") ? (
+        <ReactionsBar
+          customerId={customerId}
+          canReact={can(permissions, "reactions.create")}
+        />
+      ) : null}
 
-        <Card id="comments" data-recipe="comment-thread">
-          <CardHeader>
-            <CardTitle>{t("Comments")}</CardTitle>
-            <CardDescription>
-              {t("Visible to everyone in the organization.")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CommentThread
-              subject={{ type: "customer", id: customer.id }}
-              authors={authors}
-              canComment={can(permissions, "messages.send")}
-            />
-          </CardContent>
-        </Card>
+      <Card id="comments" data-recipe="comment-thread">
+        <CardHeader>
+          <CardTitle>{t("Comments")}</CardTitle>
+          <CardDescription>
+            {t("Visible to everyone in the organization.")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CommentThread
+            subject={{ type: "customer", id: customer.id }}
+            authors={authors}
+            canComment={can(permissions, "messages.send")}
+          />
+        </CardContent>
+      </Card>
 
-        {can(permissions, "attachments.read") ? (
-          <Suspense fallback={<AttachmentsUploaderSkeleton />}>
+      {can(permissions, "attachments.read") ? (
+        <Suspense fallback={<AttachmentsUploaderSkeleton />}>
+          <AfterNavigation>
             <AttachmentsSection
               customerId={customerId}
               canUpload={can(permissions, "attachments.upload")}
               canRemove={can(permissions, "attachments.manage")}
             />
-          </Suspense>
-        ) : null}
-        {can(permissions, "relations.read") ? (
-          <Suspense fallback={<RelatedItemsPanelSkeleton />}>
+          </AfterNavigation>
+        </Suspense>
+      ) : null}
+      {can(permissions, "relations.read") ? (
+        <Suspense fallback={<RelatedItemsPanelSkeleton />}>
+          <AfterNavigation>
             <RelationsSection
               customerId={customerId}
               canManage={can(permissions, "relations.manage")}
             />
-          </Suspense>
-        ) : null}
-        {can(permissions, "versions.read") ? (
-          <Suspense fallback={<VersionHistorySkeleton />}>
+          </AfterNavigation>
+        </Suspense>
+      ) : null}
+      {can(permissions, "versions.read") ? (
+        <Suspense fallback={<VersionHistorySkeleton />}>
+          <AfterNavigation>
             <VersionsSection
               customerId={customerId}
               canSave={can(permissions, "versions.create")}
@@ -293,92 +369,10 @@ export async function CustomerDetail({ id }: { id: string }) {
                 can(permissions, "customers.write")
               }
             />
-          </Suspense>
-        ) : null}
-      </div>
-
-      <div className="flex flex-col gap-6">
-        <Suspense fallback={<CustomerTimelineSkeleton />}>
-          <TimelineSection customerId={customerId} authors={authors} />
+          </AfterNavigation>
         </Suspense>
-        {can(permissions, "sla.read") ? (
-          <Suspense fallback={<SlaBadgesSkeleton />}>
-            <SlaSection
-              customerId={customerId}
-              canCreatePolicy={can(permissions, "sla.manage")}
-            />
-          </Suspense>
-        ) : null}
-        {can(permissions, "share_links.read") ? (
-          <Suspense fallback={<ShareLinkDialogSkeleton />}>
-            <ShareLinksSection
-              customerId={customerId}
-              canCreate={can(permissions, "share_links.create")}
-            />
-          </Suspense>
-        ) : null}
-        {teams ? (
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle>{t("Owner team")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <OwnerTeamSelect
-                customerId={customer.id}
-                ownerTeamId={customer.ownerTeamId}
-                teams={teams
-                  .filter(
-                    (team) =>
-                      team.status === "active" ||
-                      team.id === customer.ownerTeamId,
-                  )
-                  .map((team) => ({ id: team.id, name: team.name }))}
-                disabled={!can(permissions, "customers.write")}
-              />
-            </CardContent>
-          </Card>
-        ) : null}
-        <Card size="sm" data-recipe="tag-input">
-          <CardHeader>
-            <CardTitle>{t("Tags")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TagInput subject={{ type: "customer", id: customer.id }} />
-          </CardContent>
-        </Card>
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>{t("Recent notes")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {customer.notes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("No notes yet.")}
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {customer.notes.map((note) => (
-                  <li
-                    key={note.id}
-                    className="flex flex-col items-start gap-1 text-sm"
-                  >
-                    <p>{note.body}</p>
-                    <Badge variant="outline">{note.kind}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-        {can(permissions, "customers.write") ? (
-          <Card size="sm">
-            <CardContent>
-              <CustomerLogoForm customerId={customer.id} />
-            </CardContent>
-          </Card>
-        ) : null}
-      </div>
-    </div>
+      ) : null}
+    </RecordDetailFrame>
   );
 }
 

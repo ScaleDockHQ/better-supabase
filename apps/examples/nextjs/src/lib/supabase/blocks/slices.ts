@@ -56,6 +56,12 @@ export const serviceConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `people` instance's config slice. */
+export const peopleConfig = {
+  schema: "better_supabase",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `recruiting` instance's config slice. */
 export const recruitingConfig = {
   schema: "better_supabase",
@@ -149,8 +155,22 @@ export const aiChatConfig = {
   },
 } as const satisfies GeneratedBlock;
 
+/** The `ai-evals` instance's config slice. */
+export const aiEvalsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `ai-files` instance's config slice. */
 export const aiFilesConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `ai-guardrails` instance's config slice. */
+export const aiGuardrailsConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},
@@ -252,6 +272,13 @@ export const catalogConfig = {
   },
 } as const satisfies GeneratedBlock;
 
+/** The `collections` instance's config slice. */
+export const collectionsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `comments` instance's config slice. */
 export const commentsConfig = {
   schema: "better_supabase",
@@ -301,9 +328,31 @@ export const documentsConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `domains` instance's config slice. */
+export const domainsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `reviews` instance's config slice. */
+export const reviewsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `leave` instance's config slice. */
+export const leaveConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `ledger` instance's config slice. */
 export const ledgerConfig = {
   schema: "better_supabase",
+  api: "api",
   options: {},
 } as const satisfies GeneratedBlock;
 
@@ -529,6 +578,13 @@ export const warehouseConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `warranty` instance's config slice. */
+export const warrantyConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `rfqs` instance's config slice. */
 export const rfqsConfig = {
   schema: "better_supabase",
@@ -566,6 +622,13 @@ export const commissionsConfig = {
 
 /** The `referrals` instance's config slice. */
 export const referralsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `agent-checkout` instance's config slice. */
+export const agentCheckoutConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},
@@ -761,6 +824,20 @@ export const invoicesConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `idempotency` instance's config slice. */
+export const idempotencyConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `prompts` instance's config slice. */
+export const promptsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `queue` instance's config slice. */
 export const queueConfig = {
   schema: "better_supabase",
@@ -770,6 +847,13 @@ export const queueConfig = {
 /** The `rate-limit` instance's config slice. */
 export const rateLimitConfig = {
   schema: "better_supabase",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `webhook-inbox` instance's config slice. */
+export const webhookInboxConfig = {
+  schema: "better_supabase",
+  api: "api",
   options: {},
 } as const satisfies GeneratedBlock;
 
@@ -916,6 +1000,13 @@ export const contactsConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `option-sets` instance's config slice. */
+export const optionSetsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `pipelines` instance's config slice. */
 export const pipelinesConfig = {
   schema: "better_supabase",
@@ -993,6 +1084,13 @@ export const remindersConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
+/** The `reserved-slugs` instance's config slice. */
+export const reservedSlugsConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
 /** The `automations` instance's config slice. */
 export const automationsConfig = {
   schema: "better_supabase",
@@ -1037,6 +1135,13 @@ export const settingsConfig = {
 
 /** The `share-links` instance's config slice. */
 export const shareLinksConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
+} as const satisfies GeneratedBlock;
+
+/** The `security-events` instance's config slice. */
+export const securityEventsConfig = {
   schema: "better_supabase",
   api: "api",
   options: {},
@@ -1178,6 +1283,13 @@ export const waitlistConfig = {
   options: {
     codeField: "invite_code",
   },
+} as const satisfies GeneratedBlock;
+
+/** The `incoming-webhooks` instance's config slice. */
+export const incomingWebhooksConfig = {
+  schema: "better_supabase",
+  api: "api",
+  options: {},
 } as const satisfies GeneratedBlock;
 
 /** The `webhooks` instance's config slice. */

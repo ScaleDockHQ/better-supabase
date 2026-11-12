@@ -123,6 +123,32 @@ export function NotesSkeleton() { return null; }`,
     ).toEqual([]);
   });
 
+  it("asks an app page for instant or a reason", () => {
+    const path = "app/[locale]/(app)/notes/page.tsx";
+    const page = "export default function Page() { return null; }";
+
+    expect(rules({ [path]: page })).toEqual(["instant-export"]);
+
+    expect(rules({ [path]: `export const instant = true;\n${page}` })).toEqual(
+      [],
+    );
+
+    expect(
+      rules({
+        [path]: `// instant: the page reads the cookie on every request.\n${page}`,
+      }),
+    ).toEqual([]);
+  });
+
+  it("accepts the shell and prefetch render stages only", () => {
+    expect(
+      rules({
+        "app/[locale]/(app)/notes/page.tsx":
+          'export const ensureStatic = "everything";\nexport const instant = true;\nexport default function Page() { return null; }',
+      }),
+    ).toEqual(["ensure-static-value"]);
+  });
+
   it("checks a pending root as soon as it exists and fails on a missing root", () => {
     const root = project({
       "scripts/app-architecture-allow.json": JSON.stringify({

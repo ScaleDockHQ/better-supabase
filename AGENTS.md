@@ -565,6 +565,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0681: Check each conversation once and read messages by key.
 - 0682: Read invoice approvals and approval requests in batches.
 - 0683: Raise the server baselines after the 0.58 issue fixes.
+- 0684: Raise the next-build baselines after the product-area navigation and the list kit.
+- 0685: Record the example scale verdicts and reset the baselines.
 
 ## Pre-release pins
 

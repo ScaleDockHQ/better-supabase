@@ -40,7 +40,7 @@ export async function settle<T>(
 export type ContactKind = "company" | "person";
 
 /** The records an activity timeline shows: a contact, or a care client. */
-export type TimelineSubjectType = ContactKind | "customer";
+export type TimelineSubjectType = ContactKind | "customer" | "deal";
 
 export interface ContactSummary {
   readonly id: string;
@@ -81,8 +81,19 @@ export async function loadContacts(): Promise<
   readonly ContactSummary[] | null
 > {
   "use cache: private";
-  const { session, db } = await bsb.cached();
+  const cached = await bsb.cached();
   cacheTag(CRM_TAG, CUSTOMERS_TAG);
+
+  return readContacts(cached);
+}
+
+/** The same read for a function that already runs in a private scope. */
+export async function readContacts({
+  session,
+  db,
+}: Awaited<ReturnType<typeof bsb.cached>>): Promise<
+  readonly ContactSummary[] | null
+> {
   const tenant = tenantOf(session);
 
   if (!tenant) {

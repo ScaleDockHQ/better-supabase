@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:9b9e4ce731a43e589ebb67e51283c6d73572dc04a02acb105b9c998233af2fbe
+-- @bsb-hash sha256:1df25f9c22ec74e1054ba09621caca89e2fe4a0c0e60cda95cca38c02df71509
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -178,6 +178,9 @@ as $$
     when 'activities.read' then 'activities.read'
     when 'activities.readRestricted' then 'activities.read_restricted'
     when 'activities.write' then 'activities.write'
+    when 'agent-checkout.manage' then 'agent_checkout.manage'
+    when 'agent-checkout.read' then 'agent_checkout.read'
+    when 'agent-checkout.write' then 'agent_checkout.write'
     when 'agents.create' then 'agents.write'
     when 'agents.moderate' then 'agents.moderate'
     when 'agents.publish' then 'agents.publish'
@@ -250,6 +253,9 @@ as $$
     when 'clinical-decision-support.manage' then 'clinical_decision_support.manage'
     when 'clinical-decision-support.read' then 'clinical_decision_support.read'
     when 'clinical-decision-support.write' then 'clinical_decision_support.write'
+    when 'collections.read' then 'collections.read'
+    when 'collections.share' then 'collections.share'
+    when 'collections.write' then 'collections.write'
     when 'comments.create' then 'messages.send'
     when 'comments.moderate' then 'messages.moderate'
     when 'comments.read' then 'messages.read'
@@ -301,6 +307,8 @@ as $$
     when 'documents.read' then 'documents.read'
     when 'documents.suggest' then 'documents.suggest'
     when 'documents.write' then 'documents.write'
+    when 'domains.manage' then 'domains.manage'
+    when 'domains.read' then 'domains.read'
     when 'donations.manage' then 'donations.manage'
     when 'donations.read' then 'donations.read'
     when 'drive.create' then 'drive.create'
@@ -376,6 +384,10 @@ as $$
     when 'leases.maintain' then 'leases.maintain'
     when 'leases.manage' then 'leases.manage'
     when 'leases.read' then 'leases.read'
+    when 'leave.approve' then 'leave.approve'
+    when 'leave.manage' then 'leave.manage'
+    when 'leave.read' then 'leave.read'
+    when 'leave.request' then 'leave.request'
     when 'ledger.manage' then 'ledger.manage'
     when 'ledger.post' then 'ledger.post'
     when 'ledger.read' then 'ledger.read'
@@ -421,6 +433,8 @@ as $$
     when 'observations.record' then 'observations.record'
     when 'onboarding.complete' then 'onboarding.complete'
     when 'onboarding.read' then 'onboarding.read'
+    when 'option-sets.manage' then 'option_sets.manage'
+    when 'option-sets.read' then 'option_sets.read'
     when 'orders.manage' then 'orders.manage'
     when 'orders.overrideCredit' then 'orders.override_credit'
     when 'orders.prepare' then 'orders.prepare'
@@ -466,6 +480,7 @@ as $$
     when 'relations.read' then 'relations.read'
     when 'reminders.manage' then 'reminders.manage'
     when 'reminders.read' then 'reminders.read'
+    when 'reviews.manage' then 'reviews.manage'
     when 'rfqs.manage' then 'rfqs.manage'
     when 'rfqs.read' then 'rfqs.read'
     when 'rfqs.write' then 'rfqs.write'
@@ -540,6 +555,13 @@ as $$
     when 'warehouse.manage' then 'warehouse.manage'
     when 'warehouse.pick' then 'warehouse.pick'
     when 'warehouse.read' then 'warehouse.read'
+    when 'warranty.decide' then 'warranty.decide'
+    when 'warranty.read' then 'warranty.read'
+    when 'warranty.write' then 'warranty.write'
+    when 'webhooks-in.create' then 'webhooks.manage'
+    when 'webhooks-in.delete' then 'webhooks.manage'
+    when 'webhooks-in.read' then 'webhooks.read'
+    when 'webhooks-in.update' then 'webhooks.manage'
     when 'webhooks-out.manage' then 'webhooks.manage'
     when 'webhooks-out.read' then 'webhooks.read'
     when 'workflow-editor.manage' then 'workflow_editor.manage'

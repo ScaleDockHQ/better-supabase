@@ -1,6 +1,6 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:665ac4f12703107cdf4d741ad7ada9895a265e70222dc66748ec9efaa6e92016
+-- @bsb-hash sha256:7b7865e6545f0e5b16d96352567d325032bc8265665deb938f2cc8636b6b4abd
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -850,6 +850,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."expense_lines" as re
 create policy bsb_tenant_scope_delete on "better_supabase"."expense_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_expense_report_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."expense_reports"
+  for each row execute function "better_supabase"."search_index_row"('expense_report', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.expense_reports deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"expense_report","event_prefix":"expense_report"}');

@@ -97,7 +97,16 @@ export async function ContactDetail({ id }: { id: string }) {
           </CardContent>
         </Card>
         <Suspense fallback={<ActivityTimelineSkeleton />}>
-          <ActivityTimeline subject={{ type: contact.kind, id: contact.id }} />
+          <AfterNavigation>
+            <ActivityTimeline
+              subject={{ type: contact.kind, id: contact.id }}
+            />
+          </AfterNavigation>
+        </Suspense>
+        <Suspense fallback={<ContactSalesPanelSkeleton />}>
+          <AfterNavigation>
+            <ContactSalesPanel type={contact.kind} id={contact.id} />
+          </AfterNavigation>
         </Suspense>
       </div>
       {contact.kind === "company" ? (

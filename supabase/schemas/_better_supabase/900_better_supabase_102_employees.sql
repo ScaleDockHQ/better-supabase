@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:69f4cc8362b5719feb963019dc27a0a274ccc85ca19d7e84ab9b62e2fc8b095a
+-- @bsb-hash sha256:0f92f1e9b753b1e25cb14cbebe8971d729bdfec0f41e78e5a36ed80cb011de4a
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -624,8 +624,8 @@ begin
       when 'quote' then (select s."title"::text from "better_supabase"."quotes" s where s."id" = (v_application."candidate_id")::uuid)
       when 'work_item' then (select s."title"::text from "better_supabase"."work_items" s where s."id" = (v_application."candidate_id")::uuid)
       when 'employee' then (select s."name"::text from "better_supabase"."employees" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'invoice' then (select s."title"::text from "better_supabase"."invoices" s where s."id" = (v_application."candidate_id")::uuid)
       when 'ledger_account' then (select s."name"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'invoice' then (select s."title"::text from "better_supabase"."invoices" s where s."id" = (v_application."candidate_id")::uuid)
       when 'product' then (select s."title"::text from "better_supabase"."products" s where s."id" = (v_application."candidate_id")::uuid)
       when 'product_variant' then (select s."sku"::text from "better_supabase"."product_variants" s where s."id" = (v_application."candidate_id")::uuid)
       when 'rfq' then (select s."title"::text from "better_supabase"."rfqs" s where s."id" = (v_application."candidate_id")::uuid)
@@ -639,6 +639,7 @@ begin
       when 'expense_report' then (select s."title"::text from "better_supabase"."expense_reports" s where s."id" = (v_application."candidate_id")::uuid)
       when 'expense_line' then (select s."description"::text from "better_supabase"."expense_lines" s where s."id" = (v_application."candidate_id")::uuid)
       when 'donation_fund' then (select s."name"::text from "better_supabase"."donation_funds" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'warranty_claim' then (select s."title"::text from "better_supabase"."warranty_claims" s where s."id" = (v_application."candidate_id")::uuid)
       when 'work_order' then (select s."title"::text from "better_supabase"."work_orders" s where s."id" = (v_application."candidate_id")::uuid)
       when 'shipment' then (select s."reference"::text from "better_supabase"."shipments" s where s."id" = (v_application."candidate_id")::uuid)
       when 'contract' then (select s."title"::text from "better_supabase"."contracts" s where s."id" = (v_application."candidate_id")::uuid)

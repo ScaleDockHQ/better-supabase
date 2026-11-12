@@ -1,66 +1,17 @@
-import { MessageSquareIcon } from "lucide-react";
-import { getExtracted, getFormatter } from "next-intl/server";
+import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
 
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from "@/i18n/navigation";
+import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 
-import { getChats } from "../assistant-queries";
+import { getChatPage } from "../assistant-queries";
+import { ChatTable } from "./chat-table";
 
-/** Render inside `<Suspense>`. */
-export async function ChatList() {
-  const [chats, t, format] = await Promise.all([
-    getChats(),
-    getExtracted("assistant"),
-    getFormatter(),
-  ]);
+/** Render inside `<Suspense>`: the filtered page of chats for the URL's state. */
+export async function ChatList({ query }: { query: Promise<OpsListQuery> }) {
+  const page = await getChatPage(await query);
 
-  if (chats.length === 0) {
-    return (
-      <Empty className="border">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <MessageSquareIcon />
-          </EmptyMedia>
-          <EmptyTitle>{t("No chats yet")}</EmptyTitle>
-          <EmptyDescription>
-            {t("Your chats show up here after the first answer.")}
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
-  }
-
-  return (
-    <ul className="divide-y rounded-xl border">
-      {chats.map((chat) => (
-        <li key={chat.id}>
-          <Link
-            href={`/assistant/${chat.id}`}
-            className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted"
-          >
-            <span className="flex-1 truncate">
-              {chat.title === "" ? t("Untitled chat") : chat.title}
-            </span>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {format.dateTime(new Date(chat.lastMessageAt), {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
-            </span>
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
+  return <ChatTable items={page.items} nextCursor={page.nextCursor} />;
 }
 
 export function ChatListSkeleton() {
-  return <Skeleton className="h-32 w-full rounded-xl" />;
+  return <RecordListSkeleton rows={5} />;
 }

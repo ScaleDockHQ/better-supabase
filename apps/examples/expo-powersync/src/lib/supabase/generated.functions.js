@@ -155,5 +155,13 @@ export default {
     "returns": "void",
     "returnsSet": false,
     "volatility": "volatile"
+  },
+  "work_bulk_state": {
+    "name": "work_bulk_state",
+    "schema": "public",
+    "args": [{"name":"args","type":"jsonb"},{"name":"subject_id","type":"text"},{"name":"subject_type","type":"text"},{"name":"tenant","type":"uuid"}],
+    "returns": "void",
+    "returnsSet": false,
+    "volatility": "volatile"
   }
 };

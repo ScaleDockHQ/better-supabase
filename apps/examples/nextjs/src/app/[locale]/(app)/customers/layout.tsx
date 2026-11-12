@@ -9,7 +9,13 @@ export default function CustomersLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "customers", "subjects"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "customers",
+        "recordDetail",
+        "recordList",
+        "subjects",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

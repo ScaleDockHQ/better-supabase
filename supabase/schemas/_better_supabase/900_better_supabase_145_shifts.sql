@@ -1,6 +1,6 @@
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:b262f9aafd956dfbe20d6c0723918d953938ac9b0ef34c524a64a4ea6d5bf904
+-- @bsb-hash sha256:3348b5a5c76af16066bd12f3ddfa0943e9c95f33f6a1b0ec846b57ec0f30a9b4
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -672,6 +672,16 @@ begin
       and tstzrange(x."starts_at", x."ends_at") && tstzrange(v_shift."starts_at", v_shift."ends_at")
   ) then
     raise exception 'the member has another shift at that time' using errcode = '23P01', hint = 'SHIFT_ASSIGNMENT_OVERLAP';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."leave_requests" r
+    where r."tenant_id" = v_shift."tenant_id"
+      and (r."user_id" = shift_assignment_check.user_id or exists (select 1 from "better_supabase"."employees" e where e."id" = r."employee_id" and e."user_id" = shift_assignment_check.user_id))
+      and r."approved_at" is not null and r."cancelled_at" is null
+      and r."starts_on" <= ((v_shift."ends_at" - interval '1 microsecond') at time zone 'UTC')::date
+      and r."ends_on" >= (v_shift."starts_at" at time zone 'UTC')::date
+  ) then
+    raise exception 'the member has approved leave on the shift''s day' using errcode = '23P01', hint = 'SHIFT_ASSIGNMENT_ON_LEAVE';
   end if;
   foreach v_key in array v_shift."required_qualifications" loop
     if not coalesce("better_supabase"."qualified_holders"(v_shift."tenant_id", v_key, 'member', (v_shift."starts_at" at time zone 'UTC')::date) ? shift_assignment_check.user_id::text, false) then

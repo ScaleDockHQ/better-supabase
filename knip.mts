@@ -113,6 +113,16 @@ const config: KnipConfig = {
         "src/lib/supabase/blocks.api.ts",
         // Copied from the registry, which knip checks as entries.
         "src/hooks/use-*.ts",
+        // The shadcn code block's highlighter; the block is not on a page yet.
+        "src/lib/highlighter.tsx",
+      ],
+      // The shadcn CLI installed these for the parts under components/ui, which
+      // knip skips, and for the chat tests. Phases 1 to 4 of the example plan
+      // import them; drop an entry when a page imports its part.
+      ignoreDependencies: [
+        ...browserExample.ignoreDependencies,
+        "react-day-picker",
+        "shiki",
       ],
       // The browser loads the service worker by URL. `tsc` checks the type tests,
       // which the vitest config's `include` leaves out.
@@ -126,7 +136,10 @@ const config: KnipConfig = {
         "src/features/composites/composites-actions.ts",
         // The docs recipes read these files; the pages use the server-rendered versions.
         "src/features/audit/components/audit-log-table.tsx",
+        "src/features/shop/components/inventory-table.tsx",
         "src/features/notifications/components/notification-list.tsx",
+        "src/features/workflows/builder/components/workflow-canvas.tsx",
+        "src/features/workflows/components/workflow-runs.tsx",
         // The usage billing action is the example the usage docs link to.
         "src/features/billing/billing-actions.ts",
       ],
