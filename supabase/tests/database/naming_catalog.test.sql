@@ -52,9 +52,12 @@ select extensions.is(
     from information_schema.columns
     where table_schema = 'better_supabase' and data_type = 'timestamp with time zone'
       and column_name !~ '_at$'
-      and column_name <> 'dtstart'),
+      and column_name <> 'dtstart'
+      -- Vercel's billing API names the period of an invoice and a meter report.
+      and not (table_name in ('marketplace_invoices', 'marketplace_meter_reports')
+        and column_name in ('period_start', 'period_end'))),
   '',
-  'timestamp columns end in _at (dtstart stays: RFC 5545 names it)'
+  'timestamp columns end in _at (dtstart stays: RFC 5545 names it; so do the marketplace periods)'
 );
 
 select extensions.is(
@@ -70,7 +73,10 @@ select extensions.is(
     from information_schema.columns
     where table_schema = 'better_supabase'
       and (column_name ~ '_user_id$' or column_name = 'deleted_at')
-      and column_name <> 'scim_user_id'),
+      and column_name <> 'scim_user_id'
+      -- The member a support session acts as; the block's public functions name it too.
+      and not (table_name in ('support_requests', 'support_sessions')
+        and column_name = 'target_user_id')),
   '',
   'user references are <role>_id (scim_user_id references scim_users) and soft delete is archived_at'
 );

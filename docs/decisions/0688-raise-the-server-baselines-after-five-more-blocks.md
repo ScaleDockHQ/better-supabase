@@ -1,4 +1,4 @@
-# 0686: Raise the server baselines after five more blocks and the Phase 10 pages
+# 0688: Raise the server baselines after five more blocks and the Phase 10 pages
 
 - Status: accepted
 - Date: 2026-11-12
