@@ -28312,3 +28312,603 @@ msgctxt "navigation.Rm3xgH"
 msgid "Workflow builder"
 msgstr "Workflow builder"
 
+#: src/app/[locale]/(app)/shop/inventory/[variantId]/page.tsx
+msgctxt "inventory.YhnZUz"
+msgid "All stock levels"
+msgstr "All stock levels"
+
+#: src/app/[locale]/(app)/shop/inventory/lots/page.tsx
+#: src/features/inventory/components/inventory-sections.tsx
+msgctxt "inventory.IryjU2"
+msgid "Lots"
+msgstr "Lots"
+
+#: src/app/[locale]/(app)/shop/inventory/lots/page.tsx
+msgctxt "inventory.4F1_cU"
+msgid "Lots with stock and an expiry date, so nothing expires on the shelf."
+msgstr "Lots with stock and an expiry date, so nothing expires on the shelf."
+
+#: src/app/[locale]/(app)/shop/inventory/movements/page.tsx
+msgctxt "inventory.9uPMgw"
+msgid "Stock movements"
+msgstr "Stock movements"
+
+#: src/app/[locale]/(app)/shop/inventory/movements/page.tsx
+msgctxt "inventory.sE8jaM"
+msgid "Every receipt, adjustment, sale and count the ledger wrote, newest first."
+msgstr "Every receipt, adjustment, sale and count the ledger wrote, newest first."
+
+#: src/app/[locale]/(app)/shop/inventory/page.tsx
+msgctxt "inventory.MlzEfB"
+msgid "Inventory"
+msgstr "Inventory"
+
+#: src/app/[locale]/(app)/shop/inventory/page.tsx
+msgctxt "inventory.bGWSFm"
+msgid "Stock per product and location, from the ledger of every movement."
+msgstr "Stock per product and location, from the ledger of every movement."
+
+#: src/features/inventory/components/inventory-load-error.tsx
+msgctxt "inventory.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/inventory/components/inventory-load-error.tsx
+msgctxt "inventory.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/inventory/components/inventory-sections.tsx
+msgctxt "inventory.a2X9Je"
+msgid "Stock levels"
+msgstr "Stock levels"
+
+#: src/features/inventory/components/inventory-sections.tsx
+msgctxt "inventory.e97z21"
+msgid "Movements"
+msgstr "Movements"
+
+#: src/features/inventory/components/inventory-sections.tsx
+msgctxt "inventory.CBdAfy"
+msgid "Stock ledger"
+msgstr "Stock ledger"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.ED7X19"
+msgid "In stock"
+msgstr "In stock"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.477I0g"
+msgid "Low"
+msgstr "Low"
+
+#: src/features/inventory/components/inventory-status.tsx
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.WHgdsk"
+msgid "Out of stock"
+msgstr "Out of stock"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.RahCRH"
+msgid "Expired"
+msgstr "Expired"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.PgBs94"
+msgid "Expires within 30 days"
+msgstr "Expires within 30 days"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.uQDRsY"
+msgid "Later"
+msgstr "Later"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.D0tozv"
+msgid "Receipt"
+msgstr "Receipt"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.LaLTJR"
+msgid "Adjustment"
+msgstr "Adjustment"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.T807D4"
+msgid "Damage"
+msgstr "Damage"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.mv038n"
+msgid "Loss"
+msgstr "Loss"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.0WJNP_"
+msgid "Return"
+msgstr "Return"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.RR8OAO"
+msgid "Scrap"
+msgstr "Scrap"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.3rGMFt"
+msgid "Sale"
+msgstr "Sale"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.Aujn2T"
+msgid "Count"
+msgstr "Count"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.DtYelJ"
+msgid "Transfer"
+msgstr "Transfer"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.SR8dvh"
+msgid "Lot"
+msgstr "Lot"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.x_ZVlU"
+msgid "Product"
+msgstr "Product"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-movements-card.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.rvirM2"
+msgid "Location"
+msgstr "Location"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.xhQMeQ"
+msgid "Expires"
+msgstr "Expires"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-detail.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.GRV8gi"
+msgid "On hand"
+msgstr "On hand"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.yqGdpj"
+msgid "Expires soonest"
+msgstr "Expires soonest"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.zGrEF4"
+msgid "Most on hand first"
+msgstr "Most on hand first"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.MZFUVm"
+msgid "Lot code"
+msgstr "Lot code"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.Su-vo5"
+msgid "Search lots"
+msgstr "Search lots"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.-eDgmX"
+msgid "No lots found"
+msgstr "No lots found"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.3mTPYI"
+msgid "Lots with an expiry date and stock show up here."
+msgstr "Lots with an expiry date and stock show up here."
+
+#: src/features/inventory/components/lots-overview.tsx
+msgctxt "inventory.4DE7FG"
+msgid "The lots didn't load"
+msgstr "The lots didn't load"
+
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.McnLsx"
+msgid "When"
+msgstr "When"
+
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.e5x8FT"
+msgid "Kind"
+msgstr "Kind"
+
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.qVGRIE"
+msgid "Quantity"
+msgstr "Quantity"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.MeKajs"
+msgid "Newest first"
+msgstr "Newest first"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.h-T3T7"
+msgid "Oldest first"
+msgstr "Oldest first"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.VNW-cY"
+msgid "Largest change first"
+msgstr "Largest change first"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.p2ZCos"
+msgid "Search movements"
+msgstr "Search movements"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.s7Pc7g"
+msgid "No movements found"
+msgstr "No movements found"
+
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.VuNMpM"
+msgid "Change the search or the filters."
+msgstr "Change the search or the filters."
+
+#: src/features/inventory/components/movements-overview.tsx
+msgctxt "inventory.APC9J5"
+msgid "The movements didn't load"
+msgstr "The movements didn't load"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.zv4bc0"
+msgid "This product's stock didn't load"
+msgstr "This product's stock didn't load"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.CTcv_U"
+msgid "Across locations"
+msgstr "Across locations"
+
+#: src/features/inventory/components/stock-detail.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.PgJGHT"
+msgid "Available"
+msgstr "Available"
+
+#: src/features/inventory/components/stock-detail.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.sI_NFi"
+msgid "Reserved"
+msgstr "Reserved"
+
+#: src/features/inventory/components/stock-detail.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.YDkqMJ"
+msgid "Incoming"
+msgstr "Incoming"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.0Hhe6f"
+msgid "On hold"
+msgstr "On hold"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.UMpyIE"
+msgid "Reorder point"
+msgstr "Reorder point"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.rqozW_"
+msgid "Bin"
+msgstr "Bin"
+
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.vklqAM"
+msgid "Recent movements"
+msgstr "Recent movements"
+
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.f0lfi_"
+msgid "No movement has been written for this product yet."
+msgstr "No movement has been written for this product yet."
+
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.Lv3gtt"
+msgid "All movements"
+msgstr "All movements"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.ZOxjc9"
+msgid "The stock levels didn't load"
+msgstr "The stock levels didn't load"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.01HHM0"
+msgid "No stock locations yet"
+msgstr "No stock locations yet"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.S7BWNW"
+msgid "Stock is counted per location. Add one to start."
+msgstr "Stock is counted per location. Add one to start."
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.XfzXbo"
+msgid "No products to count"
+msgstr "No products to count"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.UymbDq"
+msgid "Products from the catalog show up here with their stock."
+msgstr "Products from the catalog show up here with their stock."
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.vy8loV"
+msgid "Go to the catalog"
+msgstr "Go to the catalog"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.JlUqdz"
+msgid "Units on hand"
+msgstr "Units on hand"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.ssDq7N"
+msgid "Across {count} levels"
+msgstr "Across {count} levels"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.yFORog"
+msgid "At or below reorder point"
+msgstr "At or below reorder point"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.KCVmtO"
+msgid "Levels to order"
+msgstr "Levels to order"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.9u5ip9"
+msgid "Nothing available to sell"
+msgstr "Nothing available to sell"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.g0HT2M"
+msgid "Lots expiring"
+msgstr "Lots expiring"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.gy6vdB"
+msgid "Within 30 days"
+msgstr "Within 30 days"
+
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.fsGL78"
+msgid "Lowest available first"
+msgstr "Lowest available first"
+
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.Ln84pn"
+msgid "Search by product, SKU or location"
+msgstr "Search by product, SKU or location"
+
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.LCSR-I"
+msgid "No stock levels found"
+msgstr "No stock levels found"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.45GExA"
+msgid "The cart didn't load"
+msgstr "The cart didn't load"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.TtTPxt"
+msgid "Your cart is empty"
+msgstr "Your cart is empty"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.WNFKok"
+msgid "Add a product from the store to see it here."
+msgstr "Add a product from the store to see it here."
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.aY3LAB"
+msgid "Browse the store"
+msgstr "Browse the store"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.K_unOm"
+msgid "Your cart"
+msgstr "Your cart"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.jYTYV4"
+msgid "Remove one {title}"
+msgstr "Remove one {title}"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.FFNOD3"
+msgid "Add one {title}"
+msgstr "Add one {title}"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.G_yZLu"
+msgid "Remove"
+msgstr "Remove"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.MJ2jZQ"
+msgid "Total"
+msgstr "Total"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.ocmmus"
+msgid "Sign in to check out"
+msgstr "Sign in to check out"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.6tDn8h"
+msgid "Remove the items that are out of stock to continue."
+msgstr "Remove the items that are out of stock to continue."
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.nEAaZQ"
+msgid "Your cart is kept for 14 days."
+msgstr "Your cart is kept for 14 days."
+
+#: src/features/store/components/store-catalog.tsx
+#: src/features/store/components/store-product.tsx
+msgctxt "store.LABZs2"
+msgid "Ask for a price"
+msgstr "Ask for a price"
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.MVN3kK"
+msgid "Digital"
+msgstr "Digital"
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.zcK3co"
+msgid "The store didn't load"
+msgstr "The store didn't load"
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.U7qOwm"
+msgid "Browse the catalog and keep what you like in your cart."
+msgstr "Browse the catalog and keep what you like in your cart."
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.Q1Uzbb"
+msgid "No products found"
+msgstr "No products found"
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.cwwBFa"
+msgid "Nothing matches the search or the filter."
+msgstr "Nothing matches the search or the filter."
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.x50pJJ"
+msgid "This store has no products yet."
+msgstr "This store has no products yet."
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.Wm1xxD"
+msgid "Clear the search"
+msgstr "Clear the search"
+
+#: src/features/store/components/store-load-error.tsx
+msgctxt "store.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/store/components/store-load-error.tsx
+msgctxt "store.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/store/components/store-nav.tsx
+msgctxt "store.RTOlSm"
+msgid "Store"
+msgstr "Store"
+
+#: src/features/store/components/store-nav.tsx
+msgctxt "store.2tqQFl"
+msgid "Cart"
+msgstr "Cart"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.Zqk2rG"
+msgid "This product didn't load"
+msgstr "This product didn't load"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.7397xA"
+msgid "All products"
+msgstr "All products"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.PUKNv7"
+msgid "By {name}"
+msgstr "By {name}"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.uiPiF8"
+msgid "Choose an option"
+msgstr "Choose an option"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.ADKef8"
+msgid "Add to cart"
+msgstr "Add to cart"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.fwIt1X"
+msgid "Newest"
+msgstr "Newest"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.JMo8uP"
+msgid "Price, low to high"
+msgstr "Price, low to high"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.iDwfBf"
+msgid "Price, high to low"
+msgstr "Price, high to low"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.mIfW5h"
+msgid "Search the store"
+msgstr "Search the store"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.hDI-JM"
+msgid "Sort by"
+msgstr "Sort by"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.NKkVD3"
+msgid "In stock only"
+msgstr "In stock only"
+
+#: src/features/store/components/store-stock-badge.tsx
+msgctxt "store.ED7X19"
+msgid "In stock"
+msgstr "In stock"
+
+#: src/features/store/components/store-stock-badge.tsx
+msgctxt "store.yEht5w"
+msgid "Only a few left"
+msgstr "Only a few left"
+
+#: src/features/store/components/store-stock-badge.tsx
+msgctxt "store.WHgdsk"
+msgid "Out of stock"
+msgstr "Out of stock"
