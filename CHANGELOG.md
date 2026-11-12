@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.65.0 (2026-11-12)
+
+- The hiring block passes its application row to its events, so `blocks.hiring.events.payload` can add row columns to `application.created`, `application.hired`, `application.rejected`, `application.retracted`, `scorecard.submitted` and `interview.scheduled`, and job columns to `job_opening.opened` and `job_opening.closed`. A payload value can also be `{ sql }`, an expression that reads the row as `{row}`, for a value from a joined table such as the job title.
+
 ## 0.64.0 (2026-11-12)
 
 - The search block indexes more record types. The quotes, invoices, orders, requests for quotation, tills, bookings, assets, leases, expenses, shipments, contracts, forms, documents, incidents, care plans, laboratory, maintenance, dispatch and ledger modules now declare a `search` title on their main subject, so `search(q)` finds their records once you run `better-supabase upgrade` and apply the migration. The migration backfills the index with `search_reindex`.

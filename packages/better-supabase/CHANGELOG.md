@@ -1,5 +1,11 @@
 # better-supabase
 
+## 0.65.0
+
+### Minor Changes
+
+- [#891](https://github.com/ScaleDockHQ/better-supabase/pull/891) [`e4d71a9`](https://github.com/ScaleDockHQ/better-supabase/commit/e4d71a96128e615e159c9c4943dcdddd89803e22) Thanks [@mick340](https://github.com/mick340)! - The hiring block passes its application row to its events, so `blocks.hiring.events.payload` can add row columns to `application.created`, `application.hired`, `application.rejected`, `application.retracted`, `scorecard.submitted` and `interview.scheduled`, and job columns to `job_opening.opened` and `job_opening.closed`. A payload value can also be `{ sql }`, an expression that reads the row as `{row}`, for a value from a joined table such as the job title.
+
 ## 0.64.0
 
 ### Minor Changes
