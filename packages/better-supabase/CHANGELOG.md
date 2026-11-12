@@ -1,5 +1,23 @@
 # better-supabase
 
+## 0.64.0
+
+### Minor Changes
+
+- [#856](https://github.com/ScaleDockHQ/better-supabase/pull/856) [`5945c48`](https://github.com/ScaleDockHQ/better-supabase/commit/5945c481437736f4e07eb42c0239f2e5a1d5ec3c) Thanks [@martijn00](https://github.com/martijn00)! - The search block indexes more record types. The quotes, invoices, orders, requests for quotation, tills, bookings, assets, leases, expenses, shipments, contracts, forms, documents, incidents, care plans, laboratory, maintenance, dispatch and ledger modules now declare a `search` title on their main subject, so `search(q)` finds their records once you run `better-supabase upgrade` and apply the migration. The migration backfills the index with `search_reindex`.
+
+### Patch Changes
+
+- [#889](https://github.com/ScaleDockHQ/better-supabase/pull/889) [`d58f3cd`](https://github.com/ScaleDockHQ/better-supabase/commit/d58f3cdbef928ac0b71dcd0273ffae927938cfe3) Thanks [@mick340](https://github.com/mick340)! - Doctor BS213 counts the authorization provider's `idsWith` and `memberIds` helpers as tenant pins, next to `tenant_ids_with` and `member_organization_ids`. A write policy with an `or` still pins the tenant column when each branch pins it or writes a null tenant under a platform check, such as `(org_id in (select ids_organization('notes.create'))) or (org_id is null and (select is_platform('platform.notes.manage')))`. A column every insert policy pins to the caller, `created_by = (select auth.uid())`, no longer counts on insert.
+
+- [#843](https://github.com/ScaleDockHQ/better-supabase/pull/843) [`2014aa8`](https://github.com/ScaleDockHQ/better-supabase/commit/2014aa85a1897d32206e5ac5e067de4c8740a6a6) Thanks [@martijn00](https://github.com/martijn00)! - The `inbox-threads` recipe shows the conversation queue of the example app: search and status, assignee and channel filters in the URL, rows that link to `/inbox/<id>`, and a queue that reloads over Realtime.
+
+- [#871](https://github.com/ScaleDockHQ/better-supabase/pull/871) [`1be929d`](https://github.com/ScaleDockHQ/better-supabase/commit/1be929ddd06641ba926d24c68ecaf1f9c236bc5b) Thanks [@martijn00](https://github.com/martijn00)! - `doctor` no longer reports BS610 when a `"use cache: private"` function calls a method that has the name of another private function, such as `db.tills.getSession(id)` next to a `getSession` helper.
+
+- [#842](https://github.com/ScaleDockHQ/better-supabase/pull/842) [`4229f22`](https://github.com/ScaleDockHQ/better-supabase/commit/4229f22395b5ec65f6e47a2569f7d6206e0a798b) Thanks [@martijn00](https://github.com/martijn00)! - Fix `db.$search` (and `$many`, `$stats`) going missing on the server when a module that only defines a list query loads the lean client runtime after the full one. A lean install no longer replaces an installed full runtime, so `db.$search is not a function` no longer fails pages that mix `better-supabase/list` over the client app with a server `db`.
+
+- [#847](https://github.com/ScaleDockHQ/better-supabase/pull/847) [`887ad3e`](https://github.com/ScaleDockHQ/better-supabase/commit/887ad3ee0f457be94be4785e917275acb30a4dd2) Thanks [@martijn00](https://github.com/martijn00)! - Fix `useRecordListState` dropping the facets of a list. nuqs keeps each facet under its own URL key (`status=active`), but the hook passed that flat state to `toSearchParams`, which reads facets from `facets`, so `searchParams` and `query` never carried a facet and a list route called with them returned every row. The hook now moves the facet keys under `facets` using the list's `facets`, so `list.set({ status: ["active"] })` reaches both the URL and the query.
+
 ## 0.63.2
 
 ### Patch Changes
