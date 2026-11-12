@@ -13,7 +13,7 @@ database.
 
 ## Decision
 
-The history is reset to seven migrations:
+The history is reset to eight migrations:
 
 1. `better-supabase sql sync` writes the extensions.
 2. `supabase db squash` writes the baseline of `supabase/schemas` (13 MB).

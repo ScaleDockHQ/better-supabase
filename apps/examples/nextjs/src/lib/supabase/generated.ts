@@ -128,27 +128,27 @@ export type Models = {
       organizationId: string;
       email: string;
       fullName: string | null;
+      emailDomain: string | null;
       createdAt: string;
       updatedAt: string;
-      emailDomain: string | null;
     };
     Insert: {
       id?: string;
       organizationId: string;
       email: string;
       fullName?: string | null;
+      emailDomain?: never;
       createdAt?: string;
       updatedAt?: string;
-      emailDomain?: never;
     };
     Update: {
       id?: string;
       organizationId?: string;
       email?: string;
       fullName?: string | null;
+      emailDomain?: never;
       createdAt?: string;
       updatedAt?: string;
-      emailDomain?: never;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -212,8 +212,8 @@ export type Models = {
       createdAt: string;
       updatedAt: string;
       logoPath: StoragePath<"customer-logos"> | null;
-      createdBy: string | null;
       ownerTeamId: string | null;
+      createdBy: string | null;
     };
     Insert: {
       id?: string;
@@ -228,8 +228,8 @@ export type Models = {
       createdAt?: string;
       updatedAt?: string;
       logoPath?: StoragePath<"customer-logos"> | null;
-      createdBy?: string | null;
       ownerTeamId?: string | null;
+      createdBy?: string | null;
     };
     Update: {
       id?: string;
@@ -244,8 +244,8 @@ export type Models = {
       createdAt?: string;
       updatedAt?: string;
       logoPath?: StoragePath<"customer-logos"> | null;
-      createdBy?: string | null;
       ownerTeamId?: string | null;
+      createdBy?: string | null;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
@@ -373,34 +373,34 @@ export type Models = {
       id: bigint;
       organizationId: string;
       customerId: string;
+      kind: "call" | "meeting" | "email";
       body: string;
       attachments: Json | null;
       createdAt: string;
       updatedAt: string;
       embedding: string | null;
-      kind: "call" | "meeting" | "email";
     };
     Insert: {
       id?: never;
       organizationId: string;
       customerId: string;
+      kind?: "call" | "meeting" | "email";
       body: string;
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
       embedding?: string | null;
-      kind?: "call" | "meeting" | "email";
     };
     Update: {
       id?: never;
       organizationId?: string;
       customerId?: string;
+      kind?: "call" | "meeting" | "email";
       body?: string;
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
       embedding?: string | null;
-      kind?: "call" | "meeting" | "email";
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };
@@ -420,25 +420,25 @@ export type Models = {
       id: string;
       name: string;
       slug: string;
+      brand: string | null;
       createdAt: string;
       updatedAt: string;
-      brand: string | null;
     };
     Insert: {
       id?: string;
       name: string;
       slug: string;
+      brand?: string | null;
       createdAt?: string;
       updatedAt?: string;
-      brand?: string | null;
     };
     Update: {
       id?: string;
       name?: string;
       slug?: string;
+      brand?: string | null;
       createdAt?: string;
       updatedAt?: string;
-      brand?: string | null;
     };
     Relations: {
       changeRequests: { table: "changeRequests"; kind: "many"; nullable: true };
@@ -497,22 +497,22 @@ export type Models = {
       key: string;
       name: string;
       priceCents: bigint;
-      position: number;
       currency: string;
+      position: number;
     };
     Insert: {
       key: string;
       name: string;
       priceCents?: bigint;
-      position?: number;
       currency?: string;
+      position?: number;
     };
     Update: {
       key?: string;
       name?: string;
       priceCents?: bigint;
-      position?: number;
       currency?: string;
+      position?: number;
     };
     Relations: {
       planFeatures: { table: "planFeatures"; kind: "many"; nullable: true };
@@ -535,8 +535,8 @@ export type Models = {
       currency: string;
       leadId: string | null;
       labelId: string | null;
-      deletedAt: string | null;
       internalNotes?: string | null;
+      deletedAt: string | null;
     };
     Insert: {
       id?: string;
@@ -548,8 +548,8 @@ export type Models = {
       currency?: string;
       leadId?: string | null;
       labelId?: string | null;
-      deletedAt?: string | null;
       internalNotes?: string | null;
+      deletedAt?: string | null;
     };
     Update: {
       id?: string;
@@ -561,8 +561,8 @@ export type Models = {
       currency?: string;
       leadId?: string | null;
       labelId?: string | null;
-      deletedAt?: string | null;
       internalNotes?: string | null;
+      deletedAt?: string | null;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
