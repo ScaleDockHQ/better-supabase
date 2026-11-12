@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-12
-- Follows: [0027](0027-squash-fixture-migrations-into-a-pg-delta-baseline-and-use-the-per-schema-layout.md)
+- Follows: [0027](0027-fixture-pgdelta-baseline.md)
 
 ## Context
 
