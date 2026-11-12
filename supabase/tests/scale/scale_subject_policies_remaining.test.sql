@@ -23,9 +23,9 @@ select id from public.customers where name like 'Remaining %' limit current_sett
 
 -- Deals: one deal holds a contact per picked customer.
 insert into better_supabase.deals (id, tenant_id, number, identifier, name, currency, expected_close_on)
-values ('00000000-0000-4000-8000-0000000d0001', '00000000-0000-4000-8000-000000000001', 9000001, 'D-9000001', 'Scale deal', 'EUR', current_date);
+values ('00000000-0000-4000-8000-0000000d9001', '00000000-0000-4000-8000-000000000001', 9000001, 'D-9000001', 'Scale deal', 'EUR', current_date);
 insert into better_supabase.deal_contacts (tenant_id, deal_id, contact_type, contact_id)
-select '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000d0001', 'customer', id::text from picked;
+select '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000d9001', 'customer', id::text from picked;
 
 -- Knowledge: one subject document per picked customer.
 insert into better_supabase.knowledge_documents (tenant_id, scope, subject_type, subject_id, title, status)
