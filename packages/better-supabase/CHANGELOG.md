@@ -1,5 +1,11 @@
 # better-supabase
 
+## 0.63.2
+
+### Patch Changes
+
+- [#882](https://github.com/ScaleDockHQ/better-supabase/pull/882) [`906d38b`](https://github.com/ScaleDockHQ/better-supabase/commit/906d38b2ba1c4fef98b7ab6446610ff095a4a253) Thanks [@mick340](https://github.com/mick340)! - Doctor BS386 accepts a per-row check after an `in (select ...)` set check only when the check passes the whole row, as in `id in (select note_ids('read')) or can_note(notes, 'read')`. A check that reads a column after an unrelated set check, such as `employee_id in (select own_employee_ids()) or is_decider(id)`, is flagged again.
+
 ## 0.63.1
 
 ### Patch Changes
