@@ -1011,7 +1011,35 @@ set search_path = ''
 as $$
 ${
   hasCounter("reported")
-    ? `  select coalesce(jsonb_agg(jsonb_build_object(
+    ? `  with c as materialized (
+    select * from ${counters} c
+    where c.${cc("value")} > c.${cc("reported")}
+      and c.${cc("meter")} <> all (coalesce(unreported_usage.skip_meters, '{}'))
+      and c.${cc("tenant")} <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+    order by c.${cc("day")}
+    limit max_rows
+  ),
+  tenants as materialized (
+    select t.tenant${entitled ? `, ${ctx.entitlements("t.tenant")}::text[] as entitled` : ""}${planKeys === "" ? "" : ", better_supabase.tenant_plans(t.tenant)::text[] as plans"}
+    from (select distinct c.${cc("tenant")} as tenant from c) t
+  ),
+  quota as materialized (
+    select distinct on (p.tenant, p.meter) p.tenant, p.meter, q.${qc("limit")} as quota_limit, ${quotaPeriod("q")} as period
+    from (select distinct c.${cc("tenant")} as tenant, c.${cc("meter")} as meter from c) p
+    join tenants t on t.tenant = p.tenant
+    join ${quotas} q on q.${qc("meter")} = p.meter
+      and (q.${qc("tenant")} = p.tenant or (q.${qc("tenant")} is null and (q.${qc("plan")} = '*'${entitled ? ` or q.${qc("plan")} = any (t.entitled)` : ""}${planKeys === "" ? "" : ` or q.${qc("plan")} = any (t.plans)`})))
+    order by p.tenant, p.meter, (q.${qc("tenant")} is not null) desc, q.${qc("limit")} desc nulls first
+  ),
+  win as materialized (
+    select d.tenant, d.period, d.day, ${fn("usage_window_start")}(d.tenant, d.period, d.day) as since
+    from (
+      select distinct c.${cc("tenant")} as tenant, q.period, c.${cc("day")} as day
+      from c
+      left join quota q on q.tenant = c.${cc("tenant")} and q.meter = c.${cc("meter")}
+    ) d
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
     'organization_id', c.${cc("tenant")},
     'meter', c.${cc("meter")},
     'day', c.${cc("day")},
@@ -1027,18 +1055,9 @@ ${
         and o.${cc("day")} >= w.since
     )
   ) order by c.${cc("day")}, c.${cc("meter")}), '[]'::jsonb)
-  from (
-    select * from ${counters} c
-    where c.${cc("value")} > c.${cc("reported")}
-      and c.${cc("meter")} <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c.${cc("tenant")} <> all (coalesce(unreported_usage.skip_tenants, '{}'))
-    order by c.${cc("day")}
-    limit max_rows
-  ) c
-  left join lateral ${fn("usage_quota")}(c.${cc("tenant")}, c.${cc("meter")}) q on true
-  cross join lateral (
-    select ${fn("usage_window_start")}(c.${cc("tenant")}, q.period, c.${cc("day")}) as since
-  ) w`
+  from c
+  left join quota q on q.tenant = c.${cc("tenant")} and q.meter = c.${cc("meter")}
+  join win w on w.tenant = c.${cc("tenant")} and w.period is not distinct from q.period and w.day = c.${cc("day")}`
     : "  select '[]'::jsonb"
 }
 $$;

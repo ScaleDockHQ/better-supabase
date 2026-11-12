@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:346a5b06cdf27255aeed7d90935e0b0ac93fa417f9b1216bf15be25df89f3150
+-- @bsb-hash sha256:580547eab06b2f70df00de64fff83383e99bfd088211b33e284c26b0c5192bd9
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -625,6 +625,34 @@ stable
 security definer
 set search_path = ''
 as $$
+  with c as materialized (
+    select * from "better_supabase"."usage_counters" c
+    where c."value" > c."reported_value"
+      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+    order by c."day"
+    limit max_rows
+  ),
+  tenants as materialized (
+    select t.tenant
+    from (select distinct c."tenant_id" as tenant from c) t
+  ),
+  quota as materialized (
+    select distinct on (p.tenant, p.meter) p.tenant, p.meter, q."limit" as quota_limit, q."period" as period
+    from (select distinct c."tenant_id" as tenant, c."meter" as meter from c) p
+    join tenants t on t.tenant = p.tenant
+    join "better_supabase"."usage_quotas" q on q."meter" = p.meter
+      and (q."tenant_id" = p.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+    order by p.tenant, p.meter, (q."tenant_id" is not null) desc, q."limit" desc nulls first
+  ),
+  win as materialized (
+    select d.tenant, d.period, d.day, "better_supabase"."usage_window_start"(d.tenant, d.period, d.day) as since
+    from (
+      select distinct c."tenant_id" as tenant, q.period, c."day" as day
+      from c
+      left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+    ) d
+  )
   select coalesce(jsonb_agg(jsonb_build_object(
     'organization_id', c."tenant_id",
     'meter', c."meter",
@@ -641,18 +669,9 @@ as $$
         and o."day" >= w.since
     )
   ) order by c."day", c."meter"), '[]'::jsonb)
-  from (
-    select * from "better_supabase"."usage_counters" c
-    where c."value" > c."reported_value"
-      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
-    order by c."day"
-    limit max_rows
-  ) c
-  left join lateral "better_supabase"."usage_quota"(c."tenant_id", c."meter") q on true
-  cross join lateral (
-    select "better_supabase"."usage_window_start"(c."tenant_id", q.period, c."day") as since
-  ) w
+  from c
+  left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+  join win w on w.tenant = c."tenant_id" and w.period is not distinct from q.period and w.day = c."day"
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.
@@ -838,7 +857,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:fa961ba78911d8c9e28967e02ce1b8b2fc6334b6bca244344e935afa42847e46
+-- @bsb-hash sha256:81ff3757868f8aaf05f8a86a167ad5969d4e69106c1c2e9a40ced880ef3d8143
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1487,6 +1506,34 @@ stable
 security definer
 set search_path = ''
 as $$
+  with c as materialized (
+    select * from "better_supabase"."usage_counters" c
+    where c."value" > c."reported_value"
+      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+    order by c."day"
+    limit max_rows
+  ),
+  tenants as materialized (
+    select t.tenant, better_supabase.tenant_entitlements(t.tenant)::text[] as entitled
+    from (select distinct c."tenant_id" as tenant from c) t
+  ),
+  quota as materialized (
+    select distinct on (p.tenant, p.meter) p.tenant, p.meter, q."limit" as quota_limit, q."period" as period
+    from (select distinct c."tenant_id" as tenant, c."meter" as meter from c) p
+    join tenants t on t.tenant = p.tenant
+    join "better_supabase"."usage_quotas" q on q."meter" = p.meter
+      and (q."tenant_id" = p.tenant or (q."tenant_id" is null and (q."plan" = '*' or q."plan" = any (t.entitled))))
+    order by p.tenant, p.meter, (q."tenant_id" is not null) desc, q."limit" desc nulls first
+  ),
+  win as materialized (
+    select d.tenant, d.period, d.day, "better_supabase"."usage_window_start"(d.tenant, d.period, d.day) as since
+    from (
+      select distinct c."tenant_id" as tenant, q.period, c."day" as day
+      from c
+      left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+    ) d
+  )
   select coalesce(jsonb_agg(jsonb_build_object(
     'organization_id', c."tenant_id",
     'meter', c."meter",
@@ -1503,18 +1550,9 @@ as $$
         and o."day" >= w.since
     )
   ) order by c."day", c."meter"), '[]'::jsonb)
-  from (
-    select * from "better_supabase"."usage_counters" c
-    where c."value" > c."reported_value"
-      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
-    order by c."day"
-    limit max_rows
-  ) c
-  left join lateral "better_supabase"."usage_quota"(c."tenant_id", c."meter") q on true
-  cross join lateral (
-    select "better_supabase"."usage_window_start"(c."tenant_id", q.period, c."day") as since
-  ) w
+  from c
+  left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+  join win w on w.tenant = c."tenant_id" and w.period is not distinct from q.period and w.day = c."day"
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.
@@ -1872,7 +1910,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:6b8fafdc247f99b4485c0de26609094cc63c4750457dc82294e10dd4ba4c97b6
+-- @bsb-hash sha256:d84621a60646106354533619cd906ab253733c3435e35700f3457d483fcc72b6
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2501,6 +2539,34 @@ stable
 security definer
 set search_path = ''
 as $$
+  with c as materialized (
+    select * from "app_private"."usage_counters" c
+    where c."value" > c."reported_value"
+      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+    order by c."day"
+    limit max_rows
+  ),
+  tenants as materialized (
+    select t.tenant
+    from (select distinct c."tenant_id" as tenant from c) t
+  ),
+  quota as materialized (
+    select distinct on (p.tenant, p.meter) p.tenant, p.meter, q."limit" as quota_limit, q."period" as period
+    from (select distinct c."tenant_id" as tenant, c."meter" as meter from c) p
+    join tenants t on t.tenant = p.tenant
+    join "app_private"."usage_quotas" q on q."meter" = p.meter
+      and (q."tenant_id" = p.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+    order by p.tenant, p.meter, (q."tenant_id" is not null) desc, q."limit" desc nulls first
+  ),
+  win as materialized (
+    select d.tenant, d.period, d.day, "app_private"."usage_window_start"(d.tenant, d.period, d.day) as since
+    from (
+      select distinct c."tenant_id" as tenant, q.period, c."day" as day
+      from c
+      left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+    ) d
+  )
   select coalesce(jsonb_agg(jsonb_build_object(
     'organization_id', c."tenant_id",
     'meter', c."meter",
@@ -2517,18 +2583,9 @@ as $$
         and o."day" >= w.since
     )
   ) order by c."day", c."meter"), '[]'::jsonb)
-  from (
-    select * from "app_private"."usage_counters" c
-    where c."value" > c."reported_value"
-      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
-    order by c."day"
-    limit max_rows
-  ) c
-  left join lateral "app_private"."usage_quota"(c."tenant_id", c."meter") q on true
-  cross join lateral (
-    select "app_private"."usage_window_start"(c."tenant_id", q.period, c."day") as since
-  ) w
+  from c
+  left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+  join win w on w.tenant = c."tenant_id" and w.period is not distinct from q.period and w.day = c."day"
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.
@@ -2714,7 +2771,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:ed055eff8d29b227f3da9cfc0150a461f6244bf4bdf6856325916e6f512f7f02
+-- @bsb-hash sha256:0bbeced61a8c2297604e818b413a26a108e8a5ac3478d50c1c5ea34e303acb7a
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3338,6 +3395,34 @@ stable
 security definer
 set search_path = ''
 as $$
+  with c as materialized (
+    select * from "better_supabase"."usage_counters" c
+    where c."value" > c."reported_value"
+      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+    order by c."day"
+    limit max_rows
+  ),
+  tenants as materialized (
+    select t.tenant
+    from (select distinct c."tenant_id" as tenant from c) t
+  ),
+  quota as materialized (
+    select distinct on (p.tenant, p.meter) p.tenant, p.meter, q."limit" as quota_limit, q."period" as period
+    from (select distinct c."tenant_id" as tenant, c."meter" as meter from c) p
+    join tenants t on t.tenant = p.tenant
+    join "better_supabase"."usage_quotas" q on q."meter" = p.meter
+      and (q."tenant_id" = p.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+    order by p.tenant, p.meter, (q."tenant_id" is not null) desc, q."limit" desc nulls first
+  ),
+  win as materialized (
+    select d.tenant, d.period, d.day, "better_supabase"."usage_window_start"(d.tenant, d.period, d.day) as since
+    from (
+      select distinct c."tenant_id" as tenant, q.period, c."day" as day
+      from c
+      left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+    ) d
+  )
   select coalesce(jsonb_agg(jsonb_build_object(
     'organization_id', c."tenant_id",
     'meter', c."meter",
@@ -3354,18 +3439,9 @@ as $$
         and o."day" >= w.since
     )
   ) order by c."day", c."meter"), '[]'::jsonb)
-  from (
-    select * from "better_supabase"."usage_counters" c
-    where c."value" > c."reported_value"
-      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
-    order by c."day"
-    limit max_rows
-  ) c
-  left join lateral "better_supabase"."usage_quota"(c."tenant_id", c."meter") q on true
-  cross join lateral (
-    select "better_supabase"."usage_window_start"(c."tenant_id", q.period, c."day") as since
-  ) w
+  from c
+  left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+  join win w on w.tenant = c."tenant_id" and w.period is not distinct from q.period and w.day = c."day"
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.
@@ -3747,7 +3823,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:cff597bf548dc35c088cf0f3e44c334c9bfa09d972d5880613613f01f1e832f1
+-- @bsb-hash sha256:c8d5a93244121fbeed0621353e77dcd73e027bcf3675d59d6339d2a4c3412c89
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4360,6 +4436,34 @@ stable
 security definer
 set search_path = ''
 as $$
+  with c as materialized (
+    select * from "better_supabase"."usage_counters" c
+    where c."value" > c."reported_value"
+      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
+      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+    order by c."day"
+    limit max_rows
+  ),
+  tenants as materialized (
+    select t.tenant
+    from (select distinct c."tenant_id" as tenant from c) t
+  ),
+  quota as materialized (
+    select distinct on (p.tenant, p.meter) p.tenant, p.meter, q."limit" as quota_limit, q."period"::text as period
+    from (select distinct c."tenant_id" as tenant, c."meter" as meter from c) p
+    join tenants t on t.tenant = p.tenant
+    join "better_supabase"."usage_quotas" q on q."meter" = p.meter
+      and (q."tenant_id" = p.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+    order by p.tenant, p.meter, (q."tenant_id" is not null) desc, q."limit" desc nulls first
+  ),
+  win as materialized (
+    select d.tenant, d.period, d.day, "better_supabase"."usage_window_start"(d.tenant, d.period, d.day) as since
+    from (
+      select distinct c."tenant_id" as tenant, q.period, c."day" as day
+      from c
+      left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+    ) d
+  )
   select coalesce(jsonb_agg(jsonb_build_object(
     'organization_id', c."tenant_id",
     'meter', c."meter",
@@ -4376,18 +4480,9 @@ as $$
         and o."day" >= w.since
     )
   ) order by c."day", c."meter"), '[]'::jsonb)
-  from (
-    select * from "better_supabase"."usage_counters" c
-    where c."value" > c."reported_value"
-      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."tenant_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
-    order by c."day"
-    limit max_rows
-  ) c
-  left join lateral "better_supabase"."usage_quota"(c."tenant_id", c."meter") q on true
-  cross join lateral (
-    select "better_supabase"."usage_window_start"(c."tenant_id", q.period, c."day") as since
-  ) w
+  from c
+  left join quota q on q.tenant = c."tenant_id" and q.meter = c."meter"
+  join win w on w.tenant = c."tenant_id" and w.period is not distinct from q.period and w.day = c."day"
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.
@@ -4573,7 +4668,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:4a42cc99bf80b53f7f68adb1e72198e4b09f81fd09b0f237f9e6f6b24db0c52d
+-- @bsb-hash sha256:4c4a80d7645aa5b541955624f79908d40022057129ff4e965bb337eaa3ee54b1
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5197,6 +5292,34 @@ stable
 security definer
 set search_path = ''
 as $$
+  with c as materialized (
+    select * from "better_supabase"."usage_counters" c
+    where c."value" > c."reported_value"
+      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
+      and c."org_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
+    order by c."day"
+    limit max_rows
+  ),
+  tenants as materialized (
+    select t.tenant
+    from (select distinct c."org_id" as tenant from c) t
+  ),
+  quota as materialized (
+    select distinct on (p.tenant, p.meter) p.tenant, p.meter, q."limit" as quota_limit, q."period" as period
+    from (select distinct c."org_id" as tenant, c."meter" as meter from c) p
+    join tenants t on t.tenant = p.tenant
+    join "better_supabase"."usage_quotas" q on q."meter" = p.meter
+      and (q."org_id" = p.tenant or (q."org_id" is null and (q."plan" = '*')))
+    order by p.tenant, p.meter, (q."org_id" is not null) desc, q."limit" desc nulls first
+  ),
+  win as materialized (
+    select d.tenant, d.period, d.day, "better_supabase"."usage_window_start"(d.tenant, d.period, d.day) as since
+    from (
+      select distinct c."org_id" as tenant, q.period, c."day" as day
+      from c
+      left join quota q on q.tenant = c."org_id" and q.meter = c."meter"
+    ) d
+  )
   select coalesce(jsonb_agg(jsonb_build_object(
     'organization_id', c."org_id",
     'meter', c."meter",
@@ -5213,18 +5336,9 @@ as $$
         and o."day" >= w.since
     )
   ) order by c."day", c."meter"), '[]'::jsonb)
-  from (
-    select * from "better_supabase"."usage_counters" c
-    where c."value" > c."reported_value"
-      and c."meter" <> all (coalesce(unreported_usage.skip_meters, '{}'))
-      and c."org_id" <> all (coalesce(unreported_usage.skip_tenants, '{}'))
-    order by c."day"
-    limit max_rows
-  ) c
-  left join lateral "better_supabase"."usage_quota"(c."org_id", c."meter") q on true
-  cross join lateral (
-    select "better_supabase"."usage_window_start"(c."org_id", q.period, c."day") as since
-  ) w
+  from c
+  left join quota q on q.tenant = c."org_id" and q.meter = c."meter"
+  join win w on w.tenant = c."org_id" and w.period is not distinct from q.period and w.day = c."day"
 $$;
 
 -- Marks a counter as reported up to value; never moves it backwards.
