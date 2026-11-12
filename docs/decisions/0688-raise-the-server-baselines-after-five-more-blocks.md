@@ -18,10 +18,11 @@ its baseline, and the update script only lowers one (ADR 0683, 0684).
 Raise the server baselines to the measured numbers of a fresh `next build`, by
 removing the grown routes from `server-baseline.json` and running the update.
 
-| Baseline                               | Routes                         | Change                                      |
-| -------------------------------------- | ------------------------------ | ------------------------------------------- |
-| Server chunks (`server-baseline.json`) | 313 route entries              | median +13,656 B gzip, at most +18,316 B    |
-| First load (`baseline.json`)           | new routes, no existing growth | the new pages are added at their own number |
+| Baseline                               | Routes                   | Change                                                                  |
+| -------------------------------------- | ------------------------ | ----------------------------------------------------------------------- |
+| Server chunks (`server-baseline.json`) | 313 route entries        | median +13,656 B gzip, at most +18,316 B                                |
+| First load (`baseline.json`)           | 241 routes under `(app)` | +131 B raw each: the authz version `rpc` wrapper in the shell (EX-1600) |
+| First load                             | new routes               | the new pages are added at their own number                             |
 
 The linked account card keeps its provider choice as three buttons. A Base UI
 `Select` there added 18 KB gzip to the security page first load, so it was not

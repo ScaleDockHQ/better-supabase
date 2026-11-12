@@ -14720,10 +14720,13 @@ npx shadcn add alert badge button card empty skeleton
  * `loadMyWork`, newest first.
  */
 export async function MyWorkList() {
+  // `relativeTime` reads the clock, which a prerender rejects unless the
+  // render has already waited on I/O.
   const [work, t, format] = await Promise.all([
     getMyWork(),
     getExtracted("myWork"),
     getFormatter(),
+    io(),
   ]);
 
   if (work.kind === "no-organization") {

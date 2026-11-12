@@ -13,13 +13,9 @@ const Id = v.pipe(v.string(), v.uuid());
 const Text = (max: number) =>
   v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(max));
 
-export const SEVERITIES = ["sev1", "sev2", "sev3", "sev4"] as const;
+const SEVERITIES = ["sev1", "sev2", "sev3", "sev4"] as const;
 
-export const OPEN_STATUSES = [
-  "investigating",
-  "identified",
-  "monitoring",
-] as const;
+const OPEN_STATUSES = ["investigating", "identified", "monitoring"] as const;
 
 /** Opens an incident with a first timeline entry. */
 export const openIncident = bsb.action(
