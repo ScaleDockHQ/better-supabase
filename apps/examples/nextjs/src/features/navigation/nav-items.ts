@@ -12,9 +12,11 @@ export type NavId =
   | "onboarding"
   | "deadlines"
   | "documentTemplates"
+  | "documentRegister"
   | "time"
   | "calendar"
   | "availability"
+  | "frontDesk"
   | "work"
   | "workGrid"
   | "projects"
@@ -201,6 +203,12 @@ export const navItems: readonly NavItem[] = [
     requires: "document_templates.read",
   },
   {
+    id: "documentRegister",
+    href: "/documents/register",
+    area: "content",
+    requires: "drive.read",
+  },
+  {
     id: "time",
     href: "/people/time",
     area: "people",
@@ -217,6 +225,12 @@ export const navItems: readonly NavItem[] = [
     href: "/calendar/availability",
     area: "work",
     requires: "bookings.manage",
+  },
+  {
+    id: "frontDesk",
+    href: "/calendar/front-desk",
+    area: "work",
+    requires: "calendar.read",
   },
   {
     id: "contacts",

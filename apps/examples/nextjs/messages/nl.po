@@ -30927,3 +30927,700 @@ msgstr "Telplan gemaakt"
 msgctxt "warehouse.NgYKsv"
 msgid "Variance limit (percent)"
 msgstr "Verschilgrens (procent)"
+
+#: src/app/[locale]/(app)/appraisals/[id]/page.tsx
+msgctxt "appraisals.KjSSya"
+msgid "All appraisals"
+msgstr "Alle beoordelingen"
+
+#: src/app/[locale]/(app)/calendar/front-desk/page.tsx
+msgctxt "calendar.oW6YIN"
+msgid "Front desk"
+msgstr "Receptie"
+
+#: src/app/[locale]/(app)/calendar/front-desk/page.tsx
+msgctxt "calendar.oqNdsF"
+msgid "What is on today and in the coming days."
+msgstr "Wat er vandaag en de komende dagen op de agenda staat."
+
+#: src/app/[locale]/(app)/documents/register/page.tsx
+msgctxt "documents.nBWxai"
+msgid "Document register"
+msgstr "Documentenregister"
+
+#: src/app/[locale]/(app)/documents/register/page.tsx
+msgctxt "documents.lYKNiO"
+msgid "Controlled documents with their number, effective version and review date."
+msgstr "Beheerde documenten met nummer, geldende versie en herzieningsdatum."
+
+#: src/app/[locale]/(app)/lims/page.tsx
+msgctxt "lims.LobJz1"
+msgid "Samples, their results and whether they may be released."
+msgstr "Monsters, hun resultaten en of ze vrijgegeven mogen worden."
+
+#: src/app/[locale]/(app)/maintenance/page.tsx
+msgctxt "maintenance._0fNmw"
+msgid "Preventive plans by time or meter, and the work orders they open."
+msgstr "Preventieve plannen op tijd of meterstand, en de werkorders die ze openen."
+
+#: src/app/[locale]/(app)/qualifications/[id]/page.tsx
+msgctxt "qualifications.804VaN"
+msgid "All qualifications"
+msgstr "Alle kwalificaties"
+
+#: src/app/[locale]/(app)/rfqs/page.tsx
+msgctxt "rfqs.yaZl1M"
+msgid "Requests sent to suppliers, their quotes and the award."
+msgstr "Aanvragen bij leveranciers, hun offertes en de toewijzing."
+
+#: src/app/[locale]/(app)/shifts/[id]/page.tsx
+msgctxt "shifts.2jGi49"
+msgid "All shifts"
+msgstr "Alle diensten"
+
+#: src/app/[locale]/(app)/tills/page.tsx
+msgctxt "tills.PyPB5S"
+msgid "Cash drawer shifts with their expected cash and status."
+msgstr "Diensten per kassalade met het verwachte geld en de status."
+
+#: src/app/[locale]/(app)/warehouse/page.tsx
+msgctxt "warehouse.zM_1J8"
+msgid "Pick lists made from stock allocations, with the stock to take from each bin."
+msgstr "Picklijsten op basis van voorraadreserveringen, met de voorraad die uit elk vak moet."
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.2kgAT5"
+msgid "This appraisal didn't load"
+msgstr "Deze beoordeling is niet geladen"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.tQFyNr"
+msgid "Manager {name}"
+msgstr "Manager {name}"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.ZpQ6us"
+msgid "Result"
+msgstr "Resultaat"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.NuX9jY"
+msgid "Review average: {rating}"
+msgstr "Gemiddelde van de reviews: {rating}"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.d6wo0a"
+msgid "Calibrated rating: {rating}"
+msgstr "Gekalibreerde score: {rating}"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.r5_PLR"
+msgid "Signed off on {date}"
+msgstr "Afgetekend op {date}"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.T9_trz"
+msgid "Competencies"
+msgstr "Competenties"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.nC68vd"
+msgid "This cycle rates one overall rating."
+msgstr "Deze ronde geeft één totaalscore."
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.dUxyza"
+msgid "Reviews"
+msgstr "Reviews"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.3HJuX6"
+msgid "No review has been written yet."
+msgstr "Er is nog geen review geschreven."
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.LXxsbk"
+msgid "Anonymous"
+msgstr "Anoniem"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.DQlnoW"
+msgid "Not submitted"
+msgstr "Niet ingediend"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals.9lrzgf"
+msgid "Calibrations"
+msgstr "Kalibraties"
+
+#: src/features/appraisals/components/appraisal-detail.tsx
+msgctxt "appraisals._5zFzN"
+msgid "Set to {rating} on {date}"
+msgstr "Gezet op {rating} op {date}"
+
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.YfXudL"
+msgid "No chats yet"
+msgstr "Nog geen chats"
+
+#: src/features/assistant/components/chat-list.tsx
+msgctxt "assistant.huX5LS"
+msgid "Your chats show up here after the first answer."
+msgstr "Je chats verschijnen hier na het eerste antwoord."
+
+#: src/features/calendar/components/front-desk.tsx
+msgctxt "calendar.HGSnBR"
+msgid "The front desk didn't load"
+msgstr "De receptie is niet geladen"
+
+#: src/features/calendar/components/front-desk.tsx
+msgctxt "calendar.omWnhT"
+msgid "Create a calendar to see the day's schedule here."
+msgstr "Maak een agenda aan om hier het dagprogramma te zien."
+
+#: src/features/calendar/components/front-desk.tsx
+msgctxt "calendar.zj_Bu0"
+msgid "Open the calendar"
+msgstr "Open de agenda"
+
+#: src/features/calendar/components/front-desk.tsx
+msgctxt "calendar.WJNbNu"
+msgid "{count, plural, =0 {Nothing is scheduled today} one {# event today} other {# events today}}"
+msgstr "{count, plural, =0 {Vandaag staat er niets gepland} one {# afspraak vandaag} other {# afspraken vandaag}}"
+
+#: src/features/calendar/components/front-desk.tsx
+msgctxt "calendar.-mJB3L"
+msgid "The next days"
+msgstr "De komende dagen"
+
+#: src/features/calendar/components/front-desk.tsx
+msgctxt "calendar.FMUqT9"
+msgid "Events of the coming week, by day."
+msgstr "Afspraken van de komende week, per dag."
+
+#: src/features/calendar/components/front-desk.tsx
+msgctxt "calendar.El8mUz"
+msgid "Nothing scheduled"
+msgstr "Niets gepland"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.OUyDtJ"
+msgid "This document didn't load"
+msgstr "Dit document is niet geladen"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.XRBJSQ"
+msgid "Open in the drive"
+msgstr "Open in de drive"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.NZ9-vv"
+msgid "Control"
+msgstr "Beheer"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.Z9hD1M"
+msgid "Not released yet"
+msgstr "Nog niet vrijgegeven"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.9uthH4"
+msgid "Effective version {version}"
+msgstr "Geldende versie {version}"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.x9TypM"
+msgid "Since {date}"
+msgstr "Sinds {date}"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.1RqWNf"
+msgid "Next review {date}"
+msgstr "Volgende herziening {date}"
+
+#: src/features/document-register/components/register-detail.tsx
+#: src/features/document-register/components/register-record-list.tsx
+#: src/features/document-register/components/register-status.tsx
+msgctxt "documents.EniGjA"
+msgid "Review due"
+msgstr "Herziening nodig"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.82PCeG"
+msgid "Reviewed every {months} months"
+msgstr "Herzien elke {months} maanden"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.2U26rj"
+msgid "Revisions"
+msgstr "Revisies"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.c77Wki"
+msgid "No revision has been saved yet."
+msgstr "Er is nog geen revisie opgeslagen."
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.wphGL6"
+msgid "Revision {number}"
+msgstr "Revisie {number}"
+
+#: src/features/document-register/components/register-detail.tsx
+msgctxt "documents.fF376U"
+msgid "Current"
+msgstr "Huidig"
+
+#: src/features/document-register/components/register-overview.tsx
+msgctxt "documents.oKHvDn"
+msgid "The register didn't load"
+msgstr "Het register is niet geladen"
+
+#: src/features/document-register/components/register-record-list.tsx
+msgctxt "documents.nQr4xx"
+msgid "v{version, number}"
+msgstr "v{version, number}"
+
+#: src/features/document-register/components/register-record-list.tsx
+msgctxt "documents.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/document-register/components/register-record-list.tsx
+msgctxt "documents.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/document-register/components/register-record-list.tsx
+msgctxt "documents.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/document-register/components/register-record-list.tsx
+#: src/features/document-register/components/register-status.tsx
+msgctxt "documents.0yLcs0"
+msgid "Effective"
+msgstr "Geldend"
+
+#: src/features/document-register/components/register-record-list.tsx
+msgctxt "documents.ep8Oy7"
+msgid "Next review"
+msgstr "Volgende herziening"
+
+#: src/features/document-register/components/register-record-list.tsx
+msgctxt "documents.R-J5ox"
+msgid "Review"
+msgstr "Herziening"
+
+#: src/features/document-register/components/register-record-list.tsx
+msgctxt "documents.jL2zV3"
+msgid "Search the register"
+msgstr "Zoek in het register"
+
+#: src/features/document-register/components/register-record-list.tsx
+msgctxt "documents.peAZCI"
+msgid "No controlled documents found"
+msgstr "Geen beheerde documenten gevonden"
+
+#: src/features/document-register/components/register-record-list.tsx
+msgctxt "documents.M1pZS_"
+msgid "Save a file in the drive as a controlled document, or change the filters."
+msgstr "Sla een bestand in de drive op als beheerd document, of pas de filters aan."
+
+#: src/features/document-register/components/register-status.tsx
+msgctxt "documents.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/document-register/components/register-status.tsx
+msgctxt "documents.plemGH"
+msgid "In review"
+msgstr "In beoordeling"
+
+#: src/features/document-register/components/register-status.tsx
+msgctxt "documents.Y-zA1G"
+msgid "Obsolete"
+msgstr "Vervallen"
+
+#: src/features/document-register/components/register-status.tsx
+msgctxt "documents.LeL87a"
+msgid "On schedule"
+msgstr "Op schema"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.pnGl8c"
+msgid "New sample"
+msgstr "Nieuw monster"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.QvQQYB"
+msgid "A result outside a method's limits opens a nonconformity and holds the release."
+msgstr "Een resultaat buiten de grenzen van een methode opent een afwijking en houdt de vrijgave tegen."
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.9kJfO4"
+msgid "No samples yet"
+msgstr "Nog geen monsters"
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.T7eP7o"
+msgid "Register a sample, then record results against a method's limits."
+msgstr "Registreer een monster en leg daarna resultaten vast tegen de grenzen van een methode."
+
+#: src/features/lims/components/samples.tsx
+msgctxt "lims.pLtaHX"
+msgid "Read the laboratory guide"
+msgstr "Lees de laboratoriumgids"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.cQfwTT"
+msgid "Maintenance plans"
+msgstr "Onderhoudsplannen"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.eVoywZ"
+msgid "Plans fall due by time, by meter or on a calendar rule and open dispatch work orders."
+msgstr "Plannen vervallen op tijd, meterstand of een kalenderregel en openen werkorders in de planning."
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.mfjvP7"
+msgid "No maintenance plans yet"
+msgstr "Nog geen onderhoudsplannen"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.MPVU48"
+msgid "Create a plan by time, meter or calendar rule, with the spare parts it needs, and work orders open when it falls due."
+msgstr "Maak een plan op tijd, meterstand of kalenderregel, met de onderdelen die het nodig heeft. Werkorders openen zodra het aan de beurt is."
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.PTnz1l"
+msgid "Read the maintenance guide"
+msgstr "Lees de onderhoudsgids"
+
+#: src/features/maintenance/components/maintenance-plans.tsx
+msgctxt "maintenance.vmbrZB"
+msgid "Generate work orders"
+msgstr "Werkorders aanmaken"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.nBWxai"
+msgid "Document register"
+msgstr "Documentenregister"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.oW6YIN"
+msgid "Front desk"
+msgstr "Receptie"
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+msgctxt "qualifications.kXeICZ"
+msgid "This qualification didn't load"
+msgstr "Deze kwalificatie is niet geladen"
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+msgctxt "qualifications.AvBptM"
+msgid "Valid for {months} months"
+msgstr "{months} maanden geldig"
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+msgctxt "qualifications.81U1tK"
+msgid "Who has to hold it"
+msgstr "Wie het moet hebben"
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+msgctxt "qualifications.blEyja"
+msgid "No role, team or title requires it."
+msgstr "Geen rol, team of functie vereist het."
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+msgctxt "qualifications.RRLsE5"
+msgid "A grant needs evidence."
+msgstr "Een toekenning heeft bewijs nodig."
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+msgctxt "qualifications.vyGBZd"
+msgid "Holders today"
+msgstr "Houders vandaag"
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+msgctxt "qualifications.Xy9rOS"
+msgid "Nobody holds a valid one."
+msgstr "Niemand heeft een geldige."
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+msgctxt "qualifications.P2rd-c"
+msgid "Gaps"
+msgstr "Tekorten"
+
+#: src/features/qualifications/components/qualification-type-detail.tsx
+msgctxt "qualifications.UxGi7h"
+msgid "Everyone who needs it holds it."
+msgstr "Iedereen die het nodig heeft, heeft het."
+
+#: src/features/qualifications/components/qualification-type-overview.tsx
+msgctxt "qualifications.cbeWZ1"
+msgid "Qualification types didn't load"
+msgstr "De kwalificatietypes zijn niet geladen"
+
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.GM3YzV"
+msgid "{months} months"
+msgstr "{months} maanden"
+
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.EcglP9"
+msgid "Key"
+msgstr "Sleutel"
+
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.eDkpqq"
+msgid "Valid for"
+msgstr "Geldig voor"
+
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.ku-mDU"
+msgid "State"
+msgstr "Status"
+
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.otSjIT"
+msgid "Validity"
+msgstr "Geldigheid"
+
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.n_X1nv"
+msgid "Search qualification types"
+msgstr "Zoek kwalificatietypes"
+
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.fqHhej"
+msgid "No qualification types found"
+msgstr "Geen kwalificatietypes gevonden"
+
+#: src/features/qualifications/components/qualification-type-record-list.tsx
+msgctxt "qualifications.VuNMpM"
+msgid "Change the search or the filters."
+msgstr "Pas de zoekopdracht of de filters aan."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.Oe2XGA"
+msgid "Quotes due"
+msgstr "Offertes uiterlijk"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.MNFqIW"
+msgid "Requests"
+msgstr "Aanvragen"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.3L29w5"
+msgid "Suppliers quote the same lines, and an award turns one quote into a purchase order."
+msgstr "Leveranciers offreren dezelfde regels en een toewijzing maakt van één offerte een inkooporder."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.W0cwWp"
+msgid "No requests yet"
+msgstr "Nog geen aanvragen"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.XT6hMf"
+msgid "Create a request, invite suppliers, then compare their quotes and award one."
+msgstr "Maak een aanvraag, nodig leveranciers uit, vergelijk hun offertes en wijs er één toe."
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.4_J8tL"
+msgid "Create a request"
+msgstr "Maak een aanvraag"
+
+#: src/features/rfqs/components/rfqs.tsx
+msgctxt "rfqs.o9xrOU"
+msgid "Read the requests guide"
+msgstr "Lees de gids over aanvragen"
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.sOh6hT"
+msgid "Find a customer by name, even with a typo."
+msgstr "Vind een klant op naam, ook met een typefout."
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.bVjFta"
+msgid "Search customers"
+msgstr "Klanten zoeken"
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.mUocSC"
+msgid "Search failed. Try again."
+msgstr "Zoeken mislukt. Probeer het opnieuw."
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.aiy3-p"
+msgid "Type to search."
+msgstr "Typ om te zoeken."
+
+#: src/features/search/components/command-search.tsx
+msgctxt "search.wLCEuv"
+msgid "No matches."
+msgstr "Geen resultaten."
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.6XLnyu"
+msgid "This shift didn't load"
+msgstr "Deze dienst is niet geladen"
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.awzgp5"
+msgid "Requirements"
+msgstr "Eisen"
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.O8N959"
+msgid "{assigned}/{headcount} places filled"
+msgstr "{assigned}/{headcount} plekken ingevuld"
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.5Uzhzl"
+msgid "{minutes} minutes break"
+msgstr "{minutes} minuten pauze"
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.pRg9oI"
+msgid "No qualifications required"
+msgstr "Geen kwalificaties vereist"
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.qMePPG"
+msgid "Note"
+msgstr "Notitie"
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.3Q5c4O"
+msgid "People on this shift"
+msgstr "Mensen op deze dienst"
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.0NbtDn"
+msgid "Nobody is assigned or has asked for this shift yet."
+msgstr "Niemand is ingedeeld of heeft deze dienst aangevraagd."
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.iZDRGO"
+msgid "Assigned"
+msgstr "Ingedeeld"
+
+#: src/features/shifts/components/shift-detail.tsx
+msgctxt "shifts.jDG_zH"
+msgid "Requested"
+msgstr "Aangevraagd"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.q3LKq4"
+msgid "Each shift starts with a float, and the closing count books any difference."
+msgstr "Elke dienst begint met wisselgeld en de telling bij sluiting boekt een verschil."
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.KqE7GJ"
+msgid "No sessions yet"
+msgstr "Nog geen diensten"
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.xRZutt"
+msgid "Add a till, open a session with its float, then count the drawer at the end of the day."
+msgstr "Voeg een kassa toe, open een dienst met wisselgeld en tel aan het eind van de dag de lade."
+
+#: src/features/tills/components/tills.tsx
+msgctxt "tills.Hjofpw"
+msgid "Read the tills guide"
+msgstr "Lees de gids over kassa's"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.u9j3aI"
+msgid "Plan route"
+msgstr "Route plannen"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.U78NhE"
+msgid "Complete"
+msgstr "Voltooid"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.ZonasR"
+msgid "One list per document with allocated stock, with how many lines are picked."
+msgstr "Eén lijst per document met gereserveerde voorraad, met het aantal gepickte regels."
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.Xnjtt-"
+msgid "Allocate stock to a document, then make a pick list from it to give a picker the lines and bins."
+msgstr "Reserveer voorraad voor een document en maak er een picklijst van om een picker de regels en vakken te geven."
+
+#: src/features/warehouse/components/pick-list-grid.tsx
+msgctxt "warehouse.r7AyZt"
+msgid "Read the warehouse guide"
+msgstr "Lees de magazijngids"
