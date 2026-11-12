@@ -264,10 +264,10 @@ describe("createEPrescribing", () => {
       "PRESCRIPTION_GATEWAY_MISSING",
     );
     expect((await client.send({ prescriptionId: "p2" })).error?.hint).toBe(
-      "PRESCRIPTION_STATUS",
+      "E_PRESCRIBING_STATUS",
     );
     expect((await client.medicationRequest("p2")).error?.hint).toBe(
-      "PRESCRIPTION_STATUS",
+      "E_PRESCRIBING_STATUS",
     );
     expect((await client.medicationRequest("p1")).ok).toBe(true);
   });

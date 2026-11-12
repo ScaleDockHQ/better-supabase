@@ -163,7 +163,7 @@ describe("data-lifecycle module", () => {
     const sql = sqlOf([
       "usage",
       "sso",
-      "webhooks-out",
+      "webhooks",
       "notifications",
       "data-lifecycle",
     ]);
@@ -368,7 +368,7 @@ describe("data-lifecycle module", () => {
   });
 
   it("exports and purges incoming webhooks without their secrets", () => {
-    const sql = sqlOf(["data-lifecycle", "webhooks-in"], {
+    const sql = sqlOf(["data-lifecycle", "incoming-webhooks"], {
       tables: { "app.keys": { tenant: "organization_id", omit: ["hash"] } },
     });
 
@@ -393,9 +393,9 @@ describe("data-lifecycle module", () => {
       }),
     ).toThrow(/export must be true or false/);
     expect(() =>
-      renderBlocks(["webhooks-in"], {
+      renderBlocks(["incoming-webhooks"], {
         modules: {
-          "webhooks-in": { columns: { endpoints: { tenant: "org_id" } } },
+          "incoming-webhooks": { columns: { endpoints: { tenant: "org_id" } } },
         },
       }),
     ).toThrow(/can't be renamed/);

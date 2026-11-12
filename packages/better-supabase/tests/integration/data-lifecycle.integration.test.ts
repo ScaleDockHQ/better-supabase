@@ -244,7 +244,7 @@ describe.skipIf(!live)("data lifecycle", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "webhooks-in", "data-lifecycle"]);
+      await s.install(["organizations", "incoming-webhooks", "data-lifecycle"]);
       const owner = await s.user("owner");
       const organization = await s.organization(owner);
       await s.as(owner);

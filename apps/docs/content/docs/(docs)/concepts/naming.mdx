@@ -146,11 +146,21 @@ an activity (`work_item_id`, `activity_id`) become `task_id` and
    is the one that changed, whichever block wrote it. The lifecycle verbs
    are `created`, `updated`, `deleted`, `archived`, `restored` and `purged`.
    No event is named `saved` (it is `created` or `updated`), `removed` (it
-   is `deleted`), `upserted` or `<attribute>_set` (it is
-   `<attribute>_changed`). Payload keys are camelCase and carry
+   is `deleted`), `edited` (it is `updated`), `canceled` (it is `cancelled`),
+   `upserted` or `<attribute>_set` (it is `<attribute>_changed`). A record
+   that belongs to another one, such as a member, a role or an entry, may use
+   the pair `<child>_added` and `<child>_removed` on its parent. The verbs
+   that end a record keep their own meaning: `cancelled` (stopped before it
+   took effect), `voided` (an issued document made invalid and kept),
+   `closed` (finished and reopenable), `withdrawn` (taken back by whoever
+   submitted it), `revoked` (taken back by whoever granted it) and
+   `rejected` (refused by a reviewer). Payload keys are camelCase and carry
    `organizationId` when the event has a tenant.
 8. A hint code is `<ENTITY>_<REASON>` in upper snake case, from the entity
-   singular: `CONTROL_FORBIDDEN`, `TASK_NOT_FOUND`.
+   singular: `CONTROL_FORBIDDEN`, `TASK_NOT_FOUND`. The prefix is a run of
+   the block's name words, such as `AI_EVAL_` for `ai-evals`, or the noun of
+   one of its entities. Codes of a shared core (`ACTOR_`, `CREDENTIAL_`,
+   `IMPORT_ITEM_`, `NUMBER_`) keep their prefix in every block.
 9. SQL functions take the entity singular: `create_<entity>`,
    `update_<entity>`, `get_<entity>`, `list_<entities>`, `delete_<entity>`,
    and domain verbs (`close_case`, `assess_risk`). Hooks are
@@ -203,6 +213,28 @@ app, and `better-supabase doctor` (BS260) to find the ones left.
 | hint     | `FISCAL_YEAR_CLOSED`          | `PERIOD_CLOSED`                                       | 0.54  |
 | function | `bsb.uid()`, `bsb.owns(uuid)` | `better_supabase.uid()`, `better_supabase.owns(uuid)` | 0.54  |
 
+Blocks, events and hint prefixes renamed in 0.66 (ADR 0699). A block has one
+key: `blocks.webhooks` and `blocks["incoming-webhooks"]` replace the SQL
+module names `webhooks-out` and `webhooks-in`, and `codemod naming` rewrites
+the config key.
+
+| Kind  | Old                                  | New                           | Since |
+| ----- | ------------------------------------ | ----------------------------- | ----- |
+| block | `webhooks-out`                       | `webhooks`                    | 0.66  |
+| block | `webhooks-in`                        | `incoming-webhooks`           | 0.66  |
+| event | `message.edited`                     | `message.updated`             | 0.66  |
+| event | `drive_node.document_saved`          | `drive_node.document_updated` | 0.66  |
+| hint  | `EVAL_*`                             | `AI_EVAL_*`                   | 0.66  |
+| hint  | `HOSTNAME_*`                         | `DOMAIN_*`                    | 0.66  |
+| hint  | `SUPPORT_*` (impersonation)          | `IMPERSONATION_*`             | 0.66  |
+| hint  | `CARE_*` (clinical-decision-support) | `DECISION_SUPPORT_*`          | 0.66  |
+| hint  | `BOM_*`                              | `MANUFACTURING_BOM_*`         | 0.66  |
+| hint  | `SSF_*`                              | `SECURITY_EVENT_*`            | 0.66  |
+| hint  | `TIMESHEET_*`                        | `TIME_ENTRIES_TIMESHEET_*`    | 0.66  |
+| hint  | `FIELD_*` (custom-fields)            | `CUSTOM_FIELD_*`              | 0.66  |
+| hint  | `PRESCRIPTION_*`                     | `E_PRESCRIBING_*`             | 0.66  |
+| hint  | `WEBHOOK_IN_*`                       | `INCOMING_WEBHOOK_*`          | 0.66  |
+
 The rules:
 
 - Environment variables the library or CLI reads start with `BETTER_SUPABASE_`.
@@ -213,7 +245,10 @@ The rules:
   violation that is not renamed yet, and the check fails when a listed name
   stops violating. The type list is empty.
 - A hint code is `<ENTITY>_<REASON>`, and a core hint carries its core noun
-  (`AUDIT_CHAIN_SIGNER`, `TABLE_APPEND_ONLY`, `PERIOD_CLOSED`).
+  (`AUDIT_CHAIN_SIGNER`, `TABLE_APPEND_ONLY`, `PERIOD_CLOSED`). `check:naming`
+  fails on a code whose prefix neither the block's name nor an allowlisted
+  entity noun gives, and on an event verb the rules ban. Both lists only
+  shrink.
 - The helper functions live in `better_supabase`. The `bsb` schema is gone.
 - Doctor codes are `BS` and three digits, never lower case.
 - A subpath is `better-supabase/<area>` or `better-supabase/<area>/<variant>`.

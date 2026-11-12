@@ -19,7 +19,7 @@ const MIGRATION_OPTIONS: readonly MigrationOption[] = [
       "stores invitation tokens in plain text instead of their SHA-256 hash",
   },
   {
-    module: "webhooks-out",
+    module: "webhooks",
     option: "secretStorage",
     departs: (value) => value === "column",
     effect: "keeps signing secrets in a table column instead of Vault",
@@ -31,14 +31,14 @@ const MIGRATION_OPTIONS: readonly MigrationOption[] = [
     effect: "keeps third-party credentials in a table column instead of Vault",
   },
   {
-    module: "webhooks-out",
+    module: "webhooks",
     option: "eventIdType",
     departs: (value) => value !== "text" && value !== "uuid",
     effect:
       "types event ids for an existing column; managed tables use text or uuid",
   },
   {
-    module: "webhooks-out",
+    module: "webhooks",
     option: "runIdType",
     departs: (value) => value !== "text" && value !== "uuid",
     effect:

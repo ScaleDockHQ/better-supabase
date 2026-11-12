@@ -26,7 +26,7 @@ describe.skipIf(!live)(
           await s.hint("better_supabase.start_support_session($1, 'curious')", [
             USERS.owner,
           ]),
-        ).toBe("SUPPORT_FORBIDDEN");
+        ).toBe("IMPERSONATION_FORBIDDEN");
 
         await s.as("support");
 

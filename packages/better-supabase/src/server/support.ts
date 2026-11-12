@@ -112,8 +112,8 @@ export interface SupportOptions {
   /**
    * Whether `admin` may view the app as the target. Without it, the
    * authorization hooks' `support.authorize` decides, and without those every
-   * start is refused (`SUPPORT_FORBIDDEN`). A throw or rejection counts as a
-   * deny. `true` still needs a second admin under `policy.approval:
+   * start is refused (`IMPERSONATION_FORBIDDEN`). A throw or rejection counts
+   * as a deny. `true` still needs a second admin under `policy.approval:
    * 'distinct'`; `{ approvedBy }` names that admin.
    *
    * `'store'` hands the decision to the store alone: the SQL store checks
@@ -296,12 +296,12 @@ export function supportSessions(options: SupportOptions): SupportSessions {
 }
 
 const forbidden = (): DbError =>
-  denied("Not allowed to start a support session", "SUPPORT_FORBIDDEN");
+  denied("Not allowed to start a support session", "IMPERSONATION_FORBIDDEN");
 
 const selfApproval = (): DbError =>
   denied(
     "An admin cannot approve their own support session",
-    "SUPPORT_SELF_APPROVAL",
+    "IMPERSONATION_SELF_APPROVAL",
   );
 
 function createSupport(
@@ -395,18 +395,18 @@ function createSupport(
     if (request.targetUserId === admin.user.id) {
       return invalid(
         "An admin cannot start a support session as themselves",
-        "SUPPORT_SELF",
+        "IMPERSONATION_SELF",
       );
     }
 
     if ((policy.requireReason ?? true) && reason === "") {
-      return invalid("A reason is required", "SUPPORT_REASON_REQUIRED");
+      return invalid("A reason is required", "IMPERSONATION_REASON_REQUIRED");
     }
 
     if (!Number.isFinite(seconds) || seconds <= 0 || seconds > maxTtl) {
       return invalid(
         `ttl must be between 1 and ${String(maxTtl)} seconds`,
-        "SUPPORT_TTL",
+        "IMPERSONATION_TTL",
       );
     }
 
@@ -724,7 +724,7 @@ function createSupport(
             return deny(
               denied(
                 "A second admin must approve this support session",
-                "SUPPORT_APPROVAL_REQUIRED",
+                "IMPERSONATION_APPROVAL_REQUIRED",
               ),
               "policy",
             );
@@ -845,7 +845,7 @@ function createSupport(
           if (!found) {
             return err(
               dbError("not_found", "No such support request", {
-                code: "SUPPORT_REQUEST_MISSING",
+                code: "IMPERSONATION_REQUEST_MISSING",
               }),
             );
           }
@@ -867,7 +867,7 @@ function createSupport(
             return err(
               denied(
                 "Not allowed to approve this support session",
-                "SUPPORT_FORBIDDEN",
+                "IMPERSONATION_FORBIDDEN",
               ),
             );
           }

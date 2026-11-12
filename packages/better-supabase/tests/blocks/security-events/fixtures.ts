@@ -76,7 +76,7 @@ export interface Store {
   call(schema: string, fn: string, args: Args): Promise<unknown>;
 }
 
-/** The security-events module in memory, with webhooks-out dispatch recorded. */
+/** The security-events module in memory, with webhooks dispatch recorded. */
 export function store(): Store {
   const streams: Stream[] = [];
   const queued: { stream: string; jti: string; token: string }[] = [];

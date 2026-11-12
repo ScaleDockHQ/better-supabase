@@ -1740,13 +1740,13 @@ export const permissions = {
     write: "warranty.write",
     upload: "warranty.write",
   },
-  "webhooks-in": {
+  "incoming-webhooks": {
     create: "webhooks.manage",
     update: "webhooks.manage",
     delete: "webhooks.manage",
     read: "webhooks.read",
   },
-  "webhooks-out": {
+  "webhooks": {
     manage: "webhooks.manage",
     read: "webhooks.read",
   },

@@ -155,7 +155,7 @@ describe("support sessions in Next.js", () => {
     const { bsb } = setup();
     const refused = await bsb.startSupport({ targetUserId: TARGET });
     expect(refused.ok).toBe(false);
-    expect(refused.error?.code).toBe("SUPPORT_REASON_REQUIRED");
+    expect(refused.error?.code).toBe("IMPERSONATION_REASON_REQUIRED");
     expect(mocks.setCookie).not.toHaveBeenCalled();
   });
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_178_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:692628c17c43ef1e76e2fee688e822eaebafedd4bd0b968b9767d70c862ad512
+-- @bsb-hash sha256:e245bf89816023c32196c3d0646894ce822874ace32faf9e2a26b7b44b4532bb
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,32 +96,32 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_prescription.tenant is not null and coalesce(better_supabase.can('tenant', create_prescription.tenant, 'e_prescribing.write'), false))) then
-    raise exception 'not allowed to draft prescriptions' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+    raise exception 'not allowed to draft prescriptions' using errcode = '42501', hint = 'E_PRESCRIBING_FORBIDDEN';
   end if;
   begin
     v_prescriber := coalesce(v_prescriber, nullif(v_attrs ->> 'prescriberId', '')::uuid);
   exception when invalid_text_representation then
-    raise exception 'prescriberId is a uuid' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+    raise exception 'prescriberId is a uuid' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end;
   if v_prescriber is null then
-    raise exception 'a prescription needs a prescriber' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+    raise exception 'a prescription needs a prescriber' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end if;
   if v_name is not null and length(v_name) > 300 then
-    raise exception 'a prescriber name is up to 300 characters' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+    raise exception 'a prescriber name is up to 300 characters' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end if;
   select * into v_order from "better_supabase"."medication_orders" x where x."tenant_id" = create_prescription.tenant and x."id" = create_prescription.order_id;
   if not found then
-    raise exception 'the order is not one of the organization' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+    raise exception 'the order is not one of the organization' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end if;
   if v_order."status" <> 'active' then
-    raise exception 'only an active medication order can be prescribed' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+    raise exception 'only an active medication order can be prescribed' using errcode = '55000', hint = 'E_PRESCRIBING_STATUS';
   end if;
   begin
     insert into "better_supabase"."prescriptions" ("tenant_id", "order_id", "subject_type", "subject_id", "prescriber_id", "prescriber_name")
     values (create_prescription.tenant, v_order."id", v_order."subject_type", v_order."subject_id", v_prescriber, v_name)
     returning * into v_row;
   exception when unique_violation then
-    raise exception 'this order already has a prescription that is not cancelled' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+    raise exception 'this order already has a prescription that is not cancelled' using errcode = '55000', hint = 'E_PRESCRIBING_STATUS';
   end;
   null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'prescriberId', v_row."prescriber_id", 'prescriberName', v_row."prescriber_name", 'status', v_row."status", 'order', v_row."snapshot", 'signedBy', v_row."signed_by", 'signedAt', v_row."signed_at", 'gateway', v_row."gateway", 'gatewayReference', v_row."gateway_reference", 'sentAt', v_row."sent_at", 'deliveryError', v_row."delivery_error", 'dispensedAt', v_row."dispensed_at", 'cancelledAt', v_row."cancelled_at", 'cancelReason', v_row."cancel_reason", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
@@ -149,20 +149,20 @@ begin
   end if;
   select * into v_row from "better_supabase"."prescriptions" x where x."id" = sign_prescription.prescription_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
-    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'E_PRESCRIBING_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.sign'), false))) then
-    raise exception 'not allowed to sign prescriptions' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+    raise exception 'not allowed to sign prescriptions' using errcode = '42501', hint = 'E_PRESCRIBING_FORBIDDEN';
   end if;
   if v_row."prescriber_id" is distinct from auth.uid() or auth.uid() is null then
-    raise exception 'only the prescriber signs a prescription' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+    raise exception 'only the prescriber signs a prescription' using errcode = '42501', hint = 'E_PRESCRIBING_FORBIDDEN';
   end if;
   if v_row."status" <> 'draft' then
-    raise exception 'only a draft can be signed' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+    raise exception 'only a draft can be signed' using errcode = '55000', hint = 'E_PRESCRIBING_STATUS';
   end if;
   select * into v_order from "better_supabase"."medication_orders" x where x."tenant_id" = v_row."tenant_id" and x."id" = v_row."order_id";
   if not found or v_order."status" <> 'active' or (v_order."ends_on" is not null and v_order."ends_on" < (now() at time zone 'UTC')::date) then
-    raise exception 'the order is no longer active' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+    raise exception 'the order is no longer active' using errcode = '55000', hint = 'E_PRESCRIBING_STATUS';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_prescription_sign"(uuid)');
@@ -212,19 +212,19 @@ begin
   end if;
   select * into v_row from "better_supabase"."prescriptions" x where x."id" = record_prescription_delivery.prescription_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
-    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'E_PRESCRIBING_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.write'), false))) then
-    raise exception 'not allowed to send prescriptions' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+    raise exception 'not allowed to send prescriptions' using errcode = '42501', hint = 'E_PRESCRIBING_FORBIDDEN';
   end if;
   if v_gateway is null or length(v_gateway) > 100 then
-    raise exception 'gateway is 1 to 100 characters' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+    raise exception 'gateway is 1 to 100 characters' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end if;
   if length(coalesce(v_reference, '')) > 200 or length(coalesce(v_error, '')) > 1000 then
-    raise exception 'a reference is up to 200 characters and an error up to 1000' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+    raise exception 'a reference is up to 200 characters and an error up to 1000' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end if;
   if v_row."status" <> 'signed' then
-    raise exception 'only a signed prescription can be sent' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+    raise exception 'only a signed prescription can be sent' using errcode = '55000', hint = 'E_PRESCRIBING_STATUS';
   end if;
   if v_error is not null then
     update "better_supabase"."prescriptions" x set "gateway" = v_gateway, "delivery_error" = v_error, "updated_at" = now()
@@ -261,13 +261,13 @@ begin
   end if;
   select * into v_row from "better_supabase"."prescriptions" x where x."id" = record_prescription_dispense.prescription_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
-    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'E_PRESCRIBING_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.write'), false))) then
-    raise exception 'not allowed to record dispensing' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+    raise exception 'not allowed to record dispensing' using errcode = '42501', hint = 'E_PRESCRIBING_FORBIDDEN';
   end if;
   if v_row."status" <> 'sent' then
-    raise exception 'only a sent prescription can be dispensed' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+    raise exception 'only a sent prescription can be dispensed' using errcode = '55000', hint = 'E_PRESCRIBING_STATUS';
   end if;
   update "better_supabase"."prescriptions" x set "status" = 'dispensed', "dispensed_at" = coalesce(record_prescription_dispense.dispensed_at, now()), "updated_at" = now()
   where x."id" = v_row."id"
@@ -297,19 +297,19 @@ begin
   end if;
   select * into v_row from "better_supabase"."prescriptions" x where x."id" = cancel_prescription.prescription_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
-    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'E_PRESCRIBING_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.manage'), false))) and not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.write'), false))) and v_row."prescriber_id" is not distinct from auth.uid()) then
-    raise exception 'only the prescriber or a manager cancels a prescription' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+    raise exception 'only the prescriber or a manager cancels a prescription' using errcode = '42501', hint = 'E_PRESCRIBING_FORBIDDEN';
   end if;
   if v_row."status" in ('dispensed', 'cancelled') then
-    raise exception 'a dispensed or cancelled prescription cannot be cancelled' using errcode = '55000', hint = 'PRESCRIPTION_STATUS';
+    raise exception 'a dispensed or cancelled prescription cannot be cancelled' using errcode = '55000', hint = 'E_PRESCRIBING_STATUS';
   end if;
   if v_reason is null and v_row."status" <> 'draft' then
-    raise exception 'cancelling a signed or sent prescription needs a reason' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+    raise exception 'cancelling a signed or sent prescription needs a reason' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end if;
   if length(coalesce(v_reason, '')) > 1000 then
-    raise exception 'a reason is up to 1000 characters' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+    raise exception 'a reason is up to 1000 characters' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end if;
   update "better_supabase"."prescriptions" x set "status" = 'cancelled', "cancelled_at" = now(), "cancel_reason" = v_reason, "updated_at" = now()
   where x."id" = v_row."id"
@@ -335,7 +335,7 @@ declare
 begin
   select * into v_row from "better_supabase"."prescriptions" x where x."id" = get_prescription.prescription_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'e_prescribing.read'), false))) then
-    raise exception 'no such prescription' using errcode = 'P0002', hint = 'PRESCRIPTION_NOT_FOUND';
+    raise exception 'no such prescription' using errcode = 'P0002', hint = 'E_PRESCRIBING_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'orderId', v_row."order_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'prescriberId', v_row."prescriber_id", 'prescriberName', v_row."prescriber_name", 'status', v_row."status", 'order', v_row."snapshot", 'signedBy', v_row."signed_by", 'signedAt', v_row."signed_at", 'gateway', v_row."gateway", 'gatewayReference', v_row."gateway_reference", 'sentAt', v_row."sent_at", 'deliveryError', v_row."delivery_error", 'dispensedAt', v_row."dispensed_at", 'cancelledAt', v_row."cancelled_at", 'cancelReason', v_row."cancel_reason", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
@@ -358,10 +358,10 @@ declare
   v_filters jsonb := coalesce(list_prescriptions.filters, '{}'::jsonb);
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_prescriptions.tenant is not null and coalesce(better_supabase.can('tenant', list_prescriptions.tenant, 'e_prescribing.read'), false))) then
-    raise exception 'not allowed to read prescriptions' using errcode = '42501', hint = 'PRESCRIPTION_FORBIDDEN';
+    raise exception 'not allowed to read prescriptions' using errcode = '42501', hint = 'E_PRESCRIBING_FORBIDDEN';
   end if;
   if v_filters ->> 'status' is not null and v_filters ->> 'status' not in ('draft', 'signed', 'sent', 'dispensed', 'cancelled') then
-    raise exception 'status is draft, signed, sent, dispensed or cancelled' using errcode = '22023', hint = 'PRESCRIPTION_INVALID';
+    raise exception 'status is draft, signed, sent, dispensed or cancelled' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'orderId', q."order_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'prescriberId', q."prescriber_id", 'prescriberName', q."prescriber_name", 'status', q."status", 'order', q."snapshot", 'signedBy', q."signed_by", 'signedAt', q."signed_at", 'gateway', q."gateway", 'gatewayReference', q."gateway_reference", 'sentAt', q."sent_at", 'deliveryError', q."delivery_error", 'dispensedAt', q."dispensed_at", 'cancelledAt', q."cancelled_at", 'cancelReason', q."cancel_reason", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."created_at" desc, q."id")

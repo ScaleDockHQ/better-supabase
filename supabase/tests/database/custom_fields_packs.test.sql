@@ -21,7 +21,7 @@ select throws_ok(
   $$select better_supabase.save_field_definition('00000000-0000-4000-8000-000000000001', 'not_a_subject', 'x', 'X', 'text', false)$$,
   '22023',
   'the entity is not a registered subject type',
-  'a definition for an unregistered entity fails with FIELD_ENTITY_UNKNOWN'
+  'a definition for an unregistered entity fails with CUSTOM_FIELD_ENTITY_UNKNOWN'
 );
 
 select is(

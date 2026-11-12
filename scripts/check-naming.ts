@@ -4,7 +4,8 @@
 // suffixes, doctor codes are upper case, subpaths keep their shape. Violations
 // the repo has not renamed yet are listed in the allowlist of naming.json, and
 // the check fails when an allowlisted item stops violating, so the list only
-// shrinks. Run with `node scripts/check-naming.ts [--print]`.
+// shrinks. It also enforces the event verb vocabulary and the hint prefix rule
+// of ADR 0699. Run with `node scripts/check-naming.ts [--print]`.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
@@ -41,6 +42,14 @@ interface Naming {
   readonly bannedTypeSuffixes: readonly string[];
   readonly subpathPattern: string;
   readonly renames: readonly Rename[];
+  readonly hints: {
+    readonly shared: readonly string[];
+    readonly allowlist: Readonly<Record<string, readonly string[]>>;
+  };
+  readonly eventVerbs: {
+    readonly banned: Readonly<Record<string, string>>;
+    readonly bannedSuffixes: Readonly<Record<string, string>>;
+  };
   readonly allowlist: {
     readonly env: readonly string[];
     readonly typeNames: readonly string[];
@@ -275,6 +284,128 @@ for (const key of exportKeys) {
 
   if (!subpath.test(key)) {
     found.subpaths.add(key);
+  }
+}
+
+const BLOCKS_SRC = "packages/better-supabase/src/blocks";
+
+/** The verb of every `"<entity>.<verb>": event<...>` a block declares. */
+function eventTypes(): readonly { file: string; type: string }[] {
+  const found: { file: string; type: string }[] = [];
+  const events: string[] = [];
+
+  walk(BLOCKS_SRC, events);
+
+  for (const file of events.filter((each) => each.endsWith("/events.ts"))) {
+    for (const match of readFileSync(file, "utf-8").matchAll(
+      /^\s+"([a-z_]+\.[a-z_]+)": event</gm,
+    )) {
+      found.push({ file, type: match[1]! });
+    }
+  }
+
+  return found;
+}
+
+for (const { file, type } of eventTypes()) {
+  const verb = type.slice(type.indexOf(".") + 1);
+  const use = naming.eventVerbs.banned[verb];
+
+  if (use !== undefined) {
+    found.codes.push(
+      `${file} ${type}: the verb "${verb}" is banned, use ${use}`,
+    );
+  }
+
+  for (const [suffix, instead] of Object.entries(
+    naming.eventVerbs.bannedSuffixes,
+  )) {
+    if (verb.endsWith(suffix)) {
+      found.codes.push(
+        `${file} ${type}: a verb ending in "${suffix}" is banned, end it in "${instead}"`,
+      );
+    }
+  }
+}
+
+const singularAndPlural = (word: string): readonly string[] => {
+  const lower = word.toLowerCase();
+  const forms = new Set([lower]);
+
+  if (lower.endsWith("ies")) {
+    forms.add(`${lower.slice(0, -3)}y`);
+  } else if (lower.endsWith("s") && !lower.endsWith("ss")) {
+    forms.add(lower.slice(0, -1));
+  } else {
+    forms.add(`${lower}s`);
+  }
+
+  if (lower.endsWith("y")) {
+    forms.add(`${lower.slice(0, -1)}ies`);
+  }
+
+  return [...forms].map((form) => form.toUpperCase());
+};
+
+/**
+ * The prefixes a block's name gives: a run of its words, the last in either
+ * number.
+ */
+function namePrefixes(block: string): readonly string[] {
+  const words = block.toUpperCase().split("-");
+  const prefixes: string[] = [];
+
+  for (let from = 0; from < words.length; from += 1) {
+    for (let to = from; to < words.length; to += 1) {
+      for (const last of singularAndPlural(words[to]!)) {
+        prefixes.push([...words.slice(from, to), last].join("_"));
+      }
+    }
+  }
+
+  return prefixes;
+}
+
+const usedHintPrefixes = new Set<string>();
+
+for (const line of readFileSync(
+  `${BLOCKS_SRC}/hint-codes.generated.ts`,
+  "utf-8",
+).matchAll(/^ {2}readonly "([^"]+)": (.+);$/gm)) {
+  const block = line[1]!;
+  const given = namePrefixes(block);
+  const allowed = naming.hints.allowlist[block] ?? [];
+
+  for (const code of line[2]!.matchAll(/"([A-Z0-9_]+)"/g)) {
+    const hint = code[1]!;
+
+    if (naming.hints.shared.some((prefix) => hint.startsWith(prefix))) {
+      continue;
+    }
+
+    if (given.some((prefix) => hint.startsWith(`${prefix}_`))) {
+      continue;
+    }
+
+    const exception = allowed.find((prefix) => hint.startsWith(prefix));
+
+    if (exception === undefined) {
+      found.codes.push(
+        `${BLOCKS_SRC}/hint-codes.generated.ts ${block}: ${hint} does not start with a prefix its name gives (${given.slice(-2).join(", ")}); rename it, or allowlist the entity prefix in api/naming.json (ADR 0130 rule 8)`,
+      );
+    } else {
+      usedHintPrefixes.add(`${block}:${exception}`);
+    }
+  }
+}
+
+for (const [block, prefixes] of Object.entries(naming.hints.allowlist)) {
+  for (const prefix of prefixes) {
+    if (!usedHintPrefixes.has(`${block}:${prefix}`)) {
+      found.codes.push(
+        `hints: ${block} no longer has a code starting with ${prefix}; remove it from the hints allowlist`,
+      );
+    }
   }
 }
 

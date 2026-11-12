@@ -56,7 +56,7 @@ const EVENTS: BlockSqlEvents<MessagingEvents> = {
     subject: "messages",
     payload: [...MESSAGE, "mentionIds", "recordMentions"],
   },
-  "message.edited": { subject: "messages", payload: [...MESSAGE] },
+  "message.updated": { subject: "messages", payload: [...MESSAGE] },
   "message.deleted": { subject: "messages", payload: [...MESSAGE] },
   "message.pinned": { subject: "messages", payload: [...MESSAGE, "pinned"] },
   "message.resolved": {

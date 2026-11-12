@@ -94,7 +94,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         );
       }
 
-      for (const file of renderBlocks(["webhooks-in", "rate-limit"], {
+      for (const file of renderBlocks(["incoming-webhooks", "rate-limit"], {
         rerunnable: true,
       })) {
         if (file.kind === "schema") {
@@ -176,7 +176,10 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       claims = { sub: outsider, role: "authenticated" };
       expect(
         await hooks.create({ tenant: organization, name: "Nope" }),
-      ).toMatchObject({ ok: false, error: { hint: "WEBHOOK_IN_FORBIDDEN" } });
+      ).toMatchObject({
+        ok: false,
+        error: { hint: "INCOMING_WEBHOOK_FORBIDDEN" },
+      });
       expect(
         (
           await client.query(
@@ -306,9 +309,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "webhooks-in"], {
+      await s.install(["organizations", "incoming-webhooks"], {
         modules: {
-          "webhooks-in": { permissions: { delete: "organization.delete" } },
+          "incoming-webhooks": {
+            permissions: { delete: "organization.delete" },
+          },
         },
       });
       const owner = await s.user("owner");
@@ -391,28 +396,34 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         await hooks.update({ id: created.id, input: { name: " " } }),
       ).toMatchObject({
         ok: false,
-        error: { hint: "WEBHOOK_IN_NAME_REQUIRED" },
+        error: { hint: "INCOMING_WEBHOOK_NAME_REQUIRED" },
       });
       expect(
         await s.hint(
           "better_supabase.update_incoming_webhook($1, metadata => '[]'::jsonb)",
           [created.id],
         ),
-      ).toBe("WEBHOOK_IN_METADATA_INVALID");
+      ).toBe("INCOMING_WEBHOOK_METADATA_INVALID");
       expect(
         await s.hint(
           "better_supabase.update_incoming_webhook($1, verify => 'magic')",
           [created.id],
         ),
-      ).toBe("WEBHOOK_IN_VERIFY_UNKNOWN");
+      ).toBe("INCOMING_WEBHOOK_VERIFY_UNKNOWN");
 
       await s.as(member);
       expect(
         await hooks.update({ id: created.id, input: { name: "Mine" } }),
-      ).toMatchObject({ ok: false, error: { hint: "WEBHOOK_IN_NOT_FOUND" } });
+      ).toMatchObject({
+        ok: false,
+        error: { hint: "INCOMING_WEBHOOK_NOT_FOUND" },
+      });
       expect(
         await hooks.create({ tenant: organization, name: "x" }),
-      ).toMatchObject({ ok: false, error: { hint: "WEBHOOK_IN_FORBIDDEN" } });
+      ).toMatchObject({
+        ok: false,
+        error: { hint: "INCOMING_WEBHOOK_FORBIDDEN" },
+      });
 
       await s.as(admin);
       expect(
@@ -430,7 +441,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "webhooks-in"]);
+      await s.install(["organizations", "incoming-webhooks"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
@@ -506,12 +517,12 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       await s.as(owner);
       expect(await hooks.rotateSecret({ id: plain.id })).toMatchObject({
         ok: false,
-        error: { hint: "WEBHOOK_IN_NO_SECRET" },
+        error: { hint: "INCOMING_WEBHOOK_NO_SECRET" },
       });
       await s.as(member);
       expect(await hooks.rotateSecret({ id: created.id })).toMatchObject({
         ok: false,
-        error: { hint: "WEBHOOK_IN_NOT_FOUND" },
+        error: { hint: "INCOMING_WEBHOOK_NOT_FOUND" },
       });
       await s.as(owner);
       await hooks
@@ -529,7 +540,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "webhooks-in"]);
+      await s.install(["organizations", "incoming-webhooks"]);
       const owner = await s.user("owner");
       const organization = await s.organization(owner);
 
@@ -618,9 +629,9 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
          create policy "read" on public.bsb_test_flows for select to authenticated
            using (better_supabase.has_organization_role(organization_id) and not private);`,
       );
-      await s.install(["organizations", "webhooks-in"], {
+      await s.install(["organizations", "incoming-webhooks"], {
         modules: {
-          "webhooks-in": {
+          "incoming-webhooks": {
             on: { flow: { table: "bsb_test_flows", cascade: true } },
           },
         },
@@ -654,7 +665,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         }),
       ).toMatchObject({
         ok: false,
-        error: { hint: "WEBHOOK_IN_SUBJECT_INVALID" },
+        error: { hint: "INCOMING_WEBHOOK_SUBJECT_INVALID" },
       });
       const listed = await hooks.list({ tenant: organization }).orThrow();
       expect(listed.map((hook) => hook.subject?.id)).toEqual([open!.id]);
@@ -688,7 +699,9 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderBlocks(["webhooks-in"], { rerunnable: true })) {
+      for (const file of renderBlocks(["incoming-webhooks"], {
+        rerunnable: true,
+      })) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
@@ -700,7 +713,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         [crypto.randomUUID(), crypto.randomUUID()],
       );
 
-      const [plan] = upgradePlan([{ module: "webhooks-in", version: 1 }]);
+      const [plan] = upgradePlan([{ module: "incoming-webhooks", version: 1 }]);
 
       for (const step of plan!.steps) {
         await client.query(step.sql);
@@ -779,7 +792,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const layout = {
         ownTables: { [hooksTable]: "app.sql", [inboxTable]: "app.sql" },
         modules: {
-          "webhooks-in": {
+          "incoming-webhooks": {
             tables: { endpoints: hooksTable },
             columns: {
               endpoints: {
@@ -817,7 +830,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       };
 
       for (const file of renderBlocks(
-        ["organizations", "webhooks-in", "webhook-inbox", "queue"],
+        ["organizations", "incoming-webhooks", "webhook-inbox", "queue"],
         { ...layout, rerunnable: true },
       )) {
         if (file.kind === "schema") {

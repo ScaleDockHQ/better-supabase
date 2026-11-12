@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_entries.sql
 -- better-supabase module: time-entries
 -- @bsb-block time-entries@3 managed
--- @bsb-hash sha256:c4e9b39a5e222683941d135f0ad21bdf43859ae94074aaa6a94a798627065d99
+-- @bsb-hash sha256:096b63a35ffde649b1114d958756290125f69360fe5c40f9169ffa47a264b3c4
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -642,7 +642,7 @@ begin
     where x."tenant_id" = submit_timesheet.tenant and x."user_id" = v_me and x."ended_at" is null
       and "better_supabase"."time_week"(x."started_at") = v_week
   ) then
-    raise exception 'stop the running timer before submitting this week' using errcode = '55000', hint = 'TIMESHEET_TIMER_RUNNING';
+    raise exception 'stop the running timer before submitting this week' using errcode = '55000', hint = 'TIME_ENTRIES_TIMESHEET_TIMER_RUNNING';
   end if;
   insert into "better_supabase"."timesheets" ("tenant_id", "user_id", "week")
   values (submit_timesheet.tenant, v_me, v_week)
@@ -651,11 +651,11 @@ begin
     where s."tenant_id" = submit_timesheet.tenant and s."user_id" = v_me and s."week" = v_week
     for update;
   if v_sheet."approved_at" is not null then
-    raise exception 'this week is already approved' using errcode = '55000', hint = 'TIMESHEET_APPROVED';
+    raise exception 'this week is already approved' using errcode = '55000', hint = 'TIME_ENTRIES_TIMESHEET_APPROVED';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_sheet."approval_id";
   if v_approval."status" = 'pending' then
-    raise exception 'this week is already waiting for approval' using errcode = '55000', hint = 'TIMESHEET_SUBMITTED';
+    raise exception 'this week is already waiting for approval' using errcode = '55000', hint = 'TIME_ENTRIES_TIMESHEET_SUBMITTED';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_timesheet_submit"(uuid, uuid, date)');
@@ -732,13 +732,13 @@ begin
   end if;
   select * into v_sheet from "better_supabase"."timesheets" s where s."id" = reopen_timesheet.timesheet_id for update;
   if not found then
-    raise exception 'timesheet not found' using errcode = 'P0002', hint = 'TIMESHEET_NOT_FOUND';
+    raise exception 'timesheet not found' using errcode = 'P0002', hint = 'TIME_ENTRIES_TIMESHEET_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_entries.manage'), false)) then
     raise exception 'not allowed to reopen timesheets' using errcode = '42501', hint = 'TIME_FORBIDDEN';
   end if;
   if v_sheet."approved_at" is null then
-    raise exception 'only an approved week can be reopened' using errcode = '55000', hint = 'TIMESHEET_NOT_APPROVED';
+    raise exception 'only an approved week can be reopened' using errcode = '55000', hint = 'TIME_ENTRIES_TIMESHEET_NOT_APPROVED';
   end if;
   update "better_supabase"."timesheets" s set "approved_at" = null, "approval_id" = null, "submitted_at" = null
     where s."id" = v_sheet."id"

@@ -2,8 +2,8 @@ import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
-/** `blocks.webhooks-out.options`. */
-export type WebhooksOutSqlOptions = {
+/** `blocks.webhooks.options`. */
+export type WebhooksSqlOptions = {
   readonly allowHttp?: boolean;
   readonly defaultFormat?: string;
   readonly disableAfter?: string;
@@ -14,8 +14,8 @@ export type WebhooksOutSqlOptions = {
   readonly statuses?: unknown;
 };
 
-export const webhooksOutSqlOptions: BlockOptionsSchema<WebhooksOutSqlOptions> =
-  blockOptions<WebhooksOutSqlOptions>({
+export const webhooksSqlOptions: BlockOptionsSchema<WebhooksSqlOptions> =
+  blockOptions<WebhooksSqlOptions>({
     allowHttp: option.boolean({ default: false, client: true }),
     defaultFormat: option.string({ default: "cloudevents", client: true }),
     disableAfter: option.string({ default: "5 days" }),
@@ -26,14 +26,14 @@ export const webhooksOutSqlOptions: BlockOptionsSchema<WebhooksOutSqlOptions> =
     statuses: option.unknown(),
   });
 
-/** `blocks.webhooks-in.options`. */
-export type WebhooksInSqlOptions = {
+/** `blocks.incoming-webhooks.options`. */
+export type IncomingWebhooksSqlOptions = {
   readonly maxBodyBytes?: number;
   readonly secretStorage?: string;
 };
 
-export const webhooksInSqlOptions: BlockOptionsSchema<WebhooksInSqlOptions> =
-  blockOptions<WebhooksInSqlOptions>({
+export const incomingWebhooksSqlOptions: BlockOptionsSchema<IncomingWebhooksSqlOptions> =
+  blockOptions<IncomingWebhooksSqlOptions>({
     maxBodyBytes: option.number({ default: 1_048_576 }),
     secretStorage: option.string({ default: "vault" }),
   });

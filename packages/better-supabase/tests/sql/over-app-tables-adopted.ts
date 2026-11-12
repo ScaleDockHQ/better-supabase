@@ -10,7 +10,7 @@ import { declaredTables } from "../../src/sql/schema-scan.ts";
 
 /** Options a module needs once one of its tables is the app's. */
 const OVER_APP_OPTIONS: AnyBlocksConfig = {
-  "webhooks-out": { options: { defaultFormat: "standard" } },
+  webhooks: { options: { defaultFormat: "standard" } },
 };
 
 function rendersAlone(module: string): boolean {

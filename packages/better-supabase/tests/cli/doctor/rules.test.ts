@@ -2079,7 +2079,7 @@ describe("app table's check rejects values a block writes (BS361)", () => {
 
     const webhooks = {
       blocks: {
-        "webhooks-out": {
+        webhooks: {
           tables: { deliveries: "public.notification_deliveries" },
           options: {
             statuses: {
@@ -2319,10 +2319,7 @@ describe("app webhook endpoints without a format (BS344)", () => {
 
   const overApp = (extra: Record<string, unknown> = {}) => ({
     blocks: {
-      "webhooks-out": {
-        tables: { endpoints: "public.hook_endpoints" },
-        ...extra,
-      },
+      webhooks: { tables: { endpoints: "public.hook_endpoints" }, ...extra },
     },
   });
 
@@ -2332,7 +2329,7 @@ describe("app webhook endpoints without a format (BS344)", () => {
     ).toEqual([
       expect.objectContaining({
         severity: "warning",
-        target: "blocks.webhooks-out.options.defaultFormat",
+        target: "blocks.webhooks.options.defaultFormat",
         message: expect.stringContaining(
           "public.hook_endpoints has no format column",
         ),
@@ -2372,7 +2369,7 @@ describe("app webhook endpoints without a format (BS344)", () => {
       ),
     ).toEqual([]);
     expect(
-      await run("BS344", context(snap, {}, { blocks: { "webhooks-out": {} } })),
+      await run("BS344", context(snap, {}, { blocks: { webhooks: {} } })),
     ).toEqual([]);
   });
 });
