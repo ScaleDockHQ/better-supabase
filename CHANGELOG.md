@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.63.1 (2026-11-12)
+
+- Doctor BS386 now flags a select policy that calls a `security definer` function, or one with a `set` clause, once per row, even when it is a stable SQL function such as `can_note(notes, 'read')`. Postgres never inlines such a function, so a list pays one call per row. The call is still accepted as the `or` fallback after a set check, as in `id in (select note_ids('read')) or can_note(notes, 'read')`. It also no longer flags a set helper in the `from` of a subquery that is joined `lateral` or wrapped in parentheses, or one whose arguments read a column of another `from` item such as `member.id`.
+
 ## 0.63.0 (2026-11-12)
 
 - `notifications.page` sorts by `order` (`newest`, `oldest`, `type`, `subject` or `status`, with `_desc` forms) and filters on `excludeTypes`, `subjectIds` and `anyOf` groups, so a view such as "everything that is not an open request" pages in SQL. `search` in `list` and `page` also matches the actor's name when the `profiles` module is installed. Both return up to 500 items (was 200), and `page` returns the `limit` it applied, so a caller sees when a request was clamped. `notification_page` takes `exclude_types`, `subject_ids`, `any_of` and `order_by`; the notifications module goes to version 11.
