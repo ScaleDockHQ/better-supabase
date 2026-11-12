@@ -24,6 +24,12 @@ start when that falls inside the window and nothing otherwise, and it never thro
 returns zoned results, and it throws on an unreadable rule. Calendar events, task
 recurrence, reminders and recurring template schedules all expand through it.
 
+`parseRrule` reads an RRULE value into its parts (`frequency`, `interval`, `count`,
+`until`, `byDay` with ordinals, `byMonthDay`, `byMonth`, `bySetPos` and `weekStart`) and
+throws a `TypeError` for a part it can't read. `formatRrule` writes the parts back and
+leaves out the defaults (`INTERVAL=1` and `WKST=MO`), so a block can take a rule as text,
+check which parts it supports and store it in its own columns without a parser of its own.
+
 ## In SQL
 
 The `recurrence` module installs two functions in the `better_supabase` schema.
@@ -43,5 +49,7 @@ given instant. A conformance test runs the same rules through both implementatio
 compares the instants.
 
 The calendar block's `calendar_rule_starts` and the templates block's
-`due_template_occurrences(range_start, range_end)` call `rrule_occurrences`, so a new block
-that stores a rule needs no expander of its own.
+`due_template_occurrences(range_start, range_end)` call `rrule_occurrences`, and so do the
+bookings block's `booking_series_starts` and the maintenance block's `rrule` plans, so a
+new block that stores a rule needs no expander of its own. A block that uses it lists the
+`recurrence` module in `requires`.
