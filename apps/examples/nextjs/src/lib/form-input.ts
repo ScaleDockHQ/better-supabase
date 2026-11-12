@@ -11,7 +11,7 @@ export const Name = v.pipe(
   v.maxLength(200),
 );
 
-export const IsoDate = v.pipe(v.string(), v.isoDate());
+const IsoDate = v.pipe(v.string(), v.isoDate());
 
 /** An empty form field is `""`; it means "not given". */
 export const Optional = v.pipe(
