@@ -254,6 +254,23 @@ permissions are checked on each call, with the table and the row as the
 resource; unlike a tool's `permission`, they don't hide the tool from
 `tools/list`.
 
+## Blocks and tools
+
+A block's methods never become tools by themselves. The server exposes only
+what you list, and each source of tools has one fixed shape:
+
+| Source                                   | Tools                                                   | Permission check                               |
+| ---------------------------------------- | ------------------------------------------------------- | ---------------------------------------------- |
+| A table in `resources`                   | `<table>_list`, `_get`, `_create`, `_update`, `_delete` | The resource's `permissions` and RLS, per call |
+| `bsb.tool(...)` or `tools: [...]`        | The tool's own `name`                                   | `permission`, `operations` and `authorize`     |
+| A block's client, such as `createQuotes` | None                                                    | Call it from a custom tool                     |
+
+A block's tables live in the schema its SQL module installs, so list one in
+`resources` when agents should read or write it with plain table semantics. To
+expose a block method such as approving a quote, write a custom tool that calls
+the block's client in its `run` function, and give it a `permission` so the provider
+decides who may call it. The tool list never contains a tool you did not name.
+
 ## Custom tools
 
 `bsb.tool(...)` is typed against your repositories. Its input can be any

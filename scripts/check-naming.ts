@@ -9,6 +9,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
 
+import { checkPgtapCoverage } from "./check-pgtap-coverage.ts";
+
 interface Rename {
   readonly from: string;
   readonly to: string;
@@ -291,7 +293,7 @@ if (argv.includes("--print")) {
   exit(0);
 }
 
-const problems = [...found.rename, ...found.codes];
+const problems = [...found.rename, ...found.codes, ...checkPgtapCoverage()];
 
 const lists = ["env", "typeNames", "subpaths"] as const;
 
