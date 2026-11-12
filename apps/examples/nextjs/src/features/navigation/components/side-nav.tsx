@@ -2,6 +2,8 @@ import type { LucideIcon } from "lucide-react";
 
 import {
   GiftIcon,
+  ShieldBanIcon,
+  SirenIcon,
   GitForkIcon,
   ListOrderedIcon,
   TargetIcon,
@@ -167,6 +169,8 @@ const ICONS = {
   qualifications: BadgeCheckIcon,
   risks: ShieldAlertIcon,
   cases: FileWarningIcon,
+  moderation: ShieldBanIcon,
+  incidents: SirenIcon,
   inspections: ClipboardCheckIcon,
   meetings: GavelIcon,
   maintenance: WrenchIcon,

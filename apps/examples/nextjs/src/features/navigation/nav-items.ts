@@ -60,6 +60,8 @@ export type NavId =
   | "qualifications"
   | "risks"
   | "cases"
+  | "moderation"
+  | "incidents"
   | "inspections"
   | "meetings"
   | "maintenance"
@@ -395,6 +397,18 @@ export const navItems: readonly NavItem[] = [
   { id: "qualifications", href: "/qualifications", area: "people" },
   { id: "risks", href: "/risks", area: "quality", requires: "risks.read" },
   { id: "cases", href: "/cases", area: "quality", requires: "cases.read" },
+  {
+    id: "moderation",
+    href: "/moderation",
+    area: "quality",
+    requires: "moderation.read",
+  },
+  {
+    id: "incidents",
+    href: "/incidents",
+    area: "operations",
+    requires: "incidents.read",
+  },
   {
     id: "inspections",
     href: "/inspections",
