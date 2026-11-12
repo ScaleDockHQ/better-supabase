@@ -396815,18 +396815,20 @@
     ],
     "realtime": [],
     "roleSettings": {
-      "anon": {
-        "statement_timeout": "3s"
-      },
-      "authenticated": {
-        "statement_timeout": "8s"
-      },
       "authenticator": {
         "session_preload_libraries": "supautils, safeupdate",
         "statement_timeout": "8s",
         "lock_timeout": "8s",
         "pgrst.db_aggregates_enabled": "true",
         "pgrst.db_pre_request": "better_supabase.check_request"
+      },
+      "anon": {
+        "statement_timeout": "3s",
+        "idle_in_transaction_session_timeout": "60s"
+      },
+      "authenticated": {
+        "statement_timeout": "8s",
+        "idle_in_transaction_session_timeout": "60s"
       }
     },
     "functions": [

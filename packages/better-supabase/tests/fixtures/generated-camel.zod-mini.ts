@@ -62,9 +62,9 @@ export const contactsRow: z.ZodMiniType<RowOf<'contacts'>> = z.object({
   organizationId: z.guid(),
   email: z.string(),
   fullName: z.nullable(z.string()),
+  emailDomain: z.nullable(z.string()),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-  emailDomain: z.nullable(z.string()),
 }).check(z.meta({ title: "Contacts" }));
 export const contactsInsert: z.ZodMiniType<InsertOf<'contacts'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -115,8 +115,8 @@ export const customersRow: z.ZodMiniType<RowOf<'customers'>> = z.object({
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
   logoPath: z.nullable((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'customers'>['logoPath']>>)),
-  createdBy: z.nullable(z.guid()),
   ownerTeamId: z.nullable(z.guid()),
+  createdBy: z.nullable(z.guid()),
 }).check(z.meta({ title: "Customers", description: "Companies the organization sells to." }));
 export const customersInsert: z.ZodMiniType<InsertOf<'customers'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -131,8 +131,8 @@ export const customersInsert: z.ZodMiniType<InsertOf<'customers'>> = z.object({
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   logoPath: z.exactOptional(z.nullable((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'customers'>['logoPath']>>))),
-  createdBy: z.exactOptional(z.nullable(z.guid())),
   ownerTeamId: z.exactOptional(z.nullable(z.guid())),
+  createdBy: z.exactOptional(z.nullable(z.guid())),
 }).check(z.meta({ title: "Customers insert", description: "Companies the organization sells to." }));
 export const customersUpdate: z.ZodMiniType<UpdateOf<'customers'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -147,8 +147,8 @@ export const customersUpdate: z.ZodMiniType<UpdateOf<'customers'>> = z.object({
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   logoPath: z.exactOptional(z.nullable((z.string() as unknown as z.ZodMiniType<NonNullable<RowOf<'customers'>['logoPath']>>))),
-  createdBy: z.exactOptional(z.nullable(z.guid())),
   ownerTeamId: z.exactOptional(z.nullable(z.guid())),
+  createdBy: z.exactOptional(z.nullable(z.guid())),
 }).check(z.meta({ title: "Customers update", description: "Companies the organization sells to." }));
 
 export const customersWithOwnerRow: z.ZodMiniType<RowOf<'customersWithOwner'>> = z.object({
@@ -220,57 +220,57 @@ export const notesRow: z.ZodMiniType<RowOf<'notes'>> = z.object({
   id: z.int(),
   organizationId: z.guid(),
   customerId: z.guid(),
+  kind: z.enum(["call", "meeting", "email"]),
   body: z.string(),
   attachments: z.nullable(z.json()),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
   embedding: z.nullable(z.string()),
-  kind: z.enum(["call", "meeting", "email"]),
 }).check(z.meta({ title: "Notes" }));
 export const notesInsert: z.ZodMiniType<InsertOf<'notes'>> = z.object({
   organizationId: z.guid(),
   customerId: z.guid(),
+  kind: z.exactOptional(z.enum(["call", "meeting", "email"])),
   body: z.string(),
   attachments: z.exactOptional(z.nullable(z.json())),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   embedding: z.exactOptional(z.nullable(z.string())),
-  kind: z.exactOptional(z.enum(["call", "meeting", "email"])),
 }).check(z.meta({ title: "Notes insert" }));
 export const notesUpdate: z.ZodMiniType<UpdateOf<'notes'>> = z.object({
   organizationId: z.exactOptional(z.guid()),
   customerId: z.exactOptional(z.guid()),
+  kind: z.exactOptional(z.enum(["call", "meeting", "email"])),
   body: z.exactOptional(z.string()),
   attachments: z.exactOptional(z.nullable(z.json())),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
   embedding: z.exactOptional(z.nullable(z.string())),
-  kind: z.exactOptional(z.enum(["call", "meeting", "email"])),
 }).check(z.meta({ title: "Notes update" }));
 
 export const organizationsRow: z.ZodMiniType<RowOf<'organizations'>> = z.object({
   id: z.guid(),
   name: z.string(),
   slug: z.string(),
+  brand: z.nullable(z.string()),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
-  brand: z.nullable(z.string()),
 }).check(z.meta({ title: "Organizations" }));
 export const organizationsInsert: z.ZodMiniType<InsertOf<'organizations'>> = z.object({
   id: z.exactOptional(z.guid()),
   name: z.string(),
   slug: z.string(),
+  brand: z.exactOptional(z.nullable(z.string())),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
-  brand: z.exactOptional(z.nullable(z.string())),
 }).check(z.meta({ title: "Organizations insert" }));
 export const organizationsUpdate: z.ZodMiniType<UpdateOf<'organizations'>> = z.object({
   id: z.exactOptional(z.guid()),
   name: z.exactOptional(z.string()),
   slug: z.exactOptional(z.string()),
+  brand: z.exactOptional(z.nullable(z.string())),
   createdAt: z.exactOptional(z.iso.datetime({ offset: true })),
   updatedAt: z.exactOptional(z.iso.datetime({ offset: true })),
-  brand: z.exactOptional(z.nullable(z.string())),
 }).check(z.meta({ title: "Organizations update" }));
 
 export const planFeaturesRow: z.ZodMiniType<RowOf<'planFeatures'>> = z.object({
@@ -296,22 +296,22 @@ export const plansRow: z.ZodMiniType<RowOf<'plans'>> = z.object({
   key: z.string(),
   name: z.string(),
   priceCents: z.int(),
-  position: z.int(),
   currency: z.string(),
+  position: z.int(),
 }).check(z.meta({ title: "Plans" }));
 export const plansInsert: z.ZodMiniType<InsertOf<'plans'>> = z.object({
   key: z.string(),
   name: z.string(),
   priceCents: z.exactOptional(z.int()),
-  position: z.exactOptional(z.int()),
   currency: z.exactOptional(z.string()),
+  position: z.exactOptional(z.int()),
 }).check(z.meta({ title: "Plans insert" }));
 export const plansUpdate: z.ZodMiniType<UpdateOf<'plans'>> = z.object({
   key: z.exactOptional(z.string()),
   name: z.exactOptional(z.string()),
   priceCents: z.exactOptional(z.int()),
-  position: z.exactOptional(z.int()),
   currency: z.exactOptional(z.string()),
+  position: z.exactOptional(z.int()),
 }).check(z.meta({ title: "Plans update" }));
 
 export const projectsRow: z.ZodMiniType<RowOf<'projects'>> = z.object({
@@ -324,8 +324,8 @@ export const projectsRow: z.ZodMiniType<RowOf<'projects'>> = z.object({
   currency: z.string(),
   leadId: z.nullable(z.guid()),
   labelId: z.nullable(z.guid()),
-  deletedAt: z.nullable(z.iso.datetime({ offset: true })),
   internalNotes: z.nullable(z.string()),
+  deletedAt: z.nullable(z.iso.datetime({ offset: true })),
 }).check(z.meta({ title: "Projects", description: "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes" }));
 export const projectsInsert: z.ZodMiniType<InsertOf<'projects'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -337,8 +337,8 @@ export const projectsInsert: z.ZodMiniType<InsertOf<'projects'>> = z.object({
   currency: z.exactOptional(z.string()),
   leadId: z.exactOptional(z.nullable(z.guid())),
   labelId: z.exactOptional(z.nullable(z.guid())),
-  deletedAt: z.exactOptional(z.nullable(z.iso.datetime({ offset: true }))),
   internalNotes: z.exactOptional(z.nullable(z.string())),
+  deletedAt: z.exactOptional(z.nullable(z.iso.datetime({ offset: true }))),
 }).check(z.meta({ title: "Projects insert", description: "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes" }));
 export const projectsUpdate: z.ZodMiniType<UpdateOf<'projects'>> = z.object({
   id: z.exactOptional(z.guid()),
@@ -350,8 +350,8 @@ export const projectsUpdate: z.ZodMiniType<UpdateOf<'projects'>> = z.object({
   currency: z.exactOptional(z.string()),
   leadId: z.exactOptional(z.nullable(z.guid())),
   labelId: z.exactOptional(z.nullable(z.guid())),
-  deletedAt: z.exactOptional(z.nullable(z.iso.datetime({ offset: true }))),
   internalNotes: z.exactOptional(z.nullable(z.string())),
+  deletedAt: z.exactOptional(z.nullable(z.iso.datetime({ offset: true }))),
 }).check(z.meta({ title: "Projects update", description: "@bsb subject type=project id-type=uuid tenant=organization_id title=name url=/projects/{id} deleted-at=deleted_at search versions=name,budget_minor,currency; server internal_notes" }));
 
 export const projectsViewRow: z.ZodMiniType<RowOf<'projectsView'>> = z.object({
