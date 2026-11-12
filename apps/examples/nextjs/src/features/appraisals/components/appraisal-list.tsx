@@ -40,6 +40,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { Link } from "@/i18n/navigation";
 
 import type { Loaded, AppraisalRow } from "../appraisals-queries";
 
@@ -51,9 +52,12 @@ type AppraisalCell = CellContext<ReadOnlyGridFeatures, GridRow>;
 
 function SubjectCell({ row }: AppraisalCell) {
   return (
-    <span className="font-medium tabular-nums">
-      {row.original.subjectUserId.slice(0, 8)}
-    </span>
+    <Link
+      href={`/appraisals/${row.original.id}`}
+      className="font-medium hover:underline"
+    >
+      {row.original.subjectName}
+    </Link>
   );
 }
 

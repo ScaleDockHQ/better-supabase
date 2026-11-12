@@ -12,6 +12,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Announcements } from "@/features/announcements/components/announcements";
+import { SessionAuthzRefresh } from "@/features/islands/components/session-authz-refresh";
 import { AppBreadcrumbs } from "@/features/navigation/components/app-breadcrumbs";
 import { AppHeader } from "@/features/navigation/components/app-header";
 import { AppNav } from "@/features/navigation/components/app-nav";
@@ -90,6 +91,9 @@ export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
               </Suspense>
               <Suspense fallback={null}>
                 <Announcements />
+              </Suspense>
+              <Suspense fallback={null}>
+                <SessionAuthzRefresh />
               </Suspense>
               {children}
             </div>

@@ -1,6 +1,6 @@
 -- better-supabase module: bulk-actions
 -- @bsb-block bulk-actions@1 managed
--- @bsb-hash sha256:36f61f0ae1a1b250144770fe11becaec03b4d032ec184cdea55bb65b17943271
+-- @bsb-hash sha256:f9bc4f740734e5fedde7c6be7931645d0ddddf13cf1ed6a9c92eada6866869ab
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -56,6 +56,8 @@ begin
       perform "better_supabase"."trash"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);
     when 'collections.add' then
       perform "better_supabase"."add_collection_entries"((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);
+    when 'work.setState' then
+      perform "public"."work_bulk_state"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);
     else
       raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
   end case;
@@ -83,7 +85,7 @@ begin
   if not coalesce(better_supabase.can('tenant', bulk_apply.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
-  if not (bulk_apply.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add'])) then
+  if not (bulk_apply.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add', 'work.setState'])) then
     raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
   end if;
   if cardinality(v_chunk) > 500 then
@@ -125,7 +127,7 @@ begin
   if auth.uid() is null or not coalesce(better_supabase.can('tenant', start_bulk.tenant, 'bulk_actions.run'), false) then
     raise exception 'not allowed to run bulk actions' using errcode = '42501', hint = 'BULK_FORBIDDEN';
   end if;
-  if not (start_bulk.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add'])) then
+  if not (start_bulk.action = any (array['tags.set', 'stateMachine.transition', 'relations.link', 'trash.trash', 'collections.add', 'work.setState'])) then
     raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
   end if;
   if v_total > 100000 then

@@ -59,6 +59,10 @@ export async function getNavLabel(): Promise<(id: NavId) => string> {
         return t("Deadlines");
       }
 
+      case "documentRegister": {
+        return t("Document register");
+      }
+
       case "documentTemplates": {
         return t("Document templates");
       }
@@ -73,6 +77,10 @@ export async function getNavLabel(): Promise<(id: NavId) => string> {
 
       case "availability": {
         return t("Availability");
+      }
+
+      case "frontDesk": {
+        return t("Front desk");
       }
 
       case "contacts": {

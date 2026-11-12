@@ -470,7 +470,11 @@ export default defineConfig({
     sla: {},
     // Encrypted definitions and sensitive values are audited when read.
     "custom-fields": { options: { auditReads: true } },
-    "bulk-actions": {},
+    // `work.setState` writes through a definer function: bulk rows run as the
+    // caller, and the work items table is read-only for `authenticated`.
+    "bulk-actions": {
+      options: { actions: { "work.setState": "public.work_bulk_state" } },
+    },
     trash: {},
     relations: {},
     employees: { names: { employee: { url: "/people/{id}" } } },
