@@ -311,7 +311,7 @@ export const runWorkBulkAction = bsb.action(
             organizationId: tenant,
             subjectType: WORK_ITEM_SUBJECT,
             rows: input.ids,
-            action: "stateMachine.transition",
+            action: "work.setState",
             args: { to: input.to },
           })
         : await bulk.run({
