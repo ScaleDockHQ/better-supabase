@@ -18,7 +18,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (
-    (auth.role() = 'service_role')
+    ((select auth.jwt() ->> 'role') = 'service_role')
     or coalesce(better_supabase.can('tenant', work_bulk_state.tenant, 'tasks.write'), false)
   ) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
