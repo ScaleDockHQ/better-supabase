@@ -28313,3 +28313,603 @@ msgctxt "workflows.yW1OYL"
 msgid "No workflows yet. Members who can edit create one above."
 msgstr "Nog geen workflows. Leden die mogen bewerken maken er hierboven een aan."
 
+#: src/app/[locale]/(app)/shop/inventory/[variantId]/page.tsx
+msgctxt "inventory.YhnZUz"
+msgid "All stock levels"
+msgstr "Alle voorraadniveaus"
+
+#: src/app/[locale]/(app)/shop/inventory/lots/page.tsx
+#: src/features/inventory/components/inventory-sections.tsx
+msgctxt "inventory.IryjU2"
+msgid "Lots"
+msgstr "Partijen"
+
+#: src/app/[locale]/(app)/shop/inventory/lots/page.tsx
+msgctxt "inventory.4F1_cU"
+msgid "Lots with stock and an expiry date, so nothing expires on the shelf."
+msgstr "Partijen met voorraad en een houdbaarheidsdatum, zodat niets in het schap verloopt."
+
+#: src/app/[locale]/(app)/shop/inventory/movements/page.tsx
+msgctxt "inventory.9uPMgw"
+msgid "Stock movements"
+msgstr "Voorraadmutaties"
+
+#: src/app/[locale]/(app)/shop/inventory/movements/page.tsx
+msgctxt "inventory.sE8jaM"
+msgid "Every receipt, adjustment, sale and count the ledger wrote, newest first."
+msgstr "Elke ontvangst, correctie, verkoop en telling uit het grootboek, nieuwste eerst."
+
+#: src/app/[locale]/(app)/shop/inventory/page.tsx
+msgctxt "inventory.MlzEfB"
+msgid "Inventory"
+msgstr "Voorraad"
+
+#: src/app/[locale]/(app)/shop/inventory/page.tsx
+msgctxt "inventory.bGWSFm"
+msgid "Stock per product and location, from the ledger of every movement."
+msgstr "Voorraad per product en locatie, uit het grootboek van alle mutaties."
+
+#: src/features/inventory/components/inventory-load-error.tsx
+msgctxt "inventory.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/inventory/components/inventory-load-error.tsx
+msgctxt "inventory.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/inventory/components/inventory-sections.tsx
+msgctxt "inventory.a2X9Je"
+msgid "Stock levels"
+msgstr "Voorraadniveaus"
+
+#: src/features/inventory/components/inventory-sections.tsx
+msgctxt "inventory.e97z21"
+msgid "Movements"
+msgstr "Mutaties"
+
+#: src/features/inventory/components/inventory-sections.tsx
+msgctxt "inventory.CBdAfy"
+msgid "Stock ledger"
+msgstr "Voorraadgrootboek"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.ED7X19"
+msgid "In stock"
+msgstr "Op voorraad"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.477I0g"
+msgid "Low"
+msgstr "Laag"
+
+#: src/features/inventory/components/inventory-status.tsx
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.WHgdsk"
+msgid "Out of stock"
+msgstr "Niet op voorraad"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.RahCRH"
+msgid "Expired"
+msgstr "Verlopen"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.PgBs94"
+msgid "Expires within 30 days"
+msgstr "Verloopt binnen 30 dagen"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.uQDRsY"
+msgid "Later"
+msgstr "Later"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.D0tozv"
+msgid "Receipt"
+msgstr "Ontvangst"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.LaLTJR"
+msgid "Adjustment"
+msgstr "Correctie"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.T807D4"
+msgid "Damage"
+msgstr "Beschadiging"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.mv038n"
+msgid "Loss"
+msgstr "Verlies"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.0WJNP_"
+msgid "Return"
+msgstr "Retour"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.RR8OAO"
+msgid "Scrap"
+msgstr "Afschrijving"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.3rGMFt"
+msgid "Sale"
+msgstr "Verkoop"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.Aujn2T"
+msgid "Count"
+msgstr "Telling"
+
+#: src/features/inventory/components/inventory-status.tsx
+msgctxt "inventory.DtYelJ"
+msgid "Transfer"
+msgstr "Overboeking"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.SR8dvh"
+msgid "Lot"
+msgstr "Partij"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.x_ZVlU"
+msgid "Product"
+msgstr "Product"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-movements-card.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.rvirM2"
+msgid "Location"
+msgstr "Locatie"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.xhQMeQ"
+msgid "Expires"
+msgstr "Verloopt"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-detail.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.GRV8gi"
+msgid "On hand"
+msgstr "Aanwezig"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.yqGdpj"
+msgid "Expires soonest"
+msgstr "Verloopt als eerste"
+
+#: src/features/inventory/components/lot-record-list.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.zGrEF4"
+msgid "Most on hand first"
+msgstr "Meeste voorraad eerst"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.MZFUVm"
+msgid "Lot code"
+msgstr "Partijcode"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.Su-vo5"
+msgid "Search lots"
+msgstr "Partijen zoeken"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.-eDgmX"
+msgid "No lots found"
+msgstr "Geen partijen gevonden"
+
+#: src/features/inventory/components/lot-record-list.tsx
+msgctxt "inventory.3mTPYI"
+msgid "Lots with an expiry date and stock show up here."
+msgstr "Partijen met een houdbaarheidsdatum en voorraad verschijnen hier."
+
+#: src/features/inventory/components/lots-overview.tsx
+msgctxt "inventory.4DE7FG"
+msgid "The lots didn't load"
+msgstr "De partijen zijn niet geladen"
+
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.McnLsx"
+msgid "When"
+msgstr "Wanneer"
+
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.e5x8FT"
+msgid "Kind"
+msgstr "Soort"
+
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.qVGRIE"
+msgid "Quantity"
+msgstr "Aantal"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.MeKajs"
+msgid "Newest first"
+msgstr "Nieuwste eerst"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.h-T3T7"
+msgid "Oldest first"
+msgstr "Oudste eerst"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.VNW-cY"
+msgid "Largest change first"
+msgstr "Grootste wijziging eerst"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.p2ZCos"
+msgid "Search movements"
+msgstr "Mutaties zoeken"
+
+#: src/features/inventory/components/movement-record-list.tsx
+msgctxt "inventory.s7Pc7g"
+msgid "No movements found"
+msgstr "Geen mutaties gevonden"
+
+#: src/features/inventory/components/movement-record-list.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.VuNMpM"
+msgid "Change the search or the filters."
+msgstr "Pas de zoekopdracht of de filters aan."
+
+#: src/features/inventory/components/movements-overview.tsx
+msgctxt "inventory.APC9J5"
+msgid "The movements didn't load"
+msgstr "De mutaties zijn niet geladen"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.zv4bc0"
+msgid "This product's stock didn't load"
+msgstr "De voorraad van dit product is niet geladen"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.CTcv_U"
+msgid "Across locations"
+msgstr "Over alle locaties"
+
+#: src/features/inventory/components/stock-detail.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.PgJGHT"
+msgid "Available"
+msgstr "Beschikbaar"
+
+#: src/features/inventory/components/stock-detail.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.sI_NFi"
+msgid "Reserved"
+msgstr "Gereserveerd"
+
+#: src/features/inventory/components/stock-detail.tsx
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.YDkqMJ"
+msgid "Incoming"
+msgstr "Onderweg"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.0Hhe6f"
+msgid "On hold"
+msgstr "Geblokkeerd"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.UMpyIE"
+msgid "Reorder point"
+msgstr "Bestelpunt"
+
+#: src/features/inventory/components/stock-detail.tsx
+msgctxt "inventory.rqozW_"
+msgid "Bin"
+msgstr "Vak"
+
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.vklqAM"
+msgid "Recent movements"
+msgstr "Recente mutaties"
+
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.f0lfi_"
+msgid "No movement has been written for this product yet."
+msgstr "Voor dit product is nog geen mutatie geschreven."
+
+#: src/features/inventory/components/stock-movements-card.tsx
+msgctxt "inventory.Lv3gtt"
+msgid "All movements"
+msgstr "Alle mutaties"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.ZOxjc9"
+msgid "The stock levels didn't load"
+msgstr "De voorraadniveaus zijn niet geladen"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.01HHM0"
+msgid "No stock locations yet"
+msgstr "Nog geen voorraadlocaties"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.S7BWNW"
+msgid "Stock is counted per location. Add one to start."
+msgstr "Voorraad wordt per locatie geteld. Voeg er een toe om te beginnen."
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.XfzXbo"
+msgid "No products to count"
+msgstr "Geen producten om te tellen"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.UymbDq"
+msgid "Products from the catalog show up here with their stock."
+msgstr "Producten uit de catalogus verschijnen hier met hun voorraad."
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.vy8loV"
+msgid "Go to the catalog"
+msgstr "Naar de catalogus"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.JlUqdz"
+msgid "Units on hand"
+msgstr "Eenheden aanwezig"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.ssDq7N"
+msgid "Across {count} levels"
+msgstr "Over {count} niveaus"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.yFORog"
+msgid "At or below reorder point"
+msgstr "Op of onder het bestelpunt"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.KCVmtO"
+msgid "Levels to order"
+msgstr "Niveaus om te bestellen"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.9u5ip9"
+msgid "Nothing available to sell"
+msgstr "Niets beschikbaar om te verkopen"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.g0HT2M"
+msgid "Lots expiring"
+msgstr "Partijen die verlopen"
+
+#: src/features/inventory/components/stock-overview.tsx
+msgctxt "inventory.gy6vdB"
+msgid "Within 30 days"
+msgstr "Binnen 30 dagen"
+
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.fsGL78"
+msgid "Lowest available first"
+msgstr "Laagste beschikbaarheid eerst"
+
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.Ln84pn"
+msgid "Search by product, SKU or location"
+msgstr "Zoek op product, SKU of locatie"
+
+#: src/features/inventory/components/stock-record-list.tsx
+msgctxt "inventory.LCSR-I"
+msgid "No stock levels found"
+msgstr "Geen voorraadniveaus gevonden"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.45GExA"
+msgid "The cart didn't load"
+msgstr "De winkelwagen is niet geladen"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.TtTPxt"
+msgid "Your cart is empty"
+msgstr "Je winkelwagen is leeg"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.WNFKok"
+msgid "Add a product from the store to see it here."
+msgstr "Voeg een product uit de winkel toe om het hier te zien."
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.aY3LAB"
+msgid "Browse the store"
+msgstr "Bekijk de winkel"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.K_unOm"
+msgid "Your cart"
+msgstr "Je winkelwagen"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.jYTYV4"
+msgid "Remove one {title}"
+msgstr "Verwijder één {title}"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.FFNOD3"
+msgid "Add one {title}"
+msgstr "Voeg één {title} toe"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.G_yZLu"
+msgid "Remove"
+msgstr "Verwijderen"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.MJ2jZQ"
+msgid "Total"
+msgstr "Totaal"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.ocmmus"
+msgid "Sign in to check out"
+msgstr "Log in om af te rekenen"
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.6tDn8h"
+msgid "Remove the items that are out of stock to continue."
+msgstr "Verwijder de artikelen die niet op voorraad zijn om door te gaan."
+
+#: src/features/store/components/store-cart-view.tsx
+msgctxt "store.nEAaZQ"
+msgid "Your cart is kept for 14 days."
+msgstr "Je winkelwagen blijft 14 dagen bewaard."
+
+#: src/features/store/components/store-catalog.tsx
+#: src/features/store/components/store-product.tsx
+msgctxt "store.LABZs2"
+msgid "Ask for a price"
+msgstr "Prijs op aanvraag"
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.MVN3kK"
+msgid "Digital"
+msgstr "Digitaal"
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.zcK3co"
+msgid "The store didn't load"
+msgstr "De winkel is niet geladen"
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.U7qOwm"
+msgid "Browse the catalog and keep what you like in your cart."
+msgstr "Bekijk de catalogus en bewaar wat je mooi vindt in je winkelwagen."
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.Q1Uzbb"
+msgid "No products found"
+msgstr "Geen producten gevonden"
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.cwwBFa"
+msgid "Nothing matches the search or the filter."
+msgstr "Niets komt overeen met de zoekopdracht of het filter."
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.x50pJJ"
+msgid "This store has no products yet."
+msgstr "Deze winkel heeft nog geen producten."
+
+#: src/features/store/components/store-catalog.tsx
+msgctxt "store.Wm1xxD"
+msgid "Clear the search"
+msgstr "Zoekopdracht wissen"
+
+#: src/features/store/components/store-load-error.tsx
+msgctxt "store.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/store/components/store-load-error.tsx
+msgctxt "store.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/store/components/store-nav.tsx
+msgctxt "store.RTOlSm"
+msgid "Store"
+msgstr "Winkel"
+
+#: src/features/store/components/store-nav.tsx
+msgctxt "store.2tqQFl"
+msgid "Cart"
+msgstr "Winkelwagen"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.Zqk2rG"
+msgid "This product didn't load"
+msgstr "Dit product is niet geladen"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.7397xA"
+msgid "All products"
+msgstr "Alle producten"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.PUKNv7"
+msgid "By {name}"
+msgstr "Van {name}"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.uiPiF8"
+msgid "Choose an option"
+msgstr "Kies een optie"
+
+#: src/features/store/components/store-product.tsx
+msgctxt "store.ADKef8"
+msgid "Add to cart"
+msgstr "In winkelwagen"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.fwIt1X"
+msgid "Newest"
+msgstr "Nieuwste"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.JMo8uP"
+msgid "Price, low to high"
+msgstr "Prijs, laag naar hoog"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.iDwfBf"
+msgid "Price, high to low"
+msgstr "Prijs, hoog naar laag"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.mIfW5h"
+msgid "Search the store"
+msgstr "Zoek in de winkel"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.hDI-JM"
+msgid "Sort by"
+msgstr "Sorteren op"
+
+#: src/features/store/components/store-search.tsx
+msgctxt "store.NKkVD3"
+msgid "In stock only"
+msgstr "Alleen op voorraad"
+
+#: src/features/store/components/store-stock-badge.tsx
+msgctxt "store.ED7X19"
+msgid "In stock"
+msgstr "Op voorraad"
+
+#: src/features/store/components/store-stock-badge.tsx
+msgctxt "store.yEht5w"
+msgid "Only a few left"
+msgstr "Nog maar een paar"
+
+#: src/features/store/components/store-stock-badge.tsx
+msgctxt "store.WHgdsk"
+msgid "Out of stock"
+msgstr "Niet op voorraad"
