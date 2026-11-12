@@ -28794,6 +28794,11 @@ msgid "Account menu"
 msgstr "Account menu"
 
 #: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.PCSt5T"
+msgid "Preferences"
+msgstr "Preferences"
+
+#: src/features/user/components/user-menu-dropdown.tsx
 msgctxt "user.Py189G"
 msgid "Security"
 msgstr "Security"

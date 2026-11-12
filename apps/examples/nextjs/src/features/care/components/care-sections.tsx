@@ -28,7 +28,7 @@ import {
   getClient,
   getClients,
   getConsents,
-  logDossierRead,
+  prepareDossierRead,
 } from "../care-queries";
 import { AccessLogGrid, ClientsGrid, ConsentsGrid } from "./care-grids";
 import { CareLoadError } from "./care-load-error";
@@ -91,7 +91,7 @@ export async function ClientHeading({ clientId }: { clientId: string }) {
     notFound();
   }
 
-  after(() => logDossierRead(clientId));
+  after(await prepareDossierRead(clientId));
 
   return (
     <h1 className="text-2xl font-semibold tracking-tight">
