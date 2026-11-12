@@ -895,11 +895,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane H
 
 - Scope: Generated permission keys, role defaults and scopes
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-h`
 - PR: none yet
-- Findings: EX-1231, EX-1232, EX-1322, EX-1330, EX-1603
-- Log: 2026-11-12, planned.
+- Findings: EX-1231, EX-1232, EX-1322, EX-1330, EX-1603, EX-807
+- Log: 2026-11-13, lane H started from main in `../bsb-audit-h`.
 
 ### Lane J
 
