@@ -87,7 +87,7 @@ The package is one ESM module with subpath exports. The runtime entries import n
 
 ## Deploy and release
 
-Docs and marketing deploy to Vercel as two services of one project (`vercel.json`), on the domain bettersupabase.com: `/docs` goes to the docs app and everything else to marketing, in the `fra1` region. Only `main` deploys (`git.deploymentEnabled`), and `turbo-ignore` skips a service whose app did not change.
+Docs and marketing deploy to Vercel as two services of one project (`vercel.json`), on the domain bettersupabase.com: `/docs` goes to the docs app and everything else to marketing, in the `fra1` region. Only `main` deploys (`git.deploymentEnabled`). The project-wide `ignoreCommand` runs `scripts/vercel-ignore-build.sh`, which builds only when `apps/docs`, `apps/marketing`, the Vercel config or a package version changed since the last deployment, so ordinary library commits do not rebuild the sites. Docs pick up library changes at the next release.
 
 The npm package is released by `.github/workflows/release.yml`: changesets open a version pull request, and merging it publishes to npm with provenance when the `NPM_PUBLISH` variable is set.
 

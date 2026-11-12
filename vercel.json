@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["fra1"],
+  "ignoreCommand": "bash scripts/vercel-ignore-build.sh",
   "git": {
     "deploymentEnabled": {
       "*": false,
@@ -14,15 +15,13 @@
       "root": "apps/docs",
       "framework": "nextjs",
       "installCommand": "pnpm install --frozen-lockfile --filter '{.}...'",
-      "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=docs",
-      "ignoreCommand": "npx turbo-ignore@2.11.7 docs --fallback=HEAD^1"
+      "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=docs"
     },
     "marketing": {
       "root": "apps/marketing",
       "framework": "nextjs",
       "installCommand": "pnpm install --frozen-lockfile --filter '{.}...'",
-      "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=marketing",
-      "ignoreCommand": "npx turbo-ignore@2.11.7 marketing --fallback=HEAD^1"
+      "buildCommand": "cd ../.. && pnpm exec turbo run build --filter=marketing"
     }
   },
   "rewrites": [
