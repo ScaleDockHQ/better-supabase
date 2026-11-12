@@ -2595,6 +2595,7 @@ import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Empty,
   EmptyContent,
@@ -2723,6 +2724,8 @@ function JoinedCell({ row }: MemberCell) {
 interface MemberActions {
   readonly changeRole: (member: Member, role: Role) => Promise<void>;
   readonly removeMember: (member: Member) => Promise<void>;
+  readonly selected: ReadonlySet<string>;
+  readonly toggle: (userId: string, on: boolean) => void;
 }
 
 const MemberActionsContext = createContext<MemberActions | null>(null);
@@ -2735,6 +2738,29 @@ function useMemberActions(): MemberActions {
   }
 
   return actions;
+}
+
+function SelectCell({ row }: MemberCell) {
+  const t = useExtracted("members");
+  const { selected, toggle } = useMemberActions();
+  const member = row.original;
+
+  if (member.roleChoices.length === 0) {
+    return null;
+  }
+
+  return (
+    <Checkbox
+      checked={selected.has(member.userId)}
+      disabled={member.busy}
+      aria-label={t("Select {name}", {
+        name: member.name ?? member.email ?? "",
+      })}
+      onCheckedChange={(checked) => {
+        toggle(member.userId, checked);
+      }}
+    />
+  );
 }
 
 function RoleCell({ row }: MemberCell) {
@@ -2881,12 +2907,33 @@ export function MemberTable({
     [remove, t, errorMessage],
   );
 
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [bulkRole, setBulkRole] = useState<Role | null>(null);
+  const [applying, setApplying] = useState(false);
+
+  const toggle = useCallback((userId: string, on: boolean) => {
+    setSelected((current) => {
+      const next = new Set(current);
+
+      if (on) {
+        next.add(userId);
+      } else {
+        next.delete(userId);
+      }
+
+      return next;
+    });
+  }, []);
+
   const actions = useMemo(
-    () => ({ changeRole, removeMember }),
-    [changeRole, removeMember],
+    () => ({ changeRole, removeMember, selected, toggle }),
+    [changeRole, removeMember, selected, toggle],
   );
 
   const columns: ColumnDef<ReadOnlyGridFeatures, MemberRow>[] = [
+    ...(canUpdateRole
+      ? [{ id: "select", header: "", cell: SelectCell, size: 40 }]
+      : []),
     { id: "member", header: t("Member"), cell: MemberCellView, size: 280 },
     { accessorKey: "role", header: t("Role"), cell: RoleCell, size: 150 },
     { id: "teams", header: t("Teams"), cell: TeamsCell, size: 200 },
@@ -2927,6 +2974,36 @@ export function MemberTable({
     getRowId: (row) => row.userId,
   });
 
+  const applyBulkRole = async () => {
+    if (!bulkRole) {
+      return;
+    }
+
+    setApplying(true);
+    let changed = 0;
+
+    for (const userId of selected) {
+      const result = await setRole({ userId, role: bulkRole });
+
+      if (result.ok) {
+        changed += 1;
+      } else {
+        toast.error(errorMessage(result.error));
+      }
+    }
+
+    setApplying(false);
+    setSelected(new Set());
+
+    if (changed > 0) {
+      toast.success(
+        t("{count, plural, one {# role updated} other {# roles updated}}", {
+          count: changed,
+        }),
+      );
+    }
+  };
+
   const clearFilters = () => {
     setSearch("");
     setRoleFilter(ALL_ROLES);
@@ -2965,6 +3042,60 @@ export function MemberTable({
             </SelectContent>
           </Select>
         </div>
+        {selected.size > 0 ? (
+          <div
+            className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-2"
+            data-testid="members-bulk-bar"
+          >
+            <span className="text-sm">
+              {t("{count, number} selected", { count: selected.size })}
+            </span>
+            <Select
+              value={bulkRole}
+              items={assignable.map((role) => ({
+                value: role,
+                label: roleLabel(role),
+              }))}
+              onValueChange={(value) => {
+                setBulkRole(v.is(Role, value) ? value : null);
+              }}
+            >
+              <SelectTrigger
+                size="sm"
+                className="w-40"
+                aria-label={t("New role")}
+              >
+                <SelectValue placeholder={t("Change role to")} />
+              </SelectTrigger>
+              <SelectContent>
+                {assignable.map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {roleLabel(role)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              disabled={!bulkRole || applying}
+              onClick={() => {
+                void applyBulkRole();
+              }}
+            >
+              {t("Apply")}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={applying}
+              onClick={() => {
+                setSelected(new Set());
+              }}
+            >
+              {t("Clear selection")}
+            </Button>
+          </div>
+        ) : null}
         <div data-testid="members">
           <DataGrid
             table={table}

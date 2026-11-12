@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMembers } from "@/features/organization/organization-queries";
+import { getRoles } from "@/features/roles/roles-queries";
 import { getTeams } from "@/features/teams/teams-queries";
 import { RoleBadge } from "@/features/user/components/role-badge";
 import { getPermissions } from "@/features/user/permission-snapshot";
@@ -37,8 +38,9 @@ export async function MemberDetail({ userId }: { userId: string }) {
     return null;
   }
 
-  const [members, teams, t, format] = await Promise.all([
+  const [members, roles, teams, t, format] = await Promise.all([
     getMembers(organizationId),
+    getRoles(),
     can(permissions, "teams.read") ? getTeams() : Promise.resolve([]),
     getExtracted("members"),
     getFormatter(),
@@ -54,64 +56,99 @@ export async function MemberDetail({ userId }: { userId: string }) {
     (team) => team.status === "active" && team.memberIds.includes(userId),
   );
 
+  const grants = [
+    ...(roles?.find((role) => role.key === member.role)?.permissions ?? []),
+  ].toSorted();
+
   return (
-    <Frame spacing="sm" data-testid="member-detail">
-      <FrameHeader className="flex-row items-center gap-3">
-        <Avatar className="size-10">
-          {member.avatarUrl ? (
-            <AvatarImage src={member.avatarUrl} alt="" />
-          ) : null}
-          <AvatarFallback>{initials(member.name, member.email)}</AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <FrameTitle className="truncate">
-            {member.name ?? member.email}
-          </FrameTitle>
-          <FrameDescription className="truncate">
-            {member.email}
+    <div className="flex flex-col gap-6">
+      <Frame spacing="sm" data-testid="member-detail">
+        <FrameHeader className="flex-row items-center gap-3">
+          <Avatar className="size-10">
+            {member.avatarUrl ? (
+              <AvatarImage src={member.avatarUrl} alt="" />
+            ) : null}
+            <AvatarFallback>
+              {initials(member.name, member.email)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <FrameTitle className="truncate">
+              {member.name ?? member.email}
+            </FrameTitle>
+            <FrameDescription className="truncate">
+              {member.email}
+            </FrameDescription>
+          </div>
+        </FrameHeader>
+        <FramePanel>
+          <dl className="grid gap-4 text-sm sm:grid-cols-[10rem_1fr]">
+            <dt className="text-muted-foreground">{t("Role")}</dt>
+            <dd>
+              <RoleBadge role={member.role} />
+            </dd>
+            <dt className="text-muted-foreground">{t("Joined")}</dt>
+            <dd className="tabular-nums">
+              {member.joinedAt
+                ? format.dateTime(new Date(member.joinedAt), {
+                    dateStyle: "long",
+                  })
+                : "–"}
+            </dd>
+            <dt className="text-muted-foreground">{t("Teams")}</dt>
+            <dd>
+              {memberTeams.length === 0 ? (
+                <span className="text-muted-foreground">
+                  {t("Not on a team")}
+                </span>
+              ) : (
+                <ul className="flex flex-wrap gap-1">
+                  {memberTeams.map((team) => (
+                    <li key={team.id}>
+                      <Badge
+                        variant="outline"
+                        render={
+                          <Link href={`/settings/teams/${team.id}`} prefetch />
+                        }
+                      >
+                        {team.name}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </dd>
+          </dl>
+        </FramePanel>
+      </Frame>
+      <Frame spacing="sm" data-testid="member-grants">
+        <FrameHeader>
+          <FrameTitle>{t("Grants")}</FrameTitle>
+          <FrameDescription>
+            {t("The permissions this member holds through the {role} role.", {
+              role: member.role,
+            })}
           </FrameDescription>
-        </div>
-      </FrameHeader>
-      <FramePanel>
-        <dl className="grid gap-4 text-sm sm:grid-cols-[10rem_1fr]">
-          <dt className="text-muted-foreground">{t("Role")}</dt>
-          <dd>
-            <RoleBadge role={member.role} />
-          </dd>
-          <dt className="text-muted-foreground">{t("Joined")}</dt>
-          <dd className="tabular-nums">
-            {member.joinedAt
-              ? format.dateTime(new Date(member.joinedAt), {
-                  dateStyle: "long",
-                })
-              : "–"}
-          </dd>
-          <dt className="text-muted-foreground">{t("Teams")}</dt>
-          <dd>
-            {memberTeams.length === 0 ? (
-              <span className="text-muted-foreground">
-                {t("Not on a team")}
-              </span>
-            ) : (
-              <ul className="flex flex-wrap gap-1">
-                {memberTeams.map((team) => (
-                  <li key={team.id}>
-                    <Badge
-                      variant="outline"
-                      render={
-                        <Link href={`/settings/teams/${team.id}`} prefetch />
-                      }
-                    >
-                      {team.name}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </dd>
-        </dl>
-      </FramePanel>
-    </Frame>
+        </FrameHeader>
+        <FramePanel>
+          {grants.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t("This role grants no permissions.")}
+            </p>
+          ) : (
+            <ul className="flex flex-wrap gap-1">
+              {grants.map((grant) => (
+                <li key={grant}>
+                  <Badge variant="outline" className="font-mono text-xs">
+                    {grant}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </FramePanel>
+      </Frame>
+    </div>
   );
 }
 

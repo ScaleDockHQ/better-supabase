@@ -436,3 +436,53 @@ insert into better_supabase.number_sequences (tenant_id, entity, period, last_nu
   ('00000000-0000-4000-8000-000000000001', 'invoice', to_char(now(), 'YYYY'), 41),
   ('00000000-0000-4000-8000-000000000001', 'quote', to_char(now(), 'YYYY'), 17)
 on conflict do nothing;
+
+-- Phase 5 admin pages need rows to show (findings EX-509 to EX-512): security event
+-- streams, OAuth clients, connector servers and a credit ledger.
+insert into better_supabase.ssf_streams (id, tenant, receiver, audience, description, events_requested, events_delivered, delivery_method, status, verified_at)
+values
+  ('00000000-0000-4000-8000-0000005f0001', '00000000-0000-4000-8000-000000000001', 'https://siem.acme.test/ssf', array['https://acme.test'],
+   'Session and credential events for the security team', array['https://schemas.openid.net/secevent/caep/event-type/session-revoked', 'https://schemas.openid.net/secevent/caep/event-type/credential-change'],
+   array['https://schemas.openid.net/secevent/caep/event-type/session-revoked', 'https://schemas.openid.net/secevent/caep/event-type/credential-change'],
+   'urn:ietf:rfc:8935', 'enabled', now() - interval '2 days'),
+  ('00000000-0000-4000-8000-0000005f0002', '00000000-0000-4000-8000-000000000001', 'https://idp.partner.test/ssf', array['https://acme.test'],
+   'Partner identity provider, polled every minute', array['https://schemas.openid.net/secevent/risc/event-type/account-disabled'],
+   array['https://schemas.openid.net/secevent/risc/event-type/account-disabled'],
+   'urn:ietf:rfc:8936', 'paused', now() - interval '9 days'),
+  ('00000000-0000-4000-8000-0000005f0003', '00000000-0000-4000-8000-000000000001', 'https://old-siem.acme.test/ssf', array['https://acme.test'],
+   'Retired receiver', array['https://schemas.openid.net/secevent/caep/event-type/session-revoked'],
+   array[]::text[], 'urn:ietf:rfc:8935', 'disabled', null)
+on conflict do nothing;
+
+insert into auth.oauth_clients (id, registration_type, redirect_uris, grant_types, client_name, client_uri, client_type, token_endpoint_auth_method)
+values
+  ('00000000-0000-4000-8000-0000000a0a01', 'manual', 'https://app.acme.test/callback,https://app.acme.test/silent', 'authorization_code,refresh_token', 'Acme mobile app', 'https://acme.test', 'public', 'none'),
+  ('00000000-0000-4000-8000-0000000a0a02', 'dynamic', 'https://claude.ai/api/mcp/auth_callback', 'authorization_code', 'Claude connector', 'https://claude.ai', 'public', 'none'),
+  ('00000000-0000-4000-8000-0000000a0a03', 'manual', 'https://reports.acme.test/oauth/callback', 'authorization_code,client_credentials', 'Reporting service', 'https://reports.acme.test', 'confidential', 'client_secret_basic')
+on conflict do nothing;
+
+insert into better_supabase.connector_servers (id, tenant_id, name, url, transport, auth_type, scopes, enabled)
+values
+  ('00000000-0000-4000-8000-0000005c0001', '00000000-0000-4000-8000-000000000001', 'Docs search', 'https://mcp.acme.test/docs', 'http', 'oauth', array['docs.read'], true),
+  ('00000000-0000-4000-8000-0000005c0002', '00000000-0000-4000-8000-000000000001', 'Ticket tracker', 'https://mcp.acme.test/tickets/sse', 'sse', 'none', array[]::text[], false)
+on conflict do nothing;
+
+-- A credit ledger: one pool the organization buys credits into, one balance it spends from.
+do $$
+declare
+  t constant uuid := '00000000-0000-4000-8000-000000000001';
+  pool uuid;
+  balance uuid;
+begin
+  pool := (better_supabase.open_ledger_account(t, 'credit_pool', 'credits:pool', 'Credit purchases', 'credit', 0::smallint, null, null, null, true, null, null) ->> 'id')::uuid;
+  balance := (better_supabase.open_ledger_account(t, 'credit_balance', 'credits:balance', 'AI credits', 'credit', 0::smallint, null, null, null, false, null, null) ->> 'id')::uuid;
+
+  perform better_supabase.ledger_post(t, 'credit.grant', jsonb_build_array(jsonb_build_object('account', pool, 'amount', -5000), jsonb_build_object('account', balance, 'amount', 5000)),
+    'plan', 'pro', 'Monthly credits for the Pro plan', 'seed-credits-1', now() - interval '20 days');
+  perform better_supabase.ledger_post(t, 'credit.usage', jsonb_build_array(jsonb_build_object('account', balance, 'amount', -1200), jsonb_build_object('account', pool, 'amount', 1200)),
+    'ai_task', 'summaries', 'Meeting summaries', 'seed-credits-2', now() - interval '12 days');
+  perform better_supabase.ledger_post(t, 'credit.purchase', jsonb_build_array(jsonb_build_object('account', pool, 'amount', -2000), jsonb_build_object('account', balance, 'amount', 2000)),
+    'invoice', 'INV-0041', 'Top-up of 2,000 credits', 'seed-credits-3', now() - interval '6 days');
+  perform better_supabase.ledger_post(t, 'credit.usage', jsonb_build_array(jsonb_build_object('account', balance, 'amount', -640), jsonb_build_object('account', pool, 'amount', 640)),
+    'ai_task', 'drafts', 'Inbox reply drafts', 'seed-credits-4', now() - interval '2 days');
+end $$;

@@ -8,10 +8,25 @@ import type { RecordListPage } from "@/components/record-list/record-list-types"
 
 import { dateCell } from "@/features/admin-lists/admin-cells";
 import { AdminRecordList } from "@/features/admin-lists/admin-record-list";
+import { Link } from "@/i18n/navigation";
 
 import type { OAuthAppRow } from "../oauth-apps-list";
 
 import { oauthAppList } from "../oauth-apps-list";
+
+function NameCell({ row }: { row: { original: OAuthAppRow } }) {
+  const { id, name } = row.original;
+
+  return (
+    <Link
+      href={`/settings/oauth-apps/${id}`}
+      prefetch
+      className="truncate font-medium hover:underline"
+    >
+      {name}
+    </Link>
+  );
+}
 
 /** OAuth apps on the list kit. */
 export function OAuthAppRecordList({
@@ -22,7 +37,7 @@ export function OAuthAppRecordList({
   const t = useExtracted("oauthApps");
 
   const columns: RecordListColumns<OAuthAppRow> = [
-    { accessorKey: "name", header: t("Name"), size: 220 },
+    { id: "name", header: t("Name"), size: 220, cell: NameCell },
     { accessorKey: "type", header: t("Type"), size: 130 },
     { accessorKey: "registration", header: t("Registration"), size: 130 },
     { accessorKey: "redirectUris", header: t("Redirect URIs"), size: 320 },

@@ -1124,6 +1124,26 @@ msgctxt "audit.62nsdy"
 msgid "Retry"
 msgstr "Retry"
 
+#: src/app/[locale]/(app)/settings/billing/credits/[id]/page.tsx
+msgctxt "credits.QQoV5k"
+msgid "All credit entries"
+msgstr "All credit entries"
+
+#: src/app/[locale]/(app)/settings/billing/credits/page.tsx
+msgctxt "credits.Tbo377"
+msgid "Billing"
+msgstr "Billing"
+
+#: src/app/[locale]/(app)/settings/billing/page.tsx
+msgctxt "billing.ctXPGw"
+msgid "Credit ledger"
+msgstr "Credit ledger"
+
+#: src/app/[locale]/(app)/settings/integrations/[id]/page.tsx
+msgctxt "integrations.rz6iFP"
+msgid "All integrations"
+msgstr "All integrations"
+
 #: src/app/[locale]/(app)/settings/jobs/page.tsx
 msgctxt "jobs.-P2HMk"
 msgid "Search all runs"
@@ -1139,6 +1159,11 @@ msgctxt "members.sKwqTt"
 msgid "All members"
 msgstr "All members"
 
+#: src/app/[locale]/(app)/settings/oauth-apps/[id]/page.tsx
+msgctxt "oauthApps.ApTgM_"
+msgid "All apps"
+msgstr "All apps"
+
 #: src/app/[locale]/(app)/settings/option-sets/[id]/page.tsx
 msgctxt "optionSets.i_1uRf"
 msgid "All option sets"
@@ -1148,6 +1173,11 @@ msgstr "All option sets"
 msgctxt "roles.0QowWF"
 msgid "All roles"
 msgstr "All roles"
+
+#: src/app/[locale]/(app)/settings/security/events/[id]/page.tsx
+msgctxt "securityEvents.jbetPD"
+msgid "All streams"
+msgstr "All streams"
 
 #: src/app/[locale]/(app)/settings/teams/[teamId]/page.tsx
 #: src/features/teams/components/teams-grid.tsx
@@ -7096,6 +7126,95 @@ msgctxt "courses.LotwiE"
 msgid "Submit answers"
 msgstr "Submit answers"
 
+#: src/features/credits/components/credit-transaction-detail.tsx
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.Ae5h76"
+msgid "Plan grant"
+msgstr "Plan grant"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.J6Eyds"
+msgid "Purchase"
+msgstr "Purchase"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.wbsq7O"
+msgid "Usage"
+msgstr "Usage"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.5lVaeB"
+msgid "No description"
+msgstr "No description"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+msgctxt "credits._57YNw"
+msgid "{date}, {reference}"
+msgstr "{date}, {reference}"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+msgctxt "credits.TwyMau"
+msgid "Account"
+msgstr "Account"
+
+#: src/features/credits/components/credit-transaction-detail.tsx
+msgctxt "credits._0TOL5"
+msgid "Amount"
+msgstr "Amount"
+
+#: src/features/credits/components/credits-list.tsx
+msgctxt "credits.5aQELC"
+msgid "Credit balance"
+msgstr "Credit balance"
+
+#: src/features/credits/components/credits-list.tsx
+msgctxt "credits.y0yNn3"
+msgid "{held, number} credits are held for running work."
+msgstr "{held, number} credits are held for running work."
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.Q8Qw5B"
+msgid "Description"
+msgstr "Description"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.wB_wXs"
+msgid "Credits"
+msgstr "Credits"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.mcUhhf"
+msgid "Reference"
+msgstr "Reference"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.P7PLVj"
+msgid "Date"
+msgstr "Date"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.7HXi96"
+msgid "Search credit entries"
+msgstr "Search credit entries"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.zrL0OX"
+msgid "No credit entries found"
+msgstr "No credit entries found"
+
+#: src/features/credits/components/credits-record-list.tsx
+msgctxt "credits.Y1POCq"
+msgid "Credits appear when the plan grants them, when you buy more and when work uses them."
+msgstr "Credits appear when the plan grants them, when you buy more and when work uses them."
+
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
 msgctxt "crm.f-GKc4"
@@ -12811,6 +12930,78 @@ msgctxt "inspections.PjaypS"
 msgid "Close inspection"
 msgstr "Close inspection"
 
+#: src/features/integrations/components/connector-detail.tsx
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.V52jNn"
+msgid "Enabled"
+msgstr "Enabled"
+
+#: src/features/integrations/components/connector-detail.tsx
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.tthToS"
+msgid "Disabled"
+msgstr "Disabled"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.F_6VqP"
+msgid "Server"
+msgstr "Server"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.W8hxJt"
+msgid "How agents reach this MCP server and sign in to it."
+msgstr "How agents reach this MCP server and sign in to it."
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.KwHBKR"
+msgid "Transport"
+msgstr "Transport"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.YeKWbP"
+msgid "Authentication"
+msgstr "Authentication"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.F8Ohus"
+msgid "Active grants"
+msgstr "Active grants"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.ORGv1Q"
+msgid "Created"
+msgstr "Created"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.joDyyj"
+msgid "Scopes"
+msgstr "Scopes"
+
+#: src/features/integrations/components/connector-detail.tsx
+msgctxt "integrations.pIW12P"
+msgid "This connector asks for no scopes."
+msgstr "This connector asks for no scopes."
+
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.2mMJRv"
+msgid "Connectors"
+msgstr "Connectors"
+
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.bS8wEx"
+msgid "The MCP servers the organization's agents can call."
+msgstr "The MCP servers the organization's agents can call."
+
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.2O8BC_"
+msgid "No connectors yet"
+msgstr "No connectors yet"
+
+#: src/features/integrations/components/connector-list.tsx
+msgctxt "integrations.9R4fEl"
+msgid "Register an MCP server to let agents call its tools."
+msgstr "Register an MCP server to let agents call its tools."
+
 #: src/features/integrations/components/integration-section.tsx
 #: src/features/integrations/components/integration-settings.tsx
 msgctxt "integrations.6cBDhe"
@@ -14607,10 +14798,30 @@ msgctxt "members.B50Tuv"
 msgid "Not on a team"
 msgstr "Not on a team"
 
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.Csh2rX"
+msgid "Grants"
+msgstr "Grants"
+
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.cNB6uz"
+msgid "The permissions this member holds through the {role} role."
+msgstr "The permissions this member holds through the {role} role."
+
+#: src/features/members/components/member-detail.tsx
+msgctxt "members.PU2I4R"
+msgid "This role grants no permissions."
+msgstr "This role grants no permissions."
+
 #: src/features/members/components/member-table.tsx
 msgctxt "members.Jjrc4P"
 msgid "you"
 msgstr "you"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.G65XME"
+msgid "Select {name}"
+msgstr "Select {name}"
 
 #: src/features/members/components/member-table.tsx
 msgctxt "members.T0e6Lh"
@@ -14638,9 +14849,39 @@ msgid "Member"
 msgstr "Member"
 
 #: src/features/members/components/member-table.tsx
+msgctxt "members.8IjNWk"
+msgid "{count, plural, one {# role updated} other {# roles updated}}"
+msgstr "{count, plural, one {# role updated} other {# roles updated}}"
+
+#: src/features/members/components/member-table.tsx
 msgctxt "members.QAz68F"
 msgid "Search members"
 msgstr "Search members"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.bjxb4i"
+msgid "{count, number} selected"
+msgstr "{count, number} selected"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.Z79AJ0"
+msgid "New role"
+msgstr "New role"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.FXtTXH"
+msgid "Change role to"
+msgstr "Change role to"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.EWw_tK"
+msgid "Apply"
+msgstr "Apply"
+
+#: src/features/members/components/member-table.tsx
+msgctxt "members.EYIw2M"
+msgid "Clear selection"
+msgstr "Clear selection"
 
 #: src/features/members/components/member-table.tsx
 msgctxt "members.u4Mc5d"
@@ -15615,6 +15856,73 @@ msgctxt "numbering.bENWJJ"
 msgid "A sequence appears when the first document number is assigned."
 msgstr "A sequence appears when the first document number is assigned."
 
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.uhu5aG"
+msgid "Public"
+msgstr "Public"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.o0hn4A"
+msgid "Confidential"
+msgstr "Confidential"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.JX0502"
+msgid "Client"
+msgstr "Client"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.SX2CHQ"
+msgid "How this app registered with the OAuth server and signs in."
+msgstr "How this app registered with the OAuth server and signs in."
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.qv7ied"
+msgid "Registration"
+msgstr "Registration"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.DXmeDy"
+msgid "Dynamic"
+msgstr "Dynamic"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.M59JhX"
+msgid "Manual"
+msgstr "Manual"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.Ar65yY"
+msgid "Client authentication"
+msgstr "Client authentication"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.U5-MBC"
+msgid "Client ID"
+msgstr "Client ID"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.ORGv1Q"
+msgid "Created"
+msgstr "Created"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
+msgctxt "oauthApps.WFdOHZ"
+msgid "Redirect URIs"
+msgstr "Redirect URIs"
+
+#: src/features/oauth-apps/components/oauth-app-detail.tsx
+msgctxt "oauthApps.gbpMkn"
+msgid "Grant types"
+msgstr "Grant types"
+
 #: src/features/oauth-apps/components/oauth-apps-record-list.tsx
 msgctxt "oauthApps.HAlOn1"
 msgid "Name"
@@ -15624,41 +15932,6 @@ msgstr "Name"
 msgctxt "oauthApps.-U6ozc"
 msgid "Type"
 msgstr "Type"
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.qv7ied"
-msgid "Registration"
-msgstr "Registration"
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.WFdOHZ"
-msgid "Redirect URIs"
-msgstr "Redirect URIs"
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.ORGv1Q"
-msgid "Created"
-msgstr "Created"
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.uhu5aG"
-msgid "Public"
-msgstr "Public"
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.o0hn4A"
-msgid "Confidential"
-msgstr "Confidential"
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.DXmeDy"
-msgid "Dynamic"
-msgstr "Dynamic"
-
-#: src/features/oauth-apps/components/oauth-apps-record-list.tsx
-msgctxt "oauthApps.M59JhX"
-msgid "Manual"
-msgstr "Manual"
 
 #: src/features/oauth-apps/components/oauth-apps-record-list.tsx
 msgctxt "oauthApps.RiUFXT"
@@ -21401,30 +21674,97 @@ msgctxt "search.izHU3r"
 msgid "Work orders"
 msgstr "Work orders"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.V52jNn"
 msgid "Enabled"
 msgstr "Enabled"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.C2iTEH"
 msgid "Paused"
 msgstr "Paused"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.tthToS"
 msgid "Disabled"
 msgstr "Disabled"
 
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.uYw2LD"
+msgid "Stream"
+msgstr "Stream"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.uNlKYg"
+msgid "How this receiver gets security event tokens."
+msgstr "How this receiver gets security event tokens."
+
+#: src/features/security-events/components/security-event-detail.tsx
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.drqP2L"
+msgid "Delivery"
+msgstr "Delivery"
+
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.GN9UDB"
 msgid "Push"
 msgstr "Push"
 
+#: src/features/security-events/components/security-event-detail.tsx
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.h1gtUi"
 msgid "Poll"
 msgstr "Poll"
+
+#: src/features/security-events/components/security-event-detail.tsx
+#: src/features/security-events/components/security-events-record-list.tsx
+msgctxt "securityEvents.Z8971h"
+msgid "Verified"
+msgstr "Verified"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.ea6iUX"
+msgid "Audience"
+msgstr "Audience"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.ORGv1Q"
+msgid "Created"
+msgstr "Created"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.AkCxS_"
+msgid "Reason"
+msgstr "Reason"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.JXACCN"
+msgid "Event types"
+msgstr "Event types"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.t7vFUO"
+msgid "What the receiver asked for and what the stream delivers."
+msgstr "What the receiver asked for and what the stream delivers."
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.9-12is"
+msgid "The receiver requested no event types."
+msgstr "The receiver requested no event types."
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.DMqnF4"
+msgid "Delivered"
+msgstr "Delivered"
+
+#: src/features/security-events/components/security-event-detail.tsx
+msgctxt "securityEvents.0x75v-"
+msgid "Not delivered"
+msgstr "Not delivered"
 
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.Xd735s"
@@ -21437,19 +21777,9 @@ msgid "State"
 msgstr "State"
 
 #: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.drqP2L"
-msgid "Delivery"
-msgstr "Delivery"
-
-#: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.ZvKSfJ"
 msgid "Events"
 msgstr "Events"
-
-#: src/features/security-events/components/security-events-record-list.tsx
-msgctxt "securityEvents.Z8971h"
-msgid "Verified"
-msgstr "Verified"
 
 #: src/features/security-events/components/security-events-record-list.tsx
 msgctxt "securityEvents.dB811t"
