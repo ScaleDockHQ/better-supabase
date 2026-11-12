@@ -194,6 +194,142 @@ describe("BS386 per-row policy functions", () => {
   });
 });
 
+describe("BS386 non-inlinable functions in select policies", () => {
+  const definer = {
+    schema: "public",
+    name: "can_note",
+    signature: "p_row notes, p_permission text",
+    language: "sql",
+    volatility: "stable" as const,
+    securityDefiner: true,
+    settings: { search_path: "" },
+  };
+
+  const withPolicy = (
+    using: string,
+    command: "select" | "all" | "update" = "select",
+    fn = definer,
+  ) =>
+    snapshot(
+      (tables) => {
+        notes(tables).policies = [
+          {
+            name: "read",
+            command,
+            roles: ["authenticated"],
+            permissive: true,
+            using,
+            check: null,
+            functions: ["public.can_note"],
+          },
+        ];
+      },
+      [fn],
+    );
+
+  it("flags a stable security definer check called per row", async () => {
+    for (const using of [
+      "public.can_note(notes, 'read')",
+      "public.can_note(notes.*, 'read'::text)",
+    ]) {
+      const findings = await run(context(withPolicy(using)), "BS386");
+
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.target).toBe("public.notes:read");
+    }
+  });
+
+  it("flags a stable SQL function with a set clause", async () => {
+    const findings = await run(
+      context(
+        withPolicy("public.can_note(notes.*, 'read'::text)", "select", {
+          ...definer,
+          securityDefiner: false,
+        }),
+      ),
+      "BS386",
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+
+  it("accepts the check as the fallback after a set check", async () => {
+    for (const using of [
+      "id in (select public.note_ids('read')) or public.can_note(notes, 'read')",
+      "((id IN ( SELECT public.note_ids('read'::text) AS note_ids)) OR public.can_note(notes.*, 'read'::text))",
+      "((organization_id IN ( SELECT public.org_ids('notes.read'::text) AS org_ids)) AND ((id IN ( SELECT public.note_ids('read'::text) AS note_ids)) OR public.can_note(notes.*, 'read'::text)))",
+    ]) {
+      expect(await run(context(withPolicy(using)), "BS386")).toEqual([]);
+    }
+  });
+
+  it("flags the check when the set check is an and, not an or", async () => {
+    const findings = await run(
+      context(
+        withPolicy(
+          "((id IN ( SELECT public.note_ids('read'::text) AS note_ids)) AND public.can_note(notes.*, 'read'::text))",
+        ),
+      ),
+      "BS386",
+    );
+
+    expect(findings).toHaveLength(1);
+  });
+
+  it("accepts the check inside an InitPlan", async () => {
+    expect(
+      await run(
+        context(
+          withPolicy(
+            "( SELECT public.can_note(NULL::notes, 'read'::text) AS can_note)",
+          ),
+        ),
+        "BS386",
+      ),
+    ).toEqual([]);
+  });
+
+  it("accepts set helpers joined laterally in the from of a subquery", async () => {
+    for (const using of [
+      "(id IN ( SELECT eligible.id FROM (public.org_ids() member(id) CROSS JOIN LATERAL public.can_note(member.id) eligible(id))))",
+      "(id IN ( SELECT eligible.id FROM public.org_ids() member(id), LATERAL public.can_note(member.id, 'read'::text) eligible(id)))",
+    ]) {
+      expect(await run(context(withPolicy(using)), "BS386")).toEqual([]);
+    }
+  });
+
+  it("flags a lateral set helper whose arguments read the row", async () => {
+    expect(
+      await run(
+        context(
+          withPolicy(
+            "(id IN ( SELECT eligible.id FROM (public.org_ids() member(id) CROSS JOIN LATERAL public.can_note(notes.organization_id) eligible(id))))",
+          ),
+        ),
+        "BS386",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("leaves write policies to the volatile and PL/pgSQL rule", async () => {
+    expect(
+      await run(
+        context(withPolicy("public.can_note(notes.*, 'read'::text)", "update")),
+        "BS386",
+      ),
+    ).toEqual([]);
+  });
+
+  it("flags the check in a policy for all commands", async () => {
+    expect(
+      await run(
+        context(withPolicy("public.can_note(notes.*, 'read'::text)", "all")),
+        "BS386",
+      ),
+    ).toHaveLength(1);
+  });
+});
+
 describe("BS387 trigger pile-up", () => {
   it("flags a table with six row-level bsb triggers", async () => {
     const snap = snapshot((tables) => {
