@@ -1751,7 +1751,7 @@ export interface BlockNameRegistry {
       readonly "consumers": "name" | "cursorXid" | "cursor" | "types" | "leaseOwner" | "leaseUntil" | "attempts" | "lastError" | "retryAt" | "updatedAt";
       readonly "deadLetters": "consumer" | "position" | "eventId" | "type" | "event" | "attempts" | "error" | "deadAt";
     };
-    readonly functions: "emit_event" | "outbox_ack" | "outbox_claim" | "outbox_dead_letters" | "outbox_fail" | "outbox_history" | "outbox_register" | "outbox_row_event" | "outbox_unregister" | "purge_outbox" | "track_events";
+    readonly functions: "emit_event" | "outbox_ack" | "outbox_claim" | "outbox_dead_letters" | "outbox_fail" | "outbox_has_work" | "outbox_history" | "outbox_register" | "outbox_row_event" | "outbox_unregister" | "purge_outbox" | "track_events";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -1915,7 +1915,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "messages": "id" | "queue" | "message" | "attempts" | "enqueuedAt" | "visibleAt" | "archivedAt" | "dead" | "dedupeKey" | "maxAttempts";
       readonly "leases": "scope" | "key" | "holder" | "state" | "expiresAt";
-      readonly "schedules": "jobName" | "schedule" | "timezone" | "queue" | "payload" | "nextRun" | "lastRun" | "lockedUntil" | "createdAt" | "tenant" | "firstAfter";
+      readonly "schedules": "jobName" | "schedule" | "timezone" | "queue" | "payload" | "nextRun" | "lastRun" | "lockedUntil" | "createdAt" | "tenant" | "firstAfter" | "probe";
     };
     readonly functions: never;
     readonly actions: never;
@@ -2626,7 +2626,7 @@ export interface BlockNameRegistry {
       readonly "secrets": "id" | "endpoint" | "tenant" | "secret" | "vaultId" | "expiresAt" | "createdAt";
       readonly "deliveries": "id" | "tenant" | "endpoint" | "event" | "run" | "type" | "subject" | "payload" | "status" | "attempt" | "availableAt" | "leasedUntil" | "responseStatus" | "responseBody" | "durationMs" | "lastError" | "processedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "claim_webhook_deliveries" | "complete_webhook_delivery" | "create_webhook_endpoint" | "delete_webhook_endpoint" | "dispatch_webhook" | "drop_webhook_vault_secret" | "list_webhook_endpoints" | "publish_webhook_event" | "publish_webhook_events" | "purge_webhook_deliveries" | "redeliver_webhook" | "reset_webhook_endpoint" | "rotate_webhook_secret" | "update_webhook_endpoint" | "webhook_secrets";
+    readonly functions: "claim_webhook_deliveries" | "complete_webhook_delivery" | "create_webhook_endpoint" | "delete_webhook_endpoint" | "dispatch_webhook" | "drop_webhook_vault_secret" | "list_webhook_endpoints" | "publish_webhook_event" | "publish_webhook_events" | "purge_webhook_deliveries" | "redeliver_webhook" | "reset_webhook_endpoint" | "rotate_webhook_secret" | "update_webhook_endpoint" | "webhook_deliveries_has_work" | "webhook_secrets";
     readonly actions: "manage" | "read";
     readonly hooks: "after_webhook_delivery";
     readonly entities: {

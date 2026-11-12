@@ -297,8 +297,7 @@ const DESIGN_RULES: readonly Rule[] = [
         .filter(
           (fn) => context.config.schemas.includes(fn.schema) && fn.definition,
         )
-        .map((fn) => withoutStrings(fn.definition))
-        .join("\n");
+        .map((fn) => withoutStrings(fn.definition));
 
       const filtered = new Set<string>();
 
@@ -333,7 +332,9 @@ const DESIGN_RULES: readonly Rule[] = [
           return (
             filtered.has(column.name) ||
             used.test(own) ||
-            (functions.includes(table.name) && used.test(functions))
+            functions.some(
+              (text) => text.includes(table.name) && used.test(text),
+            )
           );
         });
 

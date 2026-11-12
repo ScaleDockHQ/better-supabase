@@ -182,14 +182,15 @@ caller's own copies, which is empty for the service. The SQL functions
 return the same object as `jsonb`, with each item in the shape that
 `list_notifications` returns.
 
-`list` pages with `cursor` and `limit` (50 by default, at most 200). Pass the
+`list` pages with `cursor` and `limit` (50 by default, at most 500). Pass the
 last item of the previous page as `cursor`: the block orders by `created_at`
 and then `id`, so items created at the same instant are not skipped. It filters with `status` (`all`, `unread`, `read`, `unresolved`, `settled`),
 `read`, `resolved`, `dismissed`, `types`, `subjectTypes` and `search`. `resolve` marks every recipient's copy of a type about one subject
 as handled, for example when someone approves the invoice.
 
-`search` matches text in the summary, the subject label and the type,
-ignoring case; `%` and `_` in it are plain characters. `subjectTypes` keeps
+`search` matches text in the summary, the subject label, the type and,
+with the `profiles` module, the actor's username, full name, first and last
+name, ignoring case; `%` and `_` in it are plain characters. `subjectTypes` keeps
 notifications about subjects of the listed types. Every status except
 `settled` leaves dismissed notifications out, and `settled` lists the
 resolved and the dismissed ones, for an archive view.
@@ -233,6 +234,43 @@ for an exact count. Pass `cursor` (the last item's `createdAt` and `id`)
 instead of `offset` to page by key: the page then never reads the skipped
 rows, and `hasMore` says whether an older page exists. `list` stays the
 cheaper choice for an infinite scroll.
+
+`page` returns `limit`, the page size it applied: `limit` clamped to 1
+through 500. A page with fewer items than you asked for and `hasMore` set
+asked for more than 500 rows, so ask again from where it stopped.
+
+`page` also sorts and filters in ways `list` does not:
+
+| Option         | What it does                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| `order`        | `newest` (default), `oldest`, `type`, `subject` or `status`, each but the first two with `_desc` |
+| `excludeTypes` | Leaves out these types                                                                           |
+| `subjectIds`   | Keeps notifications about these subject ids                                                      |
+| `anyOf`        | Keeps notifications that match at least one group; an empty array matches nothing                |
+
+`type` and `subject` compare the type and the lowercased subject label by
+code point, so a client that merges its own items into the page can sort
+them the same way. `status` sorts unread, then read, then resolved. Ties
+sort newest first. `cursor` pages only `newest`; page another order with
+`offset`.
+
+An `anyOf` group takes `types`, `excludeTypes`, `subjectTypes`, `read` and
+`resolved`, and a notification matches a group when it matches every key in
+it. The groups combine with the other filters, so a "happened" view (anything
+that is not an open request) is one call:
+
+```ts
+const happened = await notifications
+  .page({
+    tenant: organizationId,
+    order: "status",
+    anyOf: [{ excludeTypes: ["approval.requested"] }, { resolved: true }],
+  })
+  .orThrow();
+```
+
+The SQL parameters are `exclude_types`, `subject_ids`, `any_of` (a jsonb
+array of objects with snake_case keys) and `order_by`.
 
 ### Unread again and counts
 

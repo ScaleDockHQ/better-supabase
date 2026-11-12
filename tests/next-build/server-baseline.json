@@ -10,7 +10,7 @@
     "brotli": 337385
   },
   "/.well-known/workflow/v1/flow/route": {
-    "raw": 5103522,
+    "raw": 5104049,
     "gzip": 1292637,
     "brotli": 1060851
   },
@@ -880,7 +880,7 @@
     "brotli": 53461
   },
   "(proxy)": {
-    "raw": 1202685,
+    "raw": 1203561,
     "gzip": 359212,
     "brotli": 289896
   }

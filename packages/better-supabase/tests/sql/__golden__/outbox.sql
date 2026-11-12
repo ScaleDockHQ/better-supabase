@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@5 managed
--- @bsb-hash sha256:8f3166842d6df77ec9142b99dbc45f71158c68d093c787677da253fc76173d54
+-- @bsb-block outbox@6 managed
+-- @bsb-hash sha256:7f2970b0b6906ba99a129c492d9d9b8afecb4384c64633420550efd63a9d3a75
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -151,6 +151,19 @@ as $$
   ) latest on true
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
+$$;
+
+create or replace function "better_supabase"."outbox_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."outbox_consumers" c
+    where (c."retry_at" is null or c."retry_at" <= now())
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position"))
+  )
 $$;
 
 -- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
@@ -450,6 +463,8 @@ revoke execute on function "better_supabase"."outbox_history"(text, text, bigint
 grant execute on function "better_supabase"."outbox_history"(text, text, bigint, integer) to service_role;
 revoke execute on function "better_supabase"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_outbox"(interval, integer, interval) to service_role;
+revoke execute on function "better_supabase"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."outbox_has_work"() to service_role;
 
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.
@@ -501,21 +516,21 @@ revoke execute on function "better_supabase"."track_events"(regclass, text, text
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:2b0f8a1684a74c737ad8d391f145e3c8f00a9f3a334a12823cc6bc018ca50b62
+-- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 5, 'managed')
+values ('outbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@5 managed
--- @bsb-hash sha256:64af87bb40fa442cd11b45c78f607a18a173a5fb26b03567eac15afda872f543
+-- @bsb-block outbox@6 managed
+-- @bsb-hash sha256:c6e7893b458898dfde7f5675ee4a580e6ca8473153f2c705cb60e3103d92afa9
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -665,6 +680,19 @@ as $$
   ) latest on true
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
+$$;
+
+create or replace function "better_supabase"."outbox_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."outbox_consumers" c
+    where (c."retry_at" is null or c."retry_at" <= now())
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position"))
+  )
 $$;
 
 -- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
@@ -968,6 +996,8 @@ revoke execute on function "better_supabase"."outbox_history"(text, text, bigint
 grant execute on function "better_supabase"."outbox_history"(text, text, bigint, integer) to service_role;
 revoke execute on function "better_supabase"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_outbox"(interval, integer, interval) to service_role;
+revoke execute on function "better_supabase"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."outbox_has_work"() to service_role;
 
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.
@@ -1019,21 +1049,21 @@ revoke execute on function "better_supabase"."track_events"(regclass, text, text
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:2b0f8a1684a74c737ad8d391f145e3c8f00a9f3a334a12823cc6bc018ca50b62
+-- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 5, 'managed')
+values ('outbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@5 managed
--- @bsb-hash sha256:ee152214fbd07385182fdc04f2e81ababbaf73d7fd8398361a86d3bb7af9a7a3
+-- @bsb-block outbox@6 managed
+-- @bsb-hash sha256:5aecdd2c66ee71327757870c1a631f21006d53b253ee43ed1461eb4d9eba963f
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1188,6 +1218,19 @@ as $$
   ) latest on true
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
+$$;
+
+create or replace function "app_private"."outbox_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "app_private"."outbox_consumers" c
+    where (c."retry_at" is null or c."retry_at" <= now())
+      and exists (select 1 from "app_private"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position"))
+  )
 $$;
 
 -- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
@@ -1487,6 +1530,8 @@ revoke execute on function "app_private"."outbox_history"(text, text, bigint, in
 grant execute on function "app_private"."outbox_history"(text, text, bigint, integer) to service_role;
 revoke execute on function "app_private"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "app_private"."purge_outbox"(interval, integer, interval) to service_role;
+revoke execute on function "app_private"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "app_private"."outbox_has_work"() to service_role;
 
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.
@@ -1538,21 +1583,21 @@ revoke execute on function "app_private"."track_events"(regclass, text, text) fr
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:2b0f8a1684a74c737ad8d391f145e3c8f00a9f3a334a12823cc6bc018ca50b62
+-- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 5, 'managed')
+values ('outbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@5 managed
--- @bsb-hash sha256:571499a6d7bea8f48a741a2dcf6a8dc3fcc43f12f0f1ff3198d18c80bc322372
+-- @bsb-block outbox@6 managed
+-- @bsb-hash sha256:63ab90b7d4c62751c192eea684a3af0778f173f86ffe89ff8876997083a7c07e
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1704,6 +1749,19 @@ as $$
   returning "cursor_position"
 $$;
 
+create or replace function "better_supabase"."outbox_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."outbox_consumers" c
+    where (c."retry_at" is null or c."retry_at" <= now())
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position"))
+  )
+$$;
+
 -- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
 create or replace function "better_supabase"."outbox_unregister"(consumer text)
 returns boolean
@@ -2001,6 +2059,8 @@ revoke execute on function "better_supabase"."outbox_history"(text, text, bigint
 grant execute on function "better_supabase"."outbox_history"(text, text, bigint, integer) to service_role;
 revoke execute on function "better_supabase"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_outbox"(interval, integer, interval) to service_role;
+revoke execute on function "better_supabase"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."outbox_has_work"() to service_role;
 
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.
@@ -2136,24 +2196,34 @@ as $$ select "better_supabase"."purge_outbox"($1, $2, $3) $$;
 revoke execute on function "api"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "api"."purge_outbox"(interval, integer, interval) to service_role;
 
+create or replace function "api"."outbox_has_work"()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."outbox_has_work"() $$;
+revoke execute on function "api"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "api"."outbox_has_work"() to service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:2b0f8a1684a74c737ad8d391f145e3c8f00a9f3a334a12823cc6bc018ca50b62
+-- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 5, 'managed')
+values ('outbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@5 managed
--- @bsb-hash sha256:c1c081ada8ac94d5e04cbca25861c297f0d866da13344087737dadbd28ad743e
+-- @bsb-block outbox@6 managed
+-- @bsb-hash sha256:42e796902663d72406ced0e6039d816e3f633c30d7a3b024daa583e33648169e
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2277,6 +2347,19 @@ as $$
   ) latest on true
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
+$$;
+
+create or replace function "better_supabase"."outbox_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."outbox_consumers" c
+    where (c."retry_at" is null or c."retry_at" <= now())
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position"))
+  )
 $$;
 
 -- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
@@ -2576,6 +2659,8 @@ revoke execute on function "better_supabase"."outbox_history"(text, text, bigint
 grant execute on function "better_supabase"."outbox_history"(text, text, bigint, integer) to service_role;
 revoke execute on function "better_supabase"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_outbox"(interval, integer, interval) to service_role;
+revoke execute on function "better_supabase"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."outbox_has_work"() to service_role;
 
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.
@@ -2627,21 +2712,21 @@ revoke execute on function "better_supabase"."track_events"(regclass, text, text
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:2b0f8a1684a74c737ad8d391f145e3c8f00a9f3a334a12823cc6bc018ca50b62
+-- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 5, 'managed')
+values ('outbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@5 managed
--- @bsb-hash sha256:df75beb937600f3292244fac9b6d8374d859752d80703d5cd28779eb133db073
+-- @bsb-block outbox@6 managed
+-- @bsb-hash sha256:15e8b40ba30a288e69adf7c5ef99937deab4785731bf4f6e94cfd7d18d1f9820
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2793,6 +2878,19 @@ as $$
   returning "cursor_position"
 $$;
 
+create or replace function "better_supabase"."outbox_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."outbox_consumers" c
+    where (c."retry_at" is null or c."retry_at" <= now())
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position"))
+  )
+$$;
+
 -- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
 create or replace function "better_supabase"."outbox_unregister"(consumer text)
 returns boolean
@@ -3090,6 +3188,8 @@ revoke execute on function "better_supabase"."outbox_history"(text, text, bigint
 grant execute on function "better_supabase"."outbox_history"(text, text, bigint, integer) to service_role;
 revoke execute on function "better_supabase"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_outbox"(interval, integer, interval) to service_role;
+revoke execute on function "better_supabase"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."outbox_has_work"() to service_role;
 
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.
@@ -3141,13 +3241,13 @@ revoke execute on function "better_supabase"."track_events"(regclass, text, text
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:2b0f8a1684a74c737ad8d391f145e3c8f00a9f3a334a12823cc6bc018ca50b62
+-- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 5, 'managed')
+values ('outbox', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

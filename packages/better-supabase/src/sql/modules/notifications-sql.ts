@@ -5,7 +5,6 @@ import { sqlString } from "../../core/template.ts";
 import {
   SERVICE_CALLER,
   batchFunction,
-  pageSize,
   fail,
   writeExtraColumns,
 } from "../shared.ts";
@@ -21,6 +20,11 @@ import {
   integerMutations,
   itemJson,
 } from "./notifications-items.ts";
+import {
+  INBOX_MAX_ITEMS,
+  notificationPage,
+  pageFilters,
+} from "./notifications-page.ts";
 import { readers } from "./notifications-readers.ts";
 import { suppressionFunctions } from "./notifications-suppressions.ts";
 import { trackingFunctions } from "./notifications-tracking.ts";
@@ -513,12 +517,30 @@ function inbox(ctx: BlockSqlContext, n: NotifyNames): string {
     .filter((logical) => n.has("events", logical))
     .map((logical) => `ev.${e(logical)}`);
 
+  const actorSearch = (() => {
+    if (!ctx.installed("profiles") || !n.has("events", "actor")) {
+      return "";
+    }
+
+    const profiles = ctx.of("profiles");
+    const p = (logical: string) => profiles.col("profiles", logical);
+
+    const names = (["username", "fullName", "firstName", "lastName"] as const)
+      .filter((logical) => profiles.has("profiles", logical))
+      .map((logical) => `pr.${p(logical)}`);
+
+    return names.length === 0
+      ? ""
+      : ` or exists (select 1 from ${profiles.table("profiles")} pr where pr.${p("key")} = ev.${e("actor")} and concat_ws(' ', ${names.join(", ")}) ilike $5)`;
+  })();
+
   // The inbox reads build their where clause from the filters that are passed,
   // so the planner sees `user = $1 and dismissed_at is null` and can use the
   // partial inbox index. A static "$1 is null or" form is planned once for all
   // values and sorts the whole inbox. Positions in the `using` list: 1 user,
   // 2 tenant, 3 types, 4 subject types, 5 search pattern, 6 read, 7 resolved,
-  // 8 dismissed, 9 before, 10 before id.
+  // 8 dismissed, 9 before, 10 before id; notification_page adds 11 exclude
+  // types and 12 subject ids.
   const dynamicWhere = (fn: string, cursor: boolean) => {
     const hasTenant = n.has("recipients", "tenant");
 
@@ -564,7 +586,7 @@ function inbox(ctx: BlockSqlContext, n: NotifyNames): string {
       : ""
   }
   if btrim(coalesce(${fn}.search, '')) <> '' then
-    v_where := v_where || $q$ and concat_ws(' ', ${haystackSql}) ilike $5$q$;
+    v_where := v_where || $q$ and (concat_ws(' ', ${haystackSql}) ilike $5${actorSearch})$q$;
   end if;
   case coalesce(${fn}.status, 'all')
     when 'unread' then v_where := v_where || $q$ and rc.${r("readAt")} is null$q$;
@@ -601,6 +623,7 @@ drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], tim
 drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer, uuid, text[], text);
 drop function if exists ${ctx.fn("notification_page")}(${id}, text, text[], text[], text, integer, integer);
 drop function if exists ${ctx.fn("notification_page")}(${id}, text, text[], text[], text, integer, integer, boolean, boolean, boolean);
+drop function if exists ${ctx.fn("notification_page")}(${id}, text, text[], text[], text, integer, integer, boolean, boolean, boolean, timestamptz, uuid, integer);
 drop function if exists ${ctx.fn("notification_counts")}(${id}, text[]);
 ${integerMutations(ctx)}
 -- The signed-in user's notifications, newest first, without dismissed ones.
@@ -643,77 +666,15 @@ ${dynamicWhere("list_notifications", true)}
   using auth.uid(), list_notifications.tenant, list_notifications.types, list_notifications.subject_types,
     ${searchPattern("list_notifications")}, list_notifications.read, list_notifications.resolved, list_notifications.dismissed,
     list_notifications.before, coalesce(list_notifications.before_id, '00000000-0000-0000-0000-000000000000'::uuid),
-    least(coalesce(list_notifications.max_items, 50), 200);
+    least(coalesce(list_notifications.max_items, 50), ${String(INBOX_MAX_ITEMS)});
   return result;
 end;
 $$;
 
-create or replace function ${ctx.fn("notification_page")}(
-  tenant ${id} default null,
-  status text default 'all',
-  types text[] default null,
-  subject_types text[] default null,
-  search text default null,
-  max_items integer default 50,
-  skip integer default 0,
-  read boolean default null,
-  resolved boolean default null,
-  dismissed boolean default false,
-  before timestamptz default null,
-  before_id uuid default null,
-  total_cap integer default 10000
-)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_where text;
-  v_limit integer := ${pageSize("notification_page.max_items", 50, 200)};
-  v_items jsonb;
-  v_total bigint;
-  v_args_cap integer := notification_page.total_cap;
-begin
-${dynamicWhere("notification_page", true)}
-  -- One row more than the page says whether an older page exists, and the
-  -- total stops counting at total_cap (null counts every row), so a large
-  -- inbox never counts all of it. Pass before and before_id to page by key
-  -- instead of skip.
-  execute $q$select coalesce(jsonb_agg(p.item order by p.created_at desc, p.id desc), '[]')
-  from (
-    select ${itemJson(n)} as item, rc.${r("createdAt")} as created_at, rc.${r("id")} as id
-    from ${n.table("recipients")} rc
-    join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
-    where $q$ || v_where || $q$
-    order by rc.${r("createdAt")} desc, rc.${r("id")} desc
-    offset $11
-    limit $12 + 1
-  ) p$q$
-  into v_items
-  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,
-    ${searchPattern("notification_page")}, notification_page.read, notification_page.resolved, notification_page.dismissed,
-    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid),
-    greatest(coalesce(notification_page.skip, 0), 0), v_limit;
-  execute $q$select count(*) from (
-    select 1 from ${n.table("recipients")} rc
-    join ${n.table("events")} ev on ev.${e("id")} = rc.${r("event")}
-    where $q$ || v_where || case when v_args_cap is null then '' else format(' limit %s', greatest(v_args_cap, 1)) end || $q$
-  ) c$q$
-  into v_total
-  using auth.uid(), notification_page.tenant, notification_page.types, notification_page.subject_types,
-    ${searchPattern("notification_page")}, notification_page.read, notification_page.resolved, notification_page.dismissed,
-    notification_page.before, coalesce(notification_page.before_id, '00000000-0000-0000-0000-000000000000'::uuid);
-  return jsonb_build_object(
-    'items', coalesce((select jsonb_agg(x.value order by x.ordinality) from jsonb_array_elements(v_items) with ordinality x(value, ordinality) where x.ordinality <= v_limit), '[]'),
-    'hasMore', jsonb_array_length(v_items) > v_limit,
-    'total', v_total,
-    'totalCapped', v_args_cap is not null and v_total >= v_args_cap
-  );
-end;
-$$;
-
+${notificationPage(ctx, n, {
+  where: `${dynamicWhere("notification_page", true)}${pageFilters(n)}`,
+  search: searchPattern("notification_page"),
+})}
 -- Unread and, for the types in actionable, unresolved counts. Each count stops
 -- at cap (default 100, null counts every row), so a badge reads at most cap
 -- rows through the unread index however large the inbox is.
@@ -834,7 +795,7 @@ $$;`,
 
   const grants = [
     `list_notifications(${id}, text, text[], timestamptz, integer, uuid, text[], text, boolean, boolean, boolean)`,
-    `notification_page(${id}, text, text[], text[], text, integer, integer, boolean, boolean, boolean, timestamptz, uuid, integer)`,
+    `notification_page(${id}, text, text[], text[], text, integer, integer, boolean, boolean, boolean, timestamptz, uuid, integer, text[], text[], jsonb, text)`,
     `notification_counts(${id}, text[], integer)`,
     `mark_notifications_unread(uuid[], ${id})`,
     `mark_notifications_read(uuid[], ${id})`,

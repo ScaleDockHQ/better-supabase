@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
--- @bsb-block outbox@5 managed
--- @bsb-hash sha256:0f941bb41fd187874bf061d460d63dbe75e0a45c2cbd3ec9b28959233752a34d
+-- @bsb-block outbox@6 managed
+-- @bsb-hash sha256:cdb2f6fd8d61ed7c829334c4848a9f9cccf9324a64592e80d67eac033cdbc155
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -128,6 +128,19 @@ as $$
   ) latest on true
   on conflict ("name") do update set "types" = excluded."types", "updated_at" = now()
   returning "cursor_position"
+$$;
+
+create or replace function "better_supabase"."outbox_has_work"()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."outbox_consumers" c
+    where (c."retry_at" is null or c."retry_at" <= now())
+      and exists (select 1 from "centrakit"."workflow_events" e where e."position" > c."cursor_position")
+  )
 $$;
 
 -- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
@@ -424,6 +437,8 @@ revoke execute on function "better_supabase"."outbox_history"(text, text, bigint
 grant execute on function "better_supabase"."outbox_history"(text, text, bigint, integer) to service_role;
 revoke execute on function "better_supabase"."purge_outbox"(interval, integer, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."purge_outbox"(interval, integer, interval) to service_role;
+revoke execute on function "better_supabase"."outbox_has_work"() from public, anon, authenticated;
+grant execute on function "better_supabase"."outbox_has_work"() to service_role;
 
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.

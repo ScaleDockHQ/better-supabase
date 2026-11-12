@@ -564,7 +564,23 @@ function claim(ctx: BlockSqlContext, n: HookNames): string {
     touched(n, "deliveries"),
   ].join("");
 
+  const probe = ctx.fn("webhook_deliveries_has_work");
+
   return `
+create or replace function ${probe}()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from ${n.table("deliveries")} v
+    where v.${v("status")} in (${n.status("pending")}, ${n.status("retrying")}, ${n.status("delivering")})
+      and v.${v("availableAt")} <= now()
+      and (v.${v("leasedUntil")} is null or v.${v("leasedUntil")} <= now())
+  )
+$$;
+${grants(probe, "", false)}
 drop function if exists ${fn}(integer, interval);
 -- Leases due deliveries to one worker and counts the attempt, so a worker
 -- that dies mid-send still uses one up. The attempt is the lease token that
