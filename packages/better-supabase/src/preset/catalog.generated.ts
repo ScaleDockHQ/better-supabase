@@ -32831,6 +32831,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entityTypes": [
         {
+          "name": "CallerReminderEntry"
+        },
+        {
           "name": "ReminderEntry"
         },
         {

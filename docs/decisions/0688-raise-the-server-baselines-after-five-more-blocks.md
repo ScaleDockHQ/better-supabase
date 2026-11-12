@@ -24,6 +24,10 @@ removing the grown routes from `server-baseline.json` and running the update.
 | First load (`baseline.json`)           | 241 routes under `(app)` | +131 B raw each: the authz version `rpc` wrapper in the shell (EX-1600) |
 | First load                             | new routes               | the new pages are added at their own number                             |
 
+After the rebase onto `main` both baselines were measured again from empty files. The
+billing block, the reminders list on My work and the two new screens (`/settings/billing/account`,
+`/people/encryption`) are in those numbers.
+
 The linked account card keeps its provider choice as three buttons. A Base UI
 `Select` there added 18 KB gzip to the security page first load, so it was not
 kept.
