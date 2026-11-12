@@ -1,11 +1,15 @@
 "use server";
 
 import { ok } from "better-supabase";
+import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
+import { Decimal, Id, Optional, given } from "@/lib/form-input";
+import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
 import { planCashAccount } from "./cash-account";
+import { TILLS_CACHE_TAGS } from "./tills-cache";
 
 /**
  * Adds a euro till whose cash sits in the accounting chart, so the closing
@@ -21,7 +25,7 @@ export const createTill = bsb.action(
     requireTenant: true,
     permission: "tills.manage",
   },
-  async ({ name }, { tenant: organizationId, db }) => {
+  async ({ name }, { tenant: organizationId, db, auth }) => {
     const settings = await db.accounting.settings(organizationId);
 
     if (!settings.ok) {
@@ -83,6 +87,143 @@ export const createTill = bsb.action(
       accountId,
     });
 
-    return till.ok ? ok({ id: till.data.id, accountId }) : till;
+    if (!till.ok) {
+      return till;
+    }
+
+    await refreshCaller(auth, TILLS_CACHE_TAGS);
+
+    return ok({ id: till.data.id, accountId });
+  },
+);
+
+const Currency = v.picklist(["EUR", "USD", "GBP"]);
+
+/** Starts a shift on a till with its opening float. */
+export const openSession = bsb.action(
+  {
+    input: v.object({
+      tillId: Id,
+      currency: Currency,
+      openingFloat: Optional,
+      notes: Optional,
+    }),
+    requireTenant: true,
+    permission: "tills.write",
+  },
+  async (input, { db, auth }) => {
+    const float = input.openingFloat;
+
+    const opened = await db.tills.openSession({
+      tillId: input.tillId,
+      ...given(
+        "openingFloat",
+        float !== undefined && v.is(Decimal, float)
+          ? parseMoney(float, input.currency)
+          : undefined,
+      ),
+      ...given("notes", input.notes),
+    });
+
+    if (!opened.ok) {
+      return opened;
+    }
+
+    await refreshCaller(auth, TILLS_CACHE_TAGS);
+
+    return ok({ id: opened.data.id });
+  },
+);
+
+/** Records cash that came in or went out of the drawer. */
+export const recordMovement = bsb.action(
+  {
+    input: v.object({
+      sessionId: Id,
+      currency: Currency,
+      kind: v.picklist(["cash_sale", "cash_refund", "cash_in", "cash_out"]),
+      amount: Decimal,
+      reason: Optional,
+    }),
+    requireTenant: true,
+    permission: "tills.write",
+  },
+  async (input, { db, auth }) => {
+    const recorded = await db.tills.recordMovement({
+      sessionId: input.sessionId,
+      kind: input.kind,
+      amount: parseMoney(input.amount, input.currency),
+      ...given("reason", input.reason),
+    });
+
+    if (!recorded.ok) {
+      return recorded;
+    }
+
+    await refreshCaller(auth, TILLS_CACHE_TAGS);
+
+    return ok(true);
+  },
+);
+
+/** Counts the drawer and closes the session; the variance goes to the books. */
+export const closeSession = bsb.action(
+  {
+    input: v.object({
+      sessionId: Id,
+      currency: Currency,
+      counted: Decimal,
+      notes: Optional,
+    }),
+    requireTenant: true,
+    permission: "tills.write",
+  },
+  async (input, { db, auth }) => {
+    const closed = await db.tills.closeSession({
+      sessionId: input.sessionId,
+      input: {
+        amount: parseMoney(input.counted, input.currency),
+        ...given("notes", input.notes),
+      },
+    });
+
+    if (!closed.ok) {
+      return closed;
+    }
+
+    await refreshCaller(auth, TILLS_CACHE_TAGS);
+
+    return ok(true);
+  },
+);
+
+/** Takes cash from a closed session to the bank. */
+export const depositCash = bsb.action(
+  {
+    input: v.object({
+      sessionId: Id,
+      currency: Currency,
+      amount: Decimal,
+      reference: Optional,
+    }),
+    requireTenant: true,
+    permission: "tills.manage",
+  },
+  async (input, { db, auth }) => {
+    const deposited = await db.tills.deposit({
+      sessionId: input.sessionId,
+      input: {
+        amount: parseMoney(input.amount, input.currency),
+        ...given("reference", input.reference),
+      },
+    });
+
+    if (!deposited.ok) {
+      return deposited;
+    }
+
+    await refreshCaller(auth, TILLS_CACHE_TAGS);
+
+    return ok(true);
   },
 );

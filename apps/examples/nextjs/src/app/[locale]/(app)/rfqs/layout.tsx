@@ -9,7 +9,13 @@ export default function RfqsLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "rfqs"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "rfqs",
+        "recordDetail",
+        "recordList",
+        "sales",
+      ])}
     >
       {children}
     </NextIntlClientProvider>
