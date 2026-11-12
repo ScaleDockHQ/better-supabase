@@ -32,16 +32,16 @@ const STATUS_VARIANT = {
  * up in a window around today.
  */
 export async function ShiftDetail({
-  params,
-  searchParams,
+  id: idPromise,
+  on,
 }: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  id: Promise<string>;
+  on: Promise<string | string[] | undefined>;
 }) {
   await io();
   const today = Temporal.Now.plainDateISO("UTC");
-  const [{ id }, query] = await Promise.all([params, searchParams]);
-  const parsed = v.safeParse(DayParam, query["on"]);
+  const [id, onValue] = await Promise.all([idPromise, on]);
+  const parsed = v.safeParse(DayParam, onValue);
   const day = parsed.success ? parsed.output : null;
 
   const [t, format, loaded] = await Promise.all([

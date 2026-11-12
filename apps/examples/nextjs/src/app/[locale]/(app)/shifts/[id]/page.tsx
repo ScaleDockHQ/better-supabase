@@ -17,6 +17,8 @@ export default function ShiftPage({
   searchParams,
 }: PageProps<"/[locale]/shifts/[id]">) {
   const t = useExtracted("shifts");
+  const id = params.then((value) => value.id);
+  const on = searchParams.then((query) => query["on"]);
 
   return (
     <>
@@ -32,7 +34,7 @@ export default function ShiftPage({
         {t("All shifts")}
       </Link>
       <Suspense fallback={<ShiftDetailSkeleton />}>
-        <ShiftDetail params={params} searchParams={searchParams} />
+        <ShiftDetail id={id} on={on} />
       </Suspense>
     </>
   );
