@@ -20,7 +20,7 @@ a rule.
   boundaries, tests, doctor, audit). CI runs it; run it locally only to
   reproduce a CI failure. `pnpm ci:wait` watches the PR's checks.
 - `pnpm fix` (`ultracite fix`), `pnpm lint`, `pnpm typecheck`, `pnpm test`
-  (no coverage; `pnpm test:coverage` is for CI and thresholds).
+  (no coverage; `pnpm --filter better-supabase test:coverage` is for thresholds).
 - `pnpm supabase:start`, `pnpm supabase:reset`, `pnpm supabase:test`, then
   `pnpm test:integration` against the running stack.
 - `pnpm db:gen` regenerates the typed clients; `pnpm dev:portless` serves the

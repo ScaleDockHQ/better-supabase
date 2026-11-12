@@ -5,7 +5,7 @@ what it checks.
 
 - `pnpm install`: install (pnpm 12, Node 24).
 - `pnpm check`: lint, typecheck and the mirrored tests of the changed workspaces (`node scripts/check-changed.ts`; related tests only when a file has at most 3 importers). About 7 s on one library file. Hooks run it.
-- `pnpm check:format`: the old `ultracite check`. `pnpm test:coverage`: unit tests with coverage (CI). `pnpm ci:wait`: watch the PR checks and print failed jobs.
+- `pnpm check:format`: the old `ultracite check`. `pnpm --filter better-supabase test:coverage`: unit tests with coverage (CI). `pnpm ci:wait`: watch the PR checks and print failed jobs.
 - `pnpm verify`: the full gate, run by CI (ADR 0686); run it locally only to reproduce a failure. It runs the format check, lint
   (type-aware Oxlint on the Ultracite presets in the root `oxlint.config.ts`), the prose check, the PermDock name check, typecheck,
   Knip, Turbo boundaries, tests, doctor and `pnpm audit`. Every step except

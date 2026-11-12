@@ -25,5 +25,5 @@ export function localizedPath(locale: string, href: string): Route {
         : `/${locale}${href}`;
 
   // SAFETY: `href` is a path of the app and `locale` is one of its locales, so the result is a same-origin page path; the typed-routes union can't be built from a runtime locale.
-  return path as Route;
+  return path;
 }

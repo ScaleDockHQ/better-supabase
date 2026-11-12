@@ -290,7 +290,28 @@ const main = (): void => {
     return;
   }
 
-  const failed = planSteps(files).filter((step) => !run(step));
+  const steps = planSteps(files);
+
+  // Apps and tests resolve `better-supabase` through its built `dist`, so a
+  // fresh checkout builds it once (a Turbo cache hit afterwards).
+  const needsLibrary = steps.some(
+    (step) =>
+      step.cwd !== repoRoot && !step.cwd.endsWith("packages/better-supabase"),
+  );
+
+  if (
+    needsLibrary &&
+    !existsSync(join(repoRoot, "packages/better-supabase/dist"))
+  ) {
+    steps.unshift({
+      name: "build better-supabase (first run)",
+      command: join(repoRoot, "node_modules/.bin/turbo"),
+      args: ["run", "build", "--filter=better-supabase"],
+      cwd: repoRoot,
+    });
+  }
+
+  const failed = steps.filter((step) => !run(step));
 
   if (failed.length > 0) {
     console.log(

@@ -212,6 +212,14 @@
         ".agents/skills/**"
       ]
     },
+    "//#check:agent-docs": {
+      "inputs": [
+        "scripts/check-agent-docs.ts",
+        "AGENTS.md",
+        "docs/agents/commands.md",
+        "package.json"
+      ]
+    },
     "//#check:adrs": {
       "inputs": ["scripts/check-adrs.ts", "AGENTS.md", "docs/decisions/**"]
     },
