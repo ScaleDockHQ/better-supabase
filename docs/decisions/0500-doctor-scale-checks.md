@@ -21,6 +21,12 @@ a rule can't assume the guard exists yet.
 - BS386 flags a bare call of a volatile or PL/pgSQL function in a policy. A call
   inside `(select ...)` (the InitPlan form Postgres prints) is accepted, so a
   provider's memo helper that is volatile passes.
+- In a select policy BS386 also flags a per-row call of a function that is
+  `security definer` or has a `set` clause, because Postgres never inlines it,
+  so a stable SQL `can_<resource>(row)` check costs one call per row. The call
+  is accepted as the `or` fallback after an `in (select ...)` set check, which
+  only runs for rows outside the set. Write policies keep the narrower rule,
+  since they check one row at a time.
 - BS388 finds the guard by source text (`import_run()` in the trigger function
   in the schema files) instead of by catalog, so it passes once the generated
   module has the guard and stays quiet when it can't find the function.
