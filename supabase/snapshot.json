@@ -295614,7 +295614,7 @@
         ],
         "policies": [
           {
-            "name": "finance_recognition_rows_read",
+            "name": "bsb_finance_recognition_rows_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -295737,7 +295737,7 @@
         ],
         "policies": [
           {
-            "name": "finance_recognition_schedules_read",
+            "name": "bsb_finance_recognition_schedules_read",
             "command": "select",
             "roles": [
               "authenticated"
