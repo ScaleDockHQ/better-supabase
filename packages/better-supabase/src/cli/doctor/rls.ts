@@ -495,21 +495,136 @@ function onlyWrapped(
   return calls > 0 && calls === wraps;
 }
 
+interface TenantPins {
+  readonly sets: readonly string[];
+  readonly platform: readonly string[];
+}
+
+const templateName = (template: string | undefined): string[] => {
+  const name = template?.slice(0, template.indexOf("(")).trim();
+
+  return name ? [escape(name).replaceAll(escape("{scope}"), "\\w+")] : [];
+};
+
+const NO_PINS: TenantPins = { sets: [], platform: [] };
+
+function tenantPins(context: DoctorContext): TenantPins {
+  const functions = context.config.authorization?.functions;
+
+  return {
+    sets: [
+      ...templateName(functions?.idsWith),
+      ...templateName(functions?.memberIds),
+    ],
+    platform: templateName(functions?.isPlatform),
+  };
+}
+
+function unwrap(expression: string): string {
+  let text = expression.trim();
+
+  while (text.startsWith("(") && closing(text, 0) === text.length - 1) {
+    text = text.slice(1, -1).trim();
+  }
+
+  return text;
+}
+
+function closing(text: string, open: number): number {
+  let depth = 0;
+  let quoted = false;
+
+  for (let at = open; at < text.length; at += 1) {
+    const char = text.charAt(at);
+
+    if (char === "'") {
+      quoted = !quoted;
+    } else if (!quoted) {
+      depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+
+      if (depth === 0) {
+        return at;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function operands(expression: string, op: "and" | "or"): string[] {
+  const parts: string[] = [];
+  const word = new RegExp(`^\\s+${op}\\s+`, "i");
+  let depth = 0;
+  let quoted = false;
+  let from = 0;
+
+  for (let at = 0; at < expression.length; at += 1) {
+    const char = expression.charAt(at);
+
+    if (char === "'") {
+      quoted = !quoted;
+    } else if (!quoted) {
+      depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+
+      const match = depth === 0 ? word.exec(expression.slice(at)) : null;
+
+      if (match) {
+        parts.push(expression.slice(from, at));
+        from = at + match[0].length;
+        at = from - 1;
+      }
+    }
+  }
+
+  parts.push(expression.slice(from));
+
+  return parts.map((part) => part.trim()).filter((part) => part !== "");
+}
+
+function holds(
+  expression: string,
+  atom: RegExp,
+  orNull?: { readonly column: RegExp; readonly platform: RegExp },
+): boolean {
+  const text = unwrap(expression);
+  const branches = operands(text, "or");
+
+  if (branches.length > 1) {
+    return branches.every((branch) => holds(branch, atom, orNull));
+  }
+
+  const parts = operands(text, "and");
+
+  if (parts.length > 1) {
+    return (
+      parts.some((part) => holds(part, atom, orNull)) ||
+      (orNull !== undefined &&
+        parts.some((part) => orNull.column.test(unwrap(part))) &&
+        parts.some((part) => orNull.platform.test(part)))
+    );
+  }
+
+  return !/\bor\b/i.test(text) && atom.test(text);
+}
+
 /**
  * Whether every permissive policy that lets `role` run `command` holds `column`
- * to a tenant the caller acts in, with no `or` around it: equal to
- * `current_tenant_id()`, passed to `can('tenant', column, ...)`, or in `(select
- * tenant_ids_with(...))` or `(select member_<tenant>_ids())`. A write can't
- * name a tenant the caller isn't in then. The guest branch `ctx.scope.guest`
- * adds (`or (column, ...) in (select g.tenant ... portal_subjects(...) g)`)
- * pins it to a tenant the caller is a guest of, so it doesn't count as an
- * `or`.
+ * to a tenant the caller acts in: equal to `current_tenant_id()`, passed to
+ * `can('tenant', column, ...)`, or in `(select tenant_ids_with(...))`, `(select
+ * member_<tenant>_ids())` or the provider's `idsWith` and `memberIds` helpers.
+ * A write can't name a tenant the caller isn't in then. An `or` holds when each
+ * branch does, and a branch that writes a null tenant under a platform check
+ * (`is_platform(...)` or the provider's `isPlatform`) holds too: only a
+ * platform role writes those rows. The guest branch `ctx.scope.guest` adds (`or
+ * (column, ...) in (select g.tenant ... portal_subjects(...) g)`) pins it to a
+ * tenant the caller is a guest of.
  */
 function pinnedToTenant(
   table: CatalogTable,
   column: string,
   command: (typeof WRITES)[number],
   role: string,
+  pins: TenantPins = NO_PINS,
 ): boolean {
   if (!table.rls) {
     return false;
@@ -517,14 +632,27 @@ function pinnedToTenant(
 
   const col = `"?${escape(column)}"?`;
 
+  const sets = [
+    "better_supabase\\.(?:tenant_ids_with|member_\\w+_ids)",
+    ...pins.sets,
+  ];
+
   const pin = new RegExp(
     [
       `(?<![\\w."])${col}\\s*=\\s*\\(?\\s*(?:select\\s+)?better_supabase\\.current_tenant_id\\(\\)`,
       `better_supabase\\.can\\(\\s*'tenant'(?:::text)?\\s*,\\s*${col}\\s*,`,
-      `(?<![\\w."])${col}\\s+in\\s+\\(\\s*select\\s+better_supabase\\.(?:tenant_ids_with|member_\\w+_ids)\\(`,
+      `(?<![\\w."])${col}\\s+in\\s+\\(\\s*select\\s+(?:${sets.join("|")})\\(`,
     ].join("|"),
     "i",
   );
+
+  const orNull = {
+    column: new RegExp(`^(?:\\w+\\.)?${col}\\s+is\\s+null$`, "i"),
+    platform: new RegExp(
+      `(?:${["better_supabase\\.is_platform", ...pins.platform].join("|")})\\(`,
+      "i",
+    ),
+  };
 
   const guest = new RegExp(
     `\\bor\\s+\\(*\\(?${col}\\)?(?:::text)?\\s*,(?:[^()]|\\([^()]*\\))*\\)\\s+in\\s+\\(\\s*select\\s+g\\.tenant\\b[^()]*from\\s+better_supabase\\.portal_(?:subjects|parties)\\([^()]*\\)\\s+g(?:\\([^()]*\\))?\\)`,
@@ -543,7 +671,39 @@ function pinnedToTenant(
     applying.every((policy) => {
       const check = (policy.check ?? policy.using)?.replaceAll(guest, "");
 
-      return check !== undefined && !/\bor\b/i.test(check) && pin.test(check);
+      return check !== undefined && holds(check, pin, orNull);
+    })
+  );
+}
+
+function pinnedToCaller(
+  table: CatalogTable,
+  column: string,
+  command: (typeof WRITES)[number],
+  role: string,
+): boolean {
+  if (!table.rls || command !== "insert") {
+    return false;
+  }
+
+  const atom = new RegExp(
+    `(?<![\\w."])"?${escape(column)}"?\\s*=\\s*\\(\\s*select\\s+auth\\.uid\\(\\)`,
+    "i",
+  );
+
+  const applying = table.policies.filter(
+    (policy) =>
+      policy.permissive &&
+      (policy.command === "all" || policy.command === command) &&
+      appliesTo(policy, role),
+  );
+
+  return (
+    applying.length > 0 &&
+    applying.every((policy) => {
+      const check = policy.check ?? policy.using;
+
+      return check !== null && holds(check, atom);
     })
   );
 }
@@ -560,6 +720,7 @@ function writableColumns(
   command: (typeof WRITES)[number],
   role: string,
   deciding: ReadonlySet<string> = new Set(),
+  pins?: TenantPins,
 ): string[] {
   if (!policyAllows(table, command, role)) {
     return [];
@@ -575,7 +736,8 @@ function writableColumns(
     (column) =>
       deciding.has(column) ||
       (!(table.primaryKey.length === 1 && table.primaryKey[0] === column) &&
-        !pinnedToTenant(table, column, command, role)),
+        !pinnedToTenant(table, column, command, role, pins) &&
+        !pinnedToCaller(table, column, command, role)),
   );
 
   if (tableLevel) {
@@ -797,11 +959,13 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "API roles can write the columns that grant access",
     description:
-      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)`, `tenant_ids_with(...)` or the membership helper `member_organization_ids()`, alone or next to a guest's grant from `portal_subjects()`), a subject's `deletedAt` column in `config.recordTypes` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them.",
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)`, `tenant_ids_with(...)`, the membership helper `member_organization_ids()` or the provider's `idsWith` and `memberIds` helpers, alone, next to a guest's grant from `portal_subjects()`, or next to a branch that writes a null tenant under a platform check), a column every insert policy pins to the caller (`column = (select auth.uid())`, on insert only), a subject's `deletedAt` column in `config.recordTypes` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),
       );
+
+      const pins = tenantPins(context);
 
       return [...grantColumns(context)].flatMap(
         ([name, byColumn]): FindingInput[] => {
@@ -834,6 +998,7 @@ export const RLS_RULES: readonly Rule[] = [
                 command,
                 role,
                 deciding,
+                pins,
               );
 
               if (writable.length === 0) {

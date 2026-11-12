@@ -489,6 +489,94 @@ describe("doctor rules", () => {
       );
     });
 
+    const providerConfig = {
+      config: resolveConfig(
+        { auth: { authorization: withProvider({}) } },
+        "/project",
+      ),
+    };
+
+    const updateWith = (check: string) =>
+      withTable("memberships", (memberships) => {
+        memberships.primaryKey = ["user_id"];
+        memberships.policies = [
+          ...memberships.policies,
+          { ...updatePolicy, using: check, check },
+        ];
+        memberships.grants = [
+          { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+        ];
+      });
+
+    it.each([
+      "(org_id IN ( SELECT authz.ids_organization('members.manage'::text) AS ids_organization))",
+      "(org_id IN ( SELECT authz.member_organization_ids() AS member_organization_ids))",
+      "(((kind = 'organization'::text) AND (org_id IS NOT NULL) AND (org_id IN ( SELECT authz.ids_organization('members.manage'::text) AS ids_organization))) OR ((kind = 'system'::text) AND (org_id IS NULL) AND ( SELECT authz.is_platform('platform.members.manage'::text) AS is_platform)))",
+    ])(
+      "leaves out a tenant column the provider's helpers pin: %s",
+      async (pinned) => {
+        const findings = await runRules(
+          context(updateWith(pinned), providerConfig),
+          only,
+        );
+
+        expect(findings[0]?.message).toContain(
+          "authenticated may update role.",
+        );
+      },
+    );
+
+    it.each([
+      "(((kind = 'organization'::text) AND (org_id IN ( SELECT authz.ids_organization('members.manage'::text) AS ids_organization))) OR ((kind = 'system'::text) AND (org_id IS NULL)))",
+      "(((kind = 'organization'::text) AND (org_id IN ( SELECT authz.ids_organization('members.manage'::text) AS ids_organization))) OR (( SELECT authz.is_platform('platform.members.manage'::text) AS is_platform)))",
+      "(org_id IN ( SELECT authz.ids_organization('members.manage'::text) AS ids_organization)) OR (org_id IN ( SELECT app.every_org_id() AS every_org_id))",
+      "(org_id IN ( SELECT authz.ids_organization('members.manage'::text) AS ids_organization))",
+    ])(
+      "keeps a tenant column a branch leaves open, or a helper the provider doesn't name: %s",
+      async (loose) => {
+        const findings = await runRules(
+          context(
+            updateWith(loose),
+            loose.includes("app.every_org_id") ? providerConfig : {},
+          ),
+          only,
+        );
+
+        expect(findings[0]?.message).toContain(
+          "authenticated may update org_id, role.",
+        );
+      },
+    );
+
+    it("leaves out a column every insert policy pins to the caller, and keeps it on update", async () => {
+      const own =
+        "((user_id = ( SELECT auth.uid() AS uid)) AND (org_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)))";
+
+      const snap = withTable("memberships", (memberships) => {
+        memberships.policies = [
+          ...memberships.policies,
+          {
+            name: "members_insert_own",
+            command: "insert" as const,
+            roles: ["authenticated"],
+            permissive: true,
+            using: null,
+            check: own,
+            functions: ["auth.uid", "better_supabase.current_tenant_id"],
+          },
+          { ...updatePolicy, using: own, check: own },
+        ];
+        memberships.grants = [
+          { role: "authenticated", privileges: ["SELECT", "INSERT", "UPDATE"] },
+        ];
+      });
+
+      const findings = await runRules(context(snap), only);
+      expect(findings[0]?.message).toContain(
+        "authenticated may insert role; authenticated may update role, user_id",
+      );
+    });
+
     const guestBranch = (tuple: string) =>
       `COALESCE(better_supabase.can('tenant'::text, org_id, 'members.manage'::text), false) OR ((${tuple}) IN ( SELECT g.tenant,\n    g.subject_type,\n    g.subject_id\n   FROM better_supabase.portal_subjects('comment'::text) g(tenant, subject_type, subject_id)))`;
 
