@@ -2,7 +2,8 @@
 
 import type { DbError } from "better-supabase";
 
-import { useAction } from "better-supabase/react";
+import { createBulkSelectionController } from "better-supabase/blocks/bulk-actions";
+import { useAction, useController, useLatest } from "better-supabase/react";
 import { BookmarkIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState, useTransition } from "react";
@@ -63,6 +64,7 @@ import {
 } from "../use-work-labels";
 import {
   deleteWorkView,
+  runWorkBulkAction,
   saveWorkView,
   setWorkItemAssignee,
   setWorkItemStage,
@@ -210,7 +212,57 @@ export function WorkItemGrid({
   const sortLabel = useSortLabel();
   const [navigating, startTransition] = useTransition();
   const [search, setSearch] = useState(query.q);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // The controller outlives renders, so it reads the latest message formatter.
+  const latestErrorMessage = useLatest(errorMessage);
+
+  const { view: bulk } = useController(
+    () =>
+      createBulkSelectionController({
+        run: async ({ rows: ids, action, args }) => {
+          const to = WORK_ITEM_STATES.find((state) => state === args?.["to"]);
+
+          const result = await runWorkBulkAction(
+            action === "state" && to !== undefined
+              ? { action: "state", ids: [...ids], to }
+              : { action: "delete", ids: [...ids] },
+          );
+
+          if (!result.ok) {
+            toast.error(latestErrorMessage.current(result.error));
+            throw new Error(result.error.message);
+          }
+
+          const failed = new Map(
+            result.data.failed.map((row) => [row.id, row]),
+          );
+
+          return {
+            mode: "now",
+            total: result.data.total,
+            succeeded: result.data.succeeded,
+            failed: failed.size,
+            results: ids.map((id) => {
+              const row = failed.get(id);
+
+              return {
+                id,
+                ok: row === undefined,
+                error: row
+                  ? {
+                      code: row.code ?? undefined,
+                      message: row.message,
+                      sqlstate: undefined,
+                    }
+                  : null,
+              };
+            }),
+          };
+        },
+      }),
+    [latestErrorMessage],
+  );
+
+  const selected = new Set(bulk.selected);
 
   const onEditError = (error: DbError) => {
     toast.error(workErrorHint(error.hint) ?? errorMessage(error));
@@ -382,14 +434,7 @@ export function WorkItemGrid({
           )}
         </div>
       </div>
-      {canBulk ? (
-        <BulkActionBar
-          selected={selectedRows}
-          onSettled={(failedIds) => {
-            setSelected(new Set(failedIds));
-          }}
-        />
-      ) : null}
+      {canBulk ? <BulkActionBar selected={selectedRows} bulk={bulk} /> : null}
       <Table>
         <TableHeader>
           <TableRow>
@@ -400,9 +445,11 @@ export function WorkItemGrid({
                   indeterminate={selection.length > 0 && !allSelected}
                   aria-label={t("Select all")}
                   onCheckedChange={(checked) => {
-                    setSelected(
-                      checked ? new Set(rows.map((row) => row.id)) : new Set(),
-                    );
+                    if (checked) {
+                      bulk.selectMany(rows.map((row) => row.id));
+                    } else {
+                      bulk.clear();
+                    }
                   }}
                 />
               </TableHead>
@@ -441,17 +488,11 @@ export function WorkItemGrid({
                         identifier: row.identifier,
                       })}
                       onCheckedChange={(checked) => {
-                        setSelected((current) => {
-                          const next = new Set(current);
-
-                          if (checked) {
-                            next.add(row.id);
-                          } else {
-                            next.delete(row.id);
-                          }
-
-                          return next;
-                        });
+                        if (checked) {
+                          bulk.select(row.id);
+                        } else {
+                          bulk.deselect(row.id);
+                        }
                       }}
                     />
                   </TableCell>
