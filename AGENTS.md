@@ -81,7 +81,7 @@ The full text is in `.agents/rules/architecture.mdc`.
 
 ## Agent workflow
 
-One branch and one PR per chat or plan, Conventional Commits, and
+At most one open agent PR per repo, new fixes added to it, Conventional Commits, and
 `pnpm check` before every push, CI for the full `pnpm verify`
 (`.agents/rules/git-workflow.mdc`, ADR 0686). Read the
 `docs/agents` page for the area first, and add a correction there when an

@@ -1,12 +1,15 @@
 ---
-description: "Branches, commits, hooks and pull requests: one branch and one PR per chat or plan."
+description: "Branches, commits, hooks and pull requests: at most one open agent PR per repo at a time."
 alwaysApply: true
 ---
 
 # Git workflow
 
-- One branch and one PR per chat or plan. Branch from `main`, commit as you
-  go, and push once `pnpm check` passes. CI runs the full `pnpm verify`; watch it
+- At most one open agent PR per repo at a time. When it is still open, add
+  new changes and fixes to its branch; open a new PR only after it merges.
+  Dependabot and the Changesets version PR are the only exceptions. Many
+  open PRs make it impossible to keep an overview. Branch from `main`,
+  commit as you go, and push once `pnpm check` passes. CI runs the full `pnpm verify`; watch it
   with `pnpm ci:wait` and fix what it reports in a follow-up commit.
 - Commit messages follow Conventional Commits (`commitlint.config.ts`) with
   body lines of at most 100; the header has no length limit. Group
