@@ -340,3 +340,33 @@ blocks next to its own tables. Things it ran into:
 - A renamed export, type, subpath or environment variable gets a row in
   `api/naming.json` (the `naming` codemod and doctor BS260 read it). A removed
   one is gone with no alias; the release notes name it.
+
+## Audit lane checklist
+
+The block consistency audit rollout ([`block-consistency-audit.md`](block-consistency-audit.md))
+runs as lanes, one PR each (`feat/audit-<lane>`, worktree `../bsb-audit-<lane>`,
+branched from `main`). Parallel PRs are a one-off exception for this
+program; `git-workflow.mdc` is unchanged. A lane is done when:
+
+1. Its `### Lane X` subsection under `## Progress` says `in progress` in the
+   first commit.
+2. The code has tests that mirror `src`, and the rows in
+   `also-update-library.mdc` and `also-update-blocks.mdc` are done.
+3. The ADR uses a number from the lane's range in `## Lane ownership`, and
+   the docs pages, example usage and the changeset (with an old-to-new table
+   for breaking changes) are updated.
+4. `pnpm check` passes, the PR body says "audit program, lane X" with what
+   changed, how it was verified and any manual step, and `pnpm ci:wait` is green.
+5. The subsection and the lane's rows in `example-findings.md` carry the PR
+   link (`fixed (PR #n)`), and the merging agent sets `merged`.
+
+Conflict hotspots:
+
+- ADR numbers come only from the lane's reserved range.
+- Migration timestamps start with `202612` and the lane's slot.
+- Never merge generated files by hand (`api/exports.json`,
+  `tests/bundle/baseline.json`, fixtures, the examples' `src/lib/supabase/*`);
+  regenerate them after each rebase.
+- On a rebase conflict in `docs/decisions/README.md`, the changelogs or
+  `example-findings.md`, keep both sides.
+- Edit only your own Progress subsection.
