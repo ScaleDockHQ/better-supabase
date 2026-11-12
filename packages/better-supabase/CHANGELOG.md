@@ -1,5 +1,15 @@
 # better-supabase
 
+## 0.62.0
+
+### Minor Changes
+
+- [#862](https://github.com/ScaleDockHQ/better-supabase/pull/862) [`5be172a`](https://github.com/ScaleDockHQ/better-supabase/commit/5be172a83c6ff8f03cf44a27f21ca4c5259c6a14) Thanks [@mick340](https://github.com/mick340)! - `blocks.<name>.events` takes `{ payload: { "<event type>": { <payload key>: "<column>" } } }`, which adds columns of the event's row to the payload the module writes to the outbox. An app that keeps its own columns on a block's table, such as a `customer_id` on `tasks`, no longer has to write a second `task.created` with them. Rendering fails for an event type the module doesn't record and for an event the module writes without a row. The tasks block passes its row to every event. `events: true` and `events: false` keep working.
+
+- [#862](https://github.com/ScaleDockHQ/better-supabase/pull/862) [`3cd9da5`](https://github.com/ScaleDockHQ/better-supabase/commit/3cd9da5bf6268bcf87201d6bb91d5a57019fd9d2) Thanks [@mick340](https://github.com/mick340)! - Breaking: `db.$decode(table).row()` and `.rows()` return an `AsyncResult`, so `$decode` works with lazy tables (`gen.serverTables: "lazy"`). It loads the table and every table an embedded relation in the value reaches before it decodes; before, it threw `unknown table` for a table the process had not loaded yet. Add `await` where you read the result: `const customers = await db.$decode("customers").rows(rows)`. A failure that is not a database error is now an error result instead of a thrown exception.
+
+- [#862](https://github.com/ScaleDockHQ/better-supabase/pull/862) [`b651b42`](https://github.com/ScaleDockHQ/better-supabase/commit/b651b42af9e851b042f59e6f65d791499e6f91a0) Thanks [@mick340](https://github.com/mick340)! - `list_incoming_webhooks` and `hooks.list()` page: `pageSize` (up to 500) and `skip` return one page of a tenant's endpoints, and `newestFirst` lists the newest first. Without `pageSize` the call still returns every endpoint, oldest first. Run `better-supabase upgrade` to regenerate the `webhooks-in` module.
+
 ## 0.61.1
 
 ### Patch Changes
