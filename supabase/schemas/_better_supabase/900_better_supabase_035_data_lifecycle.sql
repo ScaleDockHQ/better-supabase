@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:bf47e6687fb74c4bb6de78338e34122b9dfd6e405de5449e86691ebbc842eb20
+-- @bsb-hash sha256:f20a9714e21ef62ce01d6dbf2c545e3ba5843ae1210b3c6abd1eac628d669017
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -950,6 +950,8 @@ as $$
     ('user', 'better_supabase.signatures', '"better_supabase"."signatures"', 'signer', true, '{}'::text[], true),
     ('user', 'better_supabase.time_entries', '"better_supabase"."time_entries"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.timesheets', '"better_supabase"."timesheets"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.identity_links', '"better_supabase"."identity_links"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.identity_link_codes', '"better_supabase"."identity_link_codes"', 'user_id', true, '{}'::text[], false),
     ('user', 'better_supabase.template_schedules', '"better_supabase"."template_schedules"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.deals', '"better_supabase"."deals"', 'owner_id', true, '{}'::text[], true),
     ('user', 'better_supabase.deal_members', '"better_supabase"."deal_members"', 'user_id', true, '{}'::text[], true),
@@ -1044,10 +1046,15 @@ as $$
     ('user', 'better_supabase.prescriptions', '"better_supabase"."prescriptions"', 'prescriber_id', true, '{}'::text[], true),
     ('user', 'better_supabase.checkout_sessions', '"better_supabase"."checkout_sessions"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.agent_mandates', '"better_supabase"."agent_mandates"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.advisory_products', '"better_supabase"."advisory_products"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.vex_statements', '"better_supabase"."vex_statements"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.advisories', '"better_supabase"."advisories"', 'created_by', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'tenant_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'public.memberships', '"public"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'tenant_id', true, array['token_hash']::text[], true),
     ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.support_sessions', '"better_supabase"."support_sessions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.support_requests', '"better_supabase"."support_requests"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.outbox_events', '"better_supabase"."outbox_events"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_events', '"better_supabase"."notification_events"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.notification_recipients', '"better_supabase"."notification_recipients"', 'tenant_id', true, '{}'::text[], true),
@@ -1068,6 +1075,9 @@ as $$
     ('organization', 'better_supabase.usage_distinct', '"better_supabase"."usage_distinct"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_billed_periods', '"better_supabase"."usage_billed_periods"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.usage_quotas', '"better_supabase"."usage_quotas"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.billing_native_subscriptions', '"better_supabase"."billing_native_subscriptions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.billing_customers', '"better_supabase"."billing_customers"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.billing_subscriptions', '"better_supabase"."billing_subscriptions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.flag_overrides', '"better_supabase"."flag_overrides"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.drive_nodes', '"better_supabase"."drive_nodes"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.drive_grants', '"better_supabase"."drive_grants"', 'tenant_id', true, '{}'::text[], true),
@@ -1546,6 +1556,13 @@ as $$
     ('organization', 'better_supabase.prescriptions', '"better_supabase"."prescriptions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.checkout_sessions', '"better_supabase"."checkout_sessions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.agent_mandates', '"better_supabase"."agent_mandates"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.advisory_products', '"better_supabase"."advisory_products"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.advisory_product_versions', '"better_supabase"."advisory_product_versions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.sbom_components', '"better_supabase"."sbom_components"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.vulnerabilities', '"better_supabase"."vulnerabilities"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.vex_statements', '"better_supabase"."vex_statements"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.advisories', '"better_supabase"."advisories"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.advisory_vulnerabilities', '"better_supabase"."advisory_vulnerabilities"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.prompt_versions', '"better_supabase"."prompt_versions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.prompt_labels', '"better_supabase"."prompt_labels"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.eval_datasets', '"better_supabase"."eval_datasets"', 'tenant_id', true, '{}'::text[], true),
@@ -2072,6 +2089,24 @@ begin
       from "better_supabase"."incidents" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.incidents';
       v_reveal := 'incidents_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'advisory' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."advisories" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.advisories';
+      v_reveal := 'advisories_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'advisory_product' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."advisory_products" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.advisory_products';
+      v_reveal := 'advisory_products_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'vulnerability' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."vulnerabilities" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.vulnerabilities';
+      v_reveal := 'vulnerabilities_reveal';
       v_reveal_schema := 'better_supabase';
     when 'content_entry' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant

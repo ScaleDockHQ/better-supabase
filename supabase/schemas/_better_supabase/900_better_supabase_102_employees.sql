@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:0f92f1e9b753b1e25cb14cbebe8971d729bdfec0f41e78e5a36ed80cb011de4a
+-- @bsb-hash sha256:631e350885ee75040c4ef9513d45d883bf845c86e9371fb74171d6f41642b7ab
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -663,6 +663,9 @@ begin
       when 'bank_account' then (select s."name"::text from "better_supabase"."bank_accounts" s where s."id" = (v_application."candidate_id")::uuid)
       when 'care_plan' then (select s."title"::text from "better_supabase"."care_plans" s where s."id" = (v_application."candidate_id")::uuid)
       when 'incident' then (select s."title"::text from "better_supabase"."incidents" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'advisory' then (select s."title"::text from "better_supabase"."advisories" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'advisory_product' then (select s."name"::text from "better_supabase"."advisory_products" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'vulnerability' then (select s."vuln_id"::text from "better_supabase"."vulnerabilities" s where s."id" = (v_application."candidate_id")::uuid)
       when 'content_entry' then (select s."title"::text from "better_supabase"."content_entries" s where s."id" = (v_application."candidate_id")::uuid)
       when 'document' then (select s."name"::text from "better_supabase"."documents" s where s."id" = (v_application."candidate_id")::uuid)
       when 'customer' then (select s."name"::text from "public"."customers" s where s."id" = (v_application."candidate_id")::uuid)

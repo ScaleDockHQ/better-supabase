@@ -9,7 +9,12 @@ export default function PeopleLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "people", "recordList"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "people",
+        "recordList",
+        "encryption",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

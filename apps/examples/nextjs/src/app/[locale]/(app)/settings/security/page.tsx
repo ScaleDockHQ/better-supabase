@@ -1,6 +1,10 @@
 import { Suspense } from "react";
 
 import {
+  IdentitiesCard,
+  IdentitiesCardSkeleton,
+} from "@/features/identities/components/identities-card";
+import {
   SessionsCard,
   SessionsCardSkeleton,
 } from "@/features/sessions/components/sessions-card";
@@ -15,6 +19,9 @@ export default function SecuritySettingsPage() {
     <>
       <Suspense fallback={<SecurityCardsSkeleton />}>
         <SecurityCards />
+      </Suspense>
+      <Suspense fallback={<IdentitiesCardSkeleton />}>
+        <IdentitiesCard />
       </Suspense>
       <Suspense fallback={<SessionsCardSkeleton />}>
         <SessionsCard />

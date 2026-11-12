@@ -1,6 +1,6 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:c2848394db9e9bb7e521d26a07a5791678a4c3a381a878054614ae74838ad326
+-- @bsb-hash sha256:1014fc8e7789d1f39f1f9c3ef86c3e3461ba4f32c466e51a8b3166325a37d8af
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -738,6 +738,7 @@ begin
   update "better_supabase"."people" x set "roles" = array(select distinct r from unnest(x."roles" || v_drop."roles") r order by 1) where x."id" = merge_people.keep;
   update "better_supabase"."person_identities" i set "person_id" = merge_people.keep where i."person_id" = merge_people.drop;
   update "better_supabase"."inbox_conversations" x set "contact_id" = merge_people.keep where x."contact_id" = merge_people.drop;
+  update "better_supabase"."identity_links" x set "contact_id" = merge_people.keep where x."contact_id" = merge_people.drop;
   perform better_supabase.merge_subject_refs('better_supabase.people', merge_people.keep::text, merge_people.drop::text);
   perform "better_supabase".emit_event('person.merged', jsonb_build_object('organizationId', v_keep."tenant_id", 'personId', merge_people.keep, 'name', v_keep."name", 'mergedId', merge_people.drop), 'persons/' || merge_people.keep::text, (v_keep."tenant_id"::text)::text, null, 'better-supabase/contacts');
   perform better_supabase.audit_event(
@@ -1538,6 +1539,8 @@ grant execute on function "better_supabase"."find_person_by_identity"(uuid, text
 -- A conversation's contact and an identity link's contact are people.
 
 alter table "better_supabase"."inbox_conversations" add constraint "inbox_conversations_contact_id_fkey"
+  foreign key ("contact_id") references "better_supabase"."people" ("id") on delete cascade;
+alter table "better_supabase"."identity_links" add constraint "identity_links_contact_id_fkey"
   foreign key ("contact_id") references "better_supabase"."people" ("id") on delete cascade;
 
 -- The people who represent a record (a client's guardian, a legal

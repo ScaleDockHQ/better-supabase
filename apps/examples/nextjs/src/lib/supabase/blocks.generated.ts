@@ -20,6 +20,7 @@ import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
+import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { BookingsEvents } from "better-supabase/blocks/bookings";
 import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
@@ -75,6 +76,7 @@ import type { ReferralsEvents } from "better-supabase/blocks/referrals";
 import type { AgentCheckoutEvents } from "better-supabase/blocks/agent-checkout";
 import type { ClinicalDecisionSupportEvents } from "better-supabase/blocks/clinical-decision-support";
 import type { EPrescribingEvents } from "better-supabase/blocks/e-prescribing";
+import type { AdvisoriesEvents } from "better-supabase/blocks/advisories";
 import type { ManufacturingEvents } from "better-supabase/blocks/manufacturing";
 import type { BankingEvents } from "better-supabase/blocks/banking";
 import type { LegalEntitiesEvents } from "better-supabase/blocks/legal-entities";
@@ -116,6 +118,7 @@ import type { ReactionsEvents } from "better-supabase/blocks/reactions";
 import type { RelationsEvents } from "better-supabase/blocks/relations";
 import type { RemindersEvents } from "better-supabase/blocks/reminders";
 import type { AutomationsEvents } from "better-supabase/blocks/automations";
+import type { VercelMarketplaceEvents } from "better-supabase/blocks/vercel-marketplace";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { ServiceAccountsEvents } from "better-supabase/blocks/service-accounts";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
@@ -138,6 +141,7 @@ import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
 import { salesBlock as salesBlockInstance } from "better-supabase/blocks/sales";
+import { saasBlock as saasBlockInstance } from "better-supabase/blocks/saas";
 import { collaborationBlock as collaborationBlockInstance } from "better-supabase/blocks/collaboration";
 import { governanceBlock as governanceBlockInstance } from "better-supabase/blocks/governance";
 import { commerceBlock as commerceBlockInstance } from "better-supabase/blocks/commerce";
@@ -171,6 +175,7 @@ import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api
 import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
 import { attachmentsBlock as attachmentsBlockInstance } from "better-supabase/blocks/attachments";
 import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
+import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
 import { bookingsBlock as bookingsBlockInstance } from "better-supabase/blocks/bookings";
 import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/blocks/bulk-actions";
 import { calendarBlock as calendarBlockInstance } from "better-supabase/blocks/calendar";
@@ -228,6 +233,7 @@ import { referralsBlock as referralsBlockInstance } from "better-supabase/blocks
 import { agentCheckoutBlock as agentCheckoutBlockInstance } from "better-supabase/blocks/agent-checkout";
 import { clinicalDecisionSupportBlock as clinicalDecisionSupportBlockInstance } from "better-supabase/blocks/clinical-decision-support";
 import { ePrescribingBlock as ePrescribingBlockInstance } from "better-supabase/blocks/e-prescribing";
+import { advisoriesBlock as advisoriesBlockInstance } from "better-supabase/blocks/advisories";
 import { manufacturingBlock as manufacturingBlockInstance } from "better-supabase/blocks/manufacturing";
 import { bankingBlock as bankingBlockInstance } from "better-supabase/blocks/banking";
 import { legalEntitiesBlock as legalEntitiesBlockInstance } from "better-supabase/blocks/legal-entities";
@@ -247,6 +253,7 @@ import { flagsBlock as flagsBlockInstance } from "better-supabase/blocks/flags";
 import { formsBlock as formsBlockInstance } from "better-supabase/blocks/forms";
 import { signaturesBlock as signaturesBlockInstance } from "better-supabase/blocks/signatures";
 import { hiringBlock as hiringBlockInstance } from "better-supabase/blocks/hiring";
+import { identitiesBlock as identitiesBlockInstance } from "better-supabase/blocks/identities";
 import { importsBlock as importsBlockInstance } from "better-supabase/blocks/imports";
 import { inboxBlock as inboxBlockInstance } from "better-supabase/blocks/inbox";
 import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
@@ -286,6 +293,7 @@ import { reactionsBlock as reactionsBlockInstance } from "better-supabase/blocks
 import { relationsBlock as relationsBlockInstance } from "better-supabase/blocks/relations";
 import { remindersBlock as remindersBlockInstance } from "better-supabase/blocks/reminders";
 import { automationsBlock as automationsBlockInstance } from "better-supabase/blocks/automations";
+import { vercelMarketplaceBlock as vercelMarketplaceBlockInstance } from "better-supabase/blocks/vercel-marketplace";
 import { savedViewsBlock as savedViewsBlockInstance } from "better-supabase/blocks/saved-views";
 import { searchBlock as searchBlockInstance } from "better-supabase/blocks/search";
 import { serviceAccountsBlock as serviceAccountsBlockInstance } from "better-supabase/blocks/service-accounts";
@@ -327,6 +335,7 @@ export * from "./blocks/facilities-block.ts";
  */
 export const blocks = {
   sales: salesBlockInstance,
+  saas: saasBlockInstance,
   collaboration: collaborationBlockInstance,
   governance: governanceBlockInstance,
   commerce: commerceBlockInstance,
@@ -360,6 +369,7 @@ export const blocks = {
   approvals: approvalsBlockInstance,
   attachments: attachmentsBlockInstance,
   audit: auditBlockInstance,
+  billing: billingBlockInstance,
   bookings: bookingsBlockInstance,
   "bulk-actions": bulkActionsBlockInstance,
   calendar: calendarBlockInstance,
@@ -417,6 +427,7 @@ export const blocks = {
   "agent-checkout": agentCheckoutBlockInstance,
   "clinical-decision-support": clinicalDecisionSupportBlockInstance,
   "e-prescribing": ePrescribingBlockInstance,
+  advisories: advisoriesBlockInstance,
   manufacturing: manufacturingBlockInstance,
   banking: bankingBlockInstance,
   "legal-entities": legalEntitiesBlockInstance,
@@ -436,6 +447,7 @@ export const blocks = {
   forms: formsBlockInstance,
   signatures: signaturesBlockInstance,
   hiring: hiringBlockInstance,
+  identities: identitiesBlockInstance,
   imports: importsBlockInstance,
   inbox: inboxBlockInstance,
   inventory: inventoryBlockInstance,
@@ -475,6 +487,7 @@ export const blocks = {
   relations: relationsBlockInstance,
   reminders: remindersBlockInstance,
   automations: automationsBlockInstance,
+  "vercel-marketplace": vercelMarketplaceBlockInstance,
   "saved-views": savedViewsBlockInstance,
   search: searchBlockInstance,
   "service-accounts": serviceAccountsBlockInstance,
@@ -525,7 +538,7 @@ export const appTableEventSchemas = {
 } as const;
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & WarrantyEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiGuardrailsEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & WarrantyEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & AgentCheckoutEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & AdvisoriesEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & OptionSetsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeEntriesEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -560,6 +573,12 @@ export const blockEvents: Events<BlockEvents> = {
     "activity.summarized",
     "activity.transcribed",
     "activity.updated",
+    "advisory.created",
+    "advisory.published",
+    "advisory.updated",
+    "advisory_product.created",
+    "advisory_product.updated",
+    "advisory_product_version.created",
     "agent.created",
     "agent.deleted",
     "agent.installed",
@@ -632,6 +651,13 @@ export const blockEvents: Events<BlockEvents> = {
     "bank_statement.imported",
     "bank_transaction.matched",
     "bank_transaction.unmatched",
+    "billing.account_linked",
+    "billing.checkout_completed",
+    "billing.customer_linked",
+    "billing.seats_synced",
+    "billing.subscription_created",
+    "billing.subscription_deleted",
+    "billing.subscription_updated",
     "bom.activated",
     "booking.cancelled",
     "booking.confirmed",
@@ -1001,6 +1027,10 @@ export const blockEvents: Events<BlockEvents> = {
     "maintenance_request.deleted",
     "maintenance_request.reopened",
     "maintenance_request.updated",
+    "marketplace_installation.created",
+    "marketplace_installation.deleted",
+    "marketplace_installation.updated",
+    "marketplace_invoice.status_changed",
     "medication_administration.missed",
     "medication_administration.recorded",
     "medication_order.created",
@@ -1203,6 +1233,7 @@ export const blockEvents: Events<BlockEvents> = {
     "saved_view.created",
     "saved_view.deleted",
     "saved_view.updated",
+    "sbom_component.imported",
     "scim_group.created",
     "scim_group.deleted",
     "scim_group.updated",
@@ -1312,6 +1343,10 @@ export const blockEvents: Events<BlockEvents> = {
     "version.created",
     "version.deleted",
     "version.restored",
+    "vex_statement.updated",
+    "vulnerability.created",
+    "vulnerability.enriched",
+    "vulnerability.exploited",
     "waitlist_entry.approved",
     "waitlist_entry.rejected",
     "warranty_claim.closed",
@@ -1374,6 +1409,12 @@ export const blockEventSchemas = {
   "activity.summarized": true,
   "activity.transcribed": true,
   "activity.updated": true,
+  "advisory.created": true,
+  "advisory.published": true,
+  "advisory.updated": true,
+  "advisory_product.created": true,
+  "advisory_product.updated": true,
+  "advisory_product_version.created": true,
   "agent.created": true,
   "agent.deleted": true,
   "agent.installed": true,
@@ -1446,6 +1487,13 @@ export const blockEventSchemas = {
   "bank_statement.imported": true,
   "bank_transaction.matched": true,
   "bank_transaction.unmatched": true,
+  "billing.account_linked": true,
+  "billing.checkout_completed": true,
+  "billing.customer_linked": true,
+  "billing.seats_synced": true,
+  "billing.subscription_created": true,
+  "billing.subscription_deleted": true,
+  "billing.subscription_updated": true,
   "bom.activated": true,
   "booking.cancelled": true,
   "booking.confirmed": true,
@@ -1815,6 +1863,10 @@ export const blockEventSchemas = {
   "maintenance_request.deleted": true,
   "maintenance_request.reopened": true,
   "maintenance_request.updated": true,
+  "marketplace_installation.created": true,
+  "marketplace_installation.deleted": true,
+  "marketplace_installation.updated": true,
+  "marketplace_invoice.status_changed": true,
   "medication_administration.missed": true,
   "medication_administration.recorded": true,
   "medication_order.created": true,
@@ -2017,6 +2069,7 @@ export const blockEventSchemas = {
   "saved_view.created": true,
   "saved_view.deleted": true,
   "saved_view.updated": true,
+  "sbom_component.imported": true,
   "scim_group.created": true,
   "scim_group.deleted": true,
   "scim_group.updated": true,
@@ -2126,6 +2179,10 @@ export const blockEventSchemas = {
   "version.created": true,
   "version.deleted": true,
   "version.restored": true,
+  "vex_statement.updated": true,
+  "vulnerability.created": true,
+  "vulnerability.enriched": true,
+  "vulnerability.exploited": true,
   "waitlist_entry.approved": true,
   "waitlist_entry.rejected": true,
   "warranty_claim.closed": true,

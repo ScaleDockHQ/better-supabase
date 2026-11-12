@@ -310,8 +310,9 @@ end;
 $$;
 ${userGrant(`${ctx.fn("save_reminder")}(${saveArgs}${fields.type})`)}
 
--- The caller's reminders on one subject, the earliest first.
-create or replace function ${ctx.fn("list_my_reminders")}(tenant ${ctx.idType}, subject_type text, subject_id text)
+-- The caller's reminders on one subject, or on every subject when both are
+-- null, the earliest first.
+create or replace function ${ctx.fn("list_my_reminders")}(tenant ${ctx.idType}, subject_type text default null, subject_id text default null)
 returns jsonb
 language plpgsql
 stable
@@ -325,13 +326,17 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'id', r.${ctx.col("reminders", "id")},
+      'subjectType', r.${ctx.col("reminders", "subjectType")},
+      'subjectId', r.${ctx.col("reminders", "subjectId")},
       'method', r.${ctx.col("reminders", "method")},
       'offsetMinutes', r.${ctx.col("reminders", "offsetMinutes")}${at ? `,\n      'remindAt', r.${remindAt}` : ""}
     ) order by r.${ctx.col("reminders", "offsetMinutes")} desc, r.${ctx.col("reminders", "id")}), '[]'::jsonb)
     from ${reminders} r
     where r.${ctx.col("reminders", "tenant")} = list_my_reminders.tenant
-      and r.${ctx.col("reminders", "subjectType")} = list_my_reminders.subject_type
-      and r.${ctx.col("reminders", "subjectId")} = list_my_reminders.subject_id
+      and (list_my_reminders.subject_type is null
+        or r.${ctx.col("reminders", "subjectType")} = list_my_reminders.subject_type)
+      and (list_my_reminders.subject_id is null
+        or r.${ctx.col("reminders", "subjectId")} = list_my_reminders.subject_id)
       and r.${ctx.col("reminders", "user")} = auth.uid()
   );
 end;

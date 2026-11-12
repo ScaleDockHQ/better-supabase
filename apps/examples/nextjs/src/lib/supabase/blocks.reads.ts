@@ -8,6 +8,19 @@ export type AttachmentsListArgs = { readonly tenant: string; readonly subjectTyp
 /** What `reads.attachments.list` returns. @public */
 export type AttachmentsListResult = readonly unknown[];
 
+/** The arguments of `reads.billing.overview`. @public */
+export type BillingOverviewArgs = { readonly organizationId: string; readonly invoiceLimit?: number };
+
+/** What `reads.billing.overview` returns. @public */
+export type BillingOverviewResult = {
+  readonly customerId: string | null;
+  readonly accountId: string | null;
+  readonly seats: number;
+  readonly subscription: unknown;
+  readonly invoices: readonly unknown[];
+  readonly usage: readonly unknown[];
+};
+
 /** The arguments of `reads.comments.list`. @public */
 export type CommentsListArgs = { readonly tenant: string; readonly subjectType: string; readonly subjectId: string; readonly maxRows?: number };
 
@@ -253,6 +266,9 @@ export type TagsForSubjectsResult = unknown;
 export const reads = {
   attachments: {
     list: blockRead<AttachmentsListArgs, AttachmentsListResult>("list_attachments", { tenant: "tenant", subjectType: "subject_type", subjectId: "subject_id" }, ["attachments"], "api"),
+  },
+  billing: {
+    overview: blockRead<BillingOverviewArgs, BillingOverviewResult>("billing_overview", { organizationId: "tenant", invoiceLimit: "invoice_limit" }, ["customers", "subscriptions"], "api"),
   },
   comments: {
     list: blockRead<CommentsListArgs, CommentsListResult>("list_comments", { tenant: "tenant", subjectType: "subject_type", subjectId: "subject_id", maxRows: "max_rows" }, ["messages", "conversations"], "api"),

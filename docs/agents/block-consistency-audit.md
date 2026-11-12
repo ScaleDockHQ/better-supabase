@@ -380,3 +380,20 @@ Breaking changes are allowed. Order is by how many pages and generators each cha
 9. Name one block one key: source, hints, coverage and docs.
 10. Ship recurrence, digest and money cores and retire the per-block copies (replaces 0197).
 11. Personal data, retention and plan limits as manifest declarations.
+
+## Follow-up from the example pages (PR 887)
+
+Building the remaining block screens added three rows to the capability matrix
+and confirmed two of the generator gaps above. The details and ids are in
+[`example-findings.md`](example-findings.md#library-and-block-changes-needed).
+
+- Blocks with no member-callable surface: `field-encryption` (EX-1605),
+  `vercel-marketplace` (EX-1606) and `impersonation` (EX-1607, no TypeScript
+  client). Each is covered through the screen that shows its effect or through
+  raw `api` calls, and each needs a block change before it has a screen of its
+  own.
+- `reminders` lists by subject only (EX-1609), and `billing` needs Stripe keys
+  before the example can install it (EX-1608).
+- Permission keys still come from hand-written catalog migrations (EX-807,
+  EX-1232, EX-1603), and `gen` rewrites every `*_subject_readable` function when
+  a block with subjects is added (EX-1604).

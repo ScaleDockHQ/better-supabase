@@ -6,6 +6,32 @@ msgstr ""
 "X-Generator: next-intl\n"
 "X-Message-Key: msgctxt\n"
 
+#: src/app/[locale]/(app)/advisories/page.tsx
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.l5XCJW"
+msgid "Advisories"
+msgstr "Beveiligingsadviezen"
+
+#: src/app/[locale]/(app)/advisories/page.tsx
+msgctxt "advisories.JFdDVw"
+msgid "Security advisories for the software the organization ships: products, tracked vulnerabilities and the CSAF documents that tell customers what to do."
+msgstr "Beveiligingsadviezen voor de software die de organisatie levert: producten, gevolgde kwetsbaarheden en de CSAF-documenten die klanten vertellen wat ze moeten doen."
+
+#: src/app/[locale]/(app)/announcements/[id]/page.tsx
+msgctxt "announcements.ILTgGU"
+msgid "All announcements"
+msgstr "Alle mededelingen"
+
+#: src/app/[locale]/(app)/announcements/page.tsx
+msgctxt "announcements.3kP3Of"
+msgid "Announcements"
+msgstr "Mededelingen"
+
+#: src/app/[locale]/(app)/announcements/page.tsx
+msgctxt "announcements.P06Ac8"
+msgid "Notices for your organization: product news, maintenance windows and changes that need your attention."
+msgstr "Berichten voor je organisatie: productnieuws, onderhoudsvensters en wijzigingen die je aandacht nodig hebben."
+
 #: src/app/[locale]/(app)/appraisals/[id]/page.tsx
 msgctxt "appraisals.KjSSya"
 msgid "All appraisals"
@@ -324,6 +350,11 @@ msgctxt "community.tb4_CP"
 msgid "Post ideas and questions, and vote on the ones you want."
 msgstr "Plaats ideeën en vragen, en stem op de ideeën die je wilt."
 
+#: src/app/[locale]/(app)/compliance/[framework]/page.tsx
+msgctxt "compliance.jYMbbM"
+msgid "All frameworks"
+msgstr "Alle raamwerken"
+
 #: src/app/[locale]/(app)/compliance/page.tsx
 msgctxt "compliance.NIi2K2"
 msgid "Compliance"
@@ -333,6 +364,16 @@ msgstr "Compliance"
 msgctxt "compliance.4zT1k6"
 msgid "What you are asked to read, how each framework's controls stand, the evidence that is due, the contracts coming up for renewal and what the organization asks consent for."
 msgstr "Wat je moet lezen, hoe de controls van elk framework ervoor staan, welk bewijs verschuldigd is, welke contracten binnenkort verlengd moeten worden en waarvoor de organisatie toestemming vraagt."
+
+#: src/app/[locale]/(app)/content/page.tsx
+msgctxt "content.Jq3FDz"
+msgid "Content"
+msgstr "Inhoud"
+
+#: src/app/[locale]/(app)/content/page.tsx
+msgctxt "content.RMIP97"
+msgid "Pages and posts with locales and scheduled publishing. Only published entries reach the public site."
+msgstr "Pagina's en berichten met talen en geplande publicatie. Alleen gepubliceerde items bereiken de openbare site."
 
 #: src/app/[locale]/(app)/courses/[courseId]/page.tsx
 #: src/features/courses/components/course-outline.tsx
@@ -802,6 +843,21 @@ msgctxt "inbox.j6NWwp"
 msgid "Its messages, notes, context and actions show here."
 msgstr "De berichten, notities, context en acties staan hier."
 
+#: src/app/[locale]/(app)/incidents/[id]/page.tsx
+msgctxt "incidents.Jn_i8M"
+msgid "All incidents"
+msgstr "Alle incidenten"
+
+#: src/app/[locale]/(app)/incidents/page.tsx
+msgctxt "incidents.mtr3R4"
+msgid "Incidents"
+msgstr "Incidenten"
+
+#: src/app/[locale]/(app)/incidents/page.tsx
+msgctxt "incidents.Pj6x6Z"
+msgid "What broke, how bad it is and what the team did about it, from the first report to the postmortem."
+msgstr "Wat er stuk ging, hoe erg het is en wat het team eraan deed, van de eerste melding tot de postmortem."
+
 #: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
 msgid "Audits and inspections"
@@ -957,6 +1013,11 @@ msgctxt "meetings.IWewHP"
 msgid "The organization's meetings, and the agenda, decisions and action items of the one you open."
 msgstr "De vergaderingen van de organisatie, met de agenda, besluiten en actiepunten van de vergadering die je opent."
 
+#: src/app/[locale]/(app)/metrics/[key]/page.tsx
+msgctxt "metrics.0_D7JO"
+msgid "All metrics"
+msgstr "Alle statistieken"
+
 #: src/app/[locale]/(app)/metrics/page.tsx
 msgctxt "metrics.HNBpJ4"
 msgid "Metrics"
@@ -966,6 +1027,21 @@ msgstr "Statistieken"
 msgctxt "metrics.VSqjtd"
 msgid "Your organization's numbers over the last 30 days."
 msgstr "De cijfers van je organisatie over de afgelopen 30 dagen."
+
+#: src/app/[locale]/(app)/moderation/[type]/[id]/page.tsx
+msgctxt "moderation.350pyq"
+msgid "Back to the queue"
+msgstr "Terug naar de wachtrij"
+
+#: src/app/[locale]/(app)/moderation/page.tsx
+msgctxt "moderation.wofVHy"
+msgid "Moderation"
+msgstr "Moderatie"
+
+#: src/app/[locale]/(app)/moderation/page.tsx
+msgctxt "moderation.D-cPsi"
+msgid "Reported and pending content from reviews, comments and posts, and the members who are banned."
+msgstr "Gemelde en wachtende inhoud van reviews, reacties en berichten, en de leden die geblokkeerd zijn."
 
 #: src/app/[locale]/(app)/my-work/page.tsx
 msgctxt "myWork.h-qaH6"
@@ -1021,6 +1097,16 @@ msgstr "De gewerkte uren en verlofuren per periode, klaar om aan de salarisverwe
 msgctxt "people.Kufi7V"
 msgid "All people"
 msgstr "Alle mensen"
+
+#: src/app/[locale]/(app)/people/encryption/page.tsx
+msgctxt "encryption.FS0OC7"
+msgid "Field encryption"
+msgstr "Veldversleuteling"
+
+#: src/app/[locale]/(app)/people/encryption/page.tsx
+msgctxt "encryption.hZe4HU"
+msgid "Which fields are encrypted at rest, and the key that seals them."
+msgstr "Welke velden versleuteld zijn opgeslagen en de sleutel die ze afsluit."
 
 #: src/app/[locale]/(app)/people/hiring/page.tsx
 #: src/features/people/components/hiring-board.tsx
@@ -1211,6 +1297,16 @@ msgctxt "audit.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
+#: src/app/[locale]/(app)/settings/billing/account/page.tsx
+msgctxt "billingAccount.y1Nqya"
+msgid "Billing account"
+msgstr "Factuuraccount"
+
+#: src/app/[locale]/(app)/settings/billing/account/page.tsx
+msgctxt "billingAccount.m8yp7I"
+msgid "The Stripe customer, seats and invoices of this organization, read through the billing block."
+msgstr "De Stripe-klant, plekken en facturen van deze organisatie, gelezen via het billing-blok."
+
 #: src/app/[locale]/(app)/settings/billing/credits/[id]/page.tsx
 msgctxt "credits.QQoV5k"
 msgid "All credit entries"
@@ -1246,6 +1342,16 @@ msgctxt "settings.D3idYv"
 msgid "Settings"
 msgstr "Instellingen"
 
+#: src/app/[locale]/(app)/settings/marketplace/page.tsx
+msgctxt "marketplace.Gn23tM"
+msgid "Vercel Marketplace"
+msgstr "Vercel Marketplace"
+
+#: src/app/[locale]/(app)/settings/marketplace/page.tsx
+msgctxt "marketplace.377lQr"
+msgid "Installations of this app from the Vercel Marketplace, with the resources Vercel provisioned for each."
+msgstr "Installaties van deze app vanuit de Vercel Marketplace, met de resources die Vercel voor elke installatie heeft aangemaakt."
+
 #: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
 msgctxt "members.sKwqTt"
 msgid "All members"
@@ -1270,6 +1376,16 @@ msgstr "Alle rollen"
 msgctxt "securityEvents.jbetPD"
 msgid "All streams"
 msgstr "Alle streams"
+
+#: src/app/[locale]/(app)/settings/support/page.tsx
+msgctxt "support.-DZuNS"
+msgid "Support sessions"
+msgstr "Supportsessies"
+
+#: src/app/[locale]/(app)/settings/support/page.tsx
+msgctxt "support.cjRLJO"
+msgid "Platform staff view the app as a user for a short time: read-only, approved by a second admin and recorded in the audit log."
+msgstr "Platformmedewerkers bekijken de app kort als gebruiker: alleen-lezen, goedgekeurd door een tweede beheerder en vastgelegd in het auditlogboek."
 
 #: src/app/[locale]/(app)/settings/teams/[teamId]/page.tsx
 #: src/features/teams/components/teams-grid.tsx
@@ -2436,6 +2552,223 @@ msgctxt "adminLists.h-T3T7"
 msgid "Oldest first"
 msgstr "Oudste eerst"
 
+#: src/features/advisories/components/advisories-load-error.tsx
+msgctxt "advisories.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/advisories/components/advisories-load-error.tsx
+msgctxt "advisories.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.4URFh7"
+msgid "The advisories didn't load"
+msgstr "De adviezen zijn niet geladen"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.gh-ZpR"
+msgid "Interim"
+msgstr "Voorlopig"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.6_JzkW"
+msgid "Final"
+msgstr "Definitief"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.iTDZy_"
+msgid "Published advisories are served as CSAF 2.0 documents under /.well-known/csaf."
+msgstr "Gepubliceerde adviezen worden aangeboden als CSAF 2.0-documenten onder /.well-known/csaf."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.HUeH9I"
+msgid "No advisories"
+msgstr "Geen adviezen"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.N19SEL"
+msgid "Add a product, track the vulnerabilities that affect it, then write an advisory."
+msgstr "Voeg een product toe, volg de kwetsbaarheden die erop van invloed zijn en schrijf dan een advies."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.Cmdoi3"
+msgid "Advisory"
+msgstr "Advies"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.x_ZVlU"
+msgid "Product"
+msgstr "Product"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.vCAhII"
+msgid "Severity"
+msgstr "Ernst"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.6mRFNJ"
+msgid "The products didn't load"
+msgstr "De producten zijn niet geladen"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.7NFfmz"
+msgid "Products"
+msgstr "Producten"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.GOZIQy"
+msgid "Each product has versions, an SBOM and VEX statements."
+msgstr "Elk product heeft versies, een SBOM en VEX-verklaringen."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.3PC0SX"
+msgid "No products yet. Add the first one to start."
+msgstr "Nog geen producten. Voeg het eerste toe om te beginnen."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.x9I9p7"
+msgid "The vulnerabilities didn't load"
+msgstr "De kwetsbaarheden zijn niet geladen"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.dzuQpn"
+msgid "Vulnerabilities"
+msgstr "Kwetsbaarheden"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.Aox3ks"
+msgid "Enriched hourly from OSV, EPSS and the CISA KEV catalog."
+msgstr "Elk uur aangevuld vanuit OSV, EPSS en de CISA KEV-catalogus."
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.oJdN7Y"
+msgid "No vulnerabilities tracked yet."
+msgstr "Nog geen kwetsbaarheden gevolgd."
+
+#: src/features/advisories/components/advisory-sections.tsx
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.kGGU2D"
+msgid "Id"
+msgstr "Id"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.HU3ax_"
+msgid "CVSS"
+msgstr "CVSS"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.AI_idA"
+msgid "EPSS"
+msgstr "EPSS"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.zJVS0y"
+msgid "Known exploited"
+msgstr "Bekend misbruikt"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.a5msuh"
+msgid "Yes"
+msgstr "Ja"
+
+#: src/features/advisories/components/advisory-sections.tsx
+msgctxt "advisories.oUWADl"
+msgid "No"
+msgstr "Nee"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.2_Tlx1"
+msgid "Product saved"
+msgstr "Product opgeslagen"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories._FcFll"
+msgid "Add product"
+msgstr "Product toevoegen"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.RY7t1A"
+msgid "Advisories and VEX statements are written per product."
+msgstr "Adviezen en VEX-verklaringen worden per product geschreven."
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.EcglP9"
+msgid "Key"
+msgstr "Sleutel"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.dU1t5Z"
+msgid "Vendor"
+msgstr "Leverancier"
+
+#: src/features/advisories/components/product-dialog.tsx
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/advisories/components/product-dialog.tsx
+msgctxt "advisories.RNwzwt"
+msgid "Save product"
+msgstr "Product opslaan"
+
+#: src/features/advisories/components/publish-advisory-button.tsx
+msgctxt "advisories.GEyLGT"
+msgid "Advisory published"
+msgstr "Advies gepubliceerd"
+
+#: src/features/advisories/components/publish-advisory-button.tsx
+msgctxt "advisories.syEQFE"
+msgid "Publish"
+msgstr "Publiceren"
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.XtFEKd"
+msgid "Vulnerability tracked"
+msgstr "Kwetsbaarheid wordt gevolgd"
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.P-_nVk"
+msgid "Track vulnerability"
+msgstr "Kwetsbaarheid volgen"
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.l-rIdv"
+msgid "Enter a CVE, GHSA or OSV id. CVSS, EPSS and the CISA KEV flag arrive with the next enrichment run."
+msgstr "Voer een CVE-, GHSA- of OSV-id in. CVSS, EPSS en de CISA KEV-markering volgen bij de volgende verrijkingsronde."
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.RrCui3"
+msgid "Summary"
+msgstr "Samenvatting"
+
+#: src/features/advisories/components/track-vulnerability-dialog.tsx
+msgctxt "advisories.J0vUhO"
+msgid "Track"
+msgstr "Volgen"
+
 #: src/features/agents/components/agent-detail.tsx
 msgctxt "agents.9uOFF3"
 msgid "Overview"
@@ -3422,9 +3755,101 @@ msgid "Cached input is the share of input tokens a provider served from its prom
 msgstr "Gecachete invoer is het aandeel invoertokens dat een provider uit zijn promptcache heeft geleverd. De aanroepcache hieronder bewaart complete antwoorden."
 
 #: src/features/announcements/components/announcement-banner.tsx
+#: src/features/announcements/components/dismiss-button.tsx
 msgctxt "announcements.TDaF6J"
 msgid "Dismiss"
 msgstr "Sluiten"
+
+#: src/features/announcements/components/announcement-detail.tsx
+msgctxt "announcements.bJOgDQ"
+msgid "The announcement didn't load"
+msgstr "De mededeling is niet geladen"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.we4Lby"
+msgid "Info"
+msgstr "Info"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.xrKHS6"
+msgid "Success"
+msgstr "Gelukt"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.3SVI5p"
+msgid "Warning"
+msgstr "Waarschuwing"
+
+#: src/features/announcements/components/announcement-detail.tsx
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.2pzTGC"
+msgid "Critical"
+msgstr "Kritiek"
+
+#: src/features/announcements/components/announcement-detail.tsx
+msgctxt "announcements.3X21Vj"
+msgid "Live from {from} until {until}"
+msgstr "Actief van {from} tot {until}"
+
+#: src/features/announcements/components/announcement-detail.tsx
+msgctxt "announcements.5gvBwB"
+msgid "Live since {from}"
+msgstr "Actief sinds {from}"
+
+#: src/features/announcements/components/announcement-detail.tsx
+msgctxt "announcements.TdTXXf"
+msgid "Learn more"
+msgstr "Meer informatie"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.D_5hFJ"
+msgid "The announcements didn't load"
+msgstr "De mededelingen zijn niet geladen"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.0zontp"
+msgid "Nothing new"
+msgstr "Niets nieuws"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.xnUwk1"
+msgid "Product news and maintenance notices for your organization show up here until you dismiss them."
+msgstr "Productnieuws en onderhoudsberichten voor je organisatie staan hier tot je ze verbergt."
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.Sj-TN8"
+msgid "Announcement"
+msgstr "Mededeling"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.vCAhII"
+msgid "Severity"
+msgstr "Ernst"
+
+#: src/features/announcements/components/announcement-list.tsx
+msgctxt "announcements.-eH89J"
+msgid "Since"
+msgstr "Sinds"
+
+#: src/features/announcements/components/dismiss-button.tsx
+msgctxt "announcements.FS1m_0"
+msgid "Announcement dismissed"
+msgstr "Mededeling verborgen"
 
 #: src/features/api-keys/components/api-key-table.tsx
 msgctxt "apiKeys.5CT3F9"
@@ -4966,6 +5391,106 @@ msgstr "Bedrag"
 msgctxt "banking.tzMNF3"
 msgid "Status"
 msgstr "Status"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.5QgC8u"
+msgid "The billing account didn't load"
+msgstr "Het factuuraccount is niet geladen"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het over een moment opnieuw."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.wjhxRK"
+msgid "No Stripe customer yet"
+msgstr "Nog geen Stripe-klant"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.92lrOi"
+msgid "The organization gets a Stripe customer when it first opens Checkout. Until then there are no invoices to list."
+msgstr "De organisatie krijgt een Stripe-klant zodra Checkout voor het eerst wordt geopend. Tot die tijd zijn er geen facturen om te tonen."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.niC6Ub"
+msgid "Choose a plan"
+msgstr "Kies een abonnement"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.6_VfeI"
+msgid "Stripe account"
+msgstr "Stripe-account"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.6rQhJh"
+msgid "The customer and subscription Stripe holds for this organization."
+msgstr "De klant en het abonnement die Stripe voor deze organisatie bijhoudt."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.hkENym"
+msgid "Customer"
+msgstr "Klant"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.n78zqT"
+msgid "Seats"
+msgstr "Plekken"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.R_6nsx"
+msgid "Subscription"
+msgstr "Abonnement"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.450Fty"
+msgid "None"
+msgstr "Geen"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.6dqYnF"
+msgid "Invoices"
+msgstr "Facturen"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.3xql5v"
+msgid "The latest twelve invoices Stripe sent."
+msgstr "De laatste twaalf facturen die Stripe heeft verstuurd."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.9mzdwt"
+msgid "No invoices yet"
+msgstr "Nog geen facturen"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.CHaCA7"
+msgid "Stripe's first invoice shows up here once it is sent."
+msgstr "De eerste factuur van Stripe verschijnt hier zodra die is verstuurd."
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.P7PLVj"
+msgid "Date"
+msgstr "Datum"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/billing-account/components/billing-account.tsx
+msgctxt "billingAccount.MJ2jZQ"
+msgid "Total"
+msgstr "Totaal"
 
 #: src/features/billing/components/billing-overview.tsx
 #: src/features/billing/components/plan-picker.tsx
@@ -7149,6 +7674,7 @@ msgstr "De toestemmingsdoelen zijn niet geladen"
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
 #: src/features/compliance/components/control-posture.tsx
+#: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.162kF7"
 msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
@@ -7156,6 +7682,7 @@ msgstr "Probeer het zo opnieuw."
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
 #: src/features/compliance/components/control-posture.tsx
+#: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
@@ -7376,6 +7903,7 @@ msgid "Task"
 msgstr "Taak"
 
 #: src/features/compliance/components/control-posture.tsx
+#: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.NZ9-vv"
 msgid "Control"
 msgstr "Beheersmaatregel"
@@ -7384,6 +7912,203 @@ msgstr "Beheersmaatregel"
 msgctxt "compliance.g9pEhE"
 msgid "Due"
 msgstr "Verschuldigd"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.x5gHeJ"
+msgid "The framework didn't load"
+msgstr "Het raamwerk is niet geladen"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.rFsne8"
+msgid "Passing"
+msgstr "Voldoet"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.tKELc3"
+msgid "Failing"
+msgstr "Voldoet niet"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.xTTP0x"
+msgid "Not started"
+msgstr "Niet gestart"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.61zy45"
+msgid "Not applicable"
+msgstr "Niet van toepassing"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.JW6TBv"
+msgid "Version {version}, {count, number} controls"
+msgstr "Versie {version}, {count, number} beheersmaatregelen"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.Ui5Hwk"
+msgid "{count, number} controls"
+msgstr "{count, number} beheersmaatregelen"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.sg9CbN"
+msgid "This framework has no controls yet."
+msgstr "Dit raamwerk heeft nog geen beheersmaatregelen."
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.aH4De2"
+msgid "Source"
+msgstr "Bron"
+
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.Jr2vxi"
+msgid "The content didn't load"
+msgstr "De inhoud is niet geladen"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.e8uOGJ"
+msgid "No entries yet"
+msgstr "Nog geen items"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.ZJb3qm"
+msgid "Pages and posts you write here are published to the public site when you say so."
+msgstr "Pagina's en berichten die je hier schrijft, worden pas op de openbare site gepubliceerd als jij dat aangeeft."
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.cXAlMR"
+msgid "Scheduled"
+msgstr "Gepland"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.w7tf2z"
+msgid "Published"
+msgstr "Gepubliceerd"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/content/components/content-list.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/content/components/content-list.tsx
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.xrk6zg"
+msgid "Updated"
+msgstr "Bijgewerkt"
+
+#: src/features/content/components/content-list.tsx
+msgctxt "content.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/content/components/content-row-actions.tsx
+msgctxt "content.wqN6DE"
+msgid "Entry published"
+msgstr "Item gepubliceerd"
+
+#: src/features/content/components/content-row-actions.tsx
+msgctxt "content.syEQFE"
+msgid "Publish"
+msgstr "Publiceren"
+
+#: src/features/content/components/content-row-actions.tsx
+msgctxt "content.caQi4p"
+msgid "Entry archived"
+msgstr "Item gearchiveerd"
+
+#: src/features/content/components/content-row-actions.tsx
+msgctxt "content.hrgo-E"
+msgid "Archive"
+msgstr "Archiveren"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.JLulyJ"
+msgid "Draft saved"
+msgstr "Concept opgeslagen"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.QRSQKr"
+msgid "New entry"
+msgstr "Nieuw item"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.sv-rWu"
+msgid "Entries start as drafts. Publish one when it is ready to go live."
+msgstr "Items beginnen als concept. Publiceer een item wanneer het live kan."
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.wFmAFC"
+msgid "Page"
+msgstr "Pagina"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.eKv7yX"
+msgid "Post"
+msgstr "Bericht"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.IoDlcd"
+msgid "Slug"
+msgstr "Slug"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content._Sb5Yq"
+msgid "Lowercase letters and digits joined by dashes."
+msgstr "Kleine letters en cijfers, verbonden met streepjes."
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.RrCui3"
+msgid "Summary"
+msgstr "Samenvatting"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/content/components/create-entry-dialog.tsx
+msgctxt "content.R2zJFp"
+msgid "Save draft"
+msgstr "Concept opslaan"
 
 #: src/features/courses/components/course-controls.tsx
 msgctxt "courses.1GGd_a"
@@ -11093,6 +11818,106 @@ msgctxt "prescriptions.BYSae4"
 msgid "Read the e-prescribing guide"
 msgstr "Lees de gids voor e-voorschrijven"
 
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.ewQ6Ty"
+msgid "The encrypted fields didn't load"
+msgstr "De versleutelde velden zijn niet geladen"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het over een moment opnieuw."
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.hkENym"
+msgid "Customer"
+msgstr "Klant"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.C7778D"
+msgid "Work item"
+msgstr "Werkitem"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.GsShsC"
+msgid "Data key"
+msgstr "Gegevenssleutel"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.g5AEsp"
+msgid "Values of sensitive fields are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them."
+msgstr "Waarden van gevoelige velden worden opgeslagen met een sleutel uit Supabase Vault. Alleen functies die je toegang controleren ontsleutelen ze."
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.UVKDU0"
+msgid "Key owner"
+msgstr "Sleuteleigenaar"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.pxKgbm"
+msgid "Stored as plain values"
+msgstr "Opgeslagen als gewone waarden"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.hX5sFy"
+msgid "{count} fields"
+msgstr "{count} velden"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.DFKrGe"
+msgid "Encrypted fields"
+msgstr "Versleutelde velden"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.Hx5aSh"
+msgid "Custom fields marked sensitive, on every record type."
+msgstr "Aangepaste velden die als gevoelig zijn gemarkeerd, bij elk recordtype."
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.UrvsF8"
+msgid "No encrypted fields"
+msgstr "Geen versleutelde velden"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.9U4GtQ"
+msgid "Mark a custom field as sensitive to encrypt its values."
+msgstr "Markeer een aangepast veld als gevoelig om de waarden te versleutelen."
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.czhp-r"
+msgid "Open custom fields"
+msgstr "Aangepaste velden openen"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.AbvQFb"
+msgid "Field"
+msgstr "Veld"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.QbUmZX"
+msgid "Record type"
+msgstr "Recordtype"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.ku-mDU"
+msgid "State"
+msgstr "Status"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.-Cegy-"
+msgid "Encrypted"
+msgstr "Versleuteld"
+
 #: src/features/evals/components/eval-items-card.tsx
 msgctxt "evals.IRrIur"
 msgid "Added {count, number} items"
@@ -13713,6 +14538,61 @@ msgctxt "guardrails.RDZVQL"
 msgid "Check"
 msgstr "Controleren"
 
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.tdNngP"
+msgid "Your linked accounts didn't load"
+msgstr "Je gekoppelde accounts zijn niet geladen"
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.njqGJJ"
+msgid "Linked accounts"
+msgstr "Gekoppelde accounts"
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.-BS9eX"
+msgid "The email addresses and chat accounts that act as you. A chat account links only with a code you issue here."
+msgstr "De e-mailadressen en chataccounts die namens jou handelen. Een chataccount koppelt alleen met een code die je hier aanmaakt."
+
+#: src/features/identities/components/identities-card.tsx
+msgctxt "identities.Fg2d2V"
+msgid "No accounts linked yet."
+msgstr "Nog geen accounts gekoppeld."
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.Lmoq2B"
+msgid "Identity removed"
+msgstr "Identiteit verwijderd"
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.G_yZLu"
+msgid "Remove"
+msgstr "Verwijderen"
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.h08LKN"
+msgid "Chat provider"
+msgstr "Chataanbieder"
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.21SAKm"
+msgid "Get link code"
+msgstr "Koppelcode ophalen"
+
+#: src/features/identities/components/identity-controls.tsx
+msgctxt "identities.S5L8TY"
+msgid "Send this code to the bot:"
+msgstr "Stuur deze code naar de bot:"
+
 #: src/features/imports/components/csv-import-wizard.tsx
 msgctxt "imports.HAlOn1"
 msgid "Name"
@@ -14431,6 +15311,195 @@ msgstr "Ingeplande antwoorden"
 msgctxt "inbox.pC2KQV"
 msgid "Cancel scheduled reply"
 msgstr "Ingepland antwoord annuleren"
+
+#: src/features/incidents/components/incident-detail.tsx
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents._GKH_w"
+msgid "Investigating"
+msgstr "In onderzoek"
+
+#: src/features/incidents/components/incident-detail.tsx
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.7cv4Uf"
+msgid "Identified"
+msgstr "Geïdentificeerd"
+
+#: src/features/incidents/components/incident-detail.tsx
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.1P6GMj"
+msgid "Monitoring"
+msgstr "In observatie"
+
+#: src/features/incidents/components/incident-detail.tsx
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.W6nSYE"
+msgid "Resolved"
+msgstr "Opgelost"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.Bg_umm"
+msgid "Started {when}"
+msgstr "Gestart {when}"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.JAkIqb"
+msgid "Visibility"
+msgstr "Zichtbaarheid"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.uhu5aG"
+msgid "Public"
+msgstr "Openbaar"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.4h__F5"
+msgid "Members only"
+msgstr "Alleen leden"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.AcAA5x"
+msgid "Components"
+msgstr "Onderdelen"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.jMbtTS"
+msgid "Postmortem"
+msgstr "Postmortem"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.w7tf2z"
+msgid "Published"
+msgstr "Gepubliceerd"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.zWkvNO"
+msgid "Timeline"
+msgstr "Tijdlijn"
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.ort6Sb"
+msgid "Every update, newest first."
+msgstr "Elke update, nieuwste eerst."
+
+#: src/features/incidents/components/incident-detail.tsx
+msgctxt "incidents.9vVxxH"
+msgid "No updates yet."
+msgstr "Nog geen updates."
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.TZrMIV"
+msgid "The incidents didn't load"
+msgstr "De incidenten zijn niet geladen"
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.7UNuAl"
+msgid "No incidents"
+msgstr "Geen incidenten"
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.LdlAzE"
+msgid "Open an incident when something breaks. Its timeline, affected components and postmortem live here."
+msgstr "Open een incident wanneer er iets stukgaat. De tijdlijn, getroffen onderdelen en postmortem staan hier."
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.zaYxwd"
+msgid "Incident"
+msgstr "Incident"
+
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.vCAhII"
+msgid "Severity"
+msgstr "Ernst"
+
+#: src/features/incidents/components/incident-list.tsx
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/incidents/components/incident-list.tsx
+msgctxt "incidents.TDUfVk"
+msgid "Started"
+msgstr "Gestart"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.lyG6Lg"
+msgid "Incident resolved"
+msgstr "Incident opgelost"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.uysI12"
+msgid "Update posted"
+msgstr "Update geplaatst"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.BWpuKl"
+msgid "Update"
+msgstr "Update"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.YORRGQ"
+msgid "Post update"
+msgstr "Update plaatsen"
+
+#: src/features/incidents/components/incident-update-form.tsx
+msgctxt "incidents.UvYTan"
+msgid "Resolve"
+msgstr "Oplossen"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.5rSqga"
+msgid "Incident opened"
+msgstr "Incident geopend"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.Ajw2uj"
+msgid "Open incident"
+msgstr "Incident openen"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.TgqfCA"
+msgid "Name what broke and how bad it is. Add updates as you learn more."
+msgstr "Benoem wat er stuk ging en hoe erg het is. Voeg updates toe naarmate je meer weet."
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.9a9-ww"
+msgid "Title"
+msgstr "Titel"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.EEmazE"
+msgid "First update"
+msgstr "Eerste update"
+
+#: src/features/incidents/components/open-incident-dialog.tsx
+msgctxt "incidents.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
 
 #: src/features/incoming-webhooks/components/incoming-webhook-controls.tsx
 msgctxt "incomingWebhooks.e_tg3W"
@@ -17369,6 +18438,56 @@ msgctxt "manufacturing.9MRsjL"
 msgid "Read the manufacturing guide"
 msgstr "Lees de productiegids"
 
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.47svuN"
+msgid "Installation"
+msgstr "Installatie"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.TBqFhD"
+msgid "Enter the configuration id Vercel shows for the installation. The organization is linked to it, and its resources are listed below."
+msgstr "Voer de configuratie-id in die Vercel bij de installatie toont. De organisatie wordt eraan gekoppeld en de resources staan hieronder."
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.loBc8J"
+msgid "Configuration id"
+msgstr "Configuratie-id"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.-vVZ_G"
+msgid "Connect"
+msgstr "Koppelen"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.6q_8YI"
+msgid "No installation connected"
+msgstr "Geen installatie gekoppeld"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.ZaDlok"
+msgid "Install the app from the Vercel Marketplace, then connect its configuration here."
+msgstr "Installeer de app vanuit de Vercel Marketplace en koppel de configuratie hier."
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.SWAD6r"
+msgid "No resources provisioned yet."
+msgstr "Nog geen resources aangemaakt."
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.wmyg6t"
+msgid "Resource"
+msgstr "Resource"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.fz0z4c"
+msgid "Plan"
+msgstr "Abonnement"
+
+#: src/features/marketplace/components/connect-installation.tsx
+msgctxt "marketplace.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
 #: src/features/medications/components/medication-chart.tsx
 msgctxt "medications.Ydnmc6"
 msgid "The medication chart didn't load"
@@ -17877,20 +18996,57 @@ msgctxt "members.z7B1G5"
 msgid "There is no mailer in this example: copy the link and send it yourself."
 msgstr "Dit voorbeeld heeft geen mailer: kopieer de link en verstuur hem zelf."
 
-#: src/features/metrics/components/metrics-dashboard.tsx
-msgctxt "metrics.0HWXBy"
-msgid "The metrics didn't load"
-msgstr "De statistieken zijn niet geladen"
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.doAgAR"
+msgid "The metric didn't load"
+msgstr "De statistiek is niet geladen"
 
+#: src/features/metrics/components/metric-detail.tsx
 #: src/features/metrics/components/metrics-dashboard.tsx
 msgctxt "metrics.162kF7"
 msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
+#: src/features/metrics/components/metric-detail.tsx
 #: src/features/metrics/components/metrics-dashboard.tsx
 msgctxt "metrics.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.SbuRo0"
+msgid "New customers, last 90 days"
+msgstr "Nieuwe klanten, laatste 90 dagen"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.saUEFl"
+msgid "{previous} in the 90 days before"
+msgstr "{previous} in de 90 dagen ervoor"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.56WPYg"
+msgid "By week and status"
+msgstr "Per week en status"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.Jj82O3"
+msgid "Week of"
+msgstr "Week van"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.MJ2jZQ"
+msgid "Total"
+msgstr "Totaal"
+
+#: src/features/metrics/components/metric-detail.tsx
+msgctxt "metrics.aFope9"
+msgid "No status"
+msgstr "Geen status"
+
+#: src/features/metrics/components/metrics-dashboard.tsx
+msgctxt "metrics.0HWXBy"
+msgid "The metrics didn't load"
+msgstr "De statistieken zijn niet geladen"
 
 #: src/features/metrics/components/metrics-dashboard.tsx
 msgctxt "metrics.p2O_QZ"
@@ -17916,6 +19072,233 @@ msgstr "Nieuwe klanten"
 msgctxt "metrics.8O8AYG"
 msgid "{previous} in the 30 days before"
 msgstr "{previous} in de 30 dagen daarvoor"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.WCaf5C"
+msgid "Approve"
+msgstr "Goedkeuren"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.VA_Z1S"
+msgid "Hide"
+msgstr "Verbergen"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.G_yZLu"
+msgid "Remove"
+msgstr "Verwijderen"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.zz6ObK"
+msgid "Restore"
+msgstr "Herstellen"
+
+#: src/features/moderation/components/decide-buttons.tsx
+msgctxt "moderation.zpIbwJ"
+msgid "Decision saved"
+msgstr "Besluit opgeslagen"
+
+#: src/features/moderation/components/lift-ban-button.tsx
+msgctxt "moderation.FS_sQ5"
+msgid "Ban lifted"
+msgstr "Blokkade opgeheven"
+
+#: src/features/moderation/components/lift-ban-button.tsx
+msgctxt "moderation.IbW1Dd"
+msgid "Lift ban"
+msgstr "Blokkade opheffen"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.eKEL_g"
+msgid "Pending"
+msgstr "In afwachting"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation._TlAIY"
+msgid "Visible"
+msgstr "Zichtbaar"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.ThUvIL"
+msgid "Hidden"
+msgstr "Verborgen"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.KGzfLt"
+msgid "Removed"
+msgstr "Verwijderd"
+
+#: src/features/moderation/components/moderation-detail.tsx
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.Ppx673"
+msgid "Reports"
+msgstr "Meldingen"
+
+#: src/features/moderation/components/moderation-detail.tsx
+msgctxt "moderation.DC-TOB"
+msgid "{count, number} open"
+msgstr "{count, number} open"
+
+#: src/features/moderation/components/moderation-detail.tsx
+msgctxt "moderation.9nI5h4"
+msgid "No reports."
+msgstr "Geen meldingen."
+
+#: src/features/moderation/components/moderation-detail.tsx
+msgctxt "moderation.ZjmERS"
+msgid "Log"
+msgstr "Logboek"
+
+#: src/features/moderation/components/moderation-detail.tsx
+msgctxt "moderation.xzh3TS"
+msgid "Every decision and automatic action, newest first."
+msgstr "Elk besluit en elke automatische actie, nieuwste eerst."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.iIM8_4"
+msgid "The queue didn't load"
+msgstr "De wachtrij is niet geladen"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.cNoOpc"
+msgid "Review queue"
+msgstr "Beoordelingswachtrij"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.8fc0Jh"
+msgid "Content waiting for a first decision and content with open reports, most recently changed first."
+msgstr "Inhoud die op een eerste besluit wacht en inhoud met open meldingen, laatst gewijzigd eerst."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.2pmuH6"
+msgid "Nothing to review"
+msgstr "Niets te beoordelen"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.-RbGrL"
+msgid "Reported reviews, comments and posts appear here until a moderator decides."
+msgstr "Gemelde reviews, reacties en berichten staan hier tot een moderator beslist."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.Jq3FDz"
+msgid "Content"
+msgstr "Inhoud"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.PLUzwy"
+msgid "Changed"
+msgstr "Gewijzigd"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.4jcyF8"
+msgid "Bans"
+msgstr "Blokkades"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.ni9cke"
+msgid "Members who can't post, until the ban ends or a moderator lifts it."
+msgstr "Leden die niet kunnen plaatsen, tot de blokkade afloopt of een moderator die opheft."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.qpQxcX"
+msgid "Nobody is banned."
+msgstr "Niemand is geblokkeerd."
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.7L86Z5"
+msgid "Member"
+msgstr "Lid"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.AkCxS_"
+msgid "Reason"
+msgstr "Reden"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.yPg8s6"
+msgid "Until"
+msgstr "Tot"
+
+#: src/features/moderation/components/moderation-queue.tsx
+msgctxt "moderation.GwMpla"
+msgid "No end"
+msgstr "Geen einde"
+
+#: src/features/my-work/components/my-reminder-row.tsx
+msgctxt "myWork.0ep_tB"
+msgid "Reminder removed"
+msgstr "Herinnering verwijderd"
+
+#: src/features/my-work/components/my-reminder-row.tsx
+msgctxt "myWork.z55zq6"
+msgid "{count} minutes before"
+msgstr "{count} minuten ervoor"
+
+#: src/features/my-work/components/my-reminder-row.tsx
+msgctxt "myWork.3Kfgbs"
+msgid "Remove the reminder on {subject}"
+msgstr "Verwijder de herinnering voor {subject}"
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.xL_gwx"
+msgid "Your reminders"
+msgstr "Je herinneringen"
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.3q0T9R"
+msgid "Reminders you set on events and records. Remove one here."
+msgstr "Herinneringen die je op afspraken en records hebt ingesteld. Verwijder ze hier."
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.Arq6em"
+msgid "Your reminders didn't load"
+msgstr "Je herinneringen zijn niet geladen"
+
+#: src/features/my-work/components/my-reminders.tsx
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/my-work/components/my-reminders.tsx
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.16kwR3"
+msgid "No reminders set"
+msgstr "Geen herinneringen ingesteld"
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.BN3We0"
+msgid "Set a reminder on a calendar event and it shows up here."
+msgstr "Stel een herinnering in voor een afspraak in de agenda en die verschijnt hier."
+
+#: src/features/my-work/components/my-reminders.tsx
+msgctxt "myWork.zj_Bu0"
+msgid "Open the calendar"
+msgstr "Agenda openen"
 
 #: src/features/my-work/components/my-work-list.tsx
 msgctxt "myWork.iZDRGO"
@@ -17956,16 +19339,6 @@ msgstr "Toegewezen werk, goedkeuringen, herinneringen, vermeldingen en SLA-waars
 msgctxt "myWork.6A7ifa"
 msgid "My work didn't load"
 msgstr "Mijn werk is niet geladen"
-
-#: src/features/my-work/components/my-work-list.tsx
-msgctxt "myWork.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/my-work/components/my-work-list.tsx
-msgctxt "myWork.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
 
 #: src/features/my-work/components/my-work-list.tsx
 msgctxt "myWork.otPGOJ"
@@ -18340,6 +19713,43 @@ msgstr "Cases"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.FS0OC7"
+msgid "Field encryption"
+msgstr "Veldversleuteling"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.3kP3Of"
+msgid "Announcements"
+msgstr "Mededelingen"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.l5XCJW"
+msgid "Advisories"
+msgstr "Beveiligingsadviezen"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/side-nav.tsx
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.Jq3FDz"
+msgid "Content"
+msgstr "Inhoud"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.wofVHy"
+msgid "Moderation"
+msgstr "Moderatie"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.mtr3R4"
+msgid "Incidents"
+msgstr "Incidenten"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits en inspecties"
@@ -18706,11 +20116,6 @@ msgstr "Handel"
 msgctxt "navigation.MQbmj7"
 msgid "Operations"
 msgstr "Operatie"
-
-#: src/features/navigation/components/side-nav.tsx
-msgctxt "navigation.Jq3FDz"
-msgid "Content"
-msgstr "Inhoud"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.y-7ihJ"
@@ -25954,6 +27359,21 @@ msgid "Signing keys"
 msgstr "Ondertekeningssleutels"
 
 #: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.-DZuNS"
+msgid "Support sessions"
+msgstr "Supportsessies"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.Gn23tM"
+msgid "Vercel Marketplace"
+msgstr "Vercel Marketplace"
+
+#: src/features/settings/components/settings-nav-links.tsx
+msgctxt "settings.y1Nqya"
+msgid "Billing account"
+msgstr "Factuuraccount"
+
+#: src/features/settings/components/settings-nav-links.tsx
 msgctxt "settings.YQJkxw"
 msgid "Single sign-on"
 msgstr "Single sign-on"
@@ -27626,6 +29046,107 @@ msgctxt "subjects.3kbIhS"
 msgid "Untitled"
 msgstr "Zonder titel"
 
+#: src/features/support/components/end-session-button.tsx
+msgctxt "support.DgX9uT"
+msgid "Session ended"
+msgstr "Sessie beëindigd"
+
+#: src/features/support/components/end-session-button.tsx
+msgctxt "support.iIenp6"
+msgid "End session"
+msgstr "Sessie beëindigen"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.bqgmwq"
+msgid "Request sent for approval"
+msgstr "Verzoek ter goedkeuring verstuurd"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.tg_38n"
+msgid "Request session"
+msgstr "Sessie aanvragen"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.13pHKW"
+msgid "A second platform admin approves the request. The session is read-only, expires on its own and is recorded in the audit log."
+msgstr "Een tweede platformbeheerder keurt het verzoek goed. De sessie is alleen-lezen, verloopt vanzelf en wordt vastgelegd in het auditlogboek."
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.gpRPll"
+msgid "User id"
+msgstr "Gebruikers-id"
+
+#: src/features/support/components/request-support-dialog.tsx
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.AkCxS_"
+msgid "Reason"
+msgstr "Reden"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/support/components/request-support-dialog.tsx
+msgctxt "support.PoX2HN"
+msgid "Send request"
+msgstr "Verzoek versturen"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.P-S_bP"
+msgid "The support sessions didn't load"
+msgstr "De supportsessies zijn niet geladen"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.pysPxb"
+msgid "No support sessions"
+msgstr "Geen supportsessies"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.jCxY93"
+msgid "Platform staff see the sessions they opened here. Request one to view the app as a user."
+msgstr "Platformmedewerkers zien hier de sessies die ze openden. Vraag er een aan om de app als gebruiker te bekijken."
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.EwRIOm"
+msgid "User"
+msgstr "Gebruiker"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.TDUfVk"
+msgid "Started"
+msgstr "Gestart"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.ku-mDU"
+msgid "State"
+msgstr "Toestand"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.wL7VAE"
+msgid "Actions"
+msgstr "Acties"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/support/components/support-sessions.tsx
+msgctxt "support.TP_cMX"
+msgid "Ended"
+msgstr "Beëindigd"
+
 #: src/features/teams/components/team-detail.tsx
 #: src/features/teams/components/teams-grid.tsx
 msgctxt "teams.0HT-Ib"
@@ -28792,6 +30313,11 @@ msgstr "Instellen"
 msgctxt "user.yuQ593"
 msgid "Account menu"
 msgstr "Accountmenu"
+
+#: src/features/user/components/user-menu-dropdown.tsx
+msgctxt "user.PCSt5T"
+msgid "Preferences"
+msgstr "Voorkeuren"
 
 #: src/features/user/components/user-menu-dropdown.tsx
 msgctxt "user.Py189G"

@@ -4,7 +4,7 @@ import type { ActionResult, SignedIn } from "better-supabase/next";
 
 import { hasLocale } from "next-intl";
 
-import { routing } from "@/i18n/routing";
+import { localizedPath, routing } from "@/i18n/routing";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 /**
@@ -20,7 +20,15 @@ export async function signInWithPassword(input: {
   return bsbCore.signInWithPassword(
     { email: input.email, password: input.password, next: input.next },
     {
-      fallback: `/${hasLocale(routing.locales, input.locale) ? input.locale : routing.defaultLocale}`,
+      // A literal `/en` would teach the client's route predictor that the first
+      // path segment is the locale, so `/my-work` would prefetch the root page
+      // (EX-1511); `localizedPath` leaves the default locale unprefixed.
+      fallback: localizedPath(
+        hasLocale(routing.locales, input.locale)
+          ? input.locale
+          : routing.defaultLocale,
+        "/",
+      ),
     },
   );
 }

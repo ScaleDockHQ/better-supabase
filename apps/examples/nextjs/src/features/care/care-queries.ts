@@ -178,15 +178,21 @@ export function getAccessLog(
 }
 
 /**
- * Logs that the caller opened the client's dossier. The dossier reads plain
- * tables, which log nothing on their own; a second open within a minute writes
- * no new entry.
+ * Resolves the caller while the page renders and returns the write that logs
+ * that the caller opened the client's dossier, for `after()` to run: the
+ * request is gone by then, so the write must not read it again. The dossier
+ * reads plain tables, which log nothing on their own; a second open within a
+ * minute writes no new entry.
  */
-export async function logDossierRead(id: string): Promise<void> {
+export async function prepareDossierRead(
+  id: string,
+): Promise<() => Promise<void>> {
   const { db } = await bsb.cached();
 
-  await db.subjects.reads.log({
-    subject: { type: "customer", id },
-    purpose: "care",
-  });
+  return async () => {
+    await db.subjects.reads.log({
+      subject: { type: "customer", id },
+      purpose: "care",
+    });
+  };
 }

@@ -53,3 +53,29 @@ test("moves between /projects and /nl/projects with the language switcher", asyn
   await page.goto("/nl/projects");
   expect(new URL(page.url()).pathname).toBe("/nl/projects");
 });
+
+test("prefetches the home links by their own route after sign-in (EX-1511)", async ({
+  page,
+}) => {
+  const failed: string[] = [];
+
+  page.on("response", (response) => {
+    if (response.url().includes("_rsc=") && response.status() >= 400) {
+      failed.push(`${response.status()} ${response.url()}`);
+    }
+  });
+
+  await page.goto("/login");
+  await page.getByRole("textbox", { name: "Email" }).fill("admin@acme.test");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith("/login"));
+
+  // A sign-in that lands on a literal `/en` teaches the client that the first
+  // path segment is the locale, and the next prefetch of `/my-work` asks for
+  // the root page.
+  expect(new URL(page.url()).pathname).toBe("/");
+  await page.waitForLoadState("networkidle");
+
+  expect(failed).toStrictEqual([]);
+});

@@ -9,6 +9,7 @@ import {
   MonitorIcon,
   MoonIcon,
   ShieldCheckIcon,
+  SlidersHorizontalIcon,
   SunIcon,
   UserIcon,
 } from "lucide-react";
@@ -121,6 +122,10 @@ export function UserMenuDropdown({
           <DropdownMenuItem render={<Link href="/settings/profile" />}>
             <UserIcon />
             {t("Profile")}
+          </DropdownMenuItem>
+          <DropdownMenuItem render={<Link href="/settings/preferences" />}>
+            <SlidersHorizontalIcon />
+            {t("Preferences")}
           </DropdownMenuItem>
           <DropdownMenuItem render={<Link href="/settings/security" />}>
             <ShieldCheckIcon />

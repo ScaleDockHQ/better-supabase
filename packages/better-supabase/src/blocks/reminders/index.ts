@@ -16,6 +16,7 @@ export {
   REMINDER_DELIVERY_QUEUE,
   createReminders,
   reminderJobSchema,
+  type CallerReminderEntry,
   type ReminderEntry,
   type ReminderJobPayload,
   type ReminderJobs,

@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:20ec1ebcae9c280e1aa7787bcdff48a86447f8df92e4f0d3811406bf205ee77c
+-- @bsb-hash sha256:f374ea5473075ba00477fbe0a214b7e2052d6760a85f2cd52fa5b77e826df5a3
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -436,6 +436,9 @@ begin
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (record_consent.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (record_consent.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'advisory' then (select s."tenant_id"::text from "better_supabase"."advisories" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'advisory_product' then (select s."tenant_id"::text from "better_supabase"."advisory_products" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'vulnerability' then (select s."tenant_id"::text from "better_supabase"."vulnerabilities" s where s."id" = (record_consent.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (record_consent.subject_id)::uuid)
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (record_consent.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (record_consent.subject_id)::uuid)
@@ -797,6 +800,9 @@ declare
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (consent_active.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (consent_active.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'advisory' then (select s."tenant_id"::text from "better_supabase"."advisories" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'advisory_product' then (select s."tenant_id"::text from "better_supabase"."advisory_products" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'vulnerability' then (select s."tenant_id"::text from "better_supabase"."vulnerabilities" s where s."id" = (consent_active.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (consent_active.subject_id)::uuid)
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (consent_active.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (consent_active.subject_id)::uuid)
@@ -907,6 +913,9 @@ declare
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (list_consents.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (list_consents.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'advisory' then (select s."tenant_id"::text from "better_supabase"."advisories" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'advisory_product' then (select s."tenant_id"::text from "better_supabase"."advisory_products" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'vulnerability' then (select s."tenant_id"::text from "better_supabase"."vulnerabilities" s where s."id" = (list_consents.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (list_consents.subject_id)::uuid)
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (list_consents.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (list_consents.subject_id)::uuid)
@@ -1144,6 +1153,9 @@ declare
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'advisory' then (select s."tenant_id"::text from "better_supabase"."advisories" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'advisory_product' then (select s."tenant_id"::text from "better_supabase"."advisory_products" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'vulnerability' then (select s."tenant_id"::text from "better_supabase"."vulnerabilities" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (record_consent_signal.subject_id)::uuid)
@@ -1294,6 +1306,9 @@ declare
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'advisory' then (select s."tenant_id"::text from "better_supabase"."advisories" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'advisory_product' then (select s."tenant_id"::text from "better_supabase"."advisory_products" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'vulnerability' then (select s."tenant_id"::text from "better_supabase"."vulnerabilities" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (list_consent_signals.subject_id)::uuid)
@@ -1466,6 +1481,9 @@ declare
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'advisory' then (select s."tenant_id"::text from "better_supabase"."advisories" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'advisory_product' then (select s."tenant_id"::text from "better_supabase"."advisory_products" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'vulnerability' then (select s."tenant_id"::text from "better_supabase"."vulnerabilities" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (list_consent_receipts.subject_id)::uuid)
@@ -1611,6 +1629,9 @@ declare
       when 'bank_account' then (select s."tenant_id"::text from "better_supabase"."bank_accounts" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (requires_consent.subject_id)::uuid)
+      when 'advisory' then (select s."tenant_id"::text from "better_supabase"."advisories" s where s."id" = (requires_consent.subject_id)::uuid)
+      when 'advisory_product' then (select s."tenant_id"::text from "better_supabase"."advisory_products" s where s."id" = (requires_consent.subject_id)::uuid)
+      when 'vulnerability' then (select s."tenant_id"::text from "better_supabase"."vulnerabilities" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (requires_consent.subject_id)::uuid)

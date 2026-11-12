@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:da8e8f1afdee508078557f143f4eb722f8f58f52dab3af28934e7151b30e007b
+-- @bsb-hash sha256:3cab0debdfcb870158a67ac2713a858690f0e790a4130b4ef1d8d15b07d2b8bb
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -620,7 +620,11 @@ begin
   if v_org is null then
     raise exception 'Not a member of this organization' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
-  
+  begin
+    v_seats := ("better_supabase"."billing_status"(organization_overview.organization) ->> 'seats')::integer;
+  exception when others then
+    v_seats := null;
+  end;
   return jsonb_build_object(
     'id', v_org ->> 'id',
     'name', v_org ->> 'name',

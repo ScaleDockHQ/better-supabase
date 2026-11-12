@@ -7411,6 +7411,7 @@
       "weekdayName"
     ],
     "types": [
+      "CallerReminderEntry",
       "DeliveryPayload",
       "ExpandInput",
       "PlannedDelivery",

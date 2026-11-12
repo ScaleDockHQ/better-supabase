@@ -80,3 +80,48 @@ export async function getMyWork(): Promise<Loaded<MyWorkView>> {
     return { kind: "error" };
   }
 }
+
+export interface MyReminder {
+  readonly id: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  readonly offsetMinutes: number;
+  /** Epoch milliseconds of a one-time reminder. */
+  readonly remindAt: number | null;
+}
+
+/**
+ * Every reminder the caller set, on any subject. Throws on a failed read, so
+ * the private cache never keeps an error.
+ */
+async function loadReminders(): Promise<readonly MyReminder[] | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(CALENDAR_TAG);
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const reminders = await db.reminders.listForCaller({ limit: 100 }).orThrow();
+
+  return reminders.map((reminder) => ({
+    id: reminder.id,
+    subjectType: reminder.subject.type,
+    subjectId: reminder.subject.id,
+    offsetMinutes: reminder.offsetMinutes,
+    remindAt: reminder.remindAt?.epochMilliseconds ?? null,
+  }));
+}
+
+export async function getMyReminders(): Promise<Loaded<readonly MyReminder[]>> {
+  try {
+    const data = await loadReminders();
+
+    return data === null ? { kind: "no-organization" } : { kind: "ok", data };
+  } catch (error) {
+    unstable_rethrow(error);
+
+    return { kind: "error" };
+  }
+}

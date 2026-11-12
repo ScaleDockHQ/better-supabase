@@ -178,7 +178,14 @@ export async function MetricsDashboard() {
         return (
           <Card key={panel.key}>
             <CardHeader>
-              <CardTitle>{labels[panel.key]}</CardTitle>
+              <CardTitle>
+                <Link
+                  href={`/metrics/${panel.key}`}
+                  className="hover:underline"
+                >
+                  {labels[panel.key]}
+                </Link>
+              </CardTitle>
               <CardDescription>
                 {t("{previous} in the 30 days before", {
                   previous: format.number(previous ?? 0),
