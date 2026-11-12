@@ -525,6 +525,10 @@ describe("createNotifications reads and writes", () => {
         dismissed: false,
         before: null,
         before_id: null,
+        exclude_types: null,
+        subject_ids: null,
+        any_of: null,
+        order_by: "newest",
       },
     });
     const empty = fakeTransport({ notification_page: () => null });
@@ -532,8 +536,50 @@ describe("createNotifications reads and writes", () => {
       await createNotifications({ transport: empty.transport, types })
         .page()
         .orThrow(),
-    ).toEqual({ items: [], total: 0, totalCapped: false, hasMore: false });
+    ).toEqual({
+      items: [],
+      total: 0,
+      totalCapped: false,
+      hasMore: false,
+      limit: 0,
+    });
     expect(empty.calls[0]!.args).toMatchObject({ max_items: 50, skip: 0 });
+  });
+
+  it("pages in another order with exclusions, subject ids and filter groups", async () => {
+    const { transport, calls } = fakeTransport({
+      notification_page: () => ({
+        items: [row()],
+        total: 1,
+        hasMore: false,
+        limit: 500,
+      }),
+    });
+
+    const page = await createNotifications({ transport, types })
+      .page({
+        order: "subject_desc",
+        excludeTypes: ["task.assigned"],
+        subjectIds: ["t1"],
+        anyOf: [
+          { excludeTypes: ["task.assigned"], subjectTypes: ["task"] },
+          { types: ["task.assigned"], read: false, resolved: true },
+        ],
+        limit: 900,
+      })
+      .orThrow();
+
+    expect(page.limit).toBe(500);
+    expect(calls[0]!.args).toMatchObject({
+      order_by: "subject_desc",
+      exclude_types: ["task.assigned"],
+      subject_ids: ["t1"],
+      any_of: [
+        { exclude_types: ["task.assigned"], subject_types: ["task"] },
+        { types: ["task.assigned"], read: false, resolved: true },
+      ],
+      max_items: 900,
+    });
   });
 
   it("marks unread and reads the caller's subscriptions and preferences", async () => {

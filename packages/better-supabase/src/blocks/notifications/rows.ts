@@ -117,6 +117,27 @@ export function filtersOf(filters: PageOptions): Record<string, unknown> {
   };
 }
 
+export function pageFiltersOf(filters: PageOptions): Record<string, unknown> {
+  return {
+    ...(filters.totalCap === undefined ? {} : { total_cap: filters.totalCap }),
+    exclude_types: filters.excludeTypes ?? null,
+    subject_ids: filters.subjectIds ?? null,
+    any_of:
+      filters.anyOf?.map((group) => ({
+        ...(group.types === undefined ? {} : { types: group.types }),
+        ...(group.excludeTypes === undefined
+          ? {}
+          : { exclude_types: group.excludeTypes }),
+        ...(group.subjectTypes === undefined
+          ? {}
+          : { subject_types: group.subjectTypes }),
+        ...(group.read === undefined ? {} : { read: group.read }),
+        ...(group.resolved === undefined ? {} : { resolved: group.resolved }),
+      })) ?? null,
+    order_by: filters.order ?? "newest",
+  };
+}
+
 const LEVELS: readonly SubscriptionLevel[] = ["participating", "all", "ignore"];
 
 /**

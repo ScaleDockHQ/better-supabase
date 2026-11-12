@@ -66,7 +66,7 @@ describe("notifications module", () => {
     expect(sql).toContain("'locale', null::text");
   });
 
-  it("claims deliveries with the profile locale when profiles is installed", () => {
+  it("claims deliveries with the profile locale and searches actor names when profiles is installed", () => {
     const sql = renderBlocks(["profiles", "notifications"], { modules: {} })
       .filter((file) => file.module === "notifications")
       .map((file) => file.contents)
@@ -75,6 +75,9 @@ describe("notifications module", () => {
     expect(sql).toContain("'locale', pr.\"locale\"::text");
     expect(sql).toContain(
       'left join "better_supabase"."profiles" pr on pr."id" = rc."user_id"',
+    );
+    expect(sql).toMatch(
+      /or exists \(select 1 from "better_supabase"\."profiles" pr where pr\."id" = ev\."actor_id" and concat_ws\(' ', [^)]+\) ilike \$5\)/,
     );
   });
 
@@ -322,7 +325,27 @@ describe("notifications module", () => {
     expect(sql).toContain(`else $q$ and rc."dismissed_at" is null$q$ end`);
     expect(sql).toContain("'hasMore', jsonb_array_length(v_items) > v_limit");
     expect(sql).toContain("total_cap integer default 10000");
-    expect(sql).toContain("offset $11");
+    expect(sql).toContain("offset $13");
+    expect(sql).toContain("'limit', v_limit");
+    expect(sql).toContain(
+      "least(greatest(coalesce(notification_page.max_items, 50), 1), 500)",
+    );
+    expect(sql).toContain(
+      `v_where := v_where || $q$ and ev."type" <> all($11)$q$`,
+    );
+    expect(sql).toContain(
+      `v_where := v_where || $q$ and ev."subject_id" = any($12)$q$`,
+    );
+    expect(sql).toContain(
+      `when 'status' then 'case when rc."resolved_at" is not null then 2 when rc."read_at" is null then 0 else 1 end, rc."created_at" desc, rc."id" desc'`,
+    );
+    expect(sql).toContain(
+      `when 'subject_desc' then 'lower(coalesce(ev."subject_label", '''')) collate "C" desc, rc."created_at" desc, rc."id" desc'`,
+    );
+    expect(sql).toContain(
+      "raise exception 'any_of is an array of filter objects'",
+    );
+    expect(sql).toContain("raise exception 'before pages the newest order");
     expect(sql).toContain(
       `v_where := v_where || $q$ and ev."type" = any($3)$q$`,
     );

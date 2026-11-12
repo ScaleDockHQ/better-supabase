@@ -374,6 +374,60 @@ const result = await jobs
 Definitions take the same `timeZone`, `memberships` and `context` as `schedule`;
 one without a tenant gets the `memberships` option.
 
+#### Probes
+
+A schedule that runs every minute to drain a work source, such as the
+outbox relay or webhook deliveries, enqueues a job on every tick even when
+there is nothing to do. Give it a `probe`: the name of a SQL function
+without arguments that returns `boolean`. The drain calls the probe while it
+claims due schedules, in the same query, and a schedule whose probe returns
+`false` stays due and enqueues nothing. It runs on the first drain after the
+probe returns `true`, so an idle tick costs no job, no lease and no handler.
+Under pg_cron the probe guards the enqueue the same way.
+
+```ts
+await jobs
+  .ensureSchedules({
+    definitions: [
+      {
+        name: "system:outbox_relay",
+        cron: "* * * * *",
+        queue: "outbox_relay",
+        payload: {},
+        probe: "better_supabase.outbox_has_work",
+      },
+      {
+        name: "system:webhook_deliveries",
+        cron: "* * * * *",
+        queue: "webhook_deliveries",
+        payload: {},
+        probe: "better_supabase.webhook_deliveries_has_work",
+      },
+      {
+        name: "system:webhook_inbox",
+        cron: "* * * * *",
+        queue: "webhook_inbox",
+        payload: {},
+        probe: "better_supabase.webhook_inbox_has_work",
+      },
+    ],
+    options: { prefix: "system:" },
+  })
+  .orThrow();
+```
+
+| Probe                                           | Module          | True when                                                      |
+| ----------------------------------------------- | --------------- | -------------------------------------------------------------- |
+| `better_supabase.outbox_has_work()`             | `outbox`        | A consumer that is not backing off has events after its cursor |
+| `better_supabase.webhook_deliveries_has_work()` | `webhooks-out`  | A delivery is due and not leased                               |
+| `better_supabase.webhook_inbox_has_work()`      | `webhook-inbox` | An inbox message is ready to claim                             |
+
+`schedule_job` rejects a probe that is not a function without arguments
+returning `boolean`. A probe that was dropped later, or that fails, counts as
+work, so a broken probe never stops its schedule. `listSchedules` returns each
+schedule's `probe`, and `ensureSchedules` rewrites a schedule whose probe
+changed.
+
 #### Block timers
 
 Blocks that act on time declare their timers in the manifest, and they all run

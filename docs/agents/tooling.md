@@ -151,11 +151,9 @@ bump is one commit series:
 - A new shared root config goes in the `inputs` of the Turbo tasks that read
   it, not in a global key: `globalDependencies` misses the cache for every task
   (ADR 0211).
-- `pnpm exec supabase test db` in the Schema job can end with `pg_prove run
-  failed: Owner response unavailable; the request outcome is uncertain:
-  HttpError` after every file before it reports `ok`. It is not a test
-  failure: the CLI (3.0.0) streams pg_prove's output over the stack owner's
-  HTTP endpoint, and a scale test that sits silent for several minutes on a
-  slow runner (`scale_count_modes` took 4 min 41 s in one run and 10 s in
-  another, same code) breaks the stream. The same tree passes locally in 128 s
-  and passed in CI at 693 s. Rerun the job; do not edit a test for it.
+- `pnpm exec supabase test db` streams pg_prove's output over the stack owner's HTTP endpoint (CLI 3.0.0). That
+  request ends with `pg_prove run failed: Owner response unavailable; the request outcome is uncertain: HttpError`
+  when a scale test prints nothing for about five and a half minutes, even though every earlier file reported `ok`.
+  A scale test takes 10 s on one runner and 5 min on another, with the same code. The Schema job therefore runs the
+  stack's own `pg_prove` against `SUPABASE_DB_URL` and does not go through `supabase test db`. Do not rerun the job
+  for it or edit a test for it.

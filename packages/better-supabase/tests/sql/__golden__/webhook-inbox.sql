@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:cac9f7699321166f4badb60e140e820bc719f8f1747418e1517b644f8b1d0910
+-- @bsb-block webhook-inbox@10 managed
+-- @bsb-hash sha256:16fc248f7327cb5197df385b5fa2382038020090ed3b3346a836fdf0ba394fb9
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,6 +84,19 @@ begin
     and w.message_id = receive_webhook.message_id;
   return jsonb_build_object('id', inbox_id, 'duplicate', true);
 end;
+$$;
+
+create or replace function better_supabase.webhook_inbox_has_work()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from better_supabase.webhook_inbox c
+    where (c.status = 'pending' and c.available_at <= now())
+      or (c.status = 'processing' and c.lock_expires_at < now())
+  )
 $$;
 
 -- The claimed messages, a jsonb array. A message whose lease ran out on its
@@ -267,6 +280,8 @@ revoke execute on function better_supabase.receive_webhook(text, text, text, jso
 grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) to service_role;
 revoke execute on function better_supabase.claim_webhooks(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.claim_webhooks(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.webhook_inbox_has_work() from public, anon, authenticated;
+grant execute on function better_supabase.webhook_inbox_has_work() to service_role;
 revoke execute on function better_supabase.complete_webhook(bigint, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_webhook(bigint, text, integer) to service_role;
 revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer, boolean) from public, anon, authenticated;
@@ -283,21 +298,21 @@ grant execute on function better_supabase.purge_webhooks(interval, boolean, inte
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
--- @bsb-hash sha256:83d1487ca9e4c747ce9eca48531f316f83c8a940c2d779b242894f520d8aa855
+-- @bsb-hash sha256:c5f43d72270e2ddde5384257e157069600d003d04adf4997aa6096e958705f53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhook-inbox', 9, 'managed')
+values ('webhook-inbox', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:8530364d444ee4142d8ae0214c166edcc0e52e7f1c9ebe9d584cfec15eeb0829
+-- @bsb-block webhook-inbox@10 managed
+-- @bsb-hash sha256:58b58afa72d885a74558752c2aed15ef6030f97c08462e1fd3be554359dc76f4
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -380,6 +395,19 @@ begin
     and w.message_id = receive_webhook.message_id;
   return jsonb_build_object('id', inbox_id, 'duplicate', true);
 end;
+$$;
+
+create or replace function better_supabase.webhook_inbox_has_work()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from better_supabase.webhook_inbox c
+    where (c.status = 'pending' and c.available_at <= now())
+      or (c.status = 'processing' and c.lock_expires_at < now())
+  )
 $$;
 
 -- The claimed messages, a jsonb array. A message whose lease ran out on its
@@ -567,6 +595,8 @@ revoke execute on function better_supabase.receive_webhook(text, text, text, jso
 grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) to service_role;
 revoke execute on function better_supabase.claim_webhooks(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.claim_webhooks(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.webhook_inbox_has_work() from public, anon, authenticated;
+grant execute on function better_supabase.webhook_inbox_has_work() to service_role;
 revoke execute on function better_supabase.complete_webhook(bigint, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_webhook(bigint, text, integer) to service_role;
 revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer, boolean) from public, anon, authenticated;
@@ -583,21 +613,21 @@ grant execute on function better_supabase.purge_webhooks(interval, boolean, inte
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
--- @bsb-hash sha256:83d1487ca9e4c747ce9eca48531f316f83c8a940c2d779b242894f520d8aa855
+-- @bsb-hash sha256:c5f43d72270e2ddde5384257e157069600d003d04adf4997aa6096e958705f53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhook-inbox', 9, 'managed')
+values ('webhook-inbox', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:cac9f7699321166f4badb60e140e820bc719f8f1747418e1517b644f8b1d0910
+-- @bsb-block webhook-inbox@10 managed
+-- @bsb-hash sha256:16fc248f7327cb5197df385b5fa2382038020090ed3b3346a836fdf0ba394fb9
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -680,6 +710,19 @@ begin
     and w.message_id = receive_webhook.message_id;
   return jsonb_build_object('id', inbox_id, 'duplicate', true);
 end;
+$$;
+
+create or replace function better_supabase.webhook_inbox_has_work()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from better_supabase.webhook_inbox c
+    where (c.status = 'pending' and c.available_at <= now())
+      or (c.status = 'processing' and c.lock_expires_at < now())
+  )
 $$;
 
 -- The claimed messages, a jsonb array. A message whose lease ran out on its
@@ -863,6 +906,8 @@ revoke execute on function better_supabase.receive_webhook(text, text, text, jso
 grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) to service_role;
 revoke execute on function better_supabase.claim_webhooks(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.claim_webhooks(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.webhook_inbox_has_work() from public, anon, authenticated;
+grant execute on function better_supabase.webhook_inbox_has_work() to service_role;
 revoke execute on function better_supabase.complete_webhook(bigint, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_webhook(bigint, text, integer) to service_role;
 revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer, boolean) from public, anon, authenticated;
@@ -879,21 +924,21 @@ grant execute on function better_supabase.purge_webhooks(interval, boolean, inte
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
--- @bsb-hash sha256:83d1487ca9e4c747ce9eca48531f316f83c8a940c2d779b242894f520d8aa855
+-- @bsb-hash sha256:c5f43d72270e2ddde5384257e157069600d003d04adf4997aa6096e958705f53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhook-inbox', 9, 'managed')
+values ('webhook-inbox', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:a99daeebb28a590048b0650b3fa6abfe60047688fd5edf3a6b74a1375b93c47f
+-- @bsb-block webhook-inbox@10 managed
+-- @bsb-hash sha256:0b5fa5953f49f987c1c43f3466906d1c62d4ea216a5b1b982509db1287e87c16
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -976,6 +1021,19 @@ begin
     and w.message_id = receive_webhook.message_id;
   return jsonb_build_object('id', inbox_id, 'duplicate', true);
 end;
+$$;
+
+create or replace function better_supabase.webhook_inbox_has_work()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from better_supabase.webhook_inbox c
+    where (c.status = 'pending' and c.available_at <= now())
+      or (c.status = 'processing' and c.lock_expires_at < now())
+  )
 $$;
 
 -- The claimed messages, a jsonb array. A message whose lease ran out on its
@@ -1159,6 +1217,8 @@ revoke execute on function better_supabase.receive_webhook(text, text, text, jso
 grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) to service_role;
 revoke execute on function better_supabase.claim_webhooks(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.claim_webhooks(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.webhook_inbox_has_work() from public, anon, authenticated;
+grant execute on function better_supabase.webhook_inbox_has_work() to service_role;
 revoke execute on function better_supabase.complete_webhook(bigint, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_webhook(bigint, text, integer) to service_role;
 revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer, boolean) from public, anon, authenticated;
@@ -1193,6 +1253,16 @@ set search_path = ''
 as $$ select "better_supabase"."claim_webhooks"($1, $2, $3, $4) $$;
 revoke execute on function "api"."claim_webhooks"(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function "api"."claim_webhooks"(text, text, integer, interval) to service_role;
+
+create or replace function "api"."webhook_inbox_has_work"()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."webhook_inbox_has_work"() $$;
+revoke execute on function "api"."webhook_inbox_has_work"() from public, anon, authenticated;
+grant execute on function "api"."webhook_inbox_has_work"() to service_role;
 
 create or replace function "api"."complete_webhook"(inbox_id bigint, worker text, attempt integer default null)
 returns boolean
@@ -1252,21 +1322,21 @@ grant execute on function "api"."purge_webhooks"(interval, boolean, integer, tex
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
--- @bsb-hash sha256:83d1487ca9e4c747ce9eca48531f316f83c8a940c2d779b242894f520d8aa855
+-- @bsb-hash sha256:c5f43d72270e2ddde5384257e157069600d003d04adf4997aa6096e958705f53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhook-inbox', 9, 'managed')
+values ('webhook-inbox', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:b0ad5b5cb0a47e29bedc8bb8fb4ee9b260435af643a1e57590dd20a4252c17d1
+-- @bsb-block webhook-inbox@10 managed
+-- @bsb-hash sha256:c694239c7f2d00985ca18499489ac1eea5e6a5d6bb75203891cc004cdad4874f
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1315,6 +1385,19 @@ begin
   returning "id" into inbox_id;
   return jsonb_build_object('id', inbox_id, 'duplicate', false);
 end;
+$$;
+
+create or replace function better_supabase.webhook_inbox_has_work()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from "better_supabase"."webhook_inbox" c
+    where (c."status" = 'pending' and c."available_at" <= now())
+      or (c."status" = 'processing' and c."lock_expires_at" < now())
+  )
 $$;
 
 -- The claimed messages, a jsonb array. A message whose lease ran out on its
@@ -1498,6 +1581,8 @@ revoke execute on function better_supabase.receive_webhook(text, text, text, jso
 grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) to service_role;
 revoke execute on function better_supabase.claim_webhooks(text, text, integer, interval) from public, anon, authenticated;
 grant execute on function better_supabase.claim_webhooks(text, text, integer, interval) to service_role;
+revoke execute on function better_supabase.webhook_inbox_has_work() from public, anon, authenticated;
+grant execute on function better_supabase.webhook_inbox_has_work() to service_role;
 revoke execute on function better_supabase.complete_webhook(bigint, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.complete_webhook(bigint, text, integer) to service_role;
 revoke execute on function better_supabase.fail_webhook(bigint, text, text, interval, integer, boolean) from public, anon, authenticated;
@@ -1514,13 +1599,13 @@ grant execute on function better_supabase.purge_webhooks(interval, boolean, inte
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
--- @bsb-hash sha256:83d1487ca9e4c747ce9eca48531f316f83c8a940c2d779b242894f520d8aa855
+-- @bsb-hash sha256:c5f43d72270e2ddde5384257e157069600d003d04adf4997aa6096e958705f53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhook-inbox', 9, 'managed')
+values ('webhook-inbox', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

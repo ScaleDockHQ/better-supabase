@@ -467,6 +467,19 @@ as $$
   returning ${n.k("cursor")}
 $$;
 
+create or replace function ${ctx.fn("outbox_has_work")}()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select exists (
+    select 1 from ${n.c} c
+    where (c.${n.k("retryAt")} is null or c.${n.k("retryAt")} <= now())
+      and exists (select 1 from ${n.t} e where ${key("e")} > ${cursor("c")})
+  )
+$$;
+
 -- Deletes a consumer and its cursor, so purge_outbox no longer waits for it.
 create or replace function ${ctx.fn("outbox_unregister")}(consumer text)
 returns boolean
@@ -757,7 +770,8 @@ ${service("outbox_ack", "text, text, bigint")}
 ${service("outbox_fail", "text, text, bigint, text, integer, interval")}
 ${service("outbox_dead_letters", "text, integer")}
 ${service("outbox_history", "text, text, bigint, integer")}
-${service("purge_outbox", "interval, integer, interval")}`;
+${service("purge_outbox", "interval, integer, interval")}
+${service("outbox_has_work", "")}`;
 }
 
 function tracking(ctx: BlockSqlContext): string {
@@ -837,7 +851,7 @@ export const OUTBOX: BlockSqlDefinition = {
   requires: [],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   integrates: ["data-lifecycle"],
   names: NAMES,
   upgrades: [
@@ -864,6 +878,12 @@ export const OUTBOX: BlockSqlDefinition = {
       from: 4,
       description:
         "outbox_row_event() is no longer executable by API roles. options.partitioned partitions a new events table by month on created_at, with a sequence for the position, and applies to new tables only.",
+      sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "outbox_has_work() says whether a consumer has events after its cursor, as the probe of the relay schedule.",
       sql: () => "",
     },
   ],

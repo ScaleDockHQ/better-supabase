@@ -248,6 +248,51 @@ describe("schema design rules", () => {
     expect(await run(context(indexed, { sources }), "BS219")).toEqual([]);
   });
 
+  it("attributes a function's containment filter to the tables it names (BS219)", async () => {
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.columns = [...notes.columns, column({})];
+    });
+
+    const withFunctions = (...definitions: string[]): Snapshot => ({
+      ...snap,
+      generator: {
+        ...snap.generator,
+        functions: [
+          ...snap.generator.functions,
+          ...definitions.map((definition, at) => ({
+            ...snap.generator.functions[0]!,
+            schema: "public",
+            name: `fn_${String(at)}`,
+            definition,
+          })),
+        ],
+      },
+    });
+
+    expect(
+      await run(
+        context(
+          withFunctions(
+            "select 1 from public.notes n where n.id = $1",
+            "select 1 from public.other o where o.meta ? 'pinned'",
+          ),
+        ),
+        "BS219",
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        context(
+          withFunctions(
+            "select 1 from public.notes n where n.meta @> '{}'::jsonb",
+          ),
+        ),
+        "BS219",
+      ),
+    ).toMatchObject([{ target: "public.notes.meta" }]);
+  });
+
   it("flags column types to avoid (BS220)", async () => {
     const snap = snapshot((tables) => {
       const notes = table(tables, "notes");

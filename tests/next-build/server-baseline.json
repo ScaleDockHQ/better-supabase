@@ -1139,10 +1139,20 @@
     "gzip": 895996,
     "brotli": 749978
   },
+  "/[locale]/(app)/workflows/[run]/page": {
+    "raw": 4389930,
+    "gzip": 1340718,
+    "brotli": 1114591
+  },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
     "raw": 4908381,
     "gzip": 1486357,
     "brotli": 1235396
+  },
+  "/[locale]/(app)/workflows/builder/page": {
+    "raw": 4425252,
+    "gzip": 1355259,
+    "brotli": 1127375
   },
   "/[locale]/(app)/workflows/page": {
     "raw": 4912687,
@@ -1170,7 +1180,7 @@
     "brotli": 698822
   },
   "/[locale]/(auth)/forgot-password/page": {
-    "raw": 431705,
+    "raw": 433405,
     "gzip": 142079,
     "brotli": 123116
   },
@@ -1190,7 +1200,7 @@
     "brotli": 381122
   },
   "/[locale]/(auth)/oauth/consent/page": {
-    "raw": 432237,
+    "raw": 433937,
     "gzip": 142158,
     "brotli": 123197
   },
@@ -1250,7 +1260,7 @@
     "brotli": 699864
   },
   "/[locale]/[...rest]/page": {
-    "raw": 429263,
+    "raw": 430954,
     "gzip": 140801,
     "brotli": 122034
   },
