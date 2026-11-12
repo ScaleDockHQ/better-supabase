@@ -137,6 +137,23 @@ describe("BS610", () => {
       ),
     ).toEqual([]);
   });
+
+  it("ignores a method with the name of another private scope", () => {
+    expect(
+      run(
+        [
+          "export async function getSession() {",
+          '  "use cache: private";',
+          "  return 1;",
+          "}",
+          "export async function loadSession(id: string) {",
+          '  "use cache: private";',
+          "  return await db.tills.getSession(id);",
+          "}",
+        ].join("\n"),
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("BS611", () => {

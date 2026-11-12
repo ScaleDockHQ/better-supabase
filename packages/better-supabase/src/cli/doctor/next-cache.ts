@@ -128,7 +128,7 @@ function nestedPrivateScopes(context: DoctorContext): FindingInput[] {
       .filter(
         (name) =>
           name !== outer.name &&
-          new RegExp(`\\b${name}\\s*\\(`).test(outer.body),
+          new RegExp(`(?<![.\\w$])${name}\\s*\\(`).test(outer.body),
       )
       .map((inner) => ({
         message: `${outer.file}: ${outer.name} runs in \`"use cache: private"\` and calls ${inner}, which has the same directive. Private cache scopes can't nest, and each one resolves the session again. Call ${inner} from the page and pass its result down, or read both in one scope.`,

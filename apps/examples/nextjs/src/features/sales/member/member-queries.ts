@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { getMembers } from "@/features/organization/organization-queries";
+import { readMembers } from "@/features/organization/organization-queries";
 import { bsb } from "@/lib/supabase/server";
 
 import { SALES_TAG } from "../sales-cache";
@@ -15,7 +15,8 @@ export interface MemberOption {
 /** The organization's members by user id, for owner, seller and queue pickers. */
 export async function loadMemberOptions(): Promise<readonly MemberOption[]> {
   "use cache: private";
-  const { session } = await bsb.cached();
+  const cached = await bsb.cached();
+  const { session } = cached;
   cacheTag(SALES_TAG);
   const tenant = tenantOf(session);
 
@@ -23,7 +24,7 @@ export async function loadMemberOptions(): Promise<readonly MemberOption[]> {
     return [];
   }
 
-  const members = await getMembers(tenant);
+  const members = await readMembers(cached, tenant);
 
   return members.map((member) => ({
     userId: member.userId,
