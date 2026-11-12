@@ -5,7 +5,7 @@ suite and codegen all run against it. `supabase/schemas` is the source of
 truth, and `supabase/migrations` holds reviewed migrations generated from it
 by pg-delta (`docs/decisions/0006-pgdelta-and-native-stack.md`).
 
-The history starts at one pg-delta baseline (ADR 0027). After pulling a
+The history starts at one pg-delta baseline (ADRs 0027 and 0687). After pulling a
 change that resets it, run `pnpm supabase:reset`; a stack migrated with the
 old history lists the old migrations as remote-only.
 

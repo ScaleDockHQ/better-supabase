@@ -14,7 +14,6 @@ catalog:
   "@ai-sdk/react": 4.0.169
   "@ai-sdk/sandbox-vercel": 1.0.176
   "@ai-sdk/workflow": 2.0.97
-  "@arethetypeswrong/cli": 0.18.5
   "@base-ui/react": 1.9.0
   "@changesets/assemble-release-plan": 7.0.0
   "@changesets/changelog-github": 1.0.1
@@ -39,8 +38,8 @@ catalog:
   "@modelcontextprotocol/server": 2.4.0
   "@nestjs/common": 12.1.3
   # The version next depends on, so the config shares Next's loaded env state.
-  "@next/env": 16.4.5
-  "@next/playwright": 16.4.5
+  "@next/env": 16.4.6
+  "@next/playwright": 16.4.6
   "@op-engineering/op-sqlite": 18.2.5
   "@openfeature/server-sdk": 1.23.0
   "@opentelemetry/api": 1.9.1
@@ -111,7 +110,7 @@ catalog:
   ajv-formats: 3.0.1
   astro: 7.4.7
   babel-plugin-react-compiler: 1.0.0
-  "@vitest/coverage-v8": 5.0.5
+  "@vitest/coverage-v8": 5.1.0
   better-result: 3.0.1
   botid: 1.5.12
   # 4.0 is the `latest` dist-tag; it makes jiti optional, so .ts configs load
@@ -164,16 +163,16 @@ catalog:
   koa: 3.3.0
   lefthook: 2.2.1
   lucide-react: 1.70.0
-  next: 16.4.5
+  next: 16.4.6
   next-intl: 4.14.9
   next-themes: 0.4.6
   nuqs: 2.10.2
   nuxt: 4.6.4
   oxfmt: 0.74.0
   "@shadcn/lint": 0.2.5
-  eslint-plugin-turbo: 2.11.10
+  eslint-plugin-turbo: 2.11.11
   oxlint-plugin-react-doctor: 0.9.22
-  oxlint: 1.92.0
+  oxlint: 1.93.0
   oxlint-tsgolint: 7.0.2006
   react-router: 8.5.1
   ultracite: 8.1.1
@@ -211,19 +210,19 @@ catalog:
   supports-color: 11.0.0
   # CI runs this copy (`pnpm exec supabase`); 2.121.0 moves a stopped stack's
   # ports when config.toml changes them.
-  supabase: 3.0.0
+  supabase: 3.1.0
   svelte: 5.57.3
   tailwind-merge: 3.7.0
   tailwindcss: 4.3.5
   temporal-polyfill: 1.0.8
   tinyexec: 1.3.1
   tsdown: 0.23.7
-  turbo: 2.11.10
+  turbo: 2.11.11
   tw-animate-css: 1.4.0
   typescript: 7.0.2
   valibot: 1.5.0
   vite: 8.3.6
-  vitest: 5.0.5
+  vitest: 5.1.0
   vue: 3.5.45
   workflow: 5.4.0
   yaml: 2.9.1
@@ -415,6 +414,19 @@ minimumReleaseAgeExcludePrune: true
 minimumReleaseAgeExclude:
   - "@workflow/world@5.1.0"
   - "@workflow/errors@5.1.0"
+  # ADR 0687: the repo owner allowed these exact releases (turbo 2.11.11 and
+  # Supabase CLI 3.1.0, published 2026-11-12) before the 1440 minute window
+  # closed. Remove this block on or after 2026-11-13 18:00 UTC; it is then
+  # redundant.
+  - "turbo@2.11.11"
+  - "eslint-plugin-turbo@2.11.11"
+  - "supabase@3.1.0"
+  - "@turbo/darwin-64@2.11.11"
+  - "@turbo/darwin-arm64@2.11.11"
+  - "@turbo/linux-64@2.11.11"
+  - "@turbo/linux-arm64@2.11.11"
+  - "@turbo/windows-64@2.11.11"
+  - "@turbo/windows-arm64@2.11.11"
 trustPolicy: no-downgrade
 # Releases older than 30 days are trusted as they are; several of the
 # transitive packages predate npm provenance.
@@ -439,11 +451,6 @@ overrides:
   "@better-supabase/example-expo-powersync>react-dom": 19.2.3
   # One shiki, so fumadocs-ui and the docs transformers share ShikiTransformer.
   shiki: "catalog:"
-  # attw 0.18 > marked-terminal 7 > supports-hyperlinks 3 is CommonJS and calls
-  # supports-color 7's `supportsColor()`; 11 exports named functions only, so
-  # it crashes. marked-terminal 8 (supports-hyperlinks 4) breaks attw's default
-  # import, so only this one consumer keeps supports-color 7 (ADR 0634).
-  "supports-hyperlinks@3>supports-color": 7.2.0
   # debug's optional peer. Without one copy, workspaces that don't declare it
   # get @babel/core with chalk's supports-color 7, and next resolves twice.
   supports-color: "catalog:"
@@ -511,14 +518,14 @@ peerDependencyRules:
     "@supabase/postgrest-typegen>oxfmt": "0.74.0"
     # @chat-adapter/tests peers on vitest 4; its mock adapters and state helpers
     # use only the vi.fn() API that vitest 5 keeps.
-    "@chat-adapter/tests>vitest": "5.0.5"
+    "@chat-adapter/tests>vitest": "5.1.0"
     # workflow 5.1 depends on @workflow/nest, which brings NestJS 12;
     # @supabase/server lists NestJS 10 or 11 as an optional peer it never
     # loads on our paths.
     "@supabase/server>@nestjs/common": "12.1.3"
     # The World conformance suite peers on Vitest 4; it runs on the repo's
     # Vitest 5 through the same describe and test API.
-    "@workflow/world-testing>vitest": "5.0.5"
+    "@workflow/world-testing>vitest": "5.1.0"
     # @workflow/swc-plugin pins @swc/core 1.15.3; the Next.js example gets
     # 1.16.13 through @workflow/nest's @swc/cli, which it never runs, and Next
     # compiles with its own SWC.

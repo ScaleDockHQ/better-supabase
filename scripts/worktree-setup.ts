@@ -38,14 +38,24 @@ const run = (command: string, args: string[]): void => {
   execFileSync(command, args, { stdio: "inherit" });
 };
 
+// The previous-major framework type check only runs in CI (`pnpm verify`) and
+// pulls Nuxt 3, SvelteKit 1 and React Router 6, so a worktree skips it. Run
+// `pnpm install --filter @better-supabase/types-frameworks-previous` to add it.
+const SKIPPED = ["--filter", "!@better-supabase/types-frameworks-previous"];
+
 function install(): void {
   try {
-    run("pnpm", ["install", "--offline", "--frozen-lockfile"]);
+    run("pnpm", ["install", "--offline", "--frozen-lockfile", ...SKIPPED]);
   } catch {
     console.log(
       "The store misses a package; installing with --prefer-offline.",
     );
-    run("pnpm", ["install", "--prefer-offline", "--frozen-lockfile"]);
+    run("pnpm", [
+      "install",
+      "--prefer-offline",
+      "--frozen-lockfile",
+      ...SKIPPED,
+    ]);
   }
 }
 

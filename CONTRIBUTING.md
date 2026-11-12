@@ -58,7 +58,7 @@ The seed creates two users in the Acme organization, both with the password `pas
 | `pnpm supabase:reset`    | Rebuilds the local database from the migrations and the seed              |
 | `pnpm supabase:test`     | pgTAP tests in `supabase/tests`                                           |
 | `pnpm db:gen`            | Regenerates the typed client in every example and validation project      |
-| `pnpm run check:publish` | publint and arethetypeswrong on the packed tarball                        |
+| `pnpm run check:publish` | publint on the package manifest                                           |
 | `pnpm run format`        | Format with Oxfmt                                                         |
 | `pnpm run fix`           | Format and apply lint fixes with Ultracite                                |
 | `pnpm changeset`         | Add a changeset for a user-visible change                                 |

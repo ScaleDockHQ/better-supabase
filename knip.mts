@@ -29,7 +29,7 @@ const config: KnipConfig = {
   ignore: [".agents/**", "tests/init-fixture/**"],
   // The Vercel CLI runs from the user's machine (`pnpm env:pull`). The MCP
   // configs run shadcn with `pnpm --dir apps/marketing`, which declares it.
-  ignoreBinaries: ["vercel", "shadcn"],
+  ignoreBinaries: ["vercel", "shadcn", "ipcs"],
   ignoreIssues: {
     // `better-supabase init` writes these; gen --check fails on hand edits.
     "apps/examples/*/src/lib/{supabase/index,supabase/hooks,hooks}.ts": [

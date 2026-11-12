@@ -1,5 +1,5 @@
 {
-  "$schema": "https://v2-11-10.turborepo.dev/schema.json",
+  "$schema": "https://v2-11-11.turborepo.dev/schema.json",
   "agentGuidance": true,
   "futureFlags": {
     "affectedUsingTaskInputs": true,
@@ -210,6 +210,14 @@
         "scripts/check-skills.ts",
         "skills-lock.json",
         ".agents/skills/**"
+      ]
+    },
+    "//#check:agent-docs": {
+      "inputs": [
+        "scripts/check-agent-docs.ts",
+        "AGENTS.md",
+        "docs/agents/commands.md",
+        "package.json"
       ]
     },
     "//#check:adrs": {

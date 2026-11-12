@@ -281,6 +281,12 @@
             "null"
           ]
         },
+        "emailDomain": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -290,12 +296,6 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
-        },
-        "emailDomain": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [
@@ -303,9 +303,9 @@
         "organizationId",
         "email",
         "fullName",
+        "emailDomain",
         "createdAt",
-        "updatedAt",
-        "emailDomain"
+        "updatedAt"
       ],
       "additionalProperties": false
     },
@@ -544,6 +544,13 @@
             "null"
           ]
         },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
         "createdBy": {
           "type": [
             "string",
@@ -551,13 +558,6 @@
           ],
           "format": "uuid",
           "readOnly": true
-        },
-        "ownerTeamId": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid"
         }
       },
       "required": [
@@ -573,8 +573,8 @@
         "createdAt",
         "updatedAt",
         "logoPath",
-        "createdBy",
-        "ownerTeamId"
+        "ownerTeamId",
+        "createdBy"
       ],
       "additionalProperties": false
     },
@@ -658,6 +658,13 @@
             "null"
           ]
         },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
         "createdBy": {
           "type": [
             "string",
@@ -665,13 +672,6 @@
           ],
           "format": "uuid",
           "readOnly": true
-        },
-        "ownerTeamId": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid"
         }
       },
       "required": [
@@ -760,6 +760,13 @@
             "null"
           ]
         },
+        "ownerTeamId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
         "createdBy": {
           "type": [
             "string",
@@ -767,13 +774,6 @@
           ],
           "format": "uuid",
           "readOnly": true
-        },
-        "ownerTeamId": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid"
         }
       },
       "additionalProperties": false
@@ -1095,6 +1095,14 @@
           "type": "string",
           "format": "uuid"
         },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "call",
+            "meeting",
+            "email"
+          ]
+        },
         "body": {
           "type": "string"
         },
@@ -1114,26 +1122,18 @@
             "string",
             "null"
           ]
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "call",
-            "meeting",
-            "email"
-          ]
         }
       },
       "required": [
         "id",
         "organizationId",
         "customerId",
+        "kind",
         "body",
         "attachments",
         "createdAt",
         "updatedAt",
-        "embedding",
-        "kind"
+        "embedding"
       ],
       "additionalProperties": false
     },
@@ -1149,6 +1149,14 @@
           "type": "string",
           "format": "uuid"
         },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "call",
+            "meeting",
+            "email"
+          ]
+        },
         "body": {
           "type": "string"
         },
@@ -1167,14 +1175,6 @@
           "type": [
             "string",
             "null"
-          ]
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "call",
-            "meeting",
-            "email"
           ]
         }
       },
@@ -1197,6 +1197,14 @@
           "type": "string",
           "format": "uuid"
         },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "call",
+            "meeting",
+            "email"
+          ]
+        },
         "body": {
           "type": "string"
         },
@@ -1216,14 +1224,6 @@
             "string",
             "null"
           ]
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "call",
-            "meeting",
-            "email"
-          ]
         }
       },
       "additionalProperties": false
@@ -1242,6 +1242,12 @@
         "slug": {
           "type": "string"
         },
+        "brand": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -1251,21 +1257,15 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
-        },
-        "brand": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [
         "id",
         "name",
         "slug",
+        "brand",
         "createdAt",
-        "updatedAt",
-        "brand"
+        "updatedAt"
       ],
       "additionalProperties": false
     },
@@ -1283,6 +1283,12 @@
         "slug": {
           "type": "string"
         },
+        "brand": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -1292,12 +1298,6 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
-        },
-        "brand": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [
@@ -1320,6 +1320,12 @@
         "slug": {
           "type": "string"
         },
+        "brand": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -1329,12 +1335,6 @@
           "type": "string",
           "format": "date-time",
           "readOnly": true
-        },
-        "brand": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "additionalProperties": false
@@ -1413,19 +1413,19 @@
         "priceCents": {
           "type": "integer"
         },
-        "position": {
-          "type": "integer"
-        },
         "currency": {
           "type": "string"
+        },
+        "position": {
+          "type": "integer"
         }
       },
       "required": [
         "key",
         "name",
         "priceCents",
-        "position",
-        "currency"
+        "currency",
+        "position"
       ],
       "additionalProperties": false
     },
@@ -1442,11 +1442,11 @@
         "priceCents": {
           "type": "integer"
         },
-        "position": {
-          "type": "integer"
-        },
         "currency": {
           "type": "string"
+        },
+        "position": {
+          "type": "integer"
         }
       },
       "required": [
@@ -1468,11 +1468,11 @@
         "priceCents": {
           "type": "integer"
         },
-        "position": {
-          "type": "integer"
-        },
         "currency": {
           "type": "string"
+        },
+        "position": {
+          "type": "integer"
         }
       },
       "additionalProperties": false
@@ -1523,6 +1523,12 @@
           ],
           "format": "uuid"
         },
+        "internalNotes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "deletedAt": {
           "type": [
             "string",
@@ -1530,12 +1536,6 @@
           ],
           "format": "date-time",
           "readOnly": true
-        },
-        "internalNotes": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [
@@ -1548,8 +1548,8 @@
         "currency",
         "leadId",
         "labelId",
-        "deletedAt",
-        "internalNotes"
+        "internalNotes",
+        "deletedAt"
       ],
       "additionalProperties": false
     },
@@ -1599,6 +1599,12 @@
           ],
           "format": "uuid"
         },
+        "internalNotes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "deletedAt": {
           "type": [
             "string",
@@ -1606,12 +1612,6 @@
           ],
           "format": "date-time",
           "readOnly": true
-        },
-        "internalNotes": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [
@@ -1666,6 +1666,12 @@
           ],
           "format": "uuid"
         },
+        "internalNotes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "deletedAt": {
           "type": [
             "string",
@@ -1673,12 +1679,6 @@
           ],
           "format": "date-time",
           "readOnly": true
-        },
-        "internalNotes": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "additionalProperties": false

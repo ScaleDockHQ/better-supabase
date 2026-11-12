@@ -126,27 +126,27 @@ export type Models = {
       organization_id: string;
       email: string;
       full_name: string | null;
+      email_domain: string | null;
       created_at: string;
       updated_at: string;
-      email_domain: string | null;
     };
     Insert: {
       id?: string;
       organization_id: string;
       email: string;
       full_name?: string | null;
+      email_domain?: never;
       created_at?: string;
       updated_at?: string;
-      email_domain?: never;
     };
     Update: {
       id?: string;
       organization_id?: string;
       email?: string;
       full_name?: string | null;
+      email_domain?: never;
       created_at?: string;
       updated_at?: string;
-      email_domain?: never;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };
@@ -210,8 +210,8 @@ export type Models = {
       created_at: string;
       updated_at: string;
       logo_path: StoragePath<"customer-logos"> | null;
-      created_by: string | null;
       owner_team_id: string | null;
+      created_by: string | null;
     };
     Insert: {
       id?: string;
@@ -226,8 +226,8 @@ export type Models = {
       created_at?: string;
       updated_at?: string;
       logo_path?: StoragePath<"customer-logos"> | null;
-      created_by?: string | null;
       owner_team_id?: string | null;
+      created_by?: string | null;
     };
     Update: {
       id?: string;
@@ -242,8 +242,8 @@ export type Models = {
       created_at?: string;
       updated_at?: string;
       logo_path?: StoragePath<"customer-logos"> | null;
-      created_by?: string | null;
       owner_team_id?: string | null;
+      created_by?: string | null;
     };
     Relations: {
       customer_tags: { table: "customer_tags"; kind: "many"; nullable: true };
@@ -372,34 +372,34 @@ export type Models = {
       id: number;
       organization_id: string;
       customer_id: string;
+      kind: "call" | "meeting" | "email";
       body: string;
       attachments: Json | null;
       created_at: string;
       updated_at: string;
       embedding: string | null;
-      kind: "call" | "meeting" | "email";
     };
     Insert: {
       id?: never;
       organization_id: string;
       customer_id: string;
+      kind?: "call" | "meeting" | "email";
       body: string;
       attachments?: Json | null;
       created_at?: string;
       updated_at?: string;
       embedding?: string | null;
-      kind?: "call" | "meeting" | "email";
     };
     Update: {
       id?: never;
       organization_id?: string;
       customer_id?: string;
+      kind?: "call" | "meeting" | "email";
       body?: string;
       attachments?: Json | null;
       created_at?: string;
       updated_at?: string;
       embedding?: string | null;
-      kind?: "call" | "meeting" | "email";
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };
@@ -419,25 +419,25 @@ export type Models = {
       id: string;
       name: string;
       slug: string;
+      brand: string | null;
       created_at: string;
       updated_at: string;
-      brand: string | null;
     };
     Insert: {
       id?: string;
       name: string;
       slug: string;
+      brand?: string | null;
       created_at?: string;
       updated_at?: string;
-      brand?: string | null;
     };
     Update: {
       id?: string;
       name?: string;
       slug?: string;
+      brand?: string | null;
       created_at?: string;
       updated_at?: string;
-      brand?: string | null;
     };
     Relations: {
       change_requests: { table: "change_requests"; kind: "many"; nullable: true };
@@ -496,22 +496,22 @@ export type Models = {
       key: string;
       name: string;
       price_cents: number;
-      position: number;
       currency: string;
+      position: number;
     };
     Insert: {
       key: string;
       name: string;
       price_cents?: number;
-      position?: number;
       currency?: string;
+      position?: number;
     };
     Update: {
       key?: string;
       name?: string;
       price_cents?: number;
-      position?: number;
       currency?: string;
+      position?: number;
     };
     Relations: {
       plan_features: { table: "plan_features"; kind: "many"; nullable: true };
@@ -534,8 +534,8 @@ export type Models = {
       currency: string;
       lead_id: string | null;
       label_id: string | null;
-      deleted_at: string | null;
       internal_notes?: string | null;
+      deleted_at: string | null;
     };
     Insert: {
       id?: string;
@@ -547,8 +547,8 @@ export type Models = {
       currency?: string;
       lead_id?: string | null;
       label_id?: string | null;
-      deleted_at?: string | null;
       internal_notes?: string | null;
+      deleted_at?: string | null;
     };
     Update: {
       id?: string;
@@ -560,8 +560,8 @@ export type Models = {
       currency?: string;
       lead_id?: string | null;
       label_id?: string | null;
-      deleted_at?: string | null;
       internal_notes?: string | null;
+      deleted_at?: string | null;
     };
     Relations: {
       organization: { table: "organizations"; kind: "one"; nullable: false };

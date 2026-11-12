@@ -125,6 +125,8 @@ export function createNextConfig(
       ...compiler,
     },
     experimental: {
+      // Stops Next from writing upgrade nudges into every checkout's agent files.
+      agentUpgrade: false,
       useOffline: true,
       // Lets createNext taint tokens and server contexts so React refuses to
       // serialize them to a Client Component.

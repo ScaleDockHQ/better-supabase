@@ -4,7 +4,9 @@
 what it checks.
 
 - `pnpm install`: install (pnpm 12, Node 24).
-- `pnpm verify`: the gate before every push. It runs the format check, lint
+- `pnpm check`: lint, typecheck and the mirrored tests of the changed workspaces (`node scripts/check-changed.ts`; related tests only when a file has at most 3 importers). About 7 s on one library file. Hooks run it.
+- `pnpm check:format`: the old `ultracite check`. `pnpm --filter better-supabase test:coverage`: unit tests with coverage (CI). `pnpm ci:wait`: watch the PR checks and print failed jobs.
+- `pnpm verify`: the full gate, run by CI (ADR 0686); run it locally only to reproduce a failure. It runs the format check, lint
   (type-aware Oxlint on the Ultracite presets in the root `oxlint.config.ts`), the prose check, the PermDock name check, typecheck,
   Knip, Turbo boundaries, tests, doctor and `pnpm audit`. Every step except
   the format check, boundaries and audit is a cached Turbo task with
@@ -20,6 +22,7 @@ what it checks.
 - `pnpm dev:portless`: docs, marketing and the Next.js example on HTTPS
   `.localhost` URLs (see Local development).
 - `pnpm supabase:start`, `pnpm supabase:reset` and `pnpm supabase:test`: the local stack on the CLI's stack engine (native runtime, ports per checkout and branch, URLs written to `.env.development.local`), a reset from the migrations and seed, and the pgTAP tests.
+- `pnpm supabase:start` checks the macOS shared memory cap (24 of 32 segments) before it starts and names the fix. `pnpm supabase:prune --segments` prints the count; `--destroy` (with `--apply`) deletes the stacks of merged branches and of missing checkouts, data included.
 - `pnpm supabase:prune`: list the running stacks of branches merged into `main`, in this checkout and its worktrees; `--apply` stops them and keeps their data. macOS runs out of shared memory segments after about 30 running stacks.
 - `pnpm check:migration-order`: fails when the branch adds a migration that sorts before the newest one on `origin/main` (`MIGRATION_BASE` names another base).
 - `pnpm check:app-architecture`: fails when the Next.js example app breaks the feature-sliced RSC rules of ADR 0310 (a page imports a `*-queries` file or awaits `params`, a feature takes `params`, a file prefix differs from its folder, an async component has no `Skeleton`); `node scripts/check-app-architecture.ts --print` lists the findings for `scripts/app-architecture-allow.json`.
