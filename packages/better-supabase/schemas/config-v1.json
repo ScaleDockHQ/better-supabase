@@ -3764,7 +3764,21 @@
                   "additionalProperties": {
                     "type": "object",
                     "additionalProperties": {
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "sql": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["sql"],
+                          "additionalProperties": false
+                        }
+                      ]
                     }
                   }
                 }
@@ -4062,7 +4076,21 @@
                   "additionalProperties": {
                     "type": "object",
                     "additionalProperties": {
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "sql": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["sql"],
+                          "additionalProperties": false
+                        }
+                      ]
                     }
                   }
                 }

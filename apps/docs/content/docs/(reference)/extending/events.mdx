@@ -582,5 +582,25 @@ blocks: {
 },
 ```
 
+A value can also be `{ sql }`, an expression that reads the row as `{row}`,
+for a value from a joined table:
+
+```ts title="better-supabase.config.ts"
+hiring: {
+  events: {
+    payload: {
+      "application.created": {
+        source: "source",
+        jobTitle: {
+          sql: "(select title from public.jobs where id = {row}.job_id)",
+        },
+      },
+    },
+  },
+},
+```
+
 Rendering fails for a type the module doesn't record, and for an event the
-module writes without a row. The tasks block passes its row to every event.
+module writes without a row. The tasks and hiring blocks pass their row to
+every event; the hiring block passes the application row, and the job row to
+`job_opening.opened` and `job_opening.closed`.

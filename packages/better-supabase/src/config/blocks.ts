@@ -7,6 +7,14 @@ import type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
 import type { SubjectTeam } from "./types/subjects.ts";
 
 /**
+ * Payload keys per event type: a row column name, or a `{ sql }` expression
+ * reading the row as `{row}`.
+ */
+export type EventPayloadColumns = Readonly<
+  Record<string, Readonly<Record<string, string | { readonly sql: string }>>>
+>;
+
+/**
  * `blocks` in `better-supabase.config.ts`: how each SQL module maps onto the
  * app's database. A module's contract (the functions other modules and the
  * TypeScript side call) stays the same in every mode; only the tables behind it
@@ -221,15 +229,10 @@ export interface BlockConfig<
    * `outbox` module is installed. Defaults to true. `payload` adds columns of
    * the event's row to an event's payload, keyed by event type and then by
    * payload key, e.g. `{ payload: { "task.created": { customerId: "customer_id"
-   * } } }`.
+   * } } }`. A value is a column name, or `{ sql }` for an expression that reads
+   * the row as `{row}`, such as a lookup in a joined table.
    */
-  readonly events?:
-    | boolean
-    | {
-        readonly payload?: Readonly<
-          Record<string, Readonly<Record<string, string>>>
-        >;
-      };
+  readonly events?: boolean | { readonly payload?: EventPayloadColumns };
   /**
    * Whether the module writes its actions to the audit log (`audit_event`) when
    * the `audit` module is installed. Defaults to true.
@@ -496,9 +499,7 @@ export interface ResolvedBlock {
     readonly functions: Readonly<Record<string, string>>;
   };
   readonly events: boolean;
-  readonly eventPayload: Readonly<
-    Record<string, Readonly<Record<string, string>>>
-  >;
+  readonly eventPayload: EventPayloadColumns;
   readonly audit: boolean;
   readonly api?: {
     readonly schema: string;

@@ -12,6 +12,43 @@ const body = (
     .join("\n");
 
 describe("hiring module", () => {
+  it("adds row columns and row expressions to the hiring events' payloads", () => {
+    const sql = renderBlocks(["hiring", "outbox"], {
+      modules: {
+        hiring: {
+          events: {
+            payload: {
+              "application.created": {
+                jobTitle: {
+                  sql: "(select title from jobs where id = {row}.job_id)",
+                },
+                source: "source",
+              },
+              "application.hired": { source: "source" },
+              "job_opening.opened": { slug: "slug" },
+            },
+          },
+        },
+      },
+    })
+      .filter((file) => file.module === "hiring")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toMatch(
+      /emit_event\('application\.created'.*'jobTitle', \(\(select title from jobs where id = v_row\.job_id\)\), 'source', v_row\."source"\)\)/u,
+    );
+    expect(sql).toMatch(
+      /emit_event\('application\.hired'.*'source', new\."source"\)\)/u,
+    );
+    expect(sql).toMatch(
+      /emit_event\('job_opening\.opened'.*'slug', v_job\."slug"\)\)/u,
+    );
+    expect(sql).not.toMatch(
+      /emit_event\('application\.rejected'.*jsonb_build_object\('source'/u,
+    );
+  });
+
   it("binds applications to a pipeline per job before pipelines renders", () => {
     const files = renderBlocks(["hiring"]);
     const modules = files.map((file) => file.module);
