@@ -713,7 +713,7 @@ Status per concern across the catalog. "Covered" means a block or core feature h
 | Search                           | partial | search block, 20 methods                                          | `q` option on lists, override of columns                 | EX-1204, EX-1266          |
 | Import and export                | partial | imports, 8 and 6 blocks                                           | no `export` or `importTarget` contract                   | EX-1210, EX-1211          |
 | Offline sync                     | partial | PowerSync streams from views                                      | per-block declaration                                    | EX-1318                   |
-| Realtime                         | partial | realtime-tables, controllers                                      | no per-entity flag, hooks do not subscribe               | EX-1319                   |
+| Realtime                         | partial | realtime-tables, controllers                                      | fixed (PR #904): `blockRealtimeRefetch`                  | EX-1319                   |
 | API keys and OAuth apps          | covered | api-keys, oauth-server, pages                                     | scopes generated in `permission-scopes.ts` (#903)        | EX-1330                   |
 | Impersonation                    | partial | impersonation block                                               | actor not recorded on writes                             | EX-1321                   |
 | Feature flags                    | partial | flags block                                                       | no entity flag declaration                               | EX-1328                   |
@@ -721,7 +721,7 @@ Status per concern across the catalog. "Covered" means a block or core feature h
 | Bulk operations at scale         | partial | 30 blocks, bulk-actions                                           | shapes differ, limit not declared                        | EX-1209                   |
 | Long-running jobs                | partial | queue in about 20 blocks                                          | no common progress shape                                 | EX-1324                   |
 | Archival and partitioning        | partial | audit, outbox, notifications                                      | entity tables                                            | EX-1325                   |
-| Empty, loading, error states     | partial | record list kit                                                   | block hooks return raw results                           | EX-1326                   |
+| Empty, loading, error states     | partial | record list kit                                                   | fixed (PR #904): `blockListStatus`                       | EX-1326                   |
 | Accessibility                    | partial | ReUI components                                                   | no automated pass over generated pages                   | EX-1327                   |
 
 ## Prioritized refactor list
@@ -916,13 +916,14 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane K
 
 - Scope: Client, controller and hooks trio, record bindings
-- Status: in progress
-- Branch: `feat/audit-k`
-- PR: none yet
+- Status: in progress (K1 #901 and trio #908 merged, K2 #904 open)
+- Branch: `feat/audit-k`, `feat/audit-k2`, `feat/audit-k4-trio`
+- PR: [#901](https://github.com/ScaleDockHQ/better-supabase/pull/901), [#904](https://github.com/ScaleDockHQ/better-supabase/pull/904), [#908](https://github.com/ScaleDockHQ/better-supabase/pull/908)
 - Findings: EX-1237, EX-1238, EX-1319, EX-1326
 - Log: 2026-11-12, planned.
   2026-11-13, lane K started from main (6f9b3af232) in `../bsb-audit-k`; K1 is the employees binding.
   2026-11-13, K1 built (ADR 0819): `employeeContractsBinding`. The other seven bindings, the trio, the status union and realtime hooks stay open.
+  2026-11-13, K2 (`feat/audit-k2`, ADR 0820, PR #904): EX-1326 and EX-1319 fixed.
   2026-11-13, trio PR #908 (`feat/audit-k4-trio`, ADR 0821): EX-1238 fixed. The SQL-backed bindings (K3) wait for a local stack: 24 of the 32 macOS shared memory segments are held by other worktrees' stacks, so `pnpm supabase:start` refuses.
 
 ### Lane N
