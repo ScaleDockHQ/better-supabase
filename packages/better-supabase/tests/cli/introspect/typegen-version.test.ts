@@ -20,7 +20,7 @@ const pins = [
 ].map((match) => match[1]!.replaceAll('"', ""));
 
 describe("the postgrest-typegen pin", () => {
-  it("is exact in the default catalog and a range around it in the peers catalog", () => {
+  it("is exact in the default catalog and a floor at it in the peers catalog", () => {
     const [catalog, peer] = pins;
     expect(pins).toHaveLength(2);
     expect(catalog).toBe(TYPEGEN_VERSION);

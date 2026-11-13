@@ -48,8 +48,9 @@ alwaysApply: true
     the copy of `GeneratorMetadata` in `src/config/generator-metadata.ts`,
     never the package. The default catalog and `TYPEGEN_VERSION` pin one
     exact version so `database.types.ts` matches `supabase gen types`; the
-    peers catalog declares a range around it, and `gen` prints a notice for
-    any other installed release (ADR 0016). Bumping it needs the parity
+    peers catalog declares a floor at it with no upper bound, and `gen`
+    prints a notice for any other installed release (ADRs 0016 and 0842).
+    Bumping it needs the parity
     test, the copy's type test and a changeset.
 12. Imports stay at the top of the module. The only exceptions are optional
     peers and CLI startup work loaded lazily, each with a comment and a

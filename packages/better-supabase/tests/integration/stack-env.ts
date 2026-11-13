@@ -19,15 +19,6 @@ export const stackUrl = (): string => required("SUPABASE_URL");
 export const stackDbUrl = (): string => required("SUPABASE_DB_URL");
 
 /**
- * True on the CLI's stack engine (`SUPABASE_RUNTIME` is native, docker or
- * podman). As of CLI 2.121.0 its Realtime denies private channel joins that the
- * legacy stack allows; CI runs those tests on the legacy engine.
- */
-export const stackEngine: boolean = ["native", "docker", "podman"].includes(
-  process.env["SUPABASE_RUNTIME"] ?? "",
-);
-
-/**
  * Whether the stack's storage service answers. The CLI's native stack starts a
  * service on its first request, so a single 1 s probe reports a service that is
  * still waking up as absent and skips its tests; poll for up to 20 s instead.

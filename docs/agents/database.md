@@ -160,10 +160,8 @@ created, and a plain `supabase start` picks Docker when it is running.
 - `supabase status --env --output-format json` prints the URLs and keys.
   `SUPABASE_EXPERIMENTAL_STACK=0` turns the legacy Docker engine back on;
   its status needs `-o json` instead, and `scripts/env-local.ts` reads both.
-- Its Realtime denies the private-channel joins in three tests (two in
-  `realtime.integration.test.ts`, one in `access-policies`), on every
-  runtime. They skip when `SUPABASE_RUNTIME` names a stack engine runtime,
-  and the CI `realtime` job runs them on the legacy engine.
+- Since CLI 3.1.0 its Realtime allows the private-channel joins the
+  integration suite makes, so those tests run on every runtime.
 - On the native runtime, `pg_net` reaches the host at `127.0.0.1`, not
   `host.docker.internal`.
 - Services start on first request and stop when idle; `supabase start --eager`
