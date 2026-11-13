@@ -866,15 +866,6 @@
       "WebPushTokenOptions"
     ]
   },
-  "./client/lite": {
-    "values": [
-      "createLiteBrowserClient"
-    ],
-    "types": [
-      "LiteBrowserClient",
-      "LiteBrowserClientOptions"
-    ]
-  },
   "./client/native": {
     "values": [
       "AUTHZ_EVENT",
@@ -1417,7 +1408,6 @@
       "MEMBERSHIPS_CLAIM",
       "observedFetch",
       "parseDbStats",
-      "passwordGrant",
       "PERMISSION_CAP_CLAIM",
       "permissionCapOf",
       "PERMISSIONS_CLAIM",
@@ -1428,7 +1418,6 @@
       "PROBLEM_TYPE_BASE",
       "problemResponse",
       "purgeKeys",
-      "readSession",
       "realtimeRelay",
       "realtimeTopicAccess",
       "refreshFor",
@@ -1449,6 +1438,7 @@
       "settle",
       "snapshotOf",
       "sqlSupportStore",
+      "ssrSession",
       "subjectReaders",
       "subscribeAuthzVersions",
       "SUPPORT_COOKIE",
@@ -1565,7 +1555,6 @@
       "MiddlewareOptions",
       "ObservedFetchCall",
       "ObservedFetchOptions",
-      "PasswordGrantOptions",
       "PermissionRef",
       "PermissionsOfOptions",
       "PrincipalByIdentity",
@@ -1814,14 +1803,20 @@
       "compileSql",
       "createPostgres",
       "fromPgError",
+      "listenForWork",
       "postgresExecutor",
       "quoteIdent",
       "sharedPostgres",
-      "sqlCompiler"
+      "sqlCompiler",
+      "usesTransactionPooler"
     ],
     "types": [
       "BetterPostgres",
       "CompileSqlOptions",
+      "ListenForWorkOptions",
+      "PgListenClient",
+      "PgListenPool",
+      "PgNotification",
       "PgPool",
       "PgPoolClient",
       "PostgresExecutorOptions",
@@ -1831,20 +1826,20 @@
       "SqlClaims",
       "SqlClient",
       "SqlPlan",
-      "SqlQuery"
+      "SqlQuery",
+      "WorkListener"
     ]
   },
   "./ssr": {
     "values": [
-      "applyCookieWrites",
       "authContext",
       "clearSessionCookies",
       "parseCookies",
-      "readSession",
       "resolveAuth",
       "serializeCookie",
       "sessionCookieName",
       "sessionStatus",
+      "ssrSession",
       "toSession"
     ],
     "types": [
@@ -2756,6 +2751,7 @@
       "JobDelivery",
       "JobHandler",
       "JobsSource",
+      "Kick",
       "Lease",
       "LeaseClaim",
       "LeaseClaimInput",
@@ -3069,6 +3065,7 @@
       "BlockTransport",
       "EmitOptions",
       "HistoryFilter",
+      "Kick",
       "Outbox",
       "OutboxDeadLetter",
       "OutboxEvent",
@@ -4221,6 +4218,7 @@
       "UsageMeterSnapshot",
       "UsageOptions",
       "UsagePeriod",
+      "UsageQuota",
       "UsageRecorded",
       "UsageStatus"
     ]

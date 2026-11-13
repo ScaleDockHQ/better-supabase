@@ -22,7 +22,14 @@ export const MAX_SUMMARY_LENGTH = 20_000;
 export function conversationReadable(
   q: MessagingSql,
   alias: string,
-  options: { readonly policy?: boolean } = {},
+  options: {
+    readonly policy?: boolean;
+    /**
+     * SQL that decides the `subject` access branch instead of a `can_subject`
+     * call per row, such as membership in a set `can_subjects` returned.
+     */
+    readonly subjectRead?: string;
+  } = {},
 ): string {
   const cv = q.cols("conversations");
   const tenant = `${alias}.${cv("tenant")}`;
@@ -59,7 +66,7 @@ export function conversationReadable(
     and case ${alias}.${cv("access")}
       when 'tenant' then true
       when 'members' then ${q.fn("is_conversation_member")}(${alias}.${cv("id")})
-      when 'subject' then coalesce(${q.ctx.of("subjects").fn("can_subject")}(${alias}.${cv("subjectType")}, ${alias}.${cv("subjectId")}, 'read'), false)
+      when 'subject' then ${options.subjectRead ?? `coalesce(${q.ctx.of("subjects").fn("can_subject")}(${alias}.${cv("subjectType")}, ${alias}.${cv("subjectId")}, 'read'), false)`}
       else false
     end)${guestOnRecord(q, alias, "read")}`;
 

@@ -56,7 +56,7 @@ describe("queue block", () => {
 
   it("drops the old schedule_job signature when upgrading from version 1", () => {
     const [plan] = upgradePlan([{ module: "queue", version: 1 }]);
-    expect(plan).toMatchObject({ module: "queue", from: 1, to: 12 });
+    expect(plan).toMatchObject({ module: "queue", from: 1, to: 13 });
     expect(plan!.steps[0]!.sql).toContain(
       "drop function if exists better_supabase.schedule_job(text, text, text, jsonb);",
     );
@@ -69,8 +69,18 @@ describe("queue block", () => {
     expect(plan!.steps[3]!.sql).toContain(
       "drop function if exists better_supabase.claim_due_schedules(integer, integer);",
     );
-    expect(plan!.steps.at(-1)!.sql).toContain(
+    expect(plan!.steps.at(-2)!.sql).toContain(
       "drop function if exists better_supabase.list_schedules(text, text);",
+    );
+  });
+
+  it("notifies better_supabase_work once per queue an insert statement touched", () => {
+    expect(jobs({ backend: "table" })).toContain(
+      `perform pg_catalog.pg_notify('better_supabase_work', pg_catalog.json_build_object('kind', 'queue', 'queue', q.queue)::text)
+  from (select distinct n."queue" as queue from new_rows n) q;`,
+    );
+    expect(jobs()).toContain(
+      "after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)",
     );
   });
 

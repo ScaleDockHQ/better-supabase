@@ -242,6 +242,20 @@ await inbox.process(async (message) => {
 
 A JSON body is stored as it is; any other body as `{ "body": "<text>" }`.
 
+Deliveries are stored in SQL, so they don't pass through the inbox's `kick`.
+The inbox table's statement trigger notifies `better_supabase_work` on each
+insert, and `listenForWork` from `better-supabase/postgres` processes them as
+soon as they commit:
+
+```ts title="worker.ts"
+const listener = await listenForWork(pool, {
+  inbox: () => inbox.process(handleDelivery),
+});
+```
+
+Without a long-lived process, call `process` from a cron route as before. See
+[Starting jobs right away](/docs/blocks/queue#starting-jobs-right-away).
+
 ### Sending deliveries to a queue
 
 `destination` decides where a verified delivery goes. The default,

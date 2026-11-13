@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import { createClient } from "@supabase/supabase-js";
 import * as v from "valibot";
 import { describe, expect, it, vi } from "vitest";
 
@@ -715,7 +716,10 @@ describe("createNotifications reads and writes", () => {
     const bucket = await createNotifications({
       transport: fakeTransport(handlers).transport,
       types,
-      avatars: { url: "https://project.supabase.co/", bucket: "users" },
+      avatars: (path) =>
+        createClient("https://project.supabase.co", "sb_publishable_test")
+          .storage.from("users")
+          .getPublicUrl(path).data.publicUrl,
     })
       .list({ include: ["actor"] })
       .orThrow();

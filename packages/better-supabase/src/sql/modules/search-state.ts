@@ -13,7 +13,7 @@ export function userStateFunctions(
   state: StateNames | undefined,
 ): string {
   const subjects = ctx.of("subjects");
-  const canSubject = subjects.fn("can_subject");
+  const canSubjects = subjects.fn("can_subjects");
   const title = subjects.fn("subject_title");
   const url = subjects.fn("subject_url");
   const fn = (name: string): string => ctx.fn(name);
@@ -53,9 +53,20 @@ stable
 security invoker
 set search_path = ''
 as $$
+  with s as materialized (
+    select s.subject_type, s.subject_id, s.opened_at, s.starred_at, s.${at} as at
+    from ${fn("search_user_state")}() s
+    where s.${at} is not null
+      and (${name}.types is null or s.subject_type = any (${name}.types))
+  ),
+  ok as (
+    select t.subject_type, r.id
+    from (select distinct s.subject_type from s) t
+    cross join lateral ${canSubjects}(t.subject_type, array(select y.subject_id from s y where y.subject_type = t.subject_type), 'read') r(id)
+  )
   select coalesce(jsonb_agg(x.item order by x.at desc), '[]'::jsonb)
   from (
-    select s.${at} as at, jsonb_build_object(
+    select s.at, jsonb_build_object(
       'subjectType', s.subject_type,
       'subjectId', s.subject_id,
       'title', ${title}(s.subject_type, s.subject_id),
@@ -63,11 +74,9 @@ as $$
       'openedAt', s.opened_at,
       'starredAt', s.starred_at
     ) as item
-    from ${fn("search_user_state")}() s
-    where s.${at} is not null
-      and (${name}.types is null or s.subject_type = any (${name}.types))
-      and ${canSubject}(s.subject_type, s.subject_id, 'read')
-    order by s.${at} desc
+    from s
+    join ok on ok.subject_type = s.subject_type and ok.id = s.subject_id
+    order by s.at desc
     limit least(greatest(coalesce(${name}.max_results, 10), 1), 100)
   ) x
 $$;
@@ -75,7 +84,7 @@ ${userGrant(`${fn(name)}(integer, text[])`)}`;
 
   return `
 -- The caller's own rows of the share-links per-user state. The lists below
--- run as the caller, so can_subject sees what they can read.
+-- run as the caller, so can_subjects sees what they can read.
 create or replace function ${fn("search_user_state")}()
 returns table (subject_type text, subject_id text, starred_at timestamptz, opened_at timestamptz)
 language sql

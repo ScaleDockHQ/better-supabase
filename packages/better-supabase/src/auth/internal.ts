@@ -63,11 +63,10 @@ export type {
 export type { MembershipClaim } from "./entitlements.ts";
 
 export {
-  applyCookieWrites,
   parseCookies,
-  readSession,
   serializeCookie,
   sessionCookieName,
+  ssrSession,
 } from "./session.ts";
 
 export type {

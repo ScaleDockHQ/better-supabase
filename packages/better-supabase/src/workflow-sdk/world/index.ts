@@ -4,8 +4,9 @@ export {
   createSupabaseWorld,
   createWorld,
   type SupabaseWorld,
-  usesTransactionPooler,
 } from "./world.ts";
+
+export { usesTransactionPooler } from "../../postgres/pooler.ts";
 
 export { assertWorldMigrations, type MigrationDrift } from "./drift.ts";
 

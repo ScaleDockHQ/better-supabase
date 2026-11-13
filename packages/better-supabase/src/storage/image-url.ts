@@ -42,6 +42,9 @@ const positive = (value: string | null): number | undefined => {
  * imageUrl(avatar, { width: 96 }) ?? avatar;
  * ```
  */
+// storage-js's `getPublicUrl` builds a URL from a bucket and a path with a
+// client and an API key; an image loader only has the `src` URL, whose query it
+// keeps, so the rewrite stays here.
 export function storageImageUrl(
   options: StorageImageOptions,
 ): (src: string, size: StorageImageSize) => string | undefined {

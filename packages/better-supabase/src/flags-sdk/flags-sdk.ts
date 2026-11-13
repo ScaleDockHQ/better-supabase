@@ -1,4 +1,7 @@
+import type { PostgrestError } from "@supabase/supabase-js";
+
 import { getEnv } from "@supabase/middleware";
+import { createClient } from "@supabase/supabase-js";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type {
@@ -240,43 +243,35 @@ const why = (flag: FlagDefinition | undefined): string =>
 
 /** `flag_definitions()` and friends over the Data API, with a secret key. */
 function projectTransport(options: FlagsSdkProjectOptions): BlockTransport {
-  const base = options.url.replace(/\/+$/, "");
-  const request = options.fetch ?? ((url, init) => fetch(url, init));
+  const request = options.fetch;
 
-  // A legacy service_role key is a JWT; a secret key is only an apikey.
-  const authorization = options.secretKey.startsWith("sb_")
-    ? {}
-    : { authorization: `Bearer ${options.secretKey}` };
+  const client = createClient(options.url, options.secretKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    ...(request
+      ? {
+          global: {
+            fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+              request(
+                input instanceof Request ? input.url : String(input),
+                init ?? {},
+              ),
+          },
+        }
+      : {}),
+  });
 
   return {
     async call(schema, fn, args) {
-      const response = await request(
-        `${base}/rest/v1/rpc/${encodeURIComponent(fn)}`,
-        {
-          method: "POST",
-          headers: {
-            apikey: options.secretKey,
-            ...authorization,
-            "content-type": "application/json",
-            "content-profile": schema,
-            "accept-profile": schema,
-          },
-          body: JSON.stringify(args),
-        },
-      );
+      const result: {
+        readonly data: unknown;
+        readonly error: PostgrestError | null;
+      } = await client.schema(schema).rpc(fn, args);
 
-      const body: unknown = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        const message =
-          typeof body === "object" && body !== null && "message" in body
-            ? String(body.message)
-            : `${fn} answered ${response.status}`;
-
-        throw Object.assign(new Error(message), body);
+      if (result.error) {
+        throw Object.assign(new Error(result.error.message), result.error);
       }
 
-      return body;
+      return result.data;
     },
   };
 }

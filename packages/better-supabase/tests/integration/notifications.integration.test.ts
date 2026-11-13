@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { PoolClient } from "pg";
 
+import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -732,7 +733,10 @@ describe.skipIf(!live)("notifications", () => {
       transport: sqlTransport(sql),
       types: { "task.assigned": anything },
       render: (item) => ({ title: `Assigned: ${item.subject?.label ?? ""}` }),
-      avatars: { url: "https://storage.test", bucket: "users" },
+      avatars: (path) =>
+        createClient("https://storage.test", "sb_publishable_test")
+          .storage.from("users")
+          .getPublicUrl(path).data.publicUrl,
       channels: [
         {
           apiVersion: 1,

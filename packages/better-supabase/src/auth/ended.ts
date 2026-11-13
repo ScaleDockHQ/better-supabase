@@ -1,13 +1,14 @@
 import { extractCredentials } from "@supabase/server/core";
+import { createClient, isAuthSessionMissingError } from "@supabase/supabase-js";
 
 import type { CookieOptions } from "./session.ts";
 
 import { decodeJwtPayload } from "../core/base64.ts";
 import {
   parseCookies,
-  readSession,
   serializeCookie,
   sessionCookieName,
+  ssrSession,
 } from "./session.ts";
 import { clearCookieSession } from "./ssr-client.ts";
 
@@ -31,17 +32,17 @@ export interface ClearSessionCookiesOptions {
 
 const DEFAULT_TIMEOUT_MS = 5000;
 
-function accessTokenOf(
+async function accessTokenOf(
   request: Request,
   options: SessionStatusOptions,
-): string | undefined {
+): Promise<string | undefined> {
   const bearer = extractCredentials(request).token;
 
   if (bearer) {
     return bearer;
   }
 
-  const session = readSession(
+  const session = await ssrSession(
     parseCookies(request.headers.get("cookie")),
     options.cookieName ?? sessionCookieName(options.url),
   );
@@ -54,7 +55,7 @@ export async function sessionStatus(
   options: SessionStatusOptions,
 ): Promise<SessionStatus> {
   const token =
-    typeof input === "string" ? input : accessTokenOf(input, options);
+    typeof input === "string" ? input : await accessTokenOf(input, options);
 
   if (!token) {
     return "unknown";
@@ -66,33 +67,33 @@ export async function sessionStatus(
     return "unknown";
   }
 
-  const doFetch = options.fetch ?? fetch;
+  const baseFetch = options.fetch ?? fetch;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  try {
-    const response = await doFetch(`${options.url}/auth/v1/user`, {
-      headers: {
-        apikey: options.publishableKey,
-        authorization: `Bearer ${token}`,
-      },
-      signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
-    });
+  const client = createClient(options.url, options.publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: (input, init) =>
+        baseFetch(input, { ...init, signal: AbortSignal.timeout(timeoutMs) }),
+    },
+  });
 
-    if (response.status === 401 || response.status === 403) {
-      // SAFETY: the Auth server responds with a JSON object, and the field is checked before use.
-      const body = (await response.json().catch(() => null)) as Record<
-        string,
-        unknown
-      > | null;
+  const { error } = await client.auth.getUser(token);
 
-      return body?.["error_code"] === "user_banned" ? "banned" : "ended";
-    }
-
-    await response.body?.cancel();
-
-    return response.ok ? "active" : "unknown";
-  } catch {
-    return "unknown";
+  if (!error) {
+    return "active";
   }
+
+  // auth-js reports Auth's 403 `session_not_found` as a missing session.
+  if (isAuthSessionMissingError(error)) {
+    return "ended";
+  }
+
+  if (error.status === 401 || error.status === 403) {
+    return error.code === "user_banned" ? "banned" : "ended";
+  }
+
+  return "unknown";
 }
 
 /**

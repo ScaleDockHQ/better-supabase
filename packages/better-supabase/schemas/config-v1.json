@@ -1807,6 +1807,9 @@
                   "type": "string"
                 }
               },
+              "statement": {
+                "type": "boolean"
+              },
               "watch": {
                 "type": "array",
                 "items": {

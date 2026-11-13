@@ -15,6 +15,7 @@ const flag = v.optional(v.picklist(["0", "1"]), "0");
 const {
   EXPOSE_TESTING_API,
   SUPABASE_SECRET_KEY,
+  SUPABASE_JWKS,
   FLAGS_SECRET,
   CRON_SECRET,
   VERCEL_MARKETPLACE_CLIENT_ID,
@@ -45,6 +46,9 @@ export const env = createEnv({
   server: {
     // Server-only: account deletion, the shared plan catalog and SSO setup.
     SUPABASE_SECRET_KEY: v.optional(v.string()),
+    // The signing keys inline; createServer reads it through loadEnv, which
+    // checks the shape.
+    SUPABASE_JWKS: v.optional(v.string()),
     // Signs the precomputed pricing flags and guards Flags Explorer.
     FLAGS_SECRET: v.optional(v.string()),
     // The bearer token the cron routes check.
@@ -78,6 +82,7 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     EXPOSE_TESTING_API,
     SUPABASE_SECRET_KEY,
+    SUPABASE_JWKS,
     FLAGS_SECRET,
     CRON_SECRET,
     VERCEL_MARKETPLACE_CLIENT_ID,

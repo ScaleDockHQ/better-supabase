@@ -5,12 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
-import {
-  stackDbUrl,
-  stackEngine,
-  stackUrl,
-  storageReachable,
-} from "./stack-env.ts";
+import { stackDbUrl, stackUrl, storageReachable } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
@@ -196,87 +191,70 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
     expect(readerWrite.error?.kind).toBe("forbidden");
   });
 
-  // Fails on the stack engine (see stackEngine); CI runs it on the legacy engine.
-  it.skipIf(stackEngine)(
-    "compares ids as canonical lowercase text",
-    async () => {
-      const hexReader = files.connect(clientWith({ "files.read": [HEX] }));
+  it("compares ids as canonical lowercase text", async () => {
+    const hexReader = files.connect(clientWith({ "files.read": [HEX] }));
 
-      const lower = await hexReader.download({
-        organizationId: HEX,
-        file: "h.txt",
-      });
+    const lower = await hexReader.download({
+      organizationId: HEX,
+      file: "h.txt",
+    });
 
-      expect(lower.ok).toBe(true);
+    expect(lower.ok).toBe(true);
 
-      const upper = await hexReader.download({
-        organizationId: HEX.toUpperCase(),
-        file: "h.txt",
-      });
+    const upper = await hexReader.download({
+      organizationId: HEX.toUpperCase(),
+      file: "h.txt",
+    });
 
-      expect(upper.ok).toBe(false);
+    expect(upper.ok).toBe(false);
 
-      const client = clientWith({ "board.read": [HEX] });
-      const joined = board.subscribe(client, { organizationId: HEX }, {});
-      await joined.ready;
-      await joined.unsubscribe();
+    const client = clientWith({ "board.read": [HEX] });
+    const joined = board.subscribe(client, { organizationId: HEX }, {});
+    await joined.ready;
+    await joined.unsubscribe();
 
-      const shouting = board.subscribe(
-        client,
-        { organizationId: HEX.toUpperCase() },
-        {},
-      );
+    const shouting = board.subscribe(
+      client,
+      { organizationId: HEX.toUpperCase() },
+      {},
+    );
 
-      await expect(shouting.ready).rejects.toThrow(/./);
-      await shouting.unsubscribe();
-      await client.removeAllChannels();
-    },
-    20_000,
-  );
+    await expect(shouting.ready).rejects.toThrow(/./);
+    await shouting.unsubscribe();
+    await client.removeAllChannels();
+  }, 20_000);
 
-  // Fails on the stack engine (see stackEngine); CI runs it on the legacy engine.
-  it.skipIf(stackEngine)(
-    "joins and sends on topics by permission",
-    async () => {
-      const readOnly = clientWith({ "board.read": [ACME] });
-      const joined = board.subscribe(readOnly, { organizationId: ACME }, {});
-      await joined.ready;
-      await joined.unsubscribe();
+  it("joins and sends on topics by permission", async () => {
+    const readOnly = clientWith({ "board.read": [ACME] });
+    const joined = board.subscribe(readOnly, { organizationId: ACME }, {});
+    await joined.ready;
+    await joined.unsubscribe();
 
-      const elsewhere = board.subscribe(
-        readOnly,
-        { organizationId: OTHER },
-        {},
-      );
+    const elsewhere = board.subscribe(readOnly, { organizationId: OTHER }, {});
 
-      await expect(elsewhere.ready).rejects.toThrow(/./);
-      await elsewhere.unsubscribe();
+    await expect(elsewhere.ready).rejects.toThrow(/./);
+    await elsewhere.unsubscribe();
 
-      const denied = await board.send(
-        readOnly,
-        { organizationId: ACME },
-        "moved",
-        {},
-      );
+    const denied = await board.send(
+      readOnly,
+      { organizationId: ACME },
+      "moved",
+      {},
+    );
 
-      expect(denied.ok).toBe(false);
+    expect(denied.ok).toBe(false);
 
-      const sender = clientWith({
-        "board.read": [ACME],
-        "board.write": [ACME],
-      });
+    const sender = clientWith({ "board.read": [ACME], "board.write": [ACME] });
 
-      const sent = await board.send(
-        sender,
-        { organizationId: ACME },
-        "moved",
-        {},
-      );
+    const sent = await board.send(
+      sender,
+      { organizationId: ACME },
+      "moved",
+      {},
+    );
 
-      expect(sent.ok).toBe(true);
-      await readOnly.removeAllChannels();
-      await sender.removeAllChannels();
-    },
-    20_000,
-  );
+    expect(sent.ok).toBe(true);
+    await readOnly.removeAllChannels();
+    await sender.removeAllChannels();
+  }, 20_000);
 });

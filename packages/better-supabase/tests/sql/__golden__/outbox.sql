@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@6 managed
--- @bsb-hash sha256:7f2970b0b6906ba99a129c492d9d9b8afecb4384c64633420550efd63a9d3a75
+-- @bsb-block outbox@7 managed
+-- @bsb-hash sha256:fcb6cf06625957a1ca05aa8f52deffc247bdf8fe713f22f3e0ff848fc649909b
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -512,25 +512,43 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."track_events"(regclass, text, text) from public, anon, authenticated;
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function "better_supabase"."outbox_notify"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"outbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function "better_supabase"."outbox_notify"() from public;
+create or replace trigger bsb_notify_work
+  after insert on "better_supabase"."outbox_events"
+  referencing new table as new_rows
+  for each statement execute function "better_supabase"."outbox_notify"();
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
+-- @bsb-hash sha256:5887fdc9d77b20fa25e2d0d47697bf0c1a30ceac8ce59e0fa9b4a20f1c0bbe55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 6, 'managed')
+values ('outbox', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@6 managed
--- @bsb-hash sha256:c6e7893b458898dfde7f5675ee4a580e6ca8473153f2c705cb60e3103d92afa9
+-- @bsb-block outbox@7 managed
+-- @bsb-hash sha256:3f075ba75ecfd18eb245839ba2d81117ec2c73527036936a25c7abcb7d2e6584
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1045,25 +1063,43 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."track_events"(regclass, text, text) from public, anon, authenticated;
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function "better_supabase"."outbox_notify"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"outbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function "better_supabase"."outbox_notify"() from public;
+create or replace trigger bsb_notify_work
+  after insert on "better_supabase"."outbox_events"
+  referencing new table as new_rows
+  for each statement execute function "better_supabase"."outbox_notify"();
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
+-- @bsb-hash sha256:5887fdc9d77b20fa25e2d0d47697bf0c1a30ceac8ce59e0fa9b4a20f1c0bbe55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 6, 'managed')
+values ('outbox', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@6 managed
--- @bsb-hash sha256:5aecdd2c66ee71327757870c1a631f21006d53b253ee43ed1461eb4d9eba963f
+-- @bsb-block outbox@7 managed
+-- @bsb-hash sha256:b4cdfe659bc99b58ac3971daec158fd840af44a9e8abb39b42e4bb0249e0ff0b
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1579,25 +1615,43 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."track_events"(regclass, text, text) from public, anon, authenticated;
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function "app_private"."outbox_notify"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"outbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function "app_private"."outbox_notify"() from public;
+create or replace trigger bsb_notify_work
+  after insert on "app_private"."outbox_events"
+  referencing new table as new_rows
+  for each statement execute function "app_private"."outbox_notify"();
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
+-- @bsb-hash sha256:5887fdc9d77b20fa25e2d0d47697bf0c1a30ceac8ce59e0fa9b4a20f1c0bbe55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 6, 'managed')
+values ('outbox', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@6 managed
--- @bsb-hash sha256:63ab90b7d4c62751c192eea684a3af0778f173f86ffe89ff8876997083a7c07e
+-- @bsb-block outbox@7 managed
+-- @bsb-hash sha256:02b7febe2d8ca52defe95324a82322a10030f50b80844290a4566ea1257277ec
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2108,6 +2162,24 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."track_events"(regclass, text, text) from public, anon, authenticated;
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function "better_supabase"."outbox_notify"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"outbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function "better_supabase"."outbox_notify"() from public;
+create or replace trigger bsb_notify_work
+  after insert on "better_supabase"."outbox_events"
+  referencing new table as new_rows
+  for each statement execute function "better_supabase"."outbox_notify"();
 
 -- blocks.outbox.api: entry points for the Data API.
 create schema if not exists "api";
@@ -2209,21 +2281,21 @@ grant execute on function "api"."outbox_has_work"() to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
+-- @bsb-hash sha256:5887fdc9d77b20fa25e2d0d47697bf0c1a30ceac8ce59e0fa9b4a20f1c0bbe55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 6, 'managed')
+values ('outbox', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@6 managed
--- @bsb-hash sha256:42e796902663d72406ced0e6039d816e3f633c30d7a3b024daa583e33648169e
+-- @bsb-block outbox@7 managed
+-- @bsb-hash sha256:48062ea19309322709aac43627c078131c24d85e4f2378c7c7de7428a05a03b3
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2708,25 +2780,43 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."track_events"(regclass, text, text) from public, anon, authenticated;
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function "better_supabase"."outbox_notify"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"outbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function "better_supabase"."outbox_notify"() from public;
+create or replace trigger bsb_notify_work
+  after insert on "better_supabase"."outbox_events"
+  referencing new table as new_rows
+  for each statement execute function "better_supabase"."outbox_notify"();
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
+-- @bsb-hash sha256:5887fdc9d77b20fa25e2d0d47697bf0c1a30ceac8ce59e0fa9b4a20f1c0bbe55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 6, 'managed')
+values ('outbox', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
--- @bsb-block outbox@6 managed
--- @bsb-hash sha256:15e8b40ba30a288e69adf7c5ef99937deab4785731bf4f6e94cfd7d18d1f9820
+-- @bsb-block outbox@7 managed
+-- @bsb-hash sha256:48e430aa2c4d4cc9826453468b26ea12923b891c1f2832ed36ee2b156afed758
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3237,17 +3327,35 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."track_events"(regclass, text, text) from public, anon, authenticated;
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function "better_supabase"."outbox_notify"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"outbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function "better_supabase"."outbox_notify"() from public;
+create or replace trigger bsb_notify_work
+  after insert on "better_supabase"."outbox_events"
+  referencing new table as new_rows
+  for each statement execute function "better_supabase"."outbox_notify"();
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:5c9cec3a63705d9fd7a833e2cb6b5d01cd1dfe88a40bdc7731ee87f9b90121cc
+-- @bsb-hash sha256:5887fdc9d77b20fa25e2d0d47697bf0c1a30ceac8ce59e0fa9b4a20f1c0bbe55
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('outbox', 6, 'managed')
+values ('outbox', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
