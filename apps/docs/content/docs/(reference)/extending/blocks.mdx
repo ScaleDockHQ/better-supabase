@@ -361,20 +361,38 @@ export const invoicingBlock = defineBlock({
 singular noun (`invoice`, `risk_matrix`). Every field is optional, so a block
 declares what it knows today:
 
-| Field                                                                                                    | What it declares                                                                                                                                       |
-| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `mutability`                                                                                             | `editable` (has an update), `append-only`, `state-machine` (changes through named transitions) or `read-only`                                          |
-| `sorts`                                                                                                  | The columns a list sorts by                                                                                                                            |
-| `facets`                                                                                                 | The columns a list counts distinct values of                                                                                                           |
-| `search`                                                                                                 | `true`, or the columns the entity's search indexes                                                                                                     |
-| `emits`                                                                                                  | Per method (`create`, `update`, `delete`, `archive`, `restore`, `purge`): `true` when it records an event, `false` when a mutating method records none |
-| `permissions`, `personalData`, `retention`, `realtime`, `offline`, `versioned`, `flag`, `meter`, `limit` | Reserved for the generators and checks that read them; each is documented where it starts to take effect                                               |
+| Field                                                                                     | What it declares                                                                                                                                       |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mutability`                                                                              | `editable` (has an update), `append-only`, `state-machine` (changes through named transitions) or `read-only`                                          |
+| `sorts`                                                                                   | The columns a list sorts by                                                                                                                            |
+| `facets`                                                                                  | The columns a list counts distinct values of                                                                                                           |
+| `search`                                                                                  | `true`, or the columns the entity's search indexes                                                                                                     |
+| `emits`                                                                                   | Per method (`create`, `update`, `delete`, `archive`, `restore`, `purge`): `true` when it records an event, `false` when a mutating method records none |
+| `permissions`                                                                             | The permission key each verb checks, as `<block>.<entity>.<verb>` ([Declare permission keys](#declare-permission-keys))                                |
+| `recordAccess`                                                                            | `"team"` when the entity's rows are visible by record team, so a list can filter by the caller's teams                                                 |
+| `personalData`, `retention`, `realtime`, `offline`, `versioned`, `flag`, `meter`, `limit` | Reserved for the generators and checks that read them; each is documented where it starts to take effect                                               |
 
 The conformance test fails when an entity has no `mutability`, when `emits`
 names a method that records no event of the entity, and when a method is marked
 `false` that is not on the known list in `tests/blocks/emit-gaps.ts`. The
 capability matrix in the repository's block audit is generated from these
 declarations by `pnpm catalog`.
+
+### Declare permission keys
+
+`permissions` maps a verb to the key it checks. The key is
+`<block>.<entity>.<verb>` in snake case, with the block name's hyphens written
+as underscores (`risks.risk.read`, `api_keys.api_key.rotate`). The verbs are
+`read`, `create`, `update`, `archive`, `delete`, `export`, `import` and `manage`,
+plus named domain verbs such as `approve`, `publish` or `close`. A key a module
+already checks keeps its two-part form (`leave.read`), so a manifest can name
+today's keys without renaming them. The conformance test fails on any other
+shape.
+
+`gen` reads these keys with the keys the block's SQL module checks. With
+`gen.permissionCatalog` it writes them as catalog rows, grants every key to the
+`owner` and `admin` roles and each `read` key to `member`, and lists them in
+`apiKeyScopes` and `oauthScopes` ([Permission catalog](/docs/cli/gen#permission-catalog)).
 
 The list contract that the entities will serve ships as types in
 `better-supabase/blocks`: `PageOptions` (`q`, `sort`, `filters` with list

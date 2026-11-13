@@ -82,6 +82,8 @@ export default defineConfig({
     storagePaths: { "customers.logo_path": "customerLogos" },
     readSets: ["src/lib/read-sets.ts"],
     hooks: "react",
+    // Keys and default grants for every installed block, in a migration, so a new block's pages never answer 403 for the owner.
+    permissionCatalog: true,
     // Tested consumers of the first-party generators: zod schemas (not wired
     // into the repositories, so no route bundles them), nuqs search params and test factories for the app's own tables.
     generators: [

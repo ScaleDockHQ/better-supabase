@@ -29,6 +29,7 @@ const config: OxfmtConfig = defineConfig({
     // `gen --check` compares the file with its own unformatted output, and the
     // wrapped comment of a longer block list differs from the formatted one.
     "apps/examples/nextjs/src/lib/supabase/blocks.api.ts",
+    "apps/examples/**/lib/supabase/permission-scopes.ts",
     "apps/examples/monorepo/runtime/src/generated.*",
     "tests/validation-*/src/**/generated.*",
     // `gen --check` compares the file with its own unformatted output.

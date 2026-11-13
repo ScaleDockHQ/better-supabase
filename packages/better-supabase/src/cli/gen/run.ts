@@ -40,6 +40,10 @@ import {
 } from "../sql/module-migration.ts";
 import { leftoverFiles, manifestPath, writeManifest } from "./manifest.ts";
 import { generationNotices } from "./notices.ts";
+import {
+  PERMISSION_CATALOG_SUFFIX,
+  permissionCatalogSql,
+} from "./permission-catalog.ts";
 import { render } from "./render.ts";
 
 export interface GenOptions extends SnapshotSource {
@@ -154,6 +158,13 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       manifestPath(config.root, file.path),
     );
 
+  // The catalog rows go into a migration the manifest never lists, as the
+  // read sets do under the migrations workflow.
+  const catalogSql =
+    !options.isolated && config.gen.permissionCatalog === true
+      ? permissionCatalogSql(config)
+      : undefined;
+
   const notice = (await generationNotices(snapshot, warnings, notices, config))
     .map((line) => `\n${line}`)
     .join("");
@@ -220,6 +231,22 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       }
     }
 
+    if (catalogSql !== undefined) {
+      const latest = await latestMigration(config, PERMISSION_CATALOG_SUFFIX);
+
+      if (!sameModuleMigration(latest?.text, catalogSql)) {
+        compare(
+          {
+            path:
+              latest?.path ??
+              `${migrationsDir(config)}/<stamp>${PERMISSION_CATALOG_SUFFIX}`,
+            contents: catalogSql,
+          },
+          latest?.text,
+        );
+      }
+    }
+
     if (stale.length > 0 || leftovers.length > 0) {
       const lines = [
         ...stale.map((path) => `  ${path}`),
@@ -269,6 +296,20 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       config,
       READ_SETS_SUFFIX,
       readSets.contents,
+      { now: new Date(), dryRun: options.dryRun === true },
+    );
+
+    changes.push({
+      file: migration.path,
+      outcome: migration.line.startsWith("Unchanged ") ? "unchanged" : "create",
+    });
+  }
+
+  if (catalogSql !== undefined) {
+    const migration = await writeLatestMigration(
+      config,
+      PERMISSION_CATALOG_SUFFIX,
+      catalogSql,
       { now: new Date(), dryRun: options.dryRun === true },
     );
 
