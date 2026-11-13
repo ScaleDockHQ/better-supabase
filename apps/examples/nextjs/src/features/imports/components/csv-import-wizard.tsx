@@ -4,7 +4,7 @@
 import type { DbError } from "better-supabase";
 
 import { parseCsv, suggestMapping } from "better-supabase/blocks/imports";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -63,7 +63,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { ImportOutcome, ImportPreview } from "../imports-actions";
 import type { ColumnMapping, CustomerImportField } from "../imports-fields";

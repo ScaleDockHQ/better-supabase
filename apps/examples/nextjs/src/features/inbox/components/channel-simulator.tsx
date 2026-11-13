@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { RadioIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -27,7 +27,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toAppHref, useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { loadInboxes, simulateInbound } from "../inbox-actions";
 

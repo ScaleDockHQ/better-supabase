@@ -66,7 +66,9 @@ describe("recipes", () => {
         const { code } = recipeSide(recipe, platform).snippet;
 
         for (const name of recipe.hook ? [recipe.hook.name] : []) {
-          expect(code).toContain(`import { ${name} }`);
+          expect(code).toMatch(
+            new RegExp(`import \\{[^}]*\\b${name}\\b[^}]*\\} from`),
+          );
           expect(code).toContain(`${name}(`);
         }
 

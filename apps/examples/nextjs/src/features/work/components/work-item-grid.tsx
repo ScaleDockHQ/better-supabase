@@ -3,7 +3,12 @@
 import type { DbError } from "better-supabase";
 
 import { createBulkSelectionController } from "better-supabase/blocks/bulk-actions";
-import { useAction, useController, useLatest } from "better-supabase/react";
+import {
+  useAction,
+  useController,
+  useLatest,
+  useErrorMessage,
+} from "better-supabase/react";
 import { BookmarkIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState, useTransition } from "react";
@@ -45,7 +50,6 @@ import {
 } from "@/components/ui/table";
 import { usePathname, useRouter, withSearch } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {
   MemberOption,

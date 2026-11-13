@@ -19,7 +19,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 import {
   useDeferredValue,
@@ -35,7 +35,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWorkflowCanvasRun } from "@/hooks/use-workflow-editor";
 import { useWorkflowRuns } from "@/hooks/use-workflows";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BuilderDetail } from "../builder-queries";
 import type { PaletteEntry } from "../editor-model";

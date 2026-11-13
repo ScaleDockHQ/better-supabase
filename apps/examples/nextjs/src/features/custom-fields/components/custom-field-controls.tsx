@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -51,7 +51,6 @@ import {
 } from "@/components/ui/select";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { FieldEntity, FieldRow, FieldType } from "../custom-fields-types";
 

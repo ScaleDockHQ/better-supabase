@@ -1,12 +1,11 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { FileTextIcon, HandCoinsIcon, RocketIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { requestApproval, startWorkflow } from "../workflows-actions";
 

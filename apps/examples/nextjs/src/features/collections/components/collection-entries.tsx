@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/select";
 import { Link } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { CollectionEntryRow } from "../collections-queries";
 

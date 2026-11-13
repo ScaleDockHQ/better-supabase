@@ -122,6 +122,7 @@
   "./blocks/meetings": 35820,
   "./blocks/memberships": 14025,
   "./blocks/memory": 34882,
+  "./blocks/messages": 30376,
   "./blocks/messaging": 43720,
   "./blocks/metrics": 30878,
   "./blocks/mfa": 11900,

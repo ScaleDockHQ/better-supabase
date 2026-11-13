@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { NextIntlClientProvider, useMessages } from "next-intl";
 
+import { ErrorMessages } from "@/components/error-messages";
 import { pick } from "@/i18n/namespaces";
 
 export default function InviteLayout({ children }: { children: ReactNode }) {
@@ -16,7 +17,7 @@ export default function InviteLayout({ children }: { children: ReactNode }) {
         "organization",
       ])}
     >
-      {children}
+      <ErrorMessages>{children}</ErrorMessages>
     </NextIntlClientProvider>
   );
 }

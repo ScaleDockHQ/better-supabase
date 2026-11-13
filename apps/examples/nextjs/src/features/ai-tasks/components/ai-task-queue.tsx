@@ -3,7 +3,7 @@
 
 import type { AiTaskRunStatus } from "better-supabase/blocks/ai-schedules";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { CalendarClockIcon, PauseIcon, PlayIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useTransition } from "react";
@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AiTaskRow, AiTasksRead } from "../ai-tasks-queries";
 

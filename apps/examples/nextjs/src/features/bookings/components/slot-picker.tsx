@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { CircleCheckIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState } from "react";
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { PublicBookingDay, PublicSlot } from "../bookings-queries";
 

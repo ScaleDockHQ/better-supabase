@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -19,7 +19,6 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { createProject } from "../projects-actions";
 

@@ -1,11 +1,11 @@
 "use client";
 
+import { useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { beginChatLink, unlinkIdentity } from "../identities-actions";
 

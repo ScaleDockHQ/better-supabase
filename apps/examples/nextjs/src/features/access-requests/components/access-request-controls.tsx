@@ -2,7 +2,7 @@
 
 import type { DbError } from "better-supabase";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
 
@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AccessRequestRow } from "../access-requests-queries";
 

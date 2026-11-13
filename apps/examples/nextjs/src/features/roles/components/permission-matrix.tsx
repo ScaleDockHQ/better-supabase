@@ -3,7 +3,7 @@
 import type { PermissionSet } from "better-supabase/blocks/permissions";
 
 import { can as holds } from "better-supabase/blocks/permissions";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { RotateCcwIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useOptimistic, useState, useTransition } from "react";
@@ -20,7 +20,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { setPermissionOverride } from "../roles-actions";
 

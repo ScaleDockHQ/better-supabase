@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { dbError, mapDbError, withMaxAffected } from "../../src/core/errors.ts";
+import {
+  dbError,
+  invalidInput,
+  mapDbError,
+  withMaxAffected,
+} from "../../src/core/errors.ts";
 import {
   fromProblem,
   problemResponse,
@@ -152,5 +157,29 @@ describe("problemResponse format", () => {
       error: "rate_limited",
       at: "/api/x",
     });
+  });
+});
+
+describe("invalid_input fields", () => {
+  const fields = [
+    { path: ["lines", 0, "quantity"], code: "QTY_LOW", message: "Too few." },
+  ];
+
+  it("sends the fields as an extension member and reads them back", () => {
+    const error = invalidInput("Check the lines", fields);
+    const problem = toProblem(error);
+
+    expect(problem).toMatchObject({ kind: "invalid_input", fields });
+    expect(fromProblem(problem)).toMatchObject({
+      kind: "invalid_input",
+      hint: "QTY_LOW",
+      fields,
+    });
+  });
+
+  it("leaves the member out when the error names no field", () => {
+    expect(toProblem(dbError("invalid_input", "Bad"))).not.toHaveProperty(
+      "fields",
+    );
   });
 });

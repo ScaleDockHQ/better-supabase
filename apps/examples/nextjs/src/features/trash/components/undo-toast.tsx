@@ -1,11 +1,10 @@
 // #region recipe:undo-toast
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { restoreTrashItem } from "../trash-actions";
 

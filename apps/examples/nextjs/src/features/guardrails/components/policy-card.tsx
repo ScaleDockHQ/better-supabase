@@ -3,7 +3,7 @@
 import type { PiiKind } from "better-supabase/blocks/ai-guardrails";
 
 import { PII_KINDS } from "better-supabase/blocks/ai-guardrails";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
 
@@ -36,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { PolicyCard as Policy } from "../guardrails-queries";
 

@@ -183,21 +183,43 @@ const toggle = useOptimisticAction(setDone, {
 `createErrorMessages(messages)` from `better-supabase` turns a `DbError`
 into the sentence to show. It takes a message, or a function of the error,
 for every [error kind](/docs/repository/unique-and-errors#error-kinds); leaving a kind out is a type
-error, so a new kind can't fall through to a generic message. Build it
-where your translations are:
+error, so a new kind can't fall through to a generic message.
 
-```ts title="src/lib/use-error-message.ts"
+Set the wording once and read it anywhere with `useErrorMessage()` from
+`better-supabase/react`. `ErrorMessagesProvider` takes a resolver, so the
+components never call a translation hook for their errors. A block error
+carries a hint code with a default English message in
+[`better-supabase/blocks/messages`](/docs/repository/unique-and-errors#block-errors-in-forms),
+so the resolver below shows that message first and your own sentence for
+the rest. Without a provider, `useErrorMessage()` returns the error's
+English `message`.
+
+```tsx title="src/app/providers.tsx"
 import { createErrorMessages } from "better-supabase";
+import { blockErrorMessage } from "better-supabase/blocks/messages";
+import { ErrorMessagesProvider, useErrorMessage } from "better-supabase/react";
 
-export function useErrorMessage() {
+function ErrorMessages({ children }: { children: ReactNode }) {
   const t = useExtracted("errors");
-  return createErrorMessages({
+  const kindMessage = createErrorMessages({
     unauthorized: t("Sign in again to continue."),
     forbidden: t("You don't have access to this."),
     raised: (error) => error.message,
     // ...every other kind
   });
+
+  return (
+    <ErrorMessagesProvider
+      messages={(error) => blockErrorMessage(error) ?? kindMessage(error)}
+    >
+      {children}
+    </ErrorMessagesProvider>
+  );
 }
+
+// In any Client Component below the provider:
+const errorMessage = useErrorMessage();
+toast.error(errorMessage(result.error));
 ```
 
 ## Record pages

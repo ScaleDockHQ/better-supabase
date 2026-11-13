@@ -3,7 +3,7 @@
 
 import type { SubmitEvent } from "react";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { CpuIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState, useTransition } from "react";
@@ -78,7 +78,6 @@ import {
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Provider } from "../ai-provider-options";
 import type { ProviderKeyRow, ProviderKeysRead } from "../ai-providers-queries";

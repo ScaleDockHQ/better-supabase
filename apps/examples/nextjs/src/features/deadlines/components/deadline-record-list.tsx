@@ -2,7 +2,7 @@
 
 import type { CellContext } from "@tanstack/react-table";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { HourglassIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -14,7 +14,6 @@ import { RecordListView } from "@/components/record-list/record-list-view";
 import { useBlockListState } from "@/components/record-list/use-block-list-state";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { DeadlineRow } from "../deadlines-list";
 

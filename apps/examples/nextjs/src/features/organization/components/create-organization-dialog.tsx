@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { createOrganization } from "../organization-actions";
 import { useRefreshSession } from "../use-refresh-session";
