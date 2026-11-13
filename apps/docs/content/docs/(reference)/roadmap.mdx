@@ -193,8 +193,9 @@ verticals become thin blocks and presets on top of them.
    `record_summary`, tenant-scoped cache tags and `createRecordController`.
 6. **Generated features:** `gen` writes one binding per subject with a
    section per installed block. UI stays recipes only.
-7. **Lists, workspace, flows and forms:** `defineRecordList`, `my_work`,
-   generated navigation and commands, `defineFlow` and `recordForm`.
+7. **Lists, workspace and forms:** `defineRecordList`, `my_work`,
+   generated navigation and commands and `recordForm`. Flows (`defineFlow`)
+   were dropped (ADR 0719).
 8. **The messaging core and the `channels` block:** conversations,
    messages, edits, members, thread reads, follows, mentions, typing and
    scheduled send, with attachments and reactions on messages, and a `chat`

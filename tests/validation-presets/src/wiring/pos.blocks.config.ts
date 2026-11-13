@@ -94,6 +94,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  reminders: {
+    schema: "better_supabase",
+    options: {},
+  },
   settings: {
     schema: "better_supabase",
     options: {},

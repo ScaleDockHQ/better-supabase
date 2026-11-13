@@ -104,7 +104,8 @@ export function seriesFunctions(p: Parts): string {
   return `
 -- The starts of a rule's occurrences from first_start: { freq: daily or
 -- weekly, interval, weekdays (1 is Monday, weekly only), count or until }.
--- Each start keeps first_start's local time in tz. At most
+-- Each start keeps first_start's local time in tz, expanded by
+-- rrule_occurrences (the recurrence module). At most
 -- ${String(SERIES_MAX_OCCURRENCES)} starts, within ${String(SERIES_HORIZON_DAYS)} days.
 create or replace function ${fn("booking_series_starts")}(rule jsonb, first_start timestamptz, tz text)
 returns setof timestamptz
@@ -119,11 +120,7 @@ declare
   v_days integer[];
   v_count integer;
   v_until timestamptz;
-  v_local timestamp;
-  v_week0 date;
-  v_date date;
-  v_at timestamptz;
-  v_n integer := 0;
+  v_rrule text;
 begin
   if jsonb_typeof(booking_series_starts.rule) is distinct from 'object' or v_freq is null or v_freq not in ('daily', 'weekly') then
     ${fail("BOOKING_RULE_INVALID", "rule.freq is daily or weekly", "22023")}
@@ -154,22 +151,17 @@ begin
   if exists (select 1 from unnest(v_days) d where d not between 1 and 7) then
     ${fail("BOOKING_RULE_INVALID", "rule.weekdays are 1 (Monday) to 7 (Sunday)", "22023")}
   end if;
-  v_local := booking_series_starts.first_start at time zone booking_series_starts.tz;
-  if cardinality(v_days) = 0 then
-    v_days := array[extract(isodow from v_local)::integer];
+  v_rrule := 'FREQ=' || upper(v_freq) || ';INTERVAL=' || v_interval::text;
+  if v_freq = 'weekly' and cardinality(v_days) > 0 then
+    v_rrule := v_rrule || ';BYDAY=' || (select string_agg((array['MO','TU','WE','TH','FR','SA','SU'])[d], ',' order by d) from (select distinct d from unnest(v_days) d) days);
   end if;
-  v_week0 := v_local::date - (extract(isodow from v_local)::integer - 1);
-  for v_offset in 0..${String(SERIES_HORIZON_DAYS)} loop
-    v_date := v_local::date + v_offset;
-    if (v_freq = 'daily' and v_offset % v_interval = 0)
-      or (v_freq = 'weekly' and extract(isodow from v_date)::integer = any (v_days) and ((v_date - v_week0) / 7) % v_interval = 0) then
-      v_at := (v_date + v_local::time) at time zone booking_series_starts.tz;
-      exit when v_until is not null and v_at > v_until;
-      return next v_at;
-      v_n := v_n + 1;
-      exit when v_n >= coalesce(v_count, ${String(SERIES_MAX_OCCURRENCES)});
-    end if;
-  end loop;
+  if v_count is not null then
+    v_rrule := v_rrule || ';COUNT=' || v_count::text;
+  end if;
+  return query select o from better_supabase.rrule_occurrences(v_rrule, booking_series_starts.first_start, booking_series_starts.tz, tstzrange(booking_series_starts.first_start, booking_series_starts.first_start + interval '${String(SERIES_HORIZON_DAYS)} days', '[)')) o
+    where v_until is null or o <= v_until
+    order by o
+    limit ${String(SERIES_MAX_OCCURRENCES)};
 end;
 $$;
 ${userGrant(`${fn("booking_series_starts")}(jsonb, timestamptz, text)`)}

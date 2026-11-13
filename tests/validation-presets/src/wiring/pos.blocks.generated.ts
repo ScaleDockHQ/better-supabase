@@ -17,6 +17,7 @@ import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { PromotionsEvents } from "better-supabase/blocks/promotions";
+import type { RemindersEvents } from "better-supabase/blocks/reminders";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
@@ -40,6 +41,7 @@ import { organizationsBlock as organizationsBlockInstance } from "better-supabas
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { promotionsBlock as promotionsBlockInstance } from "better-supabase/blocks/promotions";
+import { remindersBlock as remindersBlockInstance } from "better-supabase/blocks/reminders";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
@@ -76,6 +78,7 @@ export const blocks = {
   outbox: outboxBlockInstance,
   profiles: profilesBlockInstance,
   promotions: promotionsBlockInstance,
+  reminders: remindersBlockInstance,
   settings: settingsBlockInstance,
   subjects: subjectsBlockInstance,
   teams: teamsBlockInstance,
@@ -85,7 +88,7 @@ export const blocks = {
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CatalogEvents & LedgerEvents & EnrollmentsEvents & TillsEvents & InventoryEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PromotionsEvents & SettingsEvents & SubjectsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CatalogEvents & LedgerEvents & EnrollmentsEvents & TillsEvents & InventoryEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PromotionsEvents & RemindersEvents & SettingsEvents & SubjectsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -190,6 +193,7 @@ export const blockEvents: Events<BlockEvents> = {
     "purchase_order.received",
     "purchase_requisition.approved",
     "purchase_requisition.created",
+    "reminder.sent",
     "reservation.committed",
     "reservation.created",
     "reservation.released",
@@ -323,6 +327,7 @@ export const blockEventSchemas = {
   "purchase_order.received": true,
   "purchase_requisition.approved": true,
   "purchase_requisition.created": true,
+  "reminder.sent": true,
   "reservation.committed": true,
   "reservation.created": true,
   "reservation.released": true,

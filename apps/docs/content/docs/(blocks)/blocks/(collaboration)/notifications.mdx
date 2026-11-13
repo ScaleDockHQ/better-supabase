@@ -1073,7 +1073,8 @@ The `digest_run` housekeeping job calls `run_notification_digests`, which folds
 a member's held deliveries into one `notification_digests` row once the oldest
 is a day (daily) or a week (weekly) old. Each folded delivery gets status
 `digested`. `createNotificationDigests` sends each row as one email through the
-`mailer` port of the `mail-sync` block.
+`mailer` port of the `mail-sync` block. A digest without an address is `skipped`, a failed send returns to `pending`
+for the next run, and a failed claim or completion stops the run.
 
 ```ts title="app/api/cron/digests/route.ts"
 import { createNotificationDigests } from "better-supabase/blocks/notifications";
