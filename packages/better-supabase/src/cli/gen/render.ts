@@ -40,6 +40,7 @@ import {
 } from "./emit.ts";
 import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
+import { emitPermissionScopes } from "./permission-catalog.ts";
 import { NO_PROJECTED_READS, projectedReads } from "./projected-reads.ts";
 import { emitRecords } from "./records.ts";
 import { emitServerBlocks } from "./server-blocks.ts";
@@ -261,6 +262,10 @@ export async function render(
     }
 
     files.push(...emitServerBlocks(config, blockOptions));
+
+    if (config.gen.permissionCatalog === true) {
+      files.push(emitPermissionScopes(config));
+    }
 
     const blockReads = emitBlockReads(config, blockOptions);
 

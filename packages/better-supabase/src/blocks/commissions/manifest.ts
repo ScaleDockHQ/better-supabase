@@ -24,6 +24,12 @@ export const commissionsBlock: BlockOf<
     commission_plan: {
       mutability: "editable",
       emits: { create: true, update: true },
+      permissions: {
+        read: "commissions.read",
+        create: "commissions.write",
+        update: "commissions.write",
+        manage: "commissions.manage",
+      },
     },
     commission_assignment: { mutability: "read-only" },
     commission: { mutability: "state-machine" },

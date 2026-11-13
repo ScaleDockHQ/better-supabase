@@ -9663,6 +9663,7 @@
       "declaredViews",
       "declareRead",
       "DEFAULT_ROLES",
+      "defaultOperationKey",
       "disallowedPolicyCalls",
       "duplicateObjects",
       "duplicatePolicies",

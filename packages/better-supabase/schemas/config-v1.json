@@ -2919,6 +2919,9 @@
           "description": "Write one module per block instance, blocks/<instance>.ts, with its config slice, and blocks/permissions.ts. false writes blockConfig as one object.",
           "default": true
         },
+        "permissionCatalog": {
+          "type": "boolean"
+        },
         "clientBlocks": {
           "type": "array",
           "items": {

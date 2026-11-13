@@ -75,7 +75,10 @@ export {
 
 export { instanceFunctions } from "./instance-functions.ts";
 
-export { DEFAULT_ROLES } from "./modules/permissions-model.ts";
+export {
+  DEFAULT_ROLES,
+  defaultOperationKey,
+} from "./modules/permissions-model.ts";
 
 export {
   APP_TABLES_MARKER,

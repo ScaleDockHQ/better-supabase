@@ -672,7 +672,18 @@ function presetManifest(
 
   const wired = { ...withEvents, ...wiring };
 
-  return automations.length === 0 ? wired : { ...wired, automations };
+  const withAutomations =
+    automations.length === 0 ? wired : { ...wired, automations };
+
+  const permissions = Object.fromEntries(
+    Object.entries(block.entities ?? {})
+      .filter(([, surface]) => surface.permissions !== undefined)
+      .map(([entity, surface]) => [entity, { ...surface.permissions }]),
+  );
+
+  return Object.keys(permissions).length === 0
+    ? withAutomations
+    : { ...withAutomations, entityPermissions: permissions };
 }
 
 const isPortName = (name: string): name is PortName =>
