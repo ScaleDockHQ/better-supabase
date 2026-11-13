@@ -1,6 +1,6 @@
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:28f9e4d3be3007274881aea4cb758b9fab2895a951aec7e18ec9f6ba1538dc05
+-- @bsb-hash sha256:58b136f5f9760ff5a9c4ced85064980e4a6c3bd85d782cc2f2577580dcf762bd
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -402,9 +402,10 @@ $$;
 revoke execute on function "better_supabase"."get_prescription"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_prescription"(uuid) to authenticated, service_role;
 
--- The organization's prescriptions, newest first. filters is { orderId,
--- subjectType, subjectId, status, prescriberId, limit, offset }. Needs
--- e_prescribing.read.
+-- The organization's prescriptions, newest first (ADR 0749). filters is {
+-- orderId, subjectType, subjectId, status, prescriberId (each a value or a list
+-- of them), sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Needs e_prescribing.read.
 create or replace function "better_supabase"."list_prescriptions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -415,27 +416,232 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_prescriptions.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_prescriptions.tenant is not null and coalesce(better_supabase.can('tenant', list_prescriptions.tenant, 'e_prescribing.read'), false))) then
     raise exception 'not allowed to read prescriptions' using errcode = '42501', hint = 'E_PRESCRIBING_FORBIDDEN';
   end if;
-  if v_filters ->> 'status' is not null and v_filters ->> 'status' not in ('draft', 'signed', 'sent', 'dispensed', 'cancelled') then
+  if (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) and exists (
+    select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'status') = 'array' then v_filters -> 'status' else jsonb_build_array(v_filters ->> 'status') end) s(v)
+    where s.v not in ('draft', 'signed', 'sent', 'dispensed', 'cancelled')
+  ) then
     raise exception 'status is draft, signed, sent, dispensed or cancelled' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
   end if;
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'orderId', q."order_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'prescriberId', q."prescriber_id", 'prescriberName', q."prescriber_name", 'status', q."status", 'order', q."snapshot", 'signedBy', q."signed_by", 'signedAt', q."signed_at", 'gateway', q."gateway", 'gatewayReference', q."gateway_reference", 'sentAt', q."sent_at", 'deliveryError', q."delivery_error", 'dispensedAt', q."dispensed_at", 'cancelledAt', q."cancelled_at", 'cancelReason', q."cancel_reason", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."created_at" desc, q."id")
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text end) as v
+      from "better_supabase"."prescriptions" x
+      where x."tenant_id" = list_prescriptions.tenant
+        and (not (v_filters -> 'orderId' is not null and jsonb_typeof(v_filters -> 'orderId') <> 'null' and not (jsonb_typeof(v_filters -> 'orderId') = 'array' and jsonb_array_length(v_filters -> 'orderId') = 0)) or x."order_id" = any((case when jsonb_typeof(v_filters -> 'orderId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'orderId')) else array[v_filters ->> 'orderId'] end)::uuid[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'prescriberId' is not null and jsonb_typeof(v_filters -> 'prescriberId') <> 'null' and not (jsonb_typeof(v_filters -> 'prescriberId') = 'array' and jsonb_array_length(v_filters -> 'prescriberId') = 0)) or x."prescriber_id" = any((case when jsonb_typeof(v_filters -> 'prescriberId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'prescriberId')) else array[v_filters ->> 'prescriberId'] end)::uuid[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select y.* from "better_supabase"."prescriptions" y
-      where y."tenant_id" = list_prescriptions.tenant
-        and (v_filters ->> 'orderId' is null or y."order_id" = (v_filters ->> 'orderId')::uuid)
-        and (v_filters ->> 'subjectType' is null or y."subject_type" = v_filters ->> 'subjectType')
-        and (v_filters ->> 'subjectId' is null or y."subject_id" = v_filters ->> 'subjectId')
-        and (v_filters ->> 'status' is null or y."status" = v_filters ->> 'status')
-        and (v_filters ->> 'prescriberId' is null or y."prescriber_id" = (v_filters ->> 'prescriberId')::uuid)
-      order by y."created_at" desc, y."id"
-      limit least(greatest(coalesce((v_filters ->> 'limit')::int, 50), 1), 200) offset greatest(coalesce((v_filters ->> 'offset')::int, 0), 0)
-    ) q
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."prescriptions" x
+      where x."tenant_id" = list_prescriptions.tenant
+        and (not (v_filters -> 'orderId' is not null and jsonb_typeof(v_filters -> 'orderId') <> 'null' and not (jsonb_typeof(v_filters -> 'orderId') = 'array' and jsonb_array_length(v_filters -> 'orderId') = 0)) or x."order_id" = any((case when jsonb_typeof(v_filters -> 'orderId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'orderId')) else array[v_filters ->> 'orderId'] end)::uuid[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'prescriberId' is not null and jsonb_typeof(v_filters -> 'prescriberId') <> 'null' and not (jsonb_typeof(v_filters -> 'prescriberId') = 'array' and jsonb_array_length(v_filters -> 'prescriberId') = 0)) or x."prescriber_id" = any((case when jsonb_typeof(v_filters -> 'prescriberId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'prescriberId')) else array[v_filters ->> 'prescriberId'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'signedAt') then
+    raise exception 'sort is one of createdAt, signedAt' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'orderId', x."order_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'prescriberId', x."prescriber_id", 'prescriberName', x."prescriber_name", 'status', x."status", 'order', x."snapshot", 'signedBy', x."signed_by", 'signedAt', x."signed_at", 'gateway', x."gateway", 'gatewayReference', x."gateway_reference", 'sentAt', x."sent_at", 'deliveryError', x."delivery_error", 'dispensedAt', x."dispensed_at", 'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."prescriptions" x
+      where x."tenant_id" = list_prescriptions.tenant
+        and (not (v_filters -> 'orderId' is not null and jsonb_typeof(v_filters -> 'orderId') <> 'null' and not (jsonb_typeof(v_filters -> 'orderId') = 'array' and jsonb_array_length(v_filters -> 'orderId') = 0)) or x."order_id" = any((case when jsonb_typeof(v_filters -> 'orderId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'orderId')) else array[v_filters ->> 'orderId'] end)::uuid[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'prescriberId' is not null and jsonb_typeof(v_filters -> 'prescriberId') <> 'null' and not (jsonb_typeof(v_filters -> 'prescriberId') = 'array' and jsonb_array_length(v_filters -> 'prescriberId') = 0)) or x."prescriber_id" = any((case when jsonb_typeof(v_filters -> 'prescriberId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'prescriberId')) else array[v_filters ->> 'prescriberId'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'orderId', x."order_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'prescriberId', x."prescriber_id", 'prescriberName', x."prescriber_name", 'status', x."status", 'order', x."snapshot", 'signedBy', x."signed_by", 'signedAt', x."signed_at", 'gateway', x."gateway", 'gatewayReference', x."gateway_reference", 'sentAt', x."sent_at", 'deliveryError', x."delivery_error", 'dispensedAt', x."dispensed_at", 'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."prescriptions" x
+      where x."tenant_id" = list_prescriptions.tenant
+        and (not (v_filters -> 'orderId' is not null and jsonb_typeof(v_filters -> 'orderId') <> 'null' and not (jsonb_typeof(v_filters -> 'orderId') = 'array' and jsonb_array_length(v_filters -> 'orderId') = 0)) or x."order_id" = any((case when jsonb_typeof(v_filters -> 'orderId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'orderId')) else array[v_filters ->> 'orderId'] end)::uuid[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'prescriberId' is not null and jsonb_typeof(v_filters -> 'prescriberId') <> 'null' and not (jsonb_typeof(v_filters -> 'prescriberId') = 'array' and jsonb_array_length(v_filters -> 'prescriberId') = 0)) or x."prescriber_id" = any((case when jsonb_typeof(v_filters -> 'prescriberId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'prescriberId')) else array[v_filters ->> 'prescriberId'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'orderId', x."order_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'prescriberId', x."prescriber_id", 'prescriberName', x."prescriber_name", 'status', x."status", 'order', x."snapshot", 'signedBy', x."signed_by", 'signedAt', x."signed_at", 'gateway', x."gateway", 'gatewayReference', x."gateway_reference", 'sentAt', x."sent_at", 'deliveryError', x."delivery_error", 'dispensedAt', x."dispensed_at", 'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."prescriptions" x
+      where x."tenant_id" = list_prescriptions.tenant
+        and (not (v_filters -> 'orderId' is not null and jsonb_typeof(v_filters -> 'orderId') <> 'null' and not (jsonb_typeof(v_filters -> 'orderId') = 'array' and jsonb_array_length(v_filters -> 'orderId') = 0)) or x."order_id" = any((case when jsonb_typeof(v_filters -> 'orderId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'orderId')) else array[v_filters ->> 'orderId'] end)::uuid[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'prescriberId' is not null and jsonb_typeof(v_filters -> 'prescriberId') <> 'null' and not (jsonb_typeof(v_filters -> 'prescriberId') = 'array' and jsonb_array_length(v_filters -> 'prescriberId') = 0)) or x."prescriber_id" = any((case when jsonb_typeof(v_filters -> 'prescriberId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'prescriberId')) else array[v_filters ->> 'prescriberId'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'orderId', x."order_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'prescriberId', x."prescriber_id", 'prescriberName', x."prescriber_name", 'status', x."status", 'order', x."snapshot", 'signedBy', x."signed_by", 'signedAt', x."signed_at", 'gateway', x."gateway", 'gatewayReference', x."gateway_reference", 'sentAt', x."sent_at", 'deliveryError', x."delivery_error", 'dispensedAt', x."dispensed_at", 'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."prescriptions" x
+      where x."tenant_id" = list_prescriptions.tenant
+        and (not (v_filters -> 'orderId' is not null and jsonb_typeof(v_filters -> 'orderId') <> 'null' and not (jsonb_typeof(v_filters -> 'orderId') = 'array' and jsonb_array_length(v_filters -> 'orderId') = 0)) or x."order_id" = any((case when jsonb_typeof(v_filters -> 'orderId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'orderId')) else array[v_filters ->> 'orderId'] end)::uuid[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'prescriberId' is not null and jsonb_typeof(v_filters -> 'prescriberId') <> 'null' and not (jsonb_typeof(v_filters -> 'prescriberId') = 'array' and jsonb_array_length(v_filters -> 'prescriberId') = 0)) or x."prescriber_id" = any((case when jsonb_typeof(v_filters -> 'prescriberId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'prescriberId')) else array[v_filters ->> 'prescriberId'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'signedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'orderId', x."order_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'prescriberId', x."prescriber_id", 'prescriberName', x."prescriber_name", 'status', x."status", 'order', x."snapshot", 'signedBy', x."signed_by", 'signedAt', x."signed_at", 'gateway', x."gateway", 'gatewayReference', x."gateway_reference", 'sentAt', x."sent_at", 'deliveryError', x."delivery_error", 'dispensedAt', x."dispensed_at", 'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."signed_at", '-infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."prescriptions" x
+      where x."tenant_id" = list_prescriptions.tenant
+        and (not (v_filters -> 'orderId' is not null and jsonb_typeof(v_filters -> 'orderId') <> 'null' and not (jsonb_typeof(v_filters -> 'orderId') = 'array' and jsonb_array_length(v_filters -> 'orderId') = 0)) or x."order_id" = any((case when jsonb_typeof(v_filters -> 'orderId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'orderId')) else array[v_filters ->> 'orderId'] end)::uuid[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'prescriberId' is not null and jsonb_typeof(v_filters -> 'prescriberId') <> 'null' and not (jsonb_typeof(v_filters -> 'prescriberId') = 'array' and jsonb_array_length(v_filters -> 'prescriberId') = 0)) or x."prescriber_id" = any((case when jsonb_typeof(v_filters -> 'prescriberId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'prescriberId')) else array[v_filters ->> 'prescriberId'] end)::uuid[]))
+        and (v_after is null or (coalesce(x."signed_at", '-infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."signed_at", '-infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'signedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'E_PRESCRIBING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'orderId', x."order_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'prescriberId', x."prescriber_id", 'prescriberName', x."prescriber_name", 'status', x."status", 'order', x."snapshot", 'signedBy', x."signed_by", 'signedAt', x."signed_at", 'gateway', x."gateway", 'gatewayReference', x."gateway_reference", 'sentAt', x."sent_at", 'deliveryError', x."delivery_error", 'dispensedAt', x."dispensed_at", 'cancelledAt', x."cancelled_at", 'cancelReason', x."cancel_reason", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."signed_at", '-infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."prescriptions" x
+      where x."tenant_id" = list_prescriptions.tenant
+        and (not (v_filters -> 'orderId' is not null and jsonb_typeof(v_filters -> 'orderId') <> 'null' and not (jsonb_typeof(v_filters -> 'orderId') = 'array' and jsonb_array_length(v_filters -> 'orderId') = 0)) or x."order_id" = any((case when jsonb_typeof(v_filters -> 'orderId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'orderId')) else array[v_filters ->> 'orderId'] end)::uuid[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'prescriberId' is not null and jsonb_typeof(v_filters -> 'prescriberId') <> 'null' and not (jsonb_typeof(v_filters -> 'prescriberId') = 'array' and jsonb_array_length(v_filters -> 'prescriberId') = 0)) or x."prescriber_id" = any((case when jsonb_typeof(v_filters -> 'prescriberId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'prescriberId')) else array[v_filters ->> 'prescriberId'] end)::uuid[]))
+        and (v_after is null or (coalesce(x."signed_at", '-infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."signed_at", '-infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."signed_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."signed_at", '-infinity'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."prescriptions" x
+      where x."tenant_id" = list_prescriptions.tenant
+        and (not (v_filters -> 'orderId' is not null and jsonb_typeof(v_filters -> 'orderId') <> 'null' and not (jsonb_typeof(v_filters -> 'orderId') = 'array' and jsonb_array_length(v_filters -> 'orderId') = 0)) or x."order_id" = any((case when jsonb_typeof(v_filters -> 'orderId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'orderId')) else array[v_filters ->> 'orderId'] end)::uuid[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'prescriberId' is not null and jsonb_typeof(v_filters -> 'prescriberId') <> 'null' and not (jsonb_typeof(v_filters -> 'prescriberId') = 'array' and jsonb_array_length(v_filters -> 'prescriberId') = 0)) or x."prescriber_id" = any((case when jsonb_typeof(v_filters -> 'prescriberId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'prescriberId')) else array[v_filters ->> 'prescriberId'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_prescriptions"(uuid, jsonb) from public, anon;
