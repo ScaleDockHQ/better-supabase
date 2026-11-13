@@ -4230,6 +4230,7 @@
       "UsageMeterSnapshot",
       "UsageOptions",
       "UsagePeriod",
+      "UsageQuota",
       "UsageRecorded",
       "UsageStatus"
     ]

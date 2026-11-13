@@ -596,32 +596,57 @@ end;
 $$;
 ${userGrant(`${fn("list_file_comments")}(uuid, integer)`)}
 
--- The number of sent, not deleted comments per conversation, as their
--- owner, for the conversations of the list that pass the read check.
-create or replace function ${fn("comment_count_rows")}(conversations uuid[])
-returns table (id uuid, n bigint)
+-- Comments per record as their owner: { subject_id: count }. A record
+-- conversation's subject branch counts only for ids in readable that pass
+-- can_subjects here too. As the owner the subject tables' policies (an ended
+-- session, say) don't apply, so comment_counts passes the records it read
+-- under them.
+create or replace function ${fn("comment_count_keys")}(
+  tenant ${id},
+  subject_type text,
+  subject_ids text[],
+  readable text[]
+)
+returns jsonb
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
+declare
+  v_readable text[] := array(
+    select ${ctx.of("subjects").fn("can_subjects")}(comment_count_keys.subject_type, comment_count_keys.readable, 'read')
+  );
 begin
-  return query
-  select x.${ms("conversation")}, count(*) from ${m.table("messages")} x
-  where x.${ms("conversation")} = any (array(
-      select c.${cv("id")} from ${m.table("conversations")} c
-      where c.${cv("id")} = any (comment_count_rows.conversations) and c.${cv("kind")} = 'subject'
-        and (${SERVICE_CALLER} or ${conversationReadable(mq, "c")})
-    ))
-    and x.${ms("sentAt")} is not null and x.${ms("deletedAt")} is null${noteReadable(mq, "x")}
-  group by x.${ms("conversation")};
+  return (
+    with c as materialized (
+      select c.${cv("id")} as id, c.${cv("subjectId")} as subject_id
+      from ${m.table("conversations")} c
+      where c.${cv("tenant")} = comment_count_keys.tenant and c.${cv("kind")} = 'subject'
+        and c.${cv("subjectType")} = comment_count_keys.subject_type
+        and c.${cv("subjectId")} = any (comment_count_keys.subject_ids)
+        and (${SERVICE_CALLER} or ${conversationReadable(mq, "c", { subjectRead: `c.${cv("subjectId")} = any (v_readable)` })})
+    ),
+    n as (
+      select x.${ms("conversation")} as id, count(*) as n
+      from ${m.table("messages")} x
+      where x.${ms("conversation")} = any (array(select c.id from c))
+        and x.${ms("sentAt")} is not null and x.${ms("deletedAt")} is null${noteReadable(mq, "x")}
+      group by x.${ms("conversation")}
+    )
+    select coalesce(jsonb_object_agg(c.subject_id, n.n), '{}'::jsonb)
+    from c
+    join n on n.id = c.id
+  );
 end;
 $$;
-${userGrant(`${fn("comment_count_rows")}(uuid[])`)}
+${userGrant(`${fn("comment_count_keys")}(${id}, text, text[], text[])`)}
 
 -- Comments per record the caller can read, for counters in a list:
--- { subject_id: count }, deleted ones left out. The records' conversations
--- are read under the caller's policies, then counted by key.
+-- { subject_id: count }, deleted ones left out. One can_subjects call reads
+-- the records under the caller's policies, then comment_count_keys finds
+-- their conversations by key and counts the messages.
 create or replace function ${fn("comment_counts")}(tenant ${id}, subject_type text, subject_ids text[])
 returns jsonb
 language plpgsql
@@ -630,17 +655,11 @@ security invoker
 set search_path = ''
 as $$
 begin
-  return (
-    with c as materialized (
-      select c.${cv("id")} as id, c.${cv("subjectId")} as subject_id
-      from ${m.table("conversations")} c
-      where c.${cv("tenant")} = comment_counts.tenant and c.${cv("kind")} = 'subject'
-        and c.${cv("subjectType")} = comment_counts.subject_type
-        and c.${cv("subjectId")} = any (comment_counts.subject_ids)
-    )
-    select coalesce(jsonb_object_agg(c.subject_id, n.n), '{}'::jsonb)
-    from c
-    join ${fn("comment_count_rows")}(array(select c.id from c)) n on n.id = c.id
+  return ${fn("comment_count_keys")}(
+    comment_counts.tenant,
+    comment_counts.subject_type,
+    comment_counts.subject_ids,
+    array(select ${ctx.of("subjects").fn("can_subjects")}(comment_counts.subject_type, comment_counts.subject_ids, 'read'))
   );
 end;
 $$;
@@ -928,7 +947,7 @@ export const COMMENTS: BlockSqlDefinition = {
     "comments_json",
     "comment_sent",
     "comment_page",
-    "comment_count_rows",
+    "comment_count_keys",
     "list_comments_unchecked",
   ],
   name: "comments",
@@ -940,7 +959,7 @@ export const COMMENTS: BlockSqlDefinition = {
   integrates: ["notifications", "tasks", "reactions", "attachments"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 9,
+  version: 10,
   upgrades: [
     {
       from: 1,
@@ -988,6 +1007,13 @@ export const COMMENTS: BlockSqlDefinition = {
         "list_comments takes include_deleted; false leaves deleted comments out instead of returning placeholders.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("list_comments")}(${ctx.idType}, text, text, timestamptz, integer, integer, uuid);`,
+    },
+    {
+      from: 9,
+      description:
+        "comment_counts reads the records with one can_subjects call and finds their conversations by key (comment_count_keys) instead of checking each conversation.",
+      sql: (ctx) =>
+        `drop function if exists ${ctx.fn("comment_count_rows")}(uuid[]);`,
     },
   ],
   deprecated: [

@@ -888,7 +888,10 @@ end;
 $$;
 ${serviceGrant(`${fn("search_reindex")}(text)`)}
 
-${enqueueFunctions(ctx)}
+${enqueueFunctions(
+  ctx,
+  subjects.some((subject) => subject.config.search?.statement === true),
+)}
 
 ${triggers(ctx, layout, subjects)}${watchTriggers(ctx, layout, subjects)}
 ${searchFunction(ctx, names, described)}
@@ -950,7 +953,7 @@ export const SEARCH: BlockSqlDefinition = {
   integrates: ["share-links", "vector-search"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -968,6 +971,12 @@ export const SEARCH: BlockSqlDefinition = {
       from: 3,
       description:
         "search.statement indexes a record type through statement triggers (search_index_stmt) instead of a row trigger, and import_search_dirty holds the records an import run changed until finish_import_run indexes each once (search_refresh_run).",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "search_page, recents and favorites check readability once per record type through can_subjects instead of once per row through can_subject.",
       sql: () => "",
     },
   ],

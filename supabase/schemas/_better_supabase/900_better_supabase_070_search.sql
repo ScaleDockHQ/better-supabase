@@ -1,6 +1,6 @@
 -- better-supabase module: search
--- @bsb-block search@4 managed
--- @bsb-hash sha256:03dd83d036a12eba726f558a3cf5d0a02ef7c6e8bb6d40278f2d88724eb398f9
+-- @bsb-block search@5 managed
+-- @bsb-hash sha256:9dcdfdff2cdbe3ec738c286b587b04a936efb337420e7174508c2a3716ff9ee1
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1305,6 +1305,14 @@ declare
   v_more boolean;
   v_last jsonb;
   v_next text;
+  v_batch integer := greatest((v_size + 1) * 2, 50);
+  v_k text;
+  v_i text;
+  v_t text;
+  v_rows jsonb;
+  v_found jsonb;
+  v_scanned integer;
+  v_tail jsonb;
 begin
   if length(v_q) > 256 then
     raise exception 'a search query is at most 256 characters' using errcode = '22023', hint = 'SEARCH_QUERY_TOO_LONG';
@@ -1335,16 +1343,45 @@ begin
     end if;
   end if;
   if v_mode = 'b' then
-    with lim as (
-      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+    -- Keyset batches of candidates, each checked in one can_subjects call per
+    -- type, until the page and one more row are readable.
+    v_k := v_cur ->> 'k';
+    v_i := v_cur ->> 'i';
+    v_t := v_cur ->> 't';
+    v_rows := '[]'::jsonb;
+    loop
+      with cand as materialized (
+        select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
           d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, null::numeric as score
-      from "better_supabase"."search_documents" d
-      where (search_page.types is null or d."subject_type" = any (search_page.types))
+        from "better_supabase"."search_documents" d
+        where (search_page.types is null or d."subject_type" = any (search_page.types))
           and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
           and d."facets" @> v_filter
-        and (v_cur is null or (d."sort_key", d."subject_id", d."subject_type") > (v_cur ->> 'k', v_cur ->> 'i', v_cur ->> 't'))
-        and "better_supabase"."can_subject"(d."subject_type", d."subject_id", 'read')
-      order by d."sort_key", d."subject_id", d."subject_type"
+          and (v_k is null or (d."sort_key", d."subject_id", d."subject_type") > (v_k, v_i, v_t))
+        order by d."sort_key", d."subject_id", d."subject_type"
+        limit v_batch
+      ),
+      ok as (
+        select t.subject_type, r.id
+      from (select distinct x.subject_type from cand x) t
+      cross join lateral "better_supabase"."can_subjects"(t.subject_type, array(select y.subject_id from cand y where y.subject_type = t.subject_type), 'read') r(id)
+      )
+      select
+        coalesce(jsonb_agg(to_jsonb(x) order by x.sort_key, x.subject_id, x.subject_type) filter (where ok.id is not null), '[]'::jsonb),
+        count(*),
+        (array_agg(jsonb_build_array(x.sort_key, x.subject_id, x.subject_type) order by x.sort_key desc, x.subject_id desc, x.subject_type desc))[1]
+      into v_found, v_scanned, v_tail
+      from cand x
+      left join ok on ok.subject_type = x.subject_type and ok.id = x.subject_id;
+      v_rows := v_rows || v_found;
+      exit when v_scanned < v_batch or jsonb_array_length(v_rows) > v_size;
+      v_k := v_tail ->> 0;
+      v_i := v_tail ->> 1;
+      v_t := v_tail ->> 2;
+    end loop;
+    with lim as (
+      select r.* from jsonb_to_recordset(v_rows) as r(tenant uuid, subject_type text, subject_id text, title text, url text, body text, facets jsonb, sort_key text, score numeric)
+      order by r.sort_key, r.subject_id, r.subject_type
       limit v_size + 1
     ),
     page as (
@@ -1381,6 +1418,11 @@ begin
       order by score desc, d."subject_type", d."subject_id"
       limit 500
     ),
+    ok as (
+      select t.subject_type, r.id
+      from (select distinct x.subject_type from pool x) t
+      cross join lateral "better_supabase"."can_subjects"(t.subject_type, array(select y.subject_id from pool y where y.subject_type = t.subject_type), 'read') r(id)
+    ),
     lim as (
       select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
           d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, h.score
@@ -1389,7 +1431,7 @@ begin
       where (v_cur is null
           or h.score < (v_cur ->> 's')::numeric
           or (h.score = (v_cur ->> 's')::numeric and (h.subject_type, h.subject_id) > (v_cur ->> 't', v_cur ->> 'i')))
-        and "better_supabase"."can_subject"(h.subject_type, h.subject_id, 'read')
+        and exists (select 1 from ok where ok.subject_type = h.subject_type and ok.id = h.subject_id)
       order by h.score desc, h.subject_type, h.subject_id
       limit v_size + 1
     ),
@@ -1424,7 +1466,7 @@ revoke execute on function "better_supabase"."search_page"(text, text[], uuid, j
 grant execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) to authenticated, service_role;
 
 -- The caller's own rows of the share-links per-user state. The lists below
--- run as the caller, so can_subject sees what they can read.
+-- run as the caller, so can_subjects sees what they can read.
 create or replace function "better_supabase"."search_user_state"()
 returns table (subject_type text, subject_id text, starred_at timestamptz, opened_at timestamptz)
 language sql
@@ -1446,9 +1488,20 @@ stable
 security invoker
 set search_path = ''
 as $$
+  with s as materialized (
+    select s.subject_type, s.subject_id, s.opened_at, s.starred_at, s.opened_at as at
+    from "better_supabase"."search_user_state"() s
+    where s.opened_at is not null
+      and (search_recents.types is null or s.subject_type = any (search_recents.types))
+  ),
+  ok as (
+    select t.subject_type, r.id
+    from (select distinct s.subject_type from s) t
+    cross join lateral "better_supabase"."can_subjects"(t.subject_type, array(select y.subject_id from s y where y.subject_type = t.subject_type), 'read') r(id)
+  )
   select coalesce(jsonb_agg(x.item order by x.at desc), '[]'::jsonb)
   from (
-    select s.opened_at as at, jsonb_build_object(
+    select s.at, jsonb_build_object(
       'subjectType', s.subject_type,
       'subjectId', s.subject_id,
       'title', "better_supabase"."subject_title"(s.subject_type, s.subject_id),
@@ -1456,11 +1509,9 @@ as $$
       'openedAt', s.opened_at,
       'starredAt', s.starred_at
     ) as item
-    from "better_supabase"."search_user_state"() s
-    where s.opened_at is not null
-      and (search_recents.types is null or s.subject_type = any (search_recents.types))
-      and "better_supabase"."can_subject"(s.subject_type, s.subject_id, 'read')
-    order by s.opened_at desc
+    from s
+    join ok on ok.subject_type = s.subject_type and ok.id = s.subject_id
+    order by s.at desc
     limit least(greatest(coalesce(search_recents.max_results, 10), 1), 100)
   ) x
 $$;
@@ -1474,9 +1525,20 @@ stable
 security invoker
 set search_path = ''
 as $$
+  with s as materialized (
+    select s.subject_type, s.subject_id, s.opened_at, s.starred_at, s.starred_at as at
+    from "better_supabase"."search_user_state"() s
+    where s.starred_at is not null
+      and (search_favorites.types is null or s.subject_type = any (search_favorites.types))
+  ),
+  ok as (
+    select t.subject_type, r.id
+    from (select distinct s.subject_type from s) t
+    cross join lateral "better_supabase"."can_subjects"(t.subject_type, array(select y.subject_id from s y where y.subject_type = t.subject_type), 'read') r(id)
+  )
   select coalesce(jsonb_agg(x.item order by x.at desc), '[]'::jsonb)
   from (
-    select s.starred_at as at, jsonb_build_object(
+    select s.at, jsonb_build_object(
       'subjectType', s.subject_type,
       'subjectId', s.subject_id,
       'title', "better_supabase"."subject_title"(s.subject_type, s.subject_id),
@@ -1484,11 +1546,9 @@ as $$
       'openedAt', s.opened_at,
       'starredAt', s.starred_at
     ) as item
-    from "better_supabase"."search_user_state"() s
-    where s.starred_at is not null
-      and (search_favorites.types is null or s.subject_type = any (search_favorites.types))
-      and "better_supabase"."can_subject"(s.subject_type, s.subject_id, 'read')
-    order by s.starred_at desc
+    from s
+    join ok on ok.subject_type = s.subject_type and ok.id = s.subject_id
+    order by s.at desc
     limit least(greatest(coalesce(search_favorites.max_results, 10), 1), 100)
   ) x
 $$;

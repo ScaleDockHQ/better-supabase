@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
--- @bsb-block usage@8 managed
--- @bsb-hash sha256:b97e1b92fc1bbabe5e77144d795d595dc353d816a2c7fa86a83af785919797d6
+-- @bsb-block usage@9 managed
+-- @bsb-hash sha256:2c0cd0b7295e8e58ede1b5635e2908640390dc34574d673d96464f18a9cdbf4b
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,21 +75,39 @@ create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
 -- The signature before the report could skip meters and tenants.
 
 
+-- The quota that applies to each pair of tenants and meters that has one. It
+-- resolves each distinct tenant's plans once, then picks a quota per pair in
+-- the order usage_quota uses: the tenant's own row, then the highest plan
+-- limit, where a null (unlimited) limit is highest.
+create or replace function "better_supabase"."usage_quotas_for"(tenants uuid[], meters text[])
+returns table (tenant uuid, meter text, quota_limit numeric, period text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with t as materialized (
+    select d.tenant
+    from (select distinct u.tenant from unnest(usage_quotas_for.tenants) u(tenant) where u.tenant is not null) d
+  )
+  select distinct on (t.tenant, q."meter") t.tenant, q."meter", q."limit", q."period"
+  from t
+  join "better_supabase"."usage_quotas" q on q."meter" = any (usage_quotas_for.meters)
+    and (q."tenant_id" = t.tenant or (q."tenant_id" is null and (q."plan" = '*')))
+  order by t.tenant, q."meter", (q."tenant_id" is not null) desc, q."limit" desc nulls first
+$$;
+
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
 create or replace function "better_supabase"."usage_quota"(tenant uuid, meter text)
 returns table (quota_limit numeric, period text)
 language sql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
-  select q."limit", q."period"
-  from "better_supabase"."usage_quotas" q
-  where q."meter" = usage_quota.meter
-    and (q."tenant_id" = usage_quota.tenant or (q."tenant_id" is null and (q."plan" = '*')))
-  order by (q."tenant_id" is not null) desc, q."limit" desc nulls first
-  limit 1
+  select q.quota_limit, q.period
+  from "better_supabase"."usage_quotas_for"(array[usage_quota.tenant], array[usage_quota.meter]) q
 $$;
 
 -- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
@@ -791,6 +809,8 @@ grant execute on function "better_supabase"."record_usage_batch"(uuid, jsonb, te
 revoke execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) from public, anon, authenticated;
 revoke execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quota"(uuid, text) to service_role;
+revoke execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) to service_role;
 revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
@@ -843,13 +863,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."usage_quotas" as res
 -- ==== data supabase/better-supabase-data/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block-data usage
--- @bsb-hash sha256:48046277729e9f9547e00a72366208a38231023e3af274d8dbd23e8d2d930c9c
+-- @bsb-hash sha256:2bad93932de201d0d82ba7831cdf46c648d52e408261b7beb300813cad68c95c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('usage', 8, 'managed')
+values ('usage', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
--- @bsb-block subjects@1 managed
--- @bsb-hash sha256:13ce605d5f1bdf905599b547e03811181003679f07681add9fe99ab5c5d61196
+-- @bsb-block subjects@2 managed
+-- @bsb-hash sha256:55424f03f98ccaad6e78e1858d5ceba611848bef4166eadbb5cd1844b06aa2a4
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -197,6 +197,28 @@ end;
 $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- can_subject for many ids of one type: the ids of subject_ids the caller can
+-- see and act on, from one read of the type's table. A list reads it once
+-- instead of calling can_subject per row.
+create or replace function "better_supabase"."can_subjects"(subject_type text, subject_ids text[], action text)
+returns setof text
+language plpgsql
+stable
+security invoker
+cost 1000
+set search_path = ''
+as $$
+begin
+  case can_subjects.subject_type
+    when '' then null;
+    else
+      return;
+  end case;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subjects"(text, text[], text) from public, anon;
+grant execute on function "better_supabase"."can_subjects"(text, text[], text) to authenticated, service_role;
 
 -- A record page's header and tab badges in one call: the subject's title and
 -- path, how many rows each named section has and whether any is newer than
@@ -675,21 +697,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."subject_members" as 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block-data subjects
--- @bsb-hash sha256:eb0303aed8e9092aca1e8d0972e3a1d7ed2016a525be423d7feb911c659f913c
+-- @bsb-hash sha256:ead678deb89ccda7ca621093f4b98406756cfde068f2e2458c00903f70a62930
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('subjects', 1, 'managed')
+values ('subjects', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
--- @bsb-block subjects@1 managed
--- @bsb-hash sha256:ff731376d6f1e662c6a111a342b5cd7de0e38d20145c598fc60d5eb20214b18a
+-- @bsb-block subjects@2 managed
+-- @bsb-hash sha256:61473150e355cdf9f51edbe09d4822d6261ccaa3c648cf2587e412876bdfd462
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -885,6 +907,28 @@ end;
 $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- can_subject for many ids of one type: the ids of subject_ids the caller can
+-- see and act on, from one read of the type's table. A list reads it once
+-- instead of calling can_subject per row.
+create or replace function "better_supabase"."can_subjects"(subject_type text, subject_ids text[], action text)
+returns setof text
+language plpgsql
+stable
+security invoker
+cost 1000
+set search_path = ''
+as $$
+begin
+  case can_subjects.subject_type
+    when '' then null;
+    else
+      return;
+  end case;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subjects"(text, text[], text) from public, anon;
+grant execute on function "better_supabase"."can_subjects"(text, text[], text) to authenticated, service_role;
 
 -- A record page's header and tab badges in one call: the subject's title and
 -- path, how many rows each named section has and whether any is newer than
@@ -1520,21 +1564,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."subject_members" as 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block-data subjects
--- @bsb-hash sha256:eb0303aed8e9092aca1e8d0972e3a1d7ed2016a525be423d7feb911c659f913c
+-- @bsb-hash sha256:ead678deb89ccda7ca621093f4b98406756cfde068f2e2458c00903f70a62930
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('subjects', 1, 'managed')
+values ('subjects', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
--- @bsb-block subjects@1 managed
--- @bsb-hash sha256:c83090ab15f44c55a5f72642b735b4e2bba05d577bcb629b5d0e4952772108d7
+-- @bsb-block subjects@2 managed
+-- @bsb-hash sha256:b804163c49ad49f2645200b9bbf94eaccdbb97084688e11dd057d399d80ced1e
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1735,6 +1779,28 @@ end;
 $$;
 revoke execute on function "app_private"."can_subject"(text, text, text) from public, anon;
 grant execute on function "app_private"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- can_subject for many ids of one type: the ids of subject_ids the caller can
+-- see and act on, from one read of the type's table. A list reads it once
+-- instead of calling can_subject per row.
+create or replace function "app_private"."can_subjects"(subject_type text, subject_ids text[], action text)
+returns setof text
+language plpgsql
+stable
+security invoker
+cost 1000
+set search_path = ''
+as $$
+begin
+  case can_subjects.subject_type
+    when '' then null;
+    else
+      return;
+  end case;
+end;
+$$;
+revoke execute on function "app_private"."can_subjects"(text, text[], text) from public, anon;
+grant execute on function "app_private"."can_subjects"(text, text[], text) to authenticated, service_role;
 
 -- A record page's header and tab badges in one call: the subject's title and
 -- path, how many rows each named section has and whether any is newer than
@@ -2213,21 +2279,21 @@ create policy bsb_tenant_scope_delete on "app_private"."subject_members" as rest
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block-data subjects
--- @bsb-hash sha256:eb0303aed8e9092aca1e8d0972e3a1d7ed2016a525be423d7feb911c659f913c
+-- @bsb-hash sha256:ead678deb89ccda7ca621093f4b98406756cfde068f2e2458c00903f70a62930
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('subjects', 1, 'managed')
+values ('subjects', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
--- @bsb-block subjects@1 managed
--- @bsb-hash sha256:4838ec8499d598ffb96ddd3d4b70637ca157c7d262c68516217b7f79b62a0701
+-- @bsb-block subjects@2 managed
+-- @bsb-hash sha256:3ed1ac6064a7efd039a6b5b685c77d3906490a7b17f074a74538fe7d47f4a9da
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2423,6 +2489,28 @@ end;
 $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- can_subject for many ids of one type: the ids of subject_ids the caller can
+-- see and act on, from one read of the type's table. A list reads it once
+-- instead of calling can_subject per row.
+create or replace function "better_supabase"."can_subjects"(subject_type text, subject_ids text[], action text)
+returns setof text
+language plpgsql
+stable
+security invoker
+cost 1000
+set search_path = ''
+as $$
+begin
+  case can_subjects.subject_type
+    when '' then null;
+    else
+      return;
+  end case;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subjects"(text, text[], text) from public, anon;
+grant execute on function "better_supabase"."can_subjects"(text, text[], text) to authenticated, service_role;
 
 -- A record page's header and tab badges in one call: the subject's title and
 -- path, how many rows each named section has and whether any is newer than
@@ -2972,6 +3060,16 @@ as $$ select "better_supabase"."can_subject"($1, $2, $3) $$;
 revoke execute on function "api"."can_subject"(text, text, text) from public, anon;
 grant execute on function "api"."can_subject"(text, text, text) to authenticated, service_role;
 
+create or replace function "api"."can_subjects"(subject_type text, subject_ids text[], action text)
+returns setof text
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."can_subjects"($1, $2, $3) $$;
+revoke execute on function "api"."can_subjects"(text, text[], text) from public, anon;
+grant execute on function "api"."can_subjects"(text, text[], text) to authenticated, service_role;
+
 create or replace function "api"."record_summary"(subject_type text, subject_id text, sections text[], seen_at timestamptz default null)
 returns jsonb
 language sql
@@ -3053,21 +3151,21 @@ grant execute on function "api"."subject_presence_allowed"(text) to authenticate
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block-data subjects
--- @bsb-hash sha256:eb0303aed8e9092aca1e8d0972e3a1d7ed2016a525be423d7feb911c659f913c
+-- @bsb-hash sha256:ead678deb89ccda7ca621093f4b98406756cfde068f2e2458c00903f70a62930
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('subjects', 1, 'managed')
+values ('subjects', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
--- @bsb-block subjects@1 managed
--- @bsb-hash sha256:391cdadac5ee72ffb706c23d3f803aec800662feded18ec58a01a87f6ba1e219
+-- @bsb-block subjects@2 managed
+-- @bsb-hash sha256:15d5a95d87daaef394e1c5838f311f72530a752c3559cf34aebb7feaf09c5802
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3260,6 +3358,28 @@ end;
 $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- can_subject for many ids of one type: the ids of subject_ids the caller can
+-- see and act on, from one read of the type's table. A list reads it once
+-- instead of calling can_subject per row.
+create or replace function "better_supabase"."can_subjects"(subject_type text, subject_ids text[], action text)
+returns setof text
+language plpgsql
+stable
+security invoker
+cost 1000
+set search_path = ''
+as $$
+begin
+  case can_subjects.subject_type
+    when '' then null;
+    else
+      return;
+  end case;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subjects"(text, text[], text) from public, anon;
+grant execute on function "better_supabase"."can_subjects"(text, text[], text) to authenticated, service_role;
 
 -- A record page's header and tab badges in one call: the subject's title and
 -- path, how many rows each named section has and whether any is newer than
@@ -3738,21 +3858,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."subject_members" as 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block-data subjects
--- @bsb-hash sha256:eb0303aed8e9092aca1e8d0972e3a1d7ed2016a525be423d7feb911c659f913c
+-- @bsb-hash sha256:ead678deb89ccda7ca621093f4b98406756cfde068f2e2458c00903f70a62930
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('subjects', 1, 'managed')
+values ('subjects', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
--- @bsb-block subjects@1 managed
--- @bsb-hash sha256:5c4b47110f7075588306af9a345b6db8855341026c62f6ab01fe7593ba8c0936
+-- @bsb-block subjects@2 managed
+-- @bsb-hash sha256:d20fcec61c712b645e952491feef4e0823474c8b5e9dc065467bb4c20880a44e
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3948,6 +4068,28 @@ end;
 $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- can_subject for many ids of one type: the ids of subject_ids the caller can
+-- see and act on, from one read of the type's table. A list reads it once
+-- instead of calling can_subject per row.
+create or replace function "better_supabase"."can_subjects"(subject_type text, subject_ids text[], action text)
+returns setof text
+language plpgsql
+stable
+security invoker
+cost 1000
+set search_path = ''
+as $$
+begin
+  case can_subjects.subject_type
+    when '' then null;
+    else
+      return;
+  end case;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subjects"(text, text[], text) from public, anon;
+grant execute on function "better_supabase"."can_subjects"(text, text[], text) to authenticated, service_role;
 
 -- A record page's header and tab badges in one call: the subject's title and
 -- path, how many rows each named section has and whether any is newer than
@@ -4426,13 +4568,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."subject_members" as 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block-data subjects
--- @bsb-hash sha256:eb0303aed8e9092aca1e8d0972e3a1d7ed2016a525be423d7feb911c659f913c
+-- @bsb-hash sha256:ead678deb89ccda7ca621093f4b98406756cfde068f2e2458c00903f70a62930
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('subjects', 1, 'managed')
+values ('subjects', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

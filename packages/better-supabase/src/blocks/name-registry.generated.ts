@@ -602,7 +602,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "tasks": "message" | "tenant" | "task" | "createdBy" | "createdAt";
     };
-    readonly functions: "comment_conversation" | "comment_count_rows" | "comment_counts" | "comment_message_readable" | "comment_page" | "comments_json" | "copy_comments" | "create_comment" | "get_comment" | "list_comments" | "list_comments_unchecked" | "list_file_comments";
+    readonly functions: "comment_conversation" | "comment_count_keys" | "comment_counts" | "comment_message_readable" | "comment_page" | "comments_json" | "copy_comments" | "create_comment" | "get_comment" | "list_comments" | "list_comments_unchecked" | "list_file_comments";
     readonly actions: "read" | "create" | "moderate";
     readonly hooks: "before_comment_create" | "after_comment_create" | "before_comment_assign" | "after_comment_assign";
     readonly entities: {};
@@ -2144,7 +2144,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "documents": "tenant" | "subjectType" | "subjectId" | "title" | "titleSearch" | "body" | "url" | "tsv" | "contentHash" | "embedding" | "updatedAt" | "description" | "facets" | "sortKey";
     };
-    readonly functions: "search" | "search_enqueue" | "search_enqueue_many" | "search_favorites" | "search_index_row" | "search_index_stmt" | "search_normalize" | "search_page" | "search_recents" | "search_refresh" | "search_refresh_dirty" | "search_refresh_run" | "search_reindex" | "search_remove" | "search_star" | "search_touch" | "search_user_state";
+    readonly functions: "search" | "search_enqueue" | "search_favorites" | "search_index_row" | "search_normalize" | "search_page" | "search_recents" | "search_refresh" | "search_refresh_dirty" | "search_refresh_run" | "search_reindex" | "search_remove" | "search_star" | "search_touch" | "search_user_state";
     readonly actions: "read";
     readonly hooks: "before_search_document_index" | "after_search_document_index";
     readonly entities: {};
@@ -2358,7 +2358,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "members": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "team" | "role" | "startsOn" | "endsOn" | "endsAt" | "emergency" | "reason" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "close_subject_member" | "end_subject_member" | "grant_subject_member" | "has_subject_role" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "record_team_leads" | "record_team_tenant" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "can_subjects" | "close_subject_member" | "end_subject_member" | "grant_subject_member" | "has_subject_role" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "record_team_leads" | "record_team_tenant" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
@@ -2520,7 +2520,7 @@ export interface BlockNameRegistry {
       readonly "billed": "tenant" | "periodStart" | "periodEnd" | "invoice" | "billedAt";
       readonly "quotas": "id" | "tenant" | "plan" | "meter" | "limit" | "period" | "createdAt";
     };
-    readonly functions: "consume_quota" | "mark_usage_reported" | "purge_usage_events" | "purge_usage_history" | "record_usage" | "record_usage_batch" | "remove_usage_quota" | "set_usage_quota" | "unreported_usage" | "usage_breakdown" | "usage_history" | "usage_meters" | "usage_overview" | "usage_quota" | "usage_remaining" | "usage_status" | "usage_used" | "usage_window" | "usage_window_start" | "within_quota";
+    readonly functions: "consume_quota" | "mark_usage_reported" | "purge_usage_events" | "purge_usage_history" | "record_usage" | "record_usage_batch" | "remove_usage_quota" | "set_usage_quota" | "unreported_usage" | "usage_breakdown" | "usage_history" | "usage_meters" | "usage_overview" | "usage_quota" | "usage_quotas_for" | "usage_remaining" | "usage_status" | "usage_used" | "usage_window" | "usage_window_start" | "within_quota";
     readonly actions: "read" | "record";
     readonly hooks: "usage_billing_period";
     readonly entities: {};

@@ -20,9 +20,14 @@ ${lockTable("better_supabase.import_search_dirty")}`;
 /**
  * How the index triggers hand records to `search_refresh`: at once, at the end
  * of an import batch's transaction, or when the import run closes (ADR 0421,
- * ADR 0844), and the row and statement trigger functions that call it.
+ * ADR 0844), and the row and statement trigger functions that call it. The
+ * statement ones exist only when a type sets `search.statement`, since each
+ * definer function counts against the module's baseline.
  */
-export function enqueueFunctions(ctx: BlockSqlContext): string {
+export function enqueueFunctions(
+  ctx: BlockSqlContext,
+  statement: boolean,
+): string {
   const fn = (name: string): string => ctx.fn(name);
 
   return `-- Runs as its caller (the definer trigger functions and import_upsert_batch
@@ -141,7 +146,11 @@ begin
   return null;
 end;
 $$;
-revoke execute on function ${fn("search_index_row")}() from public, anon, authenticated;
+revoke execute on function ${fn("search_index_row")}() from public, anon, authenticated;${statement ? statementFunctions(fn) : ""}`;
+}
+
+function statementFunctions(fn: (name: string) => string): string {
+  return `
 
 -- search_enqueue for many ids of one type, as the statement triggers call it.
 create or replace function ${fn("search_enqueue_many")}(subject_type text, subject_ids text[])

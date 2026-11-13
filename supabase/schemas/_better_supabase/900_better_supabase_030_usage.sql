@@ -1,6 +1,6 @@
 -- better-supabase module: usage
--- @bsb-block usage@8 managed
--- @bsb-hash sha256:2c69da2b3dbd3d6d536a57a6a3c0d40c8b34f37429edae1904e3615562bb2d7a
+-- @bsb-block usage@9 managed
+-- @bsb-hash sha256:6bf08d7758023e2abdaff7ddbf2ab75e24b16366ff9df2ec3141d4e952bb4910
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,21 +95,39 @@ create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
 -- The signature before the report could skip meters and tenants.
 
 
+-- The quota that applies to each pair of tenants and meters that has one. It
+-- resolves each distinct tenant's plans once, then picks a quota per pair in
+-- the order usage_quota uses: the tenant's own row, then the highest plan
+-- limit, where a null (unlimited) limit is highest.
+create or replace function "better_supabase"."usage_quotas_for"(tenants uuid[], meters text[])
+returns table (tenant uuid, meter text, quota_limit numeric, period text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with t as materialized (
+    select d.tenant, better_supabase.tenant_entitlements(d.tenant)::text[] as entitled, better_supabase.tenant_plans(d.tenant)::text[] as plans
+    from (select distinct u.tenant from unnest(usage_quotas_for.tenants) u(tenant) where u.tenant is not null) d
+  )
+  select distinct on (t.tenant, q."meter") t.tenant, q."meter", q."limit", q."period"
+  from t
+  join "better_supabase"."usage_quotas" q on q."meter" = any (usage_quotas_for.meters)
+    and (q."tenant_id" = t.tenant or (q."tenant_id" is null and (q."plan" = '*' or q."plan" = any (t.entitled) or q."plan" = any (t.plans))))
+  order by t.tenant, q."meter", (q."tenant_id" is not null) desc, q."limit" desc nulls first
+$$;
+
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
 create or replace function "better_supabase"."usage_quota"(tenant uuid, meter text)
 returns table (quota_limit numeric, period text)
 language sql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
-  select q."limit", q."period"
-  from "better_supabase"."usage_quotas" q
-  where q."meter" = usage_quota.meter
-    and (q."tenant_id" = usage_quota.tenant or (q."tenant_id" is null and (q."plan" = '*' or q."plan" = any (better_supabase.tenant_entitlements(tenant)) or q."plan" = any (better_supabase.tenant_plans(tenant)))))
-  order by (q."tenant_id" is not null) desc, q."limit" desc nulls first
-  limit 1
+  select q.quota_limit, q.period
+  from "better_supabase"."usage_quotas_for"(array[usage_quota.tenant], array[usage_quota.meter]) q
 $$;
 
 -- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
@@ -851,6 +869,8 @@ grant execute on function "better_supabase"."record_usage_batch"(uuid, jsonb, te
 revoke execute on function "better_supabase"."unreported_usage"(integer, text[], uuid[]) from public, anon, authenticated;
 revoke execute on function "better_supabase"."mark_usage_reported"(uuid, text, date, numeric) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quota"(uuid, text) to service_role;
+revoke execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) from public, anon, authenticated;
+grant execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) to service_role;
 revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
@@ -1136,6 +1156,16 @@ set search_path = ''
 as $$ select * from "better_supabase"."usage_quota"($1, $2) $$;
 revoke execute on function "api"."usage_quota"(uuid, text) from public, anon, authenticated;
 grant execute on function "api"."usage_quota"(uuid, text) to service_role;
+
+create or replace function "api"."usage_quotas_for"(tenants uuid[], meters text[])
+returns table (tenant uuid, meter text, quota_limit numeric, period text)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."usage_quotas_for"($1, $2) $$;
+revoke execute on function "api"."usage_quotas_for"(uuid[], text[]) from public, anon, authenticated;
+grant execute on function "api"."usage_quotas_for"(uuid[], text[]) to service_role;
 
 create or replace function "api"."set_usage_quota"(tenant uuid, plan text, meter text, quota_limit numeric, period text default 'month')
 returns void

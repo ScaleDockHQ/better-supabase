@@ -332,8 +332,10 @@ read both.
 `list_comments` checks the record once: it reads the record's conversation
 under the caller's policies, then reads the page of comments by key. Its cost
 doesn't grow with the number of conversations the caller can see in other
-tenants or with the length of the thread. `comment_counts` reads each
-record's conversation the same way and counts its comments by key.
+tenants or with the length of the thread. `comment_counts` decides which of
+the listed records the caller can read with one `can_subjects` call, which
+reads the records' table once, then finds their conversations and counts their
+comments by key.
 
 A page payload that has already checked the record in its own
 `security definer` function can skip that check with
