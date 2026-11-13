@@ -176,7 +176,7 @@ export const replaceCounts = (markdown: string, rows: readonly Finding[]) => {
     return;
   }
 
-  return `${markdown.slice(0, start + START.length)}\n${renderCounts(rows)}\n${markdown.slice(end)}`;
+  return `${markdown.slice(0, start + START.length)}\n\n${renderCounts(rows)}\n${markdown.slice(end)}`;
 };
 
 const IDS = /EX-(\d+)(?:\s+to\s+EX-(\d+))?/g;
