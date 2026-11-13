@@ -12,6 +12,7 @@ import type {
   RiskMatrixBand,
   RiskMatrixLevel,
 } from "../../sql/modules/risks-sql.ts";
+import type { RecordRef } from "../sales-shared.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -269,6 +270,16 @@ export interface Risks<F extends object = Record<never, never>> {
   /** Closes a risk with a reason; needs `risks.manage`. */
   close(input: { riskId: string; reason: string }): AsyncResult<Risk<F>>;
   get(riskId: string): AsyncResult<RiskDetail<F>>;
+  /**
+   * The open risks linked to a record, highest residual score first, at most
+   * `limit` (default 50, up to 200). A risk is linked to a record by a relation
+   * from the risk to it, so the read needs the relations block. The
+   * organization comes from `options.tenant`.
+   */
+  linkedTo(input: {
+    subject: RecordRef;
+    limit?: number | undefined;
+  }): AsyncResult<readonly Risk<F>[]>;
   list(options?: RiskListOptions): AsyncResult<readonly Risk<F>[]>;
   /**
    * One keyset page of `list`: the rows, `hasMore` and a `nextCursor` to pass
@@ -587,6 +598,22 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
       call("get_risk", { risk_id: riskId }, (value) =>
         detailOf(value, "get_risk"),
       ).andThen(fields.row),
+    linkedTo: ({ subject, limit }) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_risks_for_subject",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            page_size: limit ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_risks_for_subject").map((row) =>
+              riskOf(row, "list_risks_for_subject"),
+            ),
+        ).andThen(fields.rows),
+      ),
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

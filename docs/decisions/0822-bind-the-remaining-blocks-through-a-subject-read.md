@@ -59,3 +59,27 @@ the organization. The deals read runs as the caller so the table's row level
 security decides which deals show. `list` is the verb because the data contract
 retires `forSubject` (`tests/blocks/data-contract.test-d.ts`). A later lane that
 gives these blocks a general `list` extends the same method.
+
+### K3b: bookings, expenses, leave and risks
+
+The reads differ from the first plan because the blocks already hold most of
+what they need.
+
+| Block    | Read                              | Subject and limit                                                                  |
+| -------- | --------------------------------- | ---------------------------------------------------------------------------------- |
+| bookings | `forCustomer({ subject, limit })` | the customer's user id; `list` already takes a range, so the verb is `forCustomer` |
+| expenses | `list({ userId })`, no new method | the member's user id; reports belong to a member, not an employee                  |
+| leave    | `forOwner({ subject, limit })`    | `employee` filters by `employee_id`, any other type by user id                     |
+| risks    | `linkedTo({ subject, limit })`    | any record a relation from the risk points to                                      |
+
+Expenses and leave need no migration: `list_expense_reports` and
+`list_leave_requests` already filter by `user_id`, and the leave function takes
+`employee_id` when the table's owner is the employee. The limit is that a leave
+table keyed by user only has no `employee_id` argument, so an `employee` subject
+fails there and the page binds to the member instead (recorded in the leave
+docs). Risks gets no new columns: a risk already links to records through the
+relations block, so `list_risks_for_subject` reads those links, and without
+relations the read does not exist, so EX-1237 holds for risks only where the
+relations block is installed. The new functions are `list_bookings_for_customer`
+(invoker, so policies decide) and `list_risks_for_subject` (definer, checks
+`risks.read`), in migration `20261214000002`.

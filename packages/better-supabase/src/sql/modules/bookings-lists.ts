@@ -1,6 +1,7 @@
 import type { Parts } from "./bookings-public.ts";
 
 import { userGrant } from "../shared.ts";
+import { bookingJson } from "./bookings-public.ts";
 
 /** `list_booking_resources` and `list_booking_services`, read as the caller. */
 export function catalogLists(p: Parts): string {
@@ -51,5 +52,34 @@ as $$
     and (list_booking_services.include_inactive or sv.${s("active")})
 $$;
 ${userGrant(`${fn("list_booking_services")}(${ctx.idType}, boolean)`)}
+`;
+}
+
+/** `list_bookings_for_customer` (ADR 0822), read as the caller. */
+export function customerList(p: Parts): string {
+  const { ctx, b } = p;
+  const fn = (name: string): string => ctx.fn(name);
+
+  return `
+-- A customer's bookings, newest first, as the caller: the table's policy shows
+-- a tenant's bookings to readers and a customer their own.
+create or replace function ${fn("list_bookings_for_customer")}(tenant ${ctx.idType}, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.starts desc, z.id desc), '[]'::jsonb)
+  from (
+    select ${bookingJson(p, "bk")} as item, lower(bk.${b("during")}) as starts, bk.${b("id")} as id
+    from ${p.bookings} bk
+    where bk.${b("tenant")} = list_bookings_for_customer.tenant
+      and bk.${b("customerUser")}::text = list_bookings_for_customer.customer
+    order by lower(bk.${b("during")}) desc, bk.${b("id")} desc
+    limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
+  ) z
+$$;
+${userGrant(`${fn("list_bookings_for_customer")}(${ctx.idType}, text, integer)`)}
 `;
 }

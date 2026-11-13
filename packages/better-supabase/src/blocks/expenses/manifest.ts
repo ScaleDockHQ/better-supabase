@@ -5,6 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { expensesEvents } from "./events.ts";
 import { createExpenses } from "./expenses.ts";
 import { expensesSqlOptions } from "./options.ts";
+import { expensesBinding } from "./record-binding.ts";
 import {
   expenseCategoryInputSchema,
   expenseLineInputSchema,
@@ -15,7 +16,10 @@ import {
 export const expensesBlock: BlockOf<
   "expenses",
   typeof createExpenses,
-  ExpensesEvents
+  ExpensesEvents,
+  Record<never, never>,
+  never,
+  typeof expensesBinding
 > = defineBlock({
   name: "expenses",
   sql: ["expenses"],
@@ -27,6 +31,7 @@ export const expensesBlock: BlockOf<
     expense_category: { input: expenseCategoryInputSchema },
   },
   create: createExpenses,
+  record: expensesBinding,
   category: "commerce",
   entities: {
     expense_report: { mutability: "state-machine", emits: { create: true } },

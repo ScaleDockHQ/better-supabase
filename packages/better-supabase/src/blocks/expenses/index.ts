@@ -56,3 +56,5 @@ export type {
   ExpenseReportSubmittedEventData,
   ExpensesEvents,
 } from "./events.ts";
+
+export { expensesBinding } from "./record-binding.ts";

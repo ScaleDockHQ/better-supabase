@@ -66,3 +66,5 @@ export type {
 } from "./events.ts";
 
 export type { ListPage } from "../../core/block-helpers.ts";
+
+export { risksBinding } from "./record-binding.ts";

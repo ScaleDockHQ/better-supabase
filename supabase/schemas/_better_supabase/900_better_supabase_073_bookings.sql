@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:23bd005f8ebdf0eb3ab304f2fb6e27b1a10ff695ab257f322d0631164a10336b
+-- @bsb-hash sha256:2e29f17352c41509652b11a5e2627c4d4d2cf3eb9ca5d72578d3216d226f1961
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -816,6 +816,28 @@ $$;
 revoke execute on function "better_supabase"."list_booking_services"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_booking_services"(uuid, boolean) to authenticated, service_role;
 
+-- A customer's bookings, newest first, as the caller: the table's policy shows
+-- a tenant's bookings to readers and a customer their own.
+create or replace function "better_supabase"."list_bookings_for_customer"(tenant uuid, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.starts desc, z.id desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") as item, lower(bk."during") as starts, bk."id" as id
+    from "better_supabase"."bookings" bk
+    where bk."tenant_id" = list_bookings_for_customer.tenant
+      and bk."customer_id"::text = list_bookings_for_customer.customer
+    order by lower(bk."during") desc, bk."id" desc
+    limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
+
 -- Public booking through a share link to a service (subjectType
 -- "booking_service"): the token is the credential, hashed before the lookup.
 create or replace function "better_supabase"."public_booking_service"(token text)
@@ -1611,6 +1633,16 @@ set search_path = ''
 as $$ select "better_supabase"."list_booking_services"($1, $2) $$;
 revoke execute on function "api"."list_booking_services"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_booking_services"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."list_bookings_for_customer"(tenant uuid, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_bookings_for_customer"($1, $2, $3) $$;
+revoke execute on function "api"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
+grant execute on function "api"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
 
 create or replace function "api"."public_booking_service"(token text)
 returns jsonb

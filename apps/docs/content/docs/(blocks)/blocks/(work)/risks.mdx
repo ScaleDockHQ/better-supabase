@@ -213,6 +213,10 @@ The [risk register](/docs/registry/ui-recipes/risk-register) and
 | `RISK_MATRIX_IN_USE`      | risks use the matrix, so its number of levels can't change      |
 | `RISK_MATRIX_NOT_FOUND`   | no matrix with this id                                          |
 
+## On a record page
+
+`risksBinding` loads the open risks linked to a record, highest residual score first, through `risks.linkedTo({ subject, limit })`. A risk is linked to a record by a relation from the risk to it, of any kind, so the read exists only when the relations block is installed and not in custom mode. The organization comes from `options.tenant`, and the read needs `risks.read`. It shows at most `limit` risks (default 50, up to 200), goes stale on `risk.*` events and has no writes, because assessing or closing a risk takes a matrix and levels.
+
 ## Events
 
 `risk_matrix.created`, `risk_matrix.updated`, `risk.created`, `risk.updated`,

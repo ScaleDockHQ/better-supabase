@@ -32,6 +32,7 @@ describe("quotesBinding", () => {
     );
 
     expect(loaded.ok && loaded.data).toEqual([]);
+
     expect(calls).toEqual([
       [
         "list_quotes_for_subject",

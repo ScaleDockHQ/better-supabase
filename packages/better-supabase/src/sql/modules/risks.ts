@@ -332,7 +332,7 @@ ${riskFunctions(ctx)}
 ${riskAssessFunctions(ctx)}`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_risk_matrix",
@@ -366,6 +366,15 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "close_risk", args: ["uuid", "text"], returns: "jsonb" },
     { name: "get_risk", args: ["uuid"], returns: "jsonb" },
     { name: "list_risks", args: ["{id}", "jsonb"], returns: "jsonb" },
+    ...(ctx.installed("relations") && ctx.of("relations").mode !== "custom"
+      ? [
+          {
+            name: "list_risks_for_subject",
+            args: ["{id}", "text", "text", "integer"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     { name: "risk_heatmap", args: ["{id}", "uuid", "text"], returns: "jsonb" },
     { name: "notify_due_risk_reviews", args: [], returns: "integer" },
   ];

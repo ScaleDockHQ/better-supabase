@@ -1034,7 +1034,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:4ec9bf4ab8a79f1827e18613a98cc3375aee718839618508301b1c2e9b5837e3
+-- @bsb-hash sha256:e0dbe524ee46172c7148f9fdc76dcd03f51c6c9d1f7670bf14974a9eabaa8f1c
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1980,6 +1980,41 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_risks"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_risks"(uuid, jsonb) to authenticated, service_role;
+
+-- The open risks linked to a record (ADR 0822): a relation from the risk to
+-- the record, of any kind. The highest residual score first.
+create or replace function "better_supabase"."list_risks_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_risks_for_subject.tenant is not null and coalesce(better_supabase.can('tenant', list_risks_for_subject.tenant, 'risks.read'), false))) then
+    raise exception 'not allowed to read risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.score desc, z.seq, z.id)
+    from (
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'number', x."number", 'matrixId', x."matrix_id", 'title', x."title", 'description', x."description", 'category', x."category", 'cause', x."cause", 'consequence', x."consequence", 'ownerId', x."owner_id", 'status', x."status", 'treatment', x."treatment", 'reviewIntervalMonths', x."review_interval_months", 'nextReviewOn', x."next_review_on", 'reviewedAt', x."reviewed_at", 'inherent', case when x."inherent_score" is null then null else jsonb_build_object('likelihood', x."inherent_likelihood", 'impact', x."inherent_impact", 'score', x."inherent_score", 'band', x."inherent_band") end, 'residual', case when x."residual_score" is null then null else jsonb_build_object('likelihood', x."residual_likelihood", 'impact', x."residual_impact", 'score', x."residual_score", 'band', x."residual_band") end, 'currentAssessmentId', x."current_assessment_id", 'closedAt', x."closed_at", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as item, coalesce(x."residual_score", -1) as score, x."sequence" as seq, x."id" as id
+      from "better_supabase"."risks" x
+      where x."tenant_id" = list_risks_for_subject.tenant
+        and x."archived_at" is null and x."status" <> 'closed'
+        and exists (
+          select 1 from "better_supabase"."relations" l
+          where l."tenant_id" = x."tenant_id"
+            and l."source_type" = 'risk' and l."source_id" = x."id"::text
+            and l."target_type" = list_risks_for_subject.subject_type and l."target_id"::text = list_risks_for_subject.subject_id)
+      order by coalesce(x."residual_score", -1) desc, x."sequence", x."id"
+      limit least(greatest(coalesce(list_risks_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_risks_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_risks_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 
 -- A matrix (the default without matrix_id) with one cell per likelihood and
 -- impact: the open risks scored there, on their residual or inherent score.

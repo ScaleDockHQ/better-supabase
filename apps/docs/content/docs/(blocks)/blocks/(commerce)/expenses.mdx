@@ -325,6 +325,10 @@ The owner and their manager keep their own access, whatever these keys say.
 | `EXPENSE_NOT_FOUND`            | no expense with this id that the caller can read                                |
 | `EXPENSE_EMPLOYEE_INVALID`     | no employee has this id, or the caller has no employee record                   |
 
+## On a record page
+
+`expensesBinding` loads a member's expense reports, newest first, through `expenses.list({ userId })`. The subject's `id` is the member's user id. Reports belong to a member, not to an employee, so an employee's page passes the employee's user id. The organization comes from `options.tenant`, and reading another member's reports needs `expenses.read`. It goes stale on `expense_report.*` events and has no writes, because filing or deciding a report takes money, lines and receipts.
+
 ## Events
 
 `expense_report.created`, `expense_report.submitted` (with the approval),

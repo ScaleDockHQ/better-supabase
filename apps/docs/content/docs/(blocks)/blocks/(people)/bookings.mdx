@@ -457,6 +457,10 @@ export function Component(props: { serviceId: string }) {
 }
 ```
 
+## On a record page
+
+`bookingsBinding` loads a customer's bookings, newest first, through `bookings.forCustomer({ subject, limit })`. The subject's `id` is the customer's user id, whatever its `type`. The organization comes from `options.tenant`: without it the call fails with `TENANT_REQUIRED`. The read runs as the caller, so an admin sees every booking of the customer and the customer sees their own. It shows at most `limit` bookings (default 50, up to 200) and goes stale on `booking.*` events. It has no writes, because a booking takes an instant, a service and a resource, which a Server Action can't carry.
+
 ## Hooks
 
 `before_booking_reserve(tenant, service, resource, during, customer)` runs before a booking is

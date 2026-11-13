@@ -4,15 +4,18 @@ import type {
   FieldsOf,
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { RecordRef } from "../sales-shared.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -29,7 +32,8 @@ import {
 
 export interface LeaveOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> extends BlockTemporalOptions {
+>
+  extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
@@ -382,6 +386,18 @@ export interface Leave<F extends object = Record<never, never>> {
    * longer read everyone's leave.
    */
   feed(token: string): AsyncResult<LeaveFeed | null>;
+  /**
+   * The leave requests of one owner, earliest first, at most `limit` (default
+   * 100, up to 500): the requests of the employee when the subject's `type` is
+   * `employee` (a table with `owner: "employee"` or the employees block), else
+   * of the member whose user id is the subject's `id`. As with `list`, only a
+   * reader, the owner or the owner's manager sees them. The organization comes
+   * from `options.tenant` (without it the call fails with `TENANT_REQUIRED`).
+   */
+  forOwner(input: {
+    subject: RecordRef;
+    limit?: number | undefined;
+  }): AsyncResult<readonly LeaveRequest<F>[]>;
   /** Earliest first. */
   list(
     input: { organizationId: string } & LeaveRequestListOptions,
@@ -806,6 +822,16 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
             requestOf(row, "list_leave_requests"),
           ),
       ).andThen(fields.rows),
+    forOwner: ({ subject, limit }) =>
+      requireTenant(options.tenant).andThen((organizationId) =>
+        client.list({
+          organizationId,
+          ...(subject.type === "employee"
+            ? { employeeId: subject.id }
+            : { userId: subject.id }),
+          ...(limit === undefined ? {} : { pageSize: limit }),
+        }),
+      ),
     balances: ({ organizationId, ...list }) =>
       call(
         "leave_balances",

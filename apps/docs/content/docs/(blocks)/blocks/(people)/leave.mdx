@@ -261,6 +261,10 @@ leave: {
 | `LEAVE_EMPLOYEE_INVALID`  | no employee has this id, or the caller has no employee record                                       |
 | `LEAVE_PERIOD_CLOSED`     | the periods block locked or closed the leave year the request starts in                             |
 
+## On a record page
+
+`leaveBinding` loads the leave requests of one owner, earliest first, through `leave.forOwner({ subject, limit })`. With a subject of type `employee` it filters by `employee_id`, which exists when the table has `owner: "employee"` or the employees block is installed. With any other type it filters by the member whose user id is the subject's `id`. On a table that keys requests by user only, an `employee` subject fails with a database error that says the `employee_id` argument is unknown, so bind such a page to the member instead. The organization comes from `options.tenant`; the owner, the owner's manager and anyone with `leave.read` see the requests. It shows at most `limit` requests (default 100, up to 500), goes stale on `leave_request.*` events and has no writes, because a request takes dates and an approval.
+
 ## Events
 
 The block records `leave_request.requested`, `leave_request.approved`, `leave_request.rejected` (without the approvals block), `leave_request.cancelled`, `leave_request.updated` and `leave_request.split` (the new request) with `organizationId`, `id`, `userId`, `typeId`, `startsOn`, `endsOn`, `amount` and `approvalId`, and `leave_balance.adjusted` with `kind`, `amount` and `period` for grants and adjustments. See [events](/docs/extending/events).

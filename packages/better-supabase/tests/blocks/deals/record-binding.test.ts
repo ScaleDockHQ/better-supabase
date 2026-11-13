@@ -32,6 +32,7 @@ describe("dealsBinding", () => {
     );
 
     expect(loaded.ok && loaded.data).toEqual([]);
+
     expect(calls).toEqual([
       [
         "list_deals_for_subject",
