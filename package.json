@@ -18,6 +18,7 @@
     "check:agent-docs": "node scripts/check-agent-docs.ts",
     "check:app-architecture": "node scripts/check-app-architecture.ts",
     "check:example-coverage": "node scripts/check-example-coverage.ts",
+    "check:example-findings": "node scripts/check-example-findings.ts",
     "check:format": "ultracite check",
     "check:migration-order": "node scripts/check-migration-order.ts",
     "check:naming": "node scripts/check-naming.ts",
@@ -71,7 +72,7 @@
     "typecheck:matrix": "turbo run typecheck:matrix",
     "typecheck:perf": "turbo run typecheck:perf",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:adrs check:agent-docs check:app-architecture check:example-coverage check:migration-order check:naming check:no-permdock recipes:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix --output-logs=errors-only && turbo run typecheck:perf --output-logs=errors-only && turbo boundaries",
+    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:adrs check:agent-docs check:app-architecture check:example-coverage check:example-findings check:migration-order check:naming check:no-permdock recipes:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix --output-logs=errors-only && turbo run typecheck:perf --output-logs=errors-only && turbo boundaries",
     "version-packages": "node scripts/root-changelog.ts && changeset version && node scripts/sync-versions.ts && pnpm run registry:build && pnpm run format"
   },
   "devDependencies": {
