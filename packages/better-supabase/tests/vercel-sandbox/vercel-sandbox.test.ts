@@ -362,6 +362,25 @@ describe("vercelSandboxes", () => {
       { ...credentials, name: "chat-chat_1" },
     ]);
   });
+
+  it("passes Sandbox 4's npm credentials through next to the access token", async () => {
+    const sdk = fakeSdk();
+
+    const adapter = vercelSandboxes({
+      sandboxes: fakeRegistry().sandboxes,
+      credentials: { token: "vtk_1", teamId: "team_1", projectId: "prj_1" },
+      defaults: { credentials: { npm: true } },
+      load: async () => sdk.module,
+      loadSession: async () => sessions,
+    });
+
+    await adapter.forChat("org_1", "chat_1").orThrow();
+
+    expect(sdk.calls[0]?.[1]).toMatchObject({
+      credentials: { npm: true },
+      token: "vtk_1",
+    });
+  });
 });
 
 describe("network presets", () => {
