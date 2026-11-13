@@ -4,10 +4,11 @@
  * `build`, `dev`, `typecheck`, `lint` and `test` tasks depend on it. It also
  * writes the preset catalog (`src/preset/catalog.generated.ts`), which
  * `better-supabase/preset` resolves against without importing the SQL
- * renderers, the block hint codes (`src/blocks/hint-codes.generated.ts`) and
- * the adoptable-tables table on the own-schemas docs page. All are committed,
- * and `pnpm catalog:check` (`--check`, part of `pnpm verify`) fails when one is
- * stale.
+ * renderers, the block hint codes and messages
+ * (`src/blocks/hint-codes.generated.ts`,
+ * `src/blocks/messages/hint-messages.generated.ts`) and the adoptable-tables
+ * table on the own-schemas docs page. All are committed, and `pnpm
+ * catalog:check` (`--check`, part of `pnpm verify`) fails when one is stale.
  */
 import {
   existsSync,
@@ -69,7 +70,12 @@ import {
   OWN_SCHEMAS_PAGE,
   withAdoptableTables,
 } from "./adoptable-tables.ts";
-import { blockHints, formatBlockHints } from "./block-hints.ts";
+import {
+  blockHintMessages,
+  blockHints,
+  formatBlockHintMessages,
+  formatBlockHints,
+} from "./block-hints.ts";
 import {
   AUTOMATIONS_PAGE,
   MATRIX_PAGE,
@@ -130,6 +136,12 @@ const BLOCKS_SRC = join(ROOT, "packages/better-supabase/src/blocks");
 export const HINT_CODES_FILE: string = join(
   BLOCKS_SRC,
   "hint-codes.generated.ts",
+);
+
+export const HINT_MESSAGES_FILE: string = join(
+  BLOCKS_SRC,
+  "messages",
+  "hint-messages.generated.ts",
 );
 
 export const CATEGORIES = [
@@ -882,7 +894,12 @@ if (import.meta.main) {
     const blockCatalog = buildCatalog();
     const blocksFile = formatBlockCatalog(blockCatalog);
     const nameSets = formatNameRegistry(Object.values(SQL_MODULES));
-    const hints = formatBlockHints(blockHints(BLOCK_MANIFESTS, BLOCKS_SRC));
+    const hintCodes = blockHints(BLOCK_MANIFESTS, BLOCKS_SRC);
+    const hints = formatBlockHints(hintCodes);
+
+    const hintMessages = formatBlockHintMessages(
+      blockHintMessages(BLOCK_MANIFESTS, hintCodes),
+    );
 
     if (argv.includes("--check")) {
       if (readFileSync(PRESET_CATALOG_FILE, "utf-8") !== preset) {
@@ -909,6 +926,13 @@ if (import.meta.main) {
       if (readFileSync(HINT_CODES_FILE, "utf-8") !== hints) {
         console.error(
           "build-catalog: src/blocks/hint-codes.generated.ts is stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
+
+      if (readFileSync(HINT_MESSAGES_FILE, "utf-8") !== hintMessages) {
+        console.error(
+          "build-catalog: src/blocks/messages/hint-messages.generated.ts is stale; run `pnpm catalog`.",
         );
         exit(1);
       }
@@ -961,6 +985,8 @@ if (import.meta.main) {
       writeFileSync(BLOCK_CATALOG_FILE, blocksFile);
       writeFileSync(NAME_REGISTRY_FILE, nameSets);
       writeFileSync(HINT_CODES_FILE, hints);
+      mkdirSync(dirname(HINT_MESSAGES_FILE), { recursive: true });
+      writeFileSync(HINT_MESSAGES_FILE, hintMessages);
       mkdirSync(dirname(CATALOG_FILE), { recursive: true });
       writeFileSync(CATALOG_FILE, formatCatalog(blockCatalog));
 

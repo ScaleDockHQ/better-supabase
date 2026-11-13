@@ -2,6 +2,7 @@
 "use client";
 
 import { DbException } from "better-supabase";
+import { useErrorMessage } from "better-supabase/react";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
@@ -19,7 +20,6 @@ import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { OrganizationSummary } from "../organization-queries";
 

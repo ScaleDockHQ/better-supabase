@@ -812,11 +812,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane C
 
 - Scope: Field-aware invalid_input, generated messages, locale
-- Status: planned
+- Status: PR open #898
 - Branch: `feat/audit-c`
-- PR: none yet
+- PR: [#898](https://github.com/ScaleDockHQ/better-supabase/pull/898)
 - Findings: EX-1235, EX-1236, EX-1317
 - Log: 2026-11-12, planned.
+- Log: 2026-11-12, lane C started from main in `../bsb-audit-c`.
+- Log: 2026-11-12, PR #898 opened (ADR 0709).
 
 ### Lane D
 

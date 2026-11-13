@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { Trash2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -15,7 +15,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { DocumentRow } from "../knowledge-queries";
 

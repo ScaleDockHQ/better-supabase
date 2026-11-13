@@ -6,6 +6,7 @@ import {
   DbException,
   dbError,
   dbErrorOf,
+  invalidInput,
   isCheck,
   isConflict,
   isDbError,
@@ -834,5 +835,51 @@ describe("mapDbError", () => {
         message: "slow",
       });
     });
+  });
+});
+
+describe("invalid_input fields", () => {
+  it("invalidInput puts the first field's code in the hint", () => {
+    const fields = [
+      { path: ["name"], code: "NAME_REQUIRED", message: "Name." },
+    ];
+
+    expect(invalidInput("Bad", fields)).toEqual({
+      kind: "invalid_input",
+      message: "Bad",
+      status: 400,
+      hint: "NAME_REQUIRED",
+      fields,
+    });
+    expect(invalidInput("Bad", fields, { hint: "OTHER" }).hint).toBe("OTHER");
+    expect(invalidInput("Bad", []).hint).toBeUndefined();
+  });
+
+  it("maps fields from the DETAIL of an input check raised in SQL", () => {
+    const fields = [
+      { path: ["name"], code: "NAME_REQUIRED", message: "Name." },
+    ];
+
+    expect(
+      mapDbError({
+        code: "22023",
+        message: "bad",
+        details: JSON.stringify({ fields }),
+      }),
+    ).toMatchObject({ kind: "invalid_input", fields });
+  });
+
+  it("ignores a DETAIL that is not a list of fields", () => {
+    for (const details of [
+      "plain text",
+      "{not json",
+      '{"fields": []}',
+      '{"fields": [{"path": "name"}]}',
+      '{"fields": [{"path": [true], "code": "A", "message": "b"}]}',
+    ]) {
+      expect(
+        mapDbError({ code: "22023", message: "bad", details }),
+      ).not.toHaveProperty("fields");
+    }
   });
 });

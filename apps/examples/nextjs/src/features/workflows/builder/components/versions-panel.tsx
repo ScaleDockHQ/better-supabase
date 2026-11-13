@@ -3,7 +3,7 @@
 import type { WorkflowGraph } from "better-supabase/blocks/workflow-editor";
 
 import { diffGraphs } from "better-supabase/blocks/workflow-editor";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { HistoryIcon, RotateCcwIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
@@ -18,7 +18,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { VersionRow } from "../builder-queries";
 

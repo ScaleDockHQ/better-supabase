@@ -3,6 +3,7 @@
 
 import type { SubmitEvent } from "react";
 
+import { useErrorMessage } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useOptimistic, useState, useTransition } from "react";
 
@@ -11,7 +12,6 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useComments } from "@/hooks/use-comments";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
  * A record's comments, oldest first, through the browser client. `subject` is

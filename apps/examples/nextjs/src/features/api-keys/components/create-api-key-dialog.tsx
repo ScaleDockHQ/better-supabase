@@ -3,6 +3,7 @@
 import type { DbError } from "better-supabase";
 import type { SubmitEvent } from "react";
 
+import { useErrorMessage } from "better-supabase/react";
 import { CopyIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -28,7 +29,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /** The create form, then the new token, which is shown only this once. */
 export function CreateApiKeyDialog({

@@ -1,5 +1,6 @@
 "use client";
 
+import { useErrorMessage } from "better-supabase/react";
 import { KeyRoundIcon, RefreshCwIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
@@ -17,7 +18,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { rotateSigningKey } from "../signing-keys-actions";
 

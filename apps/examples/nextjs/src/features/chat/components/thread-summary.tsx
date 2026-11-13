@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { RotateCwIcon, SparklesIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -21,7 +21,6 @@ import {
   EmptyHeader,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { summarizeThread } from "../chat-actions";
 

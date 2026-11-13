@@ -3,7 +3,11 @@
 import type { Money } from "better-supabase/commerce";
 
 import { formatMoney, negateMoney } from "better-supabase/commerce";
-import { useAction, useActionForm } from "better-supabase/react";
+import {
+  useAction,
+  useActionForm,
+  useErrorMessage,
+} from "better-supabase/react";
 import { TicketPercentIcon, XIcon } from "lucide-react";
 import { useExtracted, useLocale } from "next-intl";
 import { useId, useState } from "react";
@@ -29,7 +33,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import {
   applyPromotionCode,

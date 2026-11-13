@@ -3,7 +3,7 @@
 import type { Money } from "better-supabase/commerce";
 
 import { formatMoney } from "better-supabase/commerce";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted, useLocale } from "next-intl";
 import { useState } from "react";
 
@@ -19,7 +19,6 @@ import {
 } from "@/components/reui/kanban";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BoardDeal, BoardStage } from "../crm-queries";
 

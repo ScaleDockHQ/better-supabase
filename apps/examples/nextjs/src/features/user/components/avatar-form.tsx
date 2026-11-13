@@ -1,6 +1,10 @@
 "use client";
 
-import { useActionForm, useImage } from "better-supabase/react";
+import {
+  useActionForm,
+  useImage,
+  useErrorMessage,
+} from "better-supabase/react";
 import { UploadIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useMemo } from "react";
@@ -18,7 +22,6 @@ import { avatars } from "@/lib/buckets";
 import { useSupabase } from "@/lib/hooks";
 import { initials } from "@/lib/initials";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { uploadAvatar } from "../user-actions";
 

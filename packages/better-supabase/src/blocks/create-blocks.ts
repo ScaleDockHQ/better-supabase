@@ -25,7 +25,11 @@ import type { AnyBlock, ClientOf } from "./define-block.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 
 import { onBlockEvent } from "../core/block-event-listener.ts";
-import { blockCall, isRecord } from "../core/block-helpers.ts";
+import {
+  blockCall,
+  isRecord,
+  localizedMappers,
+} from "../core/block-helpers.ts";
 import { withBlockHooks, wrapTransport } from "../core/block-hooks.ts";
 import { blockNames } from "../core/block-names.ts";
 import { dbTransport, rpcTransport } from "../core/block-transport.ts";
@@ -590,6 +594,7 @@ function blockBuilder(
   blocks: BlockMap,
 ): BlockBuilder {
   const { audit: _audit, hooks, config, ports: bound, ...shared } = options;
+  const mappers = localizedMappers(shared);
 
   const blockOf = (key: string): AnyBlock => {
     const block = blocks[key];
@@ -742,6 +747,7 @@ function blockBuilder(
 
     return {
       ...shared,
+      ...(mappers === undefined ? {} : { mappers }),
       ...(entry === undefined ? {} : generatedOptions(entry)),
       ...(entry?.names === undefined ? {} : renamedTransports(entry.names)),
       ...ports,

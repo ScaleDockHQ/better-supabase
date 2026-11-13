@@ -39,6 +39,49 @@ export interface BlockOptions extends BlockTemporalOptions, BlockTenantOptions {
   readonly schema?: string;
   /** Error mappers that run before the built-in ones. */
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * The locale of the user the blocks work for, such as `nl`. `createBlocks`
+   * hands it to `hintMessages` and every block creator reads it from its
+   * options.
+   */
+  readonly locale?: string;
+  /**
+   * Words a database error's hint code in `locale`. Return `undefined` to keep
+   * the English message. It runs after `mappers`, on errors raised in SQL.
+   */
+  readonly hintMessages?: BlockMessages;
+}
+
+/** Words a hint code: `(hint, locale, english)` is the message to show. */
+export type BlockMessages = (
+  hint: string,
+  locale: string | undefined,
+  english: string,
+) => string | undefined;
+
+/**
+ * `options.mappers` plus a last mapper that rewords an error through
+ * `options.hintMessages`, when it is set.
+ */
+export function localizedMappers(
+  options: Pick<BlockOptions, "mappers" | "locale" | "hintMessages">,
+): readonly ErrorMapper[] | undefined {
+  const { hintMessages, locale, mappers } = options;
+
+  if (hintMessages === undefined) {
+    return mappers;
+  }
+
+  const reword: ErrorMapper = (_raw, fallback) => {
+    const message =
+      fallback.hint === undefined
+        ? undefined
+        : hintMessages(fallback.hint, locale, fallback.message);
+
+    return message === undefined ? undefined : { ...fallback, message };
+  };
+
+  return [...(mappers ?? []), reword];
 }
 
 /** Provides `options.temporal`, when set, for the block's time values. */
