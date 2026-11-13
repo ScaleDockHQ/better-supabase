@@ -2,6 +2,7 @@ import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { revokeTable } from "../shared.ts";
+import { workNotifyFunction, workNotifyTrigger } from "./work-notify.ts";
 
 /** `names.tables.messages`: the table backend's messages. */
 export const MESSAGES_TABLE: BlockSqlTableSpec = {
@@ -67,6 +68,9 @@ create index if not exists ${index("exhausted_idx")}
   on ${messages} (${c("queue")}, ${c("visibleAt")}) where ${c("archivedAt")} is null and ${c("attempts")} >= ${c("maxAttempts")};
 alter table ${messages} enable row level security;
 ${revokeTable(messages)}
+
+${workNotifyFunction("better_supabase.job_queue_notify", "queue", { column: c("queue") })}
+${workNotifyTrigger(messages, "better_supabase.job_queue_notify")}
 
 -- While a message with dedupe_key is waiting or running, enqueueing again
 -- returns its id, and a waiting message moves to the earlier of its time and

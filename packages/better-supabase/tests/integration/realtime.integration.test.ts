@@ -12,7 +12,7 @@ import { defineTopic, rowKeys } from "../../src/realtime/index.ts";
 import { realtimeTopicAccess } from "../../src/server/realtime-relay.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
-import { stackDbUrl, stackEngine, stackUrl } from "./stack-env.ts";
+import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
@@ -406,57 +406,52 @@ describe.skipIf(!live)("Realtime module", async () => {
     }
   });
 
-  // Fails on the stack engine (see stackEngine); CI runs it on the legacy engine.
-  it.skipIf(stackEngine)(
-    "broadcasts row changes to the tenant topic",
-    async () => {
-      let retry: ReturnType<typeof setInterval> | undefined;
-      let attempt = 0;
+  it("broadcasts row changes to the tenant topic", async () => {
+    let retry: ReturnType<typeof setInterval> | undefined;
+    let attempt = 0;
 
-      const insert = () =>
-        betterSupabase
-          .connect(acme, { claims: { tenant_id: ACME } })
-          .customers.create({
-            organizationId: ACME,
-            name: "Realtime Co",
-            kvk: `${kvk}-${String((attempt += 1))}`,
-          })
-          .orThrow();
+    const insert = () =>
+      betterSupabase
+        .connect(acme, { claims: { tenant_id: ACME } })
+        .customers.create({
+          organizationId: ACME,
+          name: "Realtime Co",
+          kvk: `${kvk}-${String((attempt += 1))}`,
+        })
+        .orThrow();
 
-      const got = waitFor<TopicMessage>((resolve) => {
-        const sub = customers.subscribe(
-          acme,
-          { organizationId: ACME },
-          {
-            INSERT: (_payload, message) => {
-              resolve(message);
-            },
+    const got = waitFor<TopicMessage>((resolve) => {
+      const sub = customers.subscribe(
+        acme,
+        { organizationId: ACME },
+        {
+          INSERT: (_payload, message) => {
+            resolve(message);
           },
-        );
+        },
+      );
 
-        // A cold Realtime server acknowledges the join before it relays database
-        // broadcasts, and a message sent in that gap is never delivered.
-        void sub.ready.then(async () => {
-          await insert();
-          retry = setInterval(() => void insert(), 3000);
+      // A cold Realtime server acknowledges the join before it relays database
+      // broadcasts, and a message sent in that gap is never delivered.
+      void sub.ready.then(async () => {
+        await insert();
+        retry = setInterval(() => void insert(), 3000);
 
-          return true;
-        });
-      }, 15_000).finally(() => {
-        clearInterval(retry);
+        return true;
       });
+    }, 15_000).finally(() => {
+      clearInterval(retry);
+    });
 
-      const received = await got;
-      expect(rowKeys(betterSupabase, "customers", received)).toMatchObject({
-        operation: "INSERT",
-        table: "customers",
-        id: expect.any(String),
-        values: { organizationId: ACME },
-      });
-      expect(rowKeys(betterSupabase, "notes", received)).toBeNull();
-    },
-    20_000,
-  );
+    const received = await got;
+    expect(rowKeys(betterSupabase, "customers", received)).toMatchObject({
+      operation: "INSERT",
+      table: "customers",
+      id: expect.any(String),
+      values: { organizationId: ACME },
+    });
+    expect(rowKeys(betterSupabase, "notes", received)).toBeNull();
+  }, 20_000);
 
   it("checks relay access with the topic's policies as the caller", async () => {
     const postgres = createPostgres({ connectionString: dbUrl, max: 1 });
@@ -497,54 +492,47 @@ describe.skipIf(!live)("Realtime module", async () => {
     await sub.unsubscribe();
   }, 20_000);
 
-  // Fails on the stack engine (see stackEngine); CI runs it on the legacy engine.
-  it.skipIf(stackEngine)(
-    "sends validated events over HTTP",
-    async () => {
-      const values = { organizationId: ACME, userId: USER };
+  it("sends validated events over HTTP", async () => {
+    const values = { organizationId: ACME, userId: USER };
 
-      const invalid = await notifications.send(acme, values, "created", {
-        nope: true,
+    const invalid = await notifications.send(acme, values, "created", {
+      nope: true,
+    });
+
+    expect(invalid.error).toMatchObject({
+      kind: "validation",
+      issues: [{ path: ["title"] }],
+    });
+
+    let retry: ReturnType<typeof setInterval> | undefined;
+
+    const send = () =>
+      notifications.send(acme, values, "created", { title: "Hello" }).orThrow();
+
+    const message = await waitFor<{ title: string }>((resolve) => {
+      const sub = notifications.subscribe(acme, values, {
+        created: (payload) => {
+          resolve(payload);
+        },
       });
 
-      expect(invalid.error).toMatchObject({
-        kind: "validation",
-        issues: [{ path: ["title"] }],
+      // Same cold-server gap as the row broadcast above.
+      void sub.ready.then(async () => {
+        await send();
+        retry = setInterval(() => void send(), 3000);
+
+        return true;
       });
+    }, 15_000).finally(() => {
+      clearInterval(retry);
+    });
 
-      let retry: ReturnType<typeof setInterval> | undefined;
+    expect(message).toEqual({ title: "Hello" });
 
-      const send = () =>
-        notifications
-          .send(acme, values, "created", { title: "Hello" })
-          .orThrow();
+    const denied = await notifications.send(other, values, "created", {
+      title: "Hi",
+    });
 
-      const message = await waitFor<{ title: string }>((resolve) => {
-        const sub = notifications.subscribe(acme, values, {
-          created: (payload) => {
-            resolve(payload);
-          },
-        });
-
-        // Same cold-server gap as the row broadcast above.
-        void sub.ready.then(async () => {
-          await send();
-          retry = setInterval(() => void send(), 3000);
-
-          return true;
-        });
-      }, 15_000).finally(() => {
-        clearInterval(retry);
-      });
-
-      expect(message).toEqual({ title: "Hello" });
-
-      const denied = await notifications.send(other, values, "created", {
-        title: "Hi",
-      });
-
-      expect(denied.ok).toBe(false);
-    },
-    20_000,
-  );
+    expect(denied.ok).toBe(false);
+  }, 20_000);
 });

@@ -1,6 +1,6 @@
 -- better-supabase module: queue
--- @bsb-block queue@12 managed
--- @bsb-hash sha256:3b178690e94e1478ba8d2c1b6ff41b51c9b48510ba53e3358e881595555acf97
+-- @bsb-block queue@13 managed
+-- @bsb-hash sha256:c4ecbf29b0767fea8a8423f141fc09b3d6aed935ebadd4705fdb128c1ad1c433
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,8 +22,25 @@
 -- pgmq's read_ct is the attempt number and vt the lease.
 create extension if not exists pgmq;
 
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function better_supabase.job_queue_notify()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', pg_catalog.json_build_object('kind', 'queue', 'queue', tg_argv[0])::text);
+  end if;
+  return null;
+end;
+$$;
+revoke all on function better_supabase.job_queue_notify() from public;
+
 -- Deduplicated enqueues look the key up under an advisory lock, so each
 -- queue table and its archive (enqueue_job_once) get a partial index on it.
+-- Each queue table also gets the statement trigger that notifies
+-- better_supabase_work.
 create or replace function better_supabase.index_job_queue(queue text)
 returns void
 language plpgsql
@@ -31,6 +48,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  execute format(
+    'create or replace trigger bsb_notify_work after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)',
+    'q_' || queue,
+    queue
+  );
   execute format(
     'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
     'q_' || queue || '_dedupe_idx',

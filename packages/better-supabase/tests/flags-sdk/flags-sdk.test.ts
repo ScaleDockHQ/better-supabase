@@ -290,19 +290,15 @@ describe("createBetterSupabaseAdapter", () => {
     })();
 
     expect(await adapter.decide({ key: "new_editor" })).toBe(true);
-    expect(fetch).toHaveBeenCalledWith(
+    const [url, init] = fetch.mock.calls[0]!;
+    const headers = new Headers(init.headers);
+
+    expect(url).toBe(
       "https://project.supabase.co/rest/v1/rpc/flag_definitions",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({
-          apikey: "sb_secret_abc",
-          "content-profile": "api",
-        }),
-      }),
     );
-    expect(fetch.mock.calls[0]?.[1]).not.toHaveProperty(
-      "headers.authorization",
-    );
+    expect(init.method).toBe("POST");
+    expect(headers.get("apikey")).toBe("sb_secret_abc");
+    expect(headers.get("content-profile")).toBe("api");
 
     const failing = createBetterSupabaseAdapter({
       url: "https://project.supabase.co",

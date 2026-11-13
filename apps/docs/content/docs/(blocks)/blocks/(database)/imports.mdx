@@ -111,14 +111,18 @@ keeps the value it received.
 A target can add `batch: "schema.function"`, `(run uuid, items jsonb) returns
 jsonb`, to write a whole batch in set-based statements. The items that need a
 write (not unchanged, not conflicted) arrive as one array of what `write`
-receives as `item`, plus `subjectId`. It returns an array with one answer per
-item in order: what `write` returns, or `{ "error": { code, message } }` for an
-item it refused without writing. When it raises, each item runs through `write`
-on its own, so one bad row costs only its own error. A key that repeats inside
-a batch is written after the earlier one is recorded, as with `write`. A batch
-target pays off when the per-row work is in the function, not in triggers on the
-table: on the local fixture, 3,000 customers took 356 ms through `batch` and
-365 ms through `write`, because the customer triggers dominate.
+receives as `item`, plus `subjectId` (null for an item that needs an insert).
+It returns an array with one answer per item in order: what `write` returns, or
+`{ "error": { code, message } }` for an item it refused without writing. When
+it raises, each item runs through `write` on its own, so one bad row costs only
+its own error. A key that repeats inside a batch is written after the earlier
+one is recorded, as with `write`. A batch target pays off when the triggers on
+the table run once per statement too: the fixture's
+`public.import_customer_batch` inserts and updates customers in two statements,
+and `customers` sets `search.statement: true` (see
+[Search](/docs/blocks/search#imports)), so three batches of 1,000 customers
+fire six search trigger calls instead of 3,000. The search index is refreshed
+once per record when the run closes.
 
 These blocks contribute targets:
 

@@ -618,6 +618,27 @@ describe("purge", () => {
 });
 
 describe("quotas", () => {
+  it("reads the quotas of many organizations and meters in one call", async () => {
+    const { transport, calls } = fakeTransport(() => [
+      { tenant: "o1", meter: "seats", quota_limit: 5, period: "month" },
+      { tenant: "o2", meter: "seats", quota_limit: null, period: "day" },
+    ]);
+
+    const usage = createUsage({ transport });
+
+    expect(
+      await usage
+        .quotas({ organizationIds: ["o1", "o2"], meters: ["seats"] })
+        .orThrow(),
+    ).toEqual([
+      { organizationId: "o1", meter: "seats", limit: 5, period: "month" },
+      { organizationId: "o2", meter: "seats", limit: null, period: "day" },
+    ]);
+    expect(calls.map(([, fn, args]) => [fn, args])).toEqual([
+      ["usage_quotas_for", { tenants: ["o1", "o2"], meters: ["seats"] }],
+    ]);
+  });
+
   it("sets and removes a tenant or plan quota", async () => {
     const { transport, calls } = fakeTransport((fn) =>
       fn === "remove_usage_quota" ? true : null,

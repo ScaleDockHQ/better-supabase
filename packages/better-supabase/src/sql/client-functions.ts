@@ -300,7 +300,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   timeline: "list_activity record_activity",
   trash: "list_trash purge_trash restore_trash trash",
   usage:
-    "consume_quota mark_usage_reported purge_usage_events purge_usage_history record_usage record_usage_batch remove_usage_quota set_usage_quota unreported_usage usage_breakdown usage_history usage_meters usage_overview usage_remaining usage_status",
+    "consume_quota mark_usage_reported purge_usage_events purge_usage_history record_usage record_usage_batch remove_usage_quota set_usage_quota unreported_usage usage_breakdown usage_history usage_meters usage_overview usage_quotas_for usage_remaining usage_status",
   "vercel-marketplace":
     "delete_marketplace_resource link_marketplace_tenant mark_marketplace_meter_sent marketplace_access_token marketplace_installation marketplace_installation_for marketplace_resource marketplace_resources marketplace_resources_for record_marketplace_invoice record_marketplace_meter_report remove_marketplace_installation seal_marketplace_access_token set_marketplace_resource_state unreported_marketplace_meter_reports upsert_marketplace_installation upsert_marketplace_plan upsert_marketplace_resource",
   versions:

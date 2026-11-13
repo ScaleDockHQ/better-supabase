@@ -2497,6 +2497,12 @@
       "kind": "column",
       "since": "0.66",
       "table": "better_supabase.support_sessions"
+    },
+    {
+      "from": "readSession",
+      "to": "ssrSession",
+      "kind": "function",
+      "since": "0.67"
     }
   ],
   "allowlist": {
@@ -2510,7 +2516,8 @@
       "CREDENTIAL_",
       "IMPORT_ITEM_",
       "NUMBER_",
-      "ORGANIZATION_ROLE_UNKNOWN"
+      "ORGANIZATION_ROLE_UNKNOWN",
+      "STALE_WRITE"
     ],
     "allowlist": {
       "accounting": [

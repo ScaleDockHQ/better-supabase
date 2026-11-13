@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 
-import { writeSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { err } from "../../src/core/result.ts";
@@ -25,6 +24,7 @@ import { testAdapter } from "../../src/testing/adapter.ts";
 import { ConformanceError } from "../../src/testing/conformance.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 

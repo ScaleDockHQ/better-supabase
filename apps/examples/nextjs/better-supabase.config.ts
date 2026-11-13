@@ -159,7 +159,9 @@ export default defineConfig({
       team: { actions: ["read", "write"] },
       // Every read through the blocks' read functions lands in the audit log.
       auditReads: true,
-      search: { facets: ["status"] },
+      // Statement triggers: import_customer_batch writes a batch in two
+      // statements, and each indexes its rows in one call.
+      search: { facets: ["status"], statement: true },
     },
     // Members ask for read access to a file or folder they cannot open.
     drive_node: driveSubject({ accessRequests: true }),

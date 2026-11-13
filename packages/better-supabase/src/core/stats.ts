@@ -119,6 +119,66 @@ export class StatsRecorder {
   }
 }
 
+/**
+ * What a Supabase API path names: the table, `name()` for an RPC, the function
+ * or the bucket. Auth and Realtime calls aren't database work and name
+ * nothing.
+ */
+function callOf(url: string): string | undefined {
+  const { pathname } = new URL(url);
+  const [, api, version, first, second] = pathname.split("/");
+
+  if (version !== "v1" || first === undefined || first === "") {
+    return undefined;
+  }
+
+  switch (api ?? "") {
+    case "rest": {
+      return first === "rpc" && second ? `${second}()` : first;
+    }
+
+    case "functions": {
+      return `functions/${first}`;
+    }
+
+    case "storage": {
+      return first === "object" && second ? `storage/${second}` : "storage";
+    }
+
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/**
+ * A fetch that records each PostgREST, RPC, Storage and Edge Function call on
+ * `recorder`, for the raw `supabase` client. It sends the request unchanged.
+ * `base` is read on every call, so a fetch replaced later is the one used.
+ */
+export function recordingFetch(
+  recorder: StatsRecorder,
+  base: () => typeof fetch = () => globalThis.fetch,
+): typeof fetch {
+  return async (input, init) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+
+    const call = callOf(url);
+    const end = call === undefined ? undefined : recorder.begin(call);
+
+    try {
+      return await base()(input, init);
+    } finally {
+      end?.();
+    }
+  };
+}
+
 /** Wraps an executor so every call is recorded. */
 export function recordStats(
   executor: Executor,

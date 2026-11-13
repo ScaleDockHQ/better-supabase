@@ -1,6 +1,6 @@
 # 0614: A browser client with auth and realtime only
 
-- Status: accepted
+- Status: superseded by [0846](0846-keep-the-full-browser-client.md)
 - Date: 2026-11-10
 - Amends: 0560
 

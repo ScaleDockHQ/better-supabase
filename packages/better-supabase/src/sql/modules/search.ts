@@ -22,6 +22,7 @@ import {
 import { registeredSubjects } from "../subject-registry.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
 import { OPERATIONS } from "./permissions-model.ts";
+import { enqueueFunctions, enqueueTable } from "./search-enqueue.ts";
 import {
   knownColumnType,
   refreshBranch,
@@ -319,21 +320,57 @@ function isAppTable(ctx: BlockSqlContext, subject: RegisteredSubject): boolean {
   return subject.schema === "public" && ctx.appTables.has(subject.table);
 }
 
-/** The trigger that re-indexes a subject's row; `fn` is `search_index_row`. */
-function triggerSql(fn: string, subject: RegisteredSubject): string {
-  const trigger = sqlIdent(`bsb_search_${subject.type}_index`.slice(0, 63));
+/**
+ * The triggers that re-index a subject's rows: a row trigger on
+ * `search_index_row`, or with `search.statement` one statement trigger per
+ * operation on `search_index_stmt`. `search` is the search module's context.
+ */
+function triggerSql(
+  search: BlockSqlContext,
+  subject: RegisteredSubject,
+): string {
+  const name = (suffix: string): string =>
+    sqlIdent(`bsb_search_${subject.type}_${suffix}`.slice(0, 63));
+
+  const trigger = name("index");
+  const type = sqlString(subject.type);
+  const key = sqlString(subject.config.id ?? "id");
+
+  // Null: every update re-indexes, as a view reads columns we can't name.
+  const watched =
+    subject.config.search?.from !== undefined &&
+    subject.config.search.columns === undefined
+      ? null
+      : watchedColumns(subject);
+
+  if (subject.config.search?.statement === true) {
+    const fn = search.fn("search_index_stmt");
+    const on = subject.qualified;
+
+    return `drop trigger if exists ${trigger} on ${on};
+drop trigger if exists ${name("insert")} on ${on};
+create trigger ${name("insert")}
+  after insert on ${on} referencing new table as new_rows
+  for each statement execute function ${fn}(${type}, ${key});
+drop trigger if exists ${name("update")} on ${on};
+create trigger ${name("update")}
+  after update on ${on} referencing old table as old_rows new table as new_rows
+  for each statement execute function ${fn}(${type}, ${key}, ${sqlString(watched === null ? "" : watched.join(","))});
+drop trigger if exists ${name("delete")} on ${on};
+create trigger ${name("delete")}
+  after delete on ${on} referencing old table as old_rows
+  for each statement execute function ${fn}(${type}, ${key});`;
+  }
 
   const update =
-    subject.config.search?.from === undefined
-      ? `update of ${watchedColumns(subject).map(sqlIdent).join(", ")}`
-      : subject.config.search.columns === undefined
-        ? "update"
-        : `update of ${watchedColumns(subject).map(sqlIdent).join(", ")}`;
+    watched === null
+      ? "update"
+      : `update of ${watched.map(sqlIdent).join(", ")}`;
 
   return `drop trigger if exists ${trigger} on ${subject.qualified};
 create trigger ${trigger}
   after insert or delete or ${update} on ${subject.qualified}
-  for each row execute function ${fn}(${sqlString(subject.type)}, ${sqlString(subject.config.id ?? "id")});`;
+  for each row execute function ${search.fn("search_index_row")}(${type}, ${key});`;
 }
 
 /**
@@ -356,13 +393,12 @@ function triggers(
   layout: BlockSqlLayout,
   subjects: readonly RegisteredSubject[],
 ): string {
-  const fn = ctx.fn("search_index_row");
   const later = laterTables(ctx, layout, "search");
 
   return subjects
     .filter((subject) => !isAppTable(ctx, subject))
     .filter((subject) => !later.has(subject.qualified))
-    .map((subject) => triggerSql(fn, subject))
+    .map((subject) => triggerSql(ctx, subject))
     .join("\n\n");
 }
 
@@ -380,7 +416,6 @@ export function ownerSearchTriggers(
     return "";
   }
 
-  const fn = search.fn("search_index_row");
   const tables = tablesOf(owner);
 
   const subjects = searchedSubjects(search);
@@ -390,7 +425,7 @@ export function ownerSearchTriggers(
       (subject) =>
         !isAppTable(search, subject) && tables.has(subject.qualified),
     )
-    .map((subject) => triggerSql(fn, subject));
+    .map((subject) => triggerSql(search, subject));
 
   const watch = watchEntries(subjects)
     .filter(
@@ -416,13 +451,11 @@ export function appTableSearchTriggers(
     return "";
   }
 
-  const fn = ctx.fn("search_index_row");
-
   const subjects = searchedSubjects(ctx);
 
   const index = subjects
     .filter((subject) => isAppTable(ctx, subject))
-    .map((subject) => triggerSql(fn, subject));
+    .map((subject) => triggerSql(ctx, subject));
 
   const watch = watchEntries(subjects)
     .filter((entry) => isWatchedAppTable(ctx, entry))
@@ -730,6 +763,8 @@ ${renderPolicy(makePolicy({ table: docs, name: "search_documents_read", command:
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
 ${tables}
+${enqueueTable}
+
 -- Lowercase and without accents. unaccent is stable because its dictionary
 -- can change; pinning the dictionary makes this safe to index.
 create or replace function ${fn("search_normalize")}(value text)
@@ -853,89 +888,10 @@ end;
 $$;
 ${serviceGrant(`${fn("search_reindex")}(text)`)}
 
--- Runs as its caller (the definer trigger functions and import_upsert_batch
--- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
--- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
--- key once, one line per key, in one of 256 transaction-local settings
--- (better_supabase.search_dirty_<hash>) so search_refresh_dirty indexes it
--- once at the end of the batch. A setting holds a 256th of the keys: one text
--- setting rewrote the whole list on every note.
-create or replace function ${fn("search_enqueue")}(subject_type text, subject_id text)
-returns void
-language plpgsql
-security invoker
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_key text := search_enqueue.subject_type || E'\\x1f' || search_enqueue.subject_id;
-  v_name text := 'better_supabase.search_dirty_' || (hashtext(v_key) & 255)::text;
-  v_dirty text;
-begin
-  if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
-    v_dirty := coalesce(current_setting(v_name, true), '');
-    if position(E'\\n' || v_key || E'\\n' in E'\\n' || v_dirty) = 0 then
-      perform set_config(v_name, v_dirty || v_key || E'\\n', true);
-    end if;
-  else
-    perform ${fn("search_refresh")}(search_enqueue.subject_type, search_enqueue.subject_id);
-  end if;
-end;
-$$;
-revoke execute on function ${fn("search_enqueue")}(text, text) from public, anon, authenticated;
-
--- Indexes every record noted by search_enqueue in this transaction, once each.
--- Returns how many it indexed.
-create or replace function ${fn("search_refresh_dirty")}()
-returns integer
-language plpgsql
-security invoker
-set search_path = ''
-as $$
-declare
-  v_count integer := 0;
-  v_bucket integer;
-  v_name text;
-  v_dirty text;
-  v_line text;
-begin
-  for v_bucket in 0..255 loop
-    v_name := 'better_supabase.search_dirty_' || v_bucket::text;
-    v_dirty := coalesce(current_setting(v_name, true), '');
-    if v_dirty <> '' then
-      perform set_config(v_name, '', true);
-      for v_line in select l from string_to_table(v_dirty, E'\\n') l where l <> '' loop
-        if ${fn("search_refresh")}(split_part(v_line, E'\\x1f', 1), split_part(v_line, E'\\x1f', 2)) then
-          v_count := v_count + 1;
-        end if;
-      end loop;
-    end if;
-  end loop;
-  return v_count;
-end;
-$$;
-${serviceGrant(`${fn("search_refresh_dirty")}()`)}
-
-create or replace function ${fn("search_index_row")}()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_old text := case when tg_op in ('UPDATE', 'DELETE') then to_jsonb(old) ->> tg_argv[1] end;
-  v_new text := case when tg_op in ('INSERT', 'UPDATE') then to_jsonb(new) ->> tg_argv[1] end;
-begin
-  if v_old is not null and v_old is distinct from v_new then
-    perform ${fn("search_enqueue")}(tg_argv[0], v_old);
-  end if;
-  if v_new is not null then
-    perform ${fn("search_enqueue")}(tg_argv[0], v_new);
-  end if;
-  return null;
-end;
-$$;
-revoke execute on function ${fn("search_index_row")}() from public, anon, authenticated;
+${enqueueFunctions(
+  ctx,
+  subjects.some((subject) => subject.config.search?.statement === true),
+)}
 
 ${triggers(ctx, layout, subjects)}${watchTriggers(ctx, layout, subjects)}
 ${searchFunction(ctx, names, described)}
@@ -984,7 +940,9 @@ export const SEARCH: BlockSqlDefinition = {
     "search_user_state",
     "search_normalize",
     "search_enqueue",
+    "search_enqueue_many",
     "search_refresh_dirty",
+    "search_refresh_run",
   ],
   name: "search",
   scopes: ["tenant"],
@@ -995,7 +953,7 @@ export const SEARCH: BlockSqlDefinition = {
   integrates: ["share-links", "vector-search"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -1007,6 +965,18 @@ export const SEARCH: BlockSqlDefinition = {
       from: 2,
       description:
         "search_documents gets facets and sort_key columns, their indexes and search_page. The module's data file indexes every record again to fill them.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "search.statement indexes a record type through statement triggers (search_index_stmt) instead of a row trigger, and import_search_dirty holds the records an import run changed until finish_import_run indexes each once (search_refresh_run).",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "search_page, recents and favorites check readability once per record type through can_subjects instead of once per row through can_subject.",
       sql: () => "",
     },
   ],

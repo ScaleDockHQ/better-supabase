@@ -1,6 +1,6 @@
 import type { EventName, EventHandler } from "../../src/core/events.ts";
 
-import { writeSession } from "../../src/auth/session.ts";
+import { writeSession } from "./session-cookies.ts";
 import { signer, USER } from "./test-server.ts";
 
 const COOKIE = "sb-abcdefghijklmnopqrst-auth-token";

@@ -452,6 +452,27 @@ $$;`;
     ).toEqual([]);
   });
 
+  it("accepts a statement trigger that defers through search_enqueue_many", async () => {
+    const statement = `create or replace function better_supabase.search_index_note()
+returns trigger language plpgsql as $$
+begin
+  perform better_supabase.search_enqueue_many(tg_argv[0], array['n1']);
+  return null;
+end;
+$$;`;
+
+    expect(
+      await run(
+        {
+          ...context(snap),
+          config,
+          sqlFiles: [{ path: "a.sql", text: statement }],
+        },
+        "BS388",
+      ),
+    ).toEqual([]);
+  });
+
   it("skips projects without the imports block", async () => {
     expect(
       await run(

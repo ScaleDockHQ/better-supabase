@@ -74,7 +74,6 @@ import {
   cursorOf,
   filtersOf,
   pageFiltersOf,
-  publicObjectUrl,
   subscriptionOf,
   toItem,
 } from "./rows.ts";
@@ -190,13 +189,7 @@ export function createNotifications<
       return actor;
     }
 
-    return {
-      ...actor,
-      avatarUrl:
-        typeof avatars === "function"
-          ? avatars(path)
-          : publicObjectUrl(avatars.url, avatars.bucket, path),
-    };
+    return { ...actor, avatarUrl: avatars(path) };
   };
 
   const actorsOf = async (

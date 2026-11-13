@@ -1,13 +1,10 @@
 import { createServerClient, stringFromBase64URL } from "@supabase/ssr";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CookieWrite, StoredSession } from "../../src/auth/session.ts";
 
-import {
-  applyCookieWrites,
-  readSession,
-  writeSession,
-} from "../../src/auth/session.ts";
+import { applyCookieWrites, ssrSession } from "../../src/auth/session.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const NAME = "sb-abcdefghijklmnopqrst-auth-token";
@@ -43,7 +40,7 @@ describe("session encoding", () => {
     ).toEqual(writes);
   });
 
-  it("drops the user object with tokens-only and reads both shapes", () => {
+  it("drops the user object with tokens-only", () => {
     const writes = writeSession(
       [],
       NAME,
@@ -59,17 +56,6 @@ describe("session encoding", () => {
       refresh_token: "refresh",
       token_type: "bearer",
     });
-
-    const tokensOnly = readSession(applyCookieWrites([], writes), NAME)!;
-    expect(tokensOnly.user).toBeUndefined();
-    expect(tokensOnly.access_token).toBe("access");
-
-    const full = readSession(
-      applyCookieWrites([], writeSession([], NAME, session())),
-      NAME,
-    )!;
-
-    expect(full.user).toEqual(USER);
   });
 
   it("expires the chunks a tokens-only rewrite of a large session no longer uses", () => {
@@ -93,25 +79,6 @@ describe("session encoding", () => {
     );
     const after = applyCookieWrites(before, writes);
     expect(after.map((cookie) => cookie.name)).toEqual([NAME]);
-    expect(readSession(after, NAME)?.user).toBeUndefined();
-  });
-
-  it("reads the longest chunk prefix that parses", () => {
-    const big = session({
-      user: { ...USER, user_metadata: { bio: "x".repeat(6000) } },
-    });
-
-    const chunks = applyCookieWrites([], writeSession([], NAME, big));
-    const count = chunks.length;
-    expect(count).toBeGreaterThan(1);
-
-    const leftover = [
-      ...chunks,
-      { name: `${NAME}.${count}`, value: "stale" },
-      { name: `${NAME}.${count + 1}`, value: "stale" },
-    ];
-
-    expect(readSession(leftover, NAME)?.user).toEqual(big.user);
   });
 
   it("is read by @supabase/ssr with encode: tokens-only", async () => {
@@ -134,5 +101,62 @@ describe("session encoding", () => {
     const { data } = await client.auth.getSession();
     expect(data.session?.access_token).toBe("access");
     expect(data.session?.refresh_token).toBe("refresh");
+  });
+});
+
+describe("ssrSession", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reads both encodings, whole or chunked, once per cookie list", async () => {
+    const full = applyCookieWrites([], writeSession([], NAME, session()));
+
+    const tokensOnly = applyCookieWrites(
+      [],
+      writeSession([], NAME, session(), {}, { encode: "tokens-only" }),
+    );
+
+    const chunked = applyCookieWrites(
+      [],
+      writeSession(
+        [],
+        NAME,
+        session({
+          user: { ...USER, user_metadata: { bio: "x".repeat(6000) } },
+        }),
+      ),
+    );
+
+    expect(chunked.length).toBeGreaterThan(1);
+
+    expect(await ssrSession(full, NAME)).toEqual(session());
+    expect(await ssrSession(tokensOnly, NAME)).toMatchObject({
+      access_token: "access",
+    });
+    expect(await ssrSession(chunked, NAME)).toMatchObject({
+      refresh_token: "refresh",
+    });
+    expect(ssrSession(full, NAME)).toBe(ssrSession(full, NAME));
+    expect(await ssrSession([], NAME)).toBeNull();
+  });
+
+  it("returns expiring and expired sessions as stored, without calling Auth", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    const now = Math.floor(Date.now() / 1000);
+
+    for (const expiresAt of [now + 30, now - 30]) {
+      const cookies = applyCookieWrites(
+        [],
+        writeSession([], NAME, session({ expires_at: expiresAt })),
+      );
+
+      expect(await ssrSession(cookies, NAME)).toMatchObject({
+        access_token: "access",
+        expires_at: expiresAt,
+      });
+    }
+
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

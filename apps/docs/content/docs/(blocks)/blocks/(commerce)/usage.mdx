@@ -83,6 +83,19 @@ const removed = await serviceUsage
 `limit: null` is unlimited and `period` defaults to `month`. `removeQuota`
 resolves to whether a quota existed.
 
+`usage.quotas` reads the quotas of many organizations and meters in one call,
+for an admin list or a billing job. It resolves each organization's plans once
+and leaves out the pairs without a quota. It needs a service transport, and
+calls `usage_quotas_for(tenants, meters)`, which `usage_quota` also uses for one
+pair:
+
+```ts
+const quotas = await serviceUsage
+  .quotas({ organizationIds, meters: ["ai.input_tokens", "seats"] })
+  .orThrow();
+// [{ organizationId, meter: "seats", limit: 10, period: "month" }, ...]
+```
+
 ### Billing periods
 
 Calendar periods reset at the start of the UTC day, week, month or year.

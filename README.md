@@ -43,7 +43,7 @@ Each call is still one PostgREST request, and it runs as the signed-in user, so 
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
-pnpm add -D pg @supabase/postgrest-typegen@0.6.0
+pnpm add -D pg @supabase/postgrest-typegen@0.8.1
 
 supabase start
 pnpm better-supabase init    # config, src/lib/supabase and framework glue
