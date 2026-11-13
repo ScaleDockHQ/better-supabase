@@ -24,6 +24,12 @@ Measured change per route against the baseline on main, in bytes, over the 346 r
 | gzip   | -87      | 1515   | 1542    |
 | brotli | -204     | 859    | 1154    |
 
+The same declarations grow the `./blocks/*` entries of `tests/bundle/baseline.json`
+by about 2.5 KB gzip for each of the eight blocks that ship the new client code
+and list function names (agent-checkout, appraisals, lims, maintenance, risks,
+rfqs, tills and warehouse). That baseline is reset with
+`pnpm --filter @better-supabase/bundle run update` in the same change.
+
 ## Alternatives considered
 
 Keeping the names out of the manifests (read only by the SQL) would avoid the
