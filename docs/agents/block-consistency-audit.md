@@ -927,12 +927,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane N
 
 - Scope: Subject labels, party core, manifest links and concerns
-- Status: in progress
+- Status: PR open #907
 - Branch: `feat/audit-n`
-- PR: none yet
+- PR: [#907](https://github.com/ScaleDockHQ/better-supabase/pull/907)
 - Findings: EX-1266, EX-1292, EX-1295, EX-1296
 - Log: 2026-11-12, planned.
-- Log: 2026-11-13, lane N started from main in `../bsb-audit-n`.
+- Log: 2026-11-13, lane N started from main in `../bsb-audit-n`; PR #907 opened with `subjects.label`, the party core, manifest `links` and `concerns` and search defaults.
 
 ### Lane I
 
