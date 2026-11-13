@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthState } from "../../src/auth/resolve.ts";
 
 import { markSessionEnded } from "../../src/auth/ended.ts";
-import { writeSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { createNext } from "../../src/next/index.ts";
 import { createProxy } from "../../src/next/proxy/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const mocks = vi.hoisted(() => ({ headers: new Headers() }));
 

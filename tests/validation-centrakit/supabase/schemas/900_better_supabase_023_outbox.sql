@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
--- @bsb-block outbox@6 managed
--- @bsb-hash sha256:cdb2f6fd8d61ed7c829334c4848a9f9cccf9324a64592e80d67eac033cdbc155
+-- @bsb-block outbox@7 managed
+-- @bsb-hash sha256:95fe66bc0c57724b0e15eab41c7742efffd3915ff10952afa49c196d57eca592
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -486,3 +486,21 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."track_events"(regclass, text, text) from public, anon, authenticated;
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function "better_supabase"."outbox_notify"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"outbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function "better_supabase"."outbox_notify"() from public;
+create or replace trigger bsb_notify_work
+  after insert on "centrakit"."workflow_events"
+  referencing new table as new_rows
+  for each statement execute function "better_supabase"."outbox_notify"();

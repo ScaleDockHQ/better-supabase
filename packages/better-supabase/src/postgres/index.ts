@@ -8,6 +8,18 @@ export { createPostgres } from "./pool.ts";
 
 export { sharedPostgres } from "./shared.ts";
 
+export { listenForWork } from "./listen.ts";
+
+export type {
+  ListenForWorkOptions,
+  PgListenClient,
+  PgListenPool,
+  PgNotification,
+  WorkListener,
+} from "./listen.ts";
+
+export { usesTransactionPooler } from "./pooler.ts";
+
 export type {
   PgPool,
   PgPoolClient,

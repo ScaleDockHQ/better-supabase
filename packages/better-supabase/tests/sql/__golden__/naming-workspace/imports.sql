@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
--- @bsb-block imports@2 managed
+-- @bsb-block imports@3 managed
 -- @bsb-hash sha256:29629d72ffe7e0f6617794140d046f997ac7c91cf264b0e005bb5f03a3431b94
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1536,13 +1536,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."import_records" as r
 -- ==== data supabase/better-supabase-data/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block-data imports
--- @bsb-hash sha256:03c82178dd5c9af38535aa92f90002ada8c21fab4dadb8d91c33605f8bdcec29
+-- @bsb-hash sha256:1baed8a72618a89942e73f9b0aeb35d2c618e7b0b34bb7e54923f0f5984f095b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('imports', 2, 'managed')
+values ('imports', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

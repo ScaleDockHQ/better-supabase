@@ -1,13 +1,13 @@
 import { pipeline } from "@supabase/middleware";
 import { describe, expect, it, vi } from "vitest";
 
-import { writeSession } from "../../../src/auth/session.ts";
 import { createSupabase } from "../../../src/core/define.ts";
 import { serverCore } from "../../../src/server/entries/core.ts";
 import { withSession } from "../../../src/server/entries/session.ts";
 import { createServer } from "../../../src/server/server.ts";
 import { createTestSigner } from "../../../src/testing/jwt.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
+import { writeSession } from "../../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const NAME = "sb-abcdefghijklmnopqrst-auth-token";

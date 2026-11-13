@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
--- @bsb-block subjects@1 managed
--- @bsb-hash sha256:b3e2c3871f6dce3af8909b307955dfaced5e865f162f0f4fa335697a927d38c3
+-- @bsb-block subjects@2 managed
+-- @bsb-hash sha256:e58d498561ab835b043bff841154f36b1da5c8997113f19a0651d5c14ee2910a
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -284,6 +284,72 @@ end;
 $$;
 revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- can_subject for many ids of one type: the ids of subject_ids the caller can
+-- see and act on, from one read of the type's table. A list reads it once
+-- instead of calling can_subject per row.
+create or replace function "better_supabase"."can_subjects"(subject_type text, subject_ids text[], action text)
+returns setof text
+language plpgsql
+stable
+security invoker
+cost 1000
+set search_path = ''
+as $$
+begin
+  case can_subjects.subject_type
+    when 'message' then
+      return query
+        select s."id"::text from "better_supabase"."messages" s
+        where s."id" = any ((can_subjects.subject_ids)::uuid[]) and s."archived_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subjects.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
+          else true
+        end);
+    when 'conversation' then
+      return query
+        select s."id"::text from "better_supabase"."conversations" s
+        where s."id" = any ((can_subjects.subject_ids)::uuid[]) and s."archived_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subjects.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
+          else true
+        end);
+    when 'file_node' then
+      return query
+        select s."id"::text from "centrakit"."file_node" s
+        where s."id" = any ((can_subjects.subject_ids)::uuid[])
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subjects.action
+          when 'comment' then (coalesce(better_supabase.can('tenant', s."organization_id", 'fileNode.comment'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.comment', array[s."id"::text]) as r(id)))
+          when 'moderate' then (coalesce(better_supabase.can('tenant', s."organization_id", 'fileNode.update'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.update', array[s."id"::text]) as r(id)))
+          when 'read' then (coalesce(better_supabase.can('tenant', s."organization_id", 'fileNode.read'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.read', array[s."id"::text]) as r(id)))
+          else true
+        end);
+    when 'task' then
+      return query
+        select s."id"::text from "centrakit"."tasks" s
+        where s."id" = any ((can_subjects.subject_ids)::uuid[])
+          and true;
+    when 'project' then
+      return query
+        select s."id"::text from "centrakit"."projects" s
+        where s."id" = any ((can_subjects.subject_ids)::uuid[])
+          and true;
+    when 'customer' then
+      return query
+        select s."id"::text from "centrakit"."customers" s
+        where s."id" = any ((can_subjects.subject_ids)::bigint[])
+          and true;
+    else
+      return;
+  end case;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subjects"(text, text[], text) from public, anon;
+grant execute on function "better_supabase"."can_subjects"(text, text[], text) to authenticated, service_role;
 
 -- A record page's header and tab badges in one call: the subject's title and
 -- path, how many rows each named section has and whether any is newer than

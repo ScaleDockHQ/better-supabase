@@ -5,6 +5,7 @@ import type {
   SubscriberPolicy,
 } from "../../core/contracts/authorization-hooks.ts";
 import type { DbError } from "../../core/errors.ts";
+import type { Kick } from "../../core/kick.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -15,6 +16,8 @@ import { blockCall, budget } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { DbException } from "../../core/db-exception.ts";
+import { kicker, kickHooks } from "../../core/kick.ts";
+import { consoleLogger } from "../../core/logger.ts";
 import { toDbError } from "../../core/result.ts";
 import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
 import {
@@ -80,7 +83,12 @@ export interface OutboxOptions extends BlockOptions {
   readonly authorization?: Pick<AuthorizationHooks, "delivery">;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: BlockHooks<Outbox>;
-  /** Receives the errors `after` hooks throw. Default: `console`. */
+  /**
+   * Relays right after a successful `emit`, e.g. `{ waitUntil: bsb.waitUntil,
+   * run: () => outbox.relay(...) }`.
+   */
+  readonly kick?: Kick<"outbox">;
+  /** Receives the errors `after` hooks and `kick` throw. Default: `console`. */
   readonly logger?: Logger;
 }
 
@@ -638,8 +646,20 @@ export function createOutbox(options: OutboxOptions): Outbox {
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  const logger = options.logger ?? consoleLogger;
+
+  const hooked = withBlockHooks(client, options.hooks, {
     block: "outbox",
-    ...(options.logger ? { logger: options.logger } : {}),
+    logger,
   });
+
+  return withBlockHooks(
+    hooked,
+    kickHooks<Outbox, "outbox">(
+      options.kick && kicker(options.kick, logger, "outbox"),
+      ["emit"],
+      () => "outbox",
+    ),
+    { block: "outbox", logger },
+  );
 }

@@ -2,7 +2,7 @@ import * as react from "react";
 
 import type { AuthResolution } from "../auth/resolve.ts";
 
-import { readSession, sessionCookieName } from "../auth/session.ts";
+import { ssrSession } from "../auth/session.ts";
 
 type TaintObject = (message: string, object: object) => void;
 
@@ -68,11 +68,10 @@ function taintValue(
  * Taints the resolved auth state, its access token and the request's refresh
  * token. The tokens live as long as the state object.
  */
-export function taintResolution(
+export async function taintResolution(
   resolution: AuthResolution,
-  cookieName: string | undefined,
-  projectUrl: string,
-): void {
+  cookieName: string,
+): Promise<void> {
   if (!taintAvailable()) {
     return;
   }
@@ -92,15 +91,12 @@ export function taintResolution(
     );
   }
 
-  const session = readSession(
-    resolution.requestCookies,
-    cookieName ?? sessionCookieName(projectUrl),
-  );
+  const stored = await ssrSession(resolution.requestCookies, cookieName);
 
   taintValue(
     "better-supabase: the refresh token never goes to the client.",
     auth,
-    session?.refresh_token,
+    stored?.refresh_token,
   );
 }
 

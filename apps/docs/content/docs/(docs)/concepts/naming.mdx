@@ -235,6 +235,14 @@ the config key.
 | hint  | `PRESCRIPTION_*`                     | `E_PRESCRIBING_*`             | 0.66  |
 | hint  | `WEBHOOK_IN_*`                       | `INCOMING_WEBHOOK_*`          | 0.66  |
 
+0.67 reads session cookies through `@supabase/ssr` (ADR 0847). The renamed
+function returns a promise, so `codemod naming` renames the call and you add
+the `await`.
+
+| Kind     | Old           | New          | Since |
+| -------- | ------------- | ------------ | ----- |
+| function | `readSession` | `ssrSession` | 0.67  |
+
 Columns renamed in 0.66, so timestamps end in `_at` and a user reference
 names the user's role. `better-supabase upgrade` renames them in place
 (`alter table ... rename column`), so no row moves. The functions keep their

@@ -124,9 +124,15 @@ export function createClients(input: ClientsInput): Clients {
   const supabaseOptions = (
     headers: Readonly<Record<string, string>>,
     token?: string,
+    fetch?: typeof globalThis.fetch,
   ): SupabaseClientOptions<string> => ({
-    ...(customFetch || Object.keys(headers).length > 0
-      ? { global: { headers: { ...headers }, ...customFetch } }
+    ...(fetch || customFetch || Object.keys(headers).length > 0
+      ? {
+          global: {
+            headers: { ...headers },
+            ...(fetch ? { fetch } : customFetch),
+          },
+        }
       : {}),
     // Realtime reads the token through this callback, not the headers.
     ...(token === undefined
@@ -139,6 +145,7 @@ export function createClients(input: ClientsInput): Clients {
     url: string,
     headers: Readonly<Record<string, string>>,
     token?: string,
+    fetch?: typeof globalThis.fetch,
   ): SupabaseClient =>
     createContextClient({
       ...(token === undefined ? {} : { auth: { token } }),
@@ -147,16 +154,17 @@ export function createClients(input: ClientsInput): Clients {
         publishableKeys: { default: env().publishableKey },
         jwks: NO_KEYS,
       },
-      supabaseOptions: supabaseOptions(headers, token),
+      supabaseOptions: supabaseOptions(headers, token, fetch),
     });
 
   const adminClientAt = (
     url: string,
     headers: Readonly<Record<string, string>>,
+    fetch?: typeof globalThis.fetch,
   ): SupabaseClient =>
     createAdminClient({
       env: { url, secretKeys: { default: secretKey() }, jwks: NO_KEYS },
-      supabaseOptions: supabaseOptions(headers),
+      supabaseOptions: supabaseOptions(headers, undefined, fetch),
     });
 
   const sharedAdmin = lazyClient(() => adminClientAt(env().url, {}));
@@ -182,27 +190,34 @@ export function createClients(input: ClientsInput): Clients {
     );
   };
 
-  /** Clients for the primary share the admin and anon clients; others don't. */
+  /**
+   * Clients for the primary share the admin and anon clients; others don't, nor
+   * does one with its own `fetch`.
+   */
   const supabaseAt = (
     url: string,
     auth: AuthState,
     headers: Readonly<Record<string, string>> = {},
+    fetch?: typeof globalThis.fetch,
   ): SupabaseClient => {
-    const shared = Object.keys(headers).length === 0 && url === env().url;
+    const shared =
+      fetch === undefined &&
+      Object.keys(headers).length === 0 &&
+      url === env().url;
 
     switch (auth.kind) {
       case "user": {
-        return contextClientAt(url, headers, auth.token);
+        return contextClientAt(url, headers, auth.token, fetch);
       }
 
       case "secret": {
-        return shared ? serviceClient() : adminClientAt(url, headers);
+        return shared ? serviceClient() : adminClientAt(url, headers, fetch);
       }
 
       case "none":
       case "invalid": {
         if (!shared) {
-          return contextClientAt(url, headers);
+          return contextClientAt(url, headers, undefined, fetch);
         }
 
         anonClient ??= contextClientAt(url, headers);
@@ -225,7 +240,8 @@ export function createClients(input: ClientsInput): Clients {
   const contextClient = (
     auth: AuthState,
     headers: Readonly<Record<string, string>> = {},
-  ): SupabaseClient => supabaseAt(env().url, auth, headers);
+    fetch?: typeof globalThis.fetch,
+  ): SupabaseClient => supabaseAt(env().url, auth, headers, fetch);
 
   const restUrls = new Map<string, string>();
 
@@ -310,6 +326,7 @@ export interface Clients {
   readonly contextClient: (
     auth: AuthState,
     headers?: Readonly<Record<string, string>>,
+    fetch?: typeof globalThis.fetch,
   ) => SupabaseClient;
   readonly restAt: (
     url: string,

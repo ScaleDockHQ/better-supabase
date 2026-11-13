@@ -188,17 +188,6 @@ const customers = bsb.table(customersTable);
 await customers.list({ where: { status: "active" } });
 ```
 
-A route that only signs in and subscribes can use `better-supabase/client/lite`.
-It builds Auth and Realtime and leaves out PostgREST, storage and functions.
-Install `@supabase/auth-js` and `@supabase/realtime-js`. Cookie sessions stay on
-`better-supabase/client`.
-
-```ts
-import { createLiteBrowserClient } from "better-supabase/client/lite";
-
-const bsb = createLiteBrowserClient(url, key);
-```
-
 The generated `hooks.ts` does this for every `gen.hooks` framework (React, Vue,
 Solid and Svelte): each hook is made with the table module and reads through
 `client.table`. The file also exports `AppDb`, an interface over the app's

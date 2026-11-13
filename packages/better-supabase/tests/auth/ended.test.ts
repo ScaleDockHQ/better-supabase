@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { clearSessionCookies, sessionStatus } from "../../src/auth/ended.ts";
-import { sessionCookieName, writeSession } from "../../src/auth/session.ts";
+import { sessionCookieName } from "../../src/auth/session.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const PROJECT = "https://ref.supabase.co";
 const NAME = sessionCookieName(PROJECT);
@@ -46,7 +47,7 @@ describe("sessionStatus", () => {
     }
   });
 
-  it("reports a banned account from the Auth error code", async () => {
+  it("reports a banned account from the Auth error code, and a 403 Auth did not send as unknown", async () => {
     for (const status of [401, 403]) {
       await expect(
         sessionStatus(live, {
@@ -70,7 +71,7 @@ describe("sessionStatus", () => {
           async () => new Response("not json", { status: 403 }),
         ),
       }),
-    ).resolves.toBe("ended");
+    ).resolves.toBe("unknown");
   });
 
   it("keeps the session on server errors, timeouts and network failures", async () => {

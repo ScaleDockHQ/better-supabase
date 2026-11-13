@@ -15,6 +15,7 @@ export {
   type UsageOptions,
   type PurgeUsageOptions,
   type UsagePeriod,
+  type UsageQuota,
   type UsageRecorded,
   type UsageStatus,
 } from "./usage.ts";

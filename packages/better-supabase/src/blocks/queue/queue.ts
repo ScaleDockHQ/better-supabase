@@ -37,6 +37,8 @@ import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { nextCronRun } from "../../core/cron.ts";
 import { dbError, DbException } from "../../core/errors.ts";
+import { kicker, kickHooks } from "../../core/kick.ts";
+import { consoleLogger } from "../../core/logger.ts";
 import { allTenantsContext } from "../../core/plugin.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
@@ -1075,8 +1077,21 @@ export function createQueue<const Q extends QueueSchemas>(
     },
   };
 
-  return withBlockHooks(client, options.hooks, {
+  const logger = options.logger ?? consoleLogger;
+
+  const hooked = withBlockHooks(client, options.hooks, {
     block: "queue",
-    ...(options.logger ? { logger: options.logger } : {}),
+    logger,
   });
+
+  return withBlockHooks(
+    hooked,
+    kickHooks<Queue<Q>, Extract<keyof Q, string>>(
+      options.kick && kicker(options.kick, logger, "queue"),
+      ["enqueue", "enqueueOnce", "replay", "retryDead"],
+      // SAFETY: each kicked method's first argument names its queue.
+      ([input]) => (input as { queue: Extract<keyof Q, string> }).queue,
+    ),
+    { block: "queue", logger },
+  );
 }

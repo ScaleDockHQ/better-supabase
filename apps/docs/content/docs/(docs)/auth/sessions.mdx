@@ -16,18 +16,19 @@ on these primitives.
 ```ts
 import {
   parseCookies,
-  readSession,
   sessionCookieName,
+  ssrSession,
 } from "better-supabase/ssr";
 
 const name = sessionCookieName(env.url);
 const cookies = parseCookies(request.headers.get("cookie"));
-const session = readSession(cookies, name); // null when absent or corrupted
+const session = await ssrSession(cookies, name); // null when absent or corrupted
 ```
 
-When the chunks don't parse together, such as a leftover `.2` from a longer
-session next to a shorter rewrite, `readSession` uses the longest prefix of
-chunks that parses, and only reads no session when none does.
+`ssrSession` joins the chunks with `combineChunks` and decodes them with the
+`@supabase/ssr` base64url decoder, the same steps as the cookie storage of a
+`createServerClient`. It never calls Auth and returns an expired session too,
+so the proxy can refresh it. Verify the access token before you trust it.
 
 ## Refreshing
 
@@ -57,7 +58,7 @@ auth-js's retries, and the session cookies stay as they are.
 | `tokens-only`               | the access token and refresh token       | `auth.userStorage` (localStorage in the browser, memory elsewhere) |
 
 `tokens-only` keeps the cookie small, often under one chunk, and is the
-recommended setting for new apps. `readSession` reads both shapes, so you can
+recommended setting for new apps. `ssrSession` reads both shapes, so you can
 switch at any time; a `tokens-only` session has no `user` field. Set the same
 value on the server (`auth.cookie.encode`) and on the browser client:
 

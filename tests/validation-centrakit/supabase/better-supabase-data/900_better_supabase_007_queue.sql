@@ -1,6 +1,6 @@
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:d63c389186c03511c207dd66e6c9c77a8674d2ba1b45304bacf27d9bbd5fc9c6
+-- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -12,6 +12,6 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 12, 'managed')
+values ('queue', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

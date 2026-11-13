@@ -5,6 +5,7 @@ import { sqlIdent } from "../../core/template.ts";
 import { schemaPreamble, serviceOnly, revokeTable } from "../shared.ts";
 import { LEASE_FUNCTIONS, LEASES_TABLE, leasesSql } from "./queue-leases.ts";
 import { MESSAGES_TABLE, table } from "./queue-table.ts";
+import { workNotifyFunction } from "./work-notify.ts";
 
 export type JobsBackend = "pgmq" | "table";
 
@@ -81,8 +82,12 @@ const pgmq = (
 -- pgmq's read_ct is the attempt number and vt the lease.
 create extension if not exists pgmq;
 
+${workNotifyFunction("better_supabase.job_queue_notify", "queue", "argument")}
+
 -- Deduplicated enqueues look the key up under an advisory lock, so each
 -- queue table and its archive (enqueue_job_once) get a partial index on it.
+-- Each queue table also gets the statement trigger that notifies
+-- better_supabase_work.
 create or replace function better_supabase.index_job_queue(queue text)
 returns void
 language plpgsql
@@ -90,6 +95,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  execute format(
+    'create or replace trigger bsb_notify_work after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)',
+    'q_' || queue,
+    queue
+  );
   execute format(
     'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
     'q_' || queue || '_dedupe_idx',
@@ -878,13 +888,19 @@ export const JOBS: BlockSqlDefinition = {
   requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
-  version: 12,
+  version: 13,
   names: NAMES,
   data: (ctx) =>
     jobsBackend(ctx) === "pgmq"
       ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
       : "",
   upgrades: [
+    {
+      from: 12,
+      description:
+        "A statement trigger on each queue table notifies better_supabase_work with the queue's name on each insert, so listenForWork drains a job enqueued from SQL without waiting for the schedule. On pgmq, the data file adds it to existing queues.",
+      sql: () => "",
+    },
     {
       from: 11,
       description:

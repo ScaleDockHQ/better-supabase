@@ -16,6 +16,7 @@ import {
   schemaPreamble,
   triggerGrant,
 } from "../shared.ts";
+import { workNotifyFunction, workNotifyTrigger } from "./work-notify.ts";
 
 const NAMES: BlockSqlNames = {
   options: [
@@ -840,6 +841,8 @@ function build(ctx: BlockSqlContext): string {
     emit(ctx, n),
     consumers(ctx, n),
     tracking(ctx),
+    workNotifyFunction(ctx.fn("outbox_notify"), "outbox"),
+    workNotifyTrigger(n.t, ctx.fn("outbox_notify")),
   ].join("\n");
 }
 
@@ -851,7 +854,7 @@ export const OUTBOX: BlockSqlDefinition = {
   requires: [],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 6,
+  version: 7,
   integrates: ["data-lifecycle"],
   names: NAMES,
   upgrades: [
@@ -884,6 +887,12 @@ export const OUTBOX: BlockSqlDefinition = {
       from: 5,
       description:
         "outbox_has_work() says whether a consumer has events after its cursor, as the probe of the relay schedule.",
+      sql: () => "",
+    },
+    {
+      from: 6,
+      description:
+        "A statement trigger on the events table notifies better_supabase_work on each insert, so listenForWork relays an event emitted from SQL without waiting for the schedule.",
       sql: () => "",
     },
   ],

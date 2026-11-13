@@ -95,7 +95,10 @@ Tokens verify against the first key source that is set:
 
 1. `auth.jwks`. Inline keys, a `URL`, or `false` (or `null`): no keys and no
    lookup, so only HS256 tokens with `auth.jwtSecret` verify.
-2. `env.jwks`, from `SUPABASE_JWKS`.
+2. `env.jwks`, from `SUPABASE_JWKS`. Fill it with the output of
+   `curl <url>/auth/v1/.well-known/jwks.json` so a cold start verifies
+   without a fetch; [Inline signing keys](/docs/auth/env#inline-signing-keys)
+   has the steps.
 3. `env.jwksUrl`, from `SUPABASE_JWKS_URL`, else
    `<url>/auth/v1/.well-known/jwks.json`.
 

@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { Executor } from "../../src/core/executor.ts";
 import type { FunctionSpec, FunctionSpecOptions } from "../../src/core/spec.ts";
 
-import { writeSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
@@ -21,6 +20,7 @@ import {
 import { testAdapter } from "../../src/testing/adapter.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const mocks = vi.hoisted(() => ({
   headers: new Headers(),
@@ -285,7 +285,7 @@ describe("createNext", () => {
 
     it("signs out and redirects when Auth no longer knows the session", async () => {
       const { token, cookie } = await session();
-      fresh.mockResolvedValue(ended());
+      fresh.mockImplementation(async () => ended());
       const protect = vi.fn(() => undefined);
 
       const response = await bsb.proxy(page({ cookie }), {
@@ -340,7 +340,7 @@ describe("createNext", () => {
       expect(named.headers.get("location")).toBe(
         "https://app.test/login?reason=suspended",
       );
-      fresh.mockResolvedValue(ended());
+      fresh.mockImplementation(async () => ended());
 
       const gone = await bsb.proxy(page({ cookie }), {
         verifySession: { redirect: "/login", reasons: { banned: "suspended" } },
@@ -353,7 +353,7 @@ describe("createNext", () => {
 
     it("hands an ended session to protect without a redirect", async () => {
       const { cookie } = await session();
-      fresh.mockResolvedValue(ended());
+      fresh.mockImplementation(async () => ended());
       const protect = vi.fn((_auth: unknown) => undefined);
 
       const response = await bsb.proxy(page({ cookie }), {
@@ -409,7 +409,7 @@ describe("createNext", () => {
 
     it("asks Auth only on the requests it checks", async () => {
       const { cookie } = await session();
-      fresh.mockResolvedValue(ended());
+      fresh.mockImplementation(async () => ended());
       await bsb.proxy(page({ cookie }));
 
       const navigation = page({

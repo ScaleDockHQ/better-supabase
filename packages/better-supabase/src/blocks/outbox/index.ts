@@ -26,4 +26,6 @@ export {
 
 export type { BlockTransport } from "../../core/block-transport.ts";
 
+export type { Kick } from "../../core/kick.ts";
+
 export { outboxBlock } from "./manifest.ts";

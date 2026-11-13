@@ -24,7 +24,12 @@ describe("asSignedInUser", () => {
         fetch: async (input: Request | string | URL, init?: RequestInit) => {
           seen.push({ url: String(input), body: String(init?.body) });
 
-          return Response.json({ access_token: TOKEN });
+          return Response.json({
+            access_token: TOKEN,
+            refresh_token: "r",
+            expires_in: 3600,
+            user: { id: "u1" },
+          });
         },
       },
     );
@@ -32,7 +37,7 @@ describe("asSignedInUser", () => {
     expect(seen[0]?.url).toBe(
       "http://stack.test/auth/v1/token?grant_type=password",
     );
-    expect(JSON.parse(seen[0]?.body ?? "{}")).toEqual({
+    expect(JSON.parse(seen[0]?.body ?? "{}")).toMatchObject({
       email: "a@x.test",
       password: "pw",
     });

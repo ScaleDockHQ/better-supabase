@@ -11,9 +11,9 @@ import type { StoredSession } from "../../src/auth/session.ts";
 
 import { authContext } from "../../src/auth/context.ts";
 import { clearKeyCaches, resolveAuth } from "../../src/auth/resolve.ts";
-import { writeSession } from "../../src/auth/session.ts";
 import { sessionMemo } from "../../src/auth/snapshot.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const NAME = "sb-abcdefghijklmnopqrst-auth-token";

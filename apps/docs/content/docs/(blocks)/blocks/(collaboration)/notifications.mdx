@@ -315,15 +315,16 @@ profiles table has) in one call to `notification_actors(ids)`, which returns
 only actors of the caller's own notifications.
 
 `avatarPath` is a Storage object path. With the `avatars` option the block
-turns it into `actor.avatarUrl`: pass `{ url, bucket }` for a public bucket
-(`<url>/storage/v1/object/public/<bucket>/<path>`), or a function of the
-path for signed or transformed URLs:
+turns it into `actor.avatarUrl`: pass a function of the path, such as
+`getPublicUrl` from a supabase-js client for a public bucket:
 
 ```ts
+const users = supabase.storage.from("users");
+
 const notifications = createNotifications({
   transport,
   types,
-  avatars: { url: process.env.SUPABASE_URL!, bucket: "users" },
+  avatars: (path) => users.getPublicUrl(path).data.publicUrl,
 });
 ```
 

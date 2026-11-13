@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@12 managed
--- @bsb-hash sha256:caecea4b67d0ea3cac81a51ba389fc3802a5edfeddeec21315ddb98d4af53f1e
+-- @bsb-block queue@13 managed
+-- @bsb-hash sha256:6d4fa7720f9fd7103027af8b34e2707fc72240cdf11abc0e3e0b2058e32402cf
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,8 +23,25 @@
 -- pgmq's read_ct is the attempt number and vt the lease.
 create extension if not exists pgmq;
 
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function better_supabase.job_queue_notify()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', pg_catalog.json_build_object('kind', 'queue', 'queue', tg_argv[0])::text);
+  end if;
+  return null;
+end;
+$$;
+revoke all on function better_supabase.job_queue_notify() from public;
+
 -- Deduplicated enqueues look the key up under an advisory lock, so each
 -- queue table and its archive (enqueue_job_once) get a partial index on it.
+-- Each queue table also gets the statement trigger that notifies
+-- better_supabase_work.
 create or replace function better_supabase.index_job_queue(queue text)
 returns void
 language plpgsql
@@ -32,6 +49,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  execute format(
+    'create or replace trigger bsb_notify_work after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)',
+    'q_' || queue,
+    queue
+  );
   execute format(
     'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
     'q_' || queue || '_dedupe_idx',
@@ -701,7 +723,7 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:d63c389186c03511c207dd66e6c9c77a8674d2ba1b45304bacf27d9bbd5fc9c6
+-- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -713,14 +735,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 12, 'managed')
+values ('queue', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@12 managed
--- @bsb-hash sha256:3b178690e94e1478ba8d2c1b6ff41b51c9b48510ba53e3358e881595555acf97
+-- @bsb-block queue@13 managed
+-- @bsb-hash sha256:c4ecbf29b0767fea8a8423f141fc09b3d6aed935ebadd4705fdb128c1ad1c433
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -742,8 +764,25 @@ on conflict (name) do update
 -- pgmq's read_ct is the attempt number and vt the lease.
 create extension if not exists pgmq;
 
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function better_supabase.job_queue_notify()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', pg_catalog.json_build_object('kind', 'queue', 'queue', tg_argv[0])::text);
+  end if;
+  return null;
+end;
+$$;
+revoke all on function better_supabase.job_queue_notify() from public;
+
 -- Deduplicated enqueues look the key up under an advisory lock, so each
 -- queue table and its archive (enqueue_job_once) get a partial index on it.
+-- Each queue table also gets the statement trigger that notifies
+-- better_supabase_work.
 create or replace function better_supabase.index_job_queue(queue text)
 returns void
 language plpgsql
@@ -751,6 +790,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  execute format(
+    'create or replace trigger bsb_notify_work after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)',
+    'q_' || queue,
+    queue
+  );
   execute format(
     'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
     'q_' || queue || '_dedupe_idx',
@@ -1424,7 +1468,7 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:d63c389186c03511c207dd66e6c9c77a8674d2ba1b45304bacf27d9bbd5fc9c6
+-- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1436,7 +1480,7 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 12, 'managed')
+values ('queue', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1445,8 +1489,8 @@ on conflict (name) do update
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@12 managed
--- @bsb-hash sha256:6c18f49920b0cc6f56763bacf1fd6bed01cd87433ded7ba8f1763b8529e53c58
+-- @bsb-block queue@13 managed
+-- @bsb-hash sha256:80e3426c14d711c903faf6e4a07b70c7bca37e2ebe7284794e3738ca48c0986b
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1468,8 +1512,25 @@ on conflict (name) do update
 -- pgmq's read_ct is the attempt number and vt the lease.
 create extension if not exists pgmq;
 
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function better_supabase.job_queue_notify()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', pg_catalog.json_build_object('kind', 'queue', 'queue', tg_argv[0])::text);
+  end if;
+  return null;
+end;
+$$;
+revoke all on function better_supabase.job_queue_notify() from public;
+
 -- Deduplicated enqueues look the key up under an advisory lock, so each
 -- queue table and its archive (enqueue_job_once) get a partial index on it.
+-- Each queue table also gets the statement trigger that notifies
+-- better_supabase_work.
 create or replace function better_supabase.index_job_queue(queue text)
 returns void
 language plpgsql
@@ -1477,6 +1538,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  execute format(
+    'create or replace trigger bsb_notify_work after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)',
+    'q_' || queue,
+    queue
+  );
   execute format(
     'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
     'q_' || queue || '_dedupe_idx',
@@ -2379,7 +2445,7 @@ grant execute on function "api"."release_lease_claim"(text, text, uuid) to servi
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:d63c389186c03511c207dd66e6c9c77a8674d2ba1b45304bacf27d9bbd5fc9c6
+-- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2391,14 +2457,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 12, 'managed')
+values ('queue', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@12 managed
--- @bsb-hash sha256:44599879ef8846b05a3ba04186c6eea1e6f3b86288acd18677cd5c92732627eb
+-- @bsb-block queue@13 managed
+-- @bsb-hash sha256:9d24069e3b3c11a00d49178ec1a95f29d5b8facd5122c134db44663fa3e49f87
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2420,8 +2486,25 @@ on conflict (name) do update
 -- pgmq's read_ct is the attempt number and vt the lease.
 create extension if not exists pgmq;
 
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function better_supabase.job_queue_notify()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', pg_catalog.json_build_object('kind', 'queue', 'queue', tg_argv[0])::text);
+  end if;
+  return null;
+end;
+$$;
+revoke all on function better_supabase.job_queue_notify() from public;
+
 -- Deduplicated enqueues look the key up under an advisory lock, so each
 -- queue table and its archive (enqueue_job_once) get a partial index on it.
+-- Each queue table also gets the statement trigger that notifies
+-- better_supabase_work.
 create or replace function better_supabase.index_job_queue(queue text)
 returns void
 language plpgsql
@@ -2429,6 +2512,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  execute format(
+    'create or replace trigger bsb_notify_work after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)',
+    'q_' || queue,
+    queue
+  );
   execute format(
     'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
     'q_' || queue || '_dedupe_idx',
@@ -3096,7 +3184,7 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:d63c389186c03511c207dd66e6c9c77a8674d2ba1b45304bacf27d9bbd5fc9c6
+-- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3108,14 +3196,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 12, 'managed')
+values ('queue', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@12 managed
--- @bsb-hash sha256:caecea4b67d0ea3cac81a51ba389fc3802a5edfeddeec21315ddb98d4af53f1e
+-- @bsb-block queue@13 managed
+-- @bsb-hash sha256:6d4fa7720f9fd7103027af8b34e2707fc72240cdf11abc0e3e0b2058e32402cf
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3137,8 +3225,25 @@ on conflict (name) do update
 -- pgmq's read_ct is the attempt number and vt the lease.
 create extension if not exists pgmq;
 
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function better_supabase.job_queue_notify()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', pg_catalog.json_build_object('kind', 'queue', 'queue', tg_argv[0])::text);
+  end if;
+  return null;
+end;
+$$;
+revoke all on function better_supabase.job_queue_notify() from public;
+
 -- Deduplicated enqueues look the key up under an advisory lock, so each
 -- queue table and its archive (enqueue_job_once) get a partial index on it.
+-- Each queue table also gets the statement trigger that notifies
+-- better_supabase_work.
 create or replace function better_supabase.index_job_queue(queue text)
 returns void
 language plpgsql
@@ -3146,6 +3251,11 @@ security definer
 set search_path = ''
 as $$
 begin
+  execute format(
+    'create or replace trigger bsb_notify_work after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)',
+    'q_' || queue,
+    queue
+  );
   execute format(
     'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',
     'q_' || queue || '_dedupe_idx',
@@ -3815,7 +3925,7 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:d63c389186c03511c207dd66e6c9c77a8674d2ba1b45304bacf27d9bbd5fc9c6
+-- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3827,6 +3937,6 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 12, 'managed')
+values ('queue', 13, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
