@@ -83,6 +83,11 @@ flag.
 - The worker stores nothing whose `Cache-Control` says `private` or
   `no-store`, and never replays a `POST`; `experimental.useOffline` retries
   Server Actions. Don't add a cache rule that bypasses that check.
+- `/_next/static` is cache first in its own cache, trimmed to 512 entries and
+  never cleared on a deploy (ADR 0840). It skips `/_next/static/service-worker/`,
+  which Next.js serves with `must-revalidate`, and stores only responses whose
+  `Cache-Control` includes `immutable`. Don't merge it into the shell cache or
+  switch it to stale-while-revalidate.
 - `/sw.js` gets `no-cache` and `Service-Worker-Allowed` from
   `createNextConfig()`. The proxy matcher skips `html` and `webmanifest`, or
   it redirects `offline.html` to the sign-in page.
