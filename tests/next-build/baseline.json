@@ -30,7 +30,7 @@
     "brotli": 394305
   },
   "/[locale]/(app)/approvals/page": {
-    "raw": 1375687,
+    "raw": 1376183,
     "gzip": 442386,
     "brotli": 386916
   },
@@ -205,7 +205,7 @@
     "brotli": 375581
   },
   "/[locale]/(app)/chat/page": {
-    "raw": 1402824,
+    "raw": 1402989,
     "gzip": 451010,
     "brotli": 394401
   },
@@ -365,7 +365,7 @@
     "brotli": 429346
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 1493813,
+    "raw": 1494369,
     "gzip": 483344,
     "brotli": 422004
   },
@@ -565,12 +565,12 @@
     "brotli": 383770
   },
   "/[locale]/(app)/inbox/[conversation]/page": {
-    "raw": 1559498,
+    "raw": 1559820,
     "gzip": 503501,
     "brotli": 440951
   },
   "/[locale]/(app)/inbox/page": {
-    "raw": 1445038,
+    "raw": 1445358,
     "gzip": 465601,
     "brotli": 407959
   },
@@ -745,7 +745,7 @@
     "brotli": 392336
   },
   "/[locale]/(app)/projects/[id]/page": {
-    "raw": 1411909,
+    "raw": 1412078,
     "gzip": 456692,
     "brotli": 399394
   },
@@ -1080,12 +1080,12 @@
     "brotli": 426875
   },
   "/[locale]/(app)/shop/kitchen/board/page": {
-    "raw": 1366515,
+    "raw": 1366771,
     "gzip": 439364,
     "brotli": 384253
   },
   "/[locale]/(app)/shop/kitchen/page": {
-    "raw": 1305104,
+    "raw": 1305359,
     "gzip": 418862,
     "brotli": 366045
   },
