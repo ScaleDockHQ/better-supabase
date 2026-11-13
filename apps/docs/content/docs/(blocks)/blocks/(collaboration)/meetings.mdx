@@ -148,6 +148,32 @@ action items (with the task's title and state). `list` filters by `kind`,
 `status`, a start range, an attendee and a search over the title, location and
 summary, and pages with `limit` and `offset`.
 
+`page` is the full list contract for meetings (ADR 0749). It takes `q`, `sort`,
+`filters` whose values are lists (a row matches any of a filter's values), `after`
+and `limit`, and returns `{ items, hasMore, nextCursor }`. Sorts are `startsAt`
+(the default, latest first) and `title`. Filters are `kind`, `status`, `from`,
+`to` (instants) and `attendeeId`. Facets are `kind` and `status`. Without
+`meetings.read` the list holds the meetings the caller attends.
+
+```ts
+const first = await meetings
+  .page({ filters: { status: ["planned", "held"] }, q: "budget", limit: 25 })
+  .orThrow();
+
+// How many rows each facet value holds under the same filters.
+const facets = await meetings
+  .facets({ filters: { status: ["planned", "held"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await meetings
+  .count({ filters: { status: ["planned", "held"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from. A sort or filter the entity does not
+declare returns an `invalid_input` error.
+
 ## Options
 
 | Option     | Default                                                               | Does                                                 |

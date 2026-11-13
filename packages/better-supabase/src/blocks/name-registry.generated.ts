@@ -2602,7 +2602,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "claims": "id" | "tenant" | "title" | "supplier" | "manufacturer" | "asset" | "amount" | "currency" | "status" | "decision" | "decidedAt" | "decidedBy" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "create_warranty_claim" | "decide_warranty_claim" | "list_warranty_claims" | "submit_warranty_claim";
+    readonly functions: "create_warranty_claim" | "decide_warranty_claim" | "get_warranty_claim" | "list_warranty_claims" | "submit_warranty_claim";
     readonly actions: "read" | "write" | "decide";
     readonly hooks: never;
     readonly entities: {

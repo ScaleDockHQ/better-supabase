@@ -3,7 +3,14 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -11,6 +18,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   MEETING_AGENDA_STATUSES,
@@ -31,6 +39,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { meetingListSurface } from "./lists.ts";
 
 /** Where a meeting stands. */
 export type MeetingStatus = (typeof MEETING_STATUSES)[number];
@@ -276,6 +285,16 @@ export interface Meetings<F extends object = Record<never, never>> {
   get(meetingId: string): AsyncResult<MeetingDetail<F>>;
   list(options?: MeetingListOptions): AsyncResult<readonly Meeting<F>[]>;
   /**
+   * One keyset page of meetings, in the order of `sort` (the latest first by
+   * default): the rows, `hasMore` and a `nextCursor` to pass as `after`.
+   * Without `meetings.read` it holds the meetings the caller attends.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<Meeting<F>>>;
+  /** The meetings per kind and status, under the page's filters. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many meetings match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
+  /**
    * Settles the `decisions` (each one through `decide`), then marks the meeting
    * held with its summary. It stops at the first failure.
    */
@@ -480,6 +499,16 @@ export function createMeetings<
   const fields: BlockFields<F> = blockFields(options.fields, "meeting fields");
 
   const one = (fn: string) => (value: unknown) => meetingOf(value, fn);
+
+  const meetings = entityList({
+    entity: "meeting",
+    surface: meetingListSurface,
+    call,
+    tenant,
+    fn: "list_meetings",
+    rowOf: meetingOf,
+  });
+
   const decision = (fn: string) => (value: unknown) => decisionOf(value, fn);
   const attendee = (fn: string) => (value: unknown) => attendeeOf(value, fn);
   const agendaItem = (fn: string) => (value: unknown) => agendaOf(value, fn);
@@ -611,6 +640,14 @@ export function createMeetings<
             ),
         ).andThen(fields.rows),
       ),
+    page: (page = {}) =>
+      meetings
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    facets: meetings.facets,
+    count: meetings.count,
     conclude: ({ meetingId, summary, decisions }) =>
       AsyncResult.from(async () => {
         for (const { decisionId, status } of decisions ?? []) {

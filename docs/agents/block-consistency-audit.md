@@ -312,7 +312,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | comments                  | collaboration | comment                    | append-only   | -                      | create, delete         | -                                   | -                      | -      | -        | -       | -         |
 | guests                    | collaboration | guest                      | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
 | guests                    | collaboration | guest_grant                | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| meetings                  | collaboration | meeting                    | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
+| meetings                  | collaboration | meeting                    | editable      | create, update, delete | -                      | startsAt, title                     | kind, status           | y      | -        | -       | -         |
 | meetings                  | collaboration | meeting_attendee           | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
 | meetings                  | collaboration | meeting_agenda_item        | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
 | meetings                  | collaboration | meeting_decision           | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
@@ -582,7 +582,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | incidents                 | work          | status_component           | editable      | update                 | delete                 | -                                   | -                      | -      | -        | -       | -         |
 | incidents                 | work          | incident_postmortem        | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
 | incidents                 | work          | status_page                | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| inspections               | work          | inspection                 | editable      | update                 | create                 | -                                   | -                      | -      | -        | -       | -         |
+| inspections               | work          | inspection                 | editable      | update                 | create                 | plannedStart, number                | status, kind           | y      | -        | -       | -         |
 | inspections               | work          | inspection_program         | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
 | inspections               | work          | inspection_finding         | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
 | inspections               | work          | inspection_member          | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
@@ -613,7 +613,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | tasks                     | work          | iteration                  | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
 | tasks                     | work          | checklist_item             | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
 | undo                      | work          | undo                       | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| warranty                  | work          | warranty_claim             | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
+| warranty                  | work          | warranty_claim             | state-machine | create                 | -                      | createdAt, amount                   | status                 | -      | -        | -       | -         |
 
 <!-- entity-matrix:end -->
 
@@ -865,11 +865,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G2
 
 - Scope: List contract rollout: work and collaboration
-- Status: planned
+- Status: PR open
 - Branch: `feat/audit-g2`
-- PR: none yet
+- PR: pending
 - Findings: EX-1200 to EX-1205, EX-1215
 - Log: 2026-11-12, planned.
+  2026-11-13, lane G2 started from main (7f4bcbfdf7) in `../bsb-audit-g2`.
+  2026-11-13, first PR: `inspections`, `meetings` and `warranty` take the contract (ADR 0759), `warranty` gains `get`, migration 20261216020002. The other work and collaboration blocks page by their own `before`, `after` or `cursor` shapes (or not at all), so each needs a cursor change; they follow in later G2 PRs and the findings stay partly fixed until then.
 
 ### Lane G3
 

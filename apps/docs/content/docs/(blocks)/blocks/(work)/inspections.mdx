@@ -179,6 +179,7 @@ for each planned or running inspection past it.
 | `notifyOverdue()`                         | how many overdue inspections it reported (service role)        |
 | `get(inspectionId)`                       | the inspection with its team, findings, checklist and controls |
 | `list(options)`                           | the inspections, the latest planned first                      |
+| `page(options)`                           | one keyset page; `facets(options)` and `count(options)` beside |
 | `addFinding(inspectionId, input)`         | the finding                                                    |
 | `updateFinding(findingId, change)`        | the finding                                                    |
 | `deleteFinding(findingId)`                | the deleted finding                                            |
@@ -186,6 +187,32 @@ for each planned or running inspection past it.
 
 `list` filters by `programId`, `kind`, `status`, `leadId`, `from`, `to`,
 `auditee` and `search`, with `limit` and `offset`.
+
+`page` is the full list contract for inspections (ADR 0749). It takes `q`,
+`sort`, `filters` whose values are lists (a row matches any of a filter's
+values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Sorts
+are `plannedStart` (the default, latest first) and `number`. Filters are
+`programId`, `kind`, `status`, `leadId`, `from` and `to` (dates such as
+`2026-03-01`), `auditeeType` and `auditeeId`. Facets are `status` and `kind`.
+Without `inspections.read` the list holds the inspections the caller is a member
+of.
+
+```ts
+const first = await inspections
+  .page({ filters: { status: ["planned", "in_progress"] }, limit: 25 })
+  .orThrow();
+
+const facets = await inspections
+  .facets({ filters: { programId: [programId] } })
+  .orThrow();
+
+const total = await inspections
+  .count({ filters: { status: ["planned", "in_progress"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from. A sort or filter the entity does not
+declare returns an `invalid_input` error.
 
 ## Options
 
