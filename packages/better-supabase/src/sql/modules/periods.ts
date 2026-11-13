@@ -9,6 +9,7 @@ import type { PeriodContribution } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -118,6 +119,39 @@ function build(ctx: BlockSqlContext): string {
 
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'kind', ${row}.${t("kind")}, 'startsOn', ${row}.${t("startsOn")}, 'endsOn', ${row}.${t("endsOn")}, 'status', ${row}.${t("status")}, 'closedAt', ${row}.${t("closedAt")}, 'closedBy', ${row}.${t("closedBy")}, 'createdAt', ${row}.${t("createdAt")})`;
+
+  const periodList = {
+    name: "list_periods",
+    from: periods,
+    alias: "x",
+    where: [
+      `x.${t("tenant")} = list_periods.tenant`,
+      filterAny("kind", `x.${t("kind")}`),
+      filterAny("status", `x.${t("status")}`),
+    ],
+    keys: [
+      { expr: `x.${t("startsOn")}`, dir: "desc", type: "date" },
+      { expr: `x.${t("kind")}`, dir: "asc", type: "text" },
+      { expr: `x.${t("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      startsOn: [
+        { expr: `x.${t("startsOn")}`, dir: "desc", type: "date" },
+        { expr: `x.${t("kind")}`, dir: "asc", type: "text" },
+        { expr: `x.${t("id")}`, dir: "asc", type: "uuid" },
+      ],
+      endsOn: [
+        { expr: `x.${t("endsOn")}`, dir: "desc", type: "date" },
+        { expr: `x.${t("kind")}`, dir: "asc", type: "text" },
+        { expr: `x.${t("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { kind: `x.${t("kind")}`, status: `x.${t("status")}` },
+    rowJson: json("x"),
+    defaultLimit: 100,
+    maxLimit: 500,
+    invalid: (message: string) => fail("PERIOD_INVALID", message, "22023"),
+  } as const;
 
   const record = (
     type:
@@ -417,7 +451,9 @@ end;
 $$;
 ${userGrant(`${fn("reopen_period")}(uuid, text)`)}
 
--- An organization's periods, newest first. filters is { kind, status, limit }.
+-- An organization's periods, newest first. filters is { kind (a value or a
+-- list), status (a value or a list), sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749).
 create or replace function ${fn("list_periods")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -428,21 +464,12 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_periods.filters, '{}'::jsonb);
+  ${listDeclare(periodList)}
 begin
   if not ${allowed("list_periods.tenant", read)} then
     ${fail("PERIOD_FORBIDDEN", "not allowed to read periods")}
   end if;
-  return coalesce((
-    select jsonb_agg(${json("y")} order by y.${t("startsOn")} desc, y.${t("kind")})
-    from (
-      select * from ${periods} z
-      where z.${t("tenant")} = list_periods.tenant
-        and (not v_filters ? 'kind' or z.${t("kind")} = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or z.${t("status")} = v_filters ->> 'status')
-      order by z.${t("startsOn")} desc, z.${t("kind")}
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(periodList)}
 end;
 $$;
 ${userGrant(`${fn("list_periods")}(${idType}, jsonb)`)}

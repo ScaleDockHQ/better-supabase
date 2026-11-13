@@ -19,6 +19,7 @@ import {
 import { money } from "../../../src/commerce/money.ts";
 import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
+import { fieldsTransport } from "../fields-transport.ts";
 
 const AT = "2026-10-22T10:00:00Z";
 const DONOR = { type: "contact", id: "d1" };
@@ -390,26 +391,17 @@ describe("createDonations", () => {
         "list_gifts",
         {
           tenant: "org-1",
-          donor_type: "contact",
-          donor_id: "d1",
-          fund_id: FUND_ID,
-          pledge_id: PLEDGE_ID,
-          status: "posted",
-          page_size: 5,
+          filters: {
+            donorType: "contact",
+            donorId: "d1",
+            fundId: FUND_ID,
+            pledgeId: PLEDGE_ID,
+            status: "posted",
+            limit: 5,
+          },
         },
       ],
-      [
-        "list_gifts",
-        {
-          tenant: "org-1",
-          donor_type: null,
-          donor_id: null,
-          fund_id: null,
-          pledge_id: null,
-          status: null,
-          page_size: null,
-        },
-      ],
+      ["list_gifts", { tenant: "org-1", filters: {} }],
     ]);
   });
 
@@ -717,22 +709,15 @@ describe("createDonations", () => {
         "list_pledges",
         {
           tenant: "org-1",
-          donor_type: "contact",
-          donor_id: "d1",
-          status: "active",
-          page_size: 5,
+          filters: {
+            donorType: "contact",
+            donorId: "d1",
+            status: "active",
+            limit: 5,
+          },
         },
       ],
-      [
-        "list_pledges",
-        {
-          tenant: "org-1",
-          donor_type: null,
-          donor_id: null,
-          status: null,
-          page_size: null,
-        },
-      ],
+      ["list_pledges", { tenant: "org-1", filters: {} }],
     ]);
   });
 
@@ -1415,5 +1400,40 @@ describe("gift fields", () => {
     expect(
       (await donations.gifts().orThrow()).map((row) => row.fields.appeal),
     ).toEqual(["spring"]);
+  });
+
+  it("reads keyset pages of gifts and pledges", async () => {
+    const t = fieldsTransport({
+      list_gifts: () => ({ items: [GIFT], hasMore: false }),
+      list_pledges: () => ({
+        items: [PLEDGE],
+        hasMore: true,
+        nextCursor: ["a"],
+      }),
+    });
+
+    const donations = createDonations({ transport: t, tenant: "org-1" });
+
+    const gifts = await donations
+      .giftPage({
+        sort: { by: "receivedOn" },
+        filters: { status: ["posted", "refunded"] },
+      })
+      .orThrow();
+
+    const pledges = await donations.pledgePage({ limit: 1 }).orThrow();
+    const refused = await donations.giftPage({ filters: { amount: ["1"] } });
+
+    expect(gifts.items).toHaveLength(1);
+    expect(pledges.nextCursor).toEqual(["a"]);
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "org-1",
+      filters: {
+        sort: "receivedOn",
+        status: ["posted", "refunded"],
+        paged: true,
+      },
+    });
+    expect(refused.ok).toBe(false);
   });
 });

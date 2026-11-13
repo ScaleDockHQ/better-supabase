@@ -3,6 +3,7 @@ import type { ShipmentsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { shipmentsEvents } from "./events.ts";
+import { shipmentListSurface } from "./lists.ts";
 import { shipmentsBinding } from "./record-binding.ts";
 import { shipmentInputSchema, trackingEventInputSchema } from "./schemas.ts";
 import { createShipments } from "./shipments.ts";
@@ -27,7 +28,11 @@ export const shipmentsBlock: BlockOf<
   record: shipmentsBinding,
   category: "commerce",
   entities: {
-    shipment: { mutability: "state-machine", emits: { create: true } },
+    shipment: {
+      ...shipmentListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
     shipment_package: { mutability: "read-only" },
     shipment_tracking_event: { mutability: "read-only" },
     shipment_line: { mutability: "read-only" },

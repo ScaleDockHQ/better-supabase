@@ -280,14 +280,19 @@ describe("createShipments", () => {
     expect(rows).toHaveLength(2);
     expect(fake.calls[0]?.[1]).toEqual({
       tenant: "org-1",
-      status: "draft",
-      subject_type: "order",
-      subject_id: "o1",
-      carrier: "flat-rate",
-      before: LATER,
-      page_size: 5,
+      filters: {
+        status: "draft",
+        subjectType: "order",
+        subjectId: "o1",
+        carrier: "flat-rate",
+        before: LATER,
+        limit: 5,
+      },
     });
-    expect(fake.calls[1]?.[1]).toMatchObject({ status: null, page_size: 50 });
+    expect(fake.calls[1]?.[1]).toEqual({
+      tenant: "org-1",
+      filters: { limit: 50 },
+    });
   });
 
   it("fails without a tenant", async () => {
@@ -837,5 +842,41 @@ describe("shipments block", () => {
       subject_type: "order",
       subject_id: "o1",
     });
+  });
+
+  it("reads a keyset page of shipments with its fields", async () => {
+    const fake = fakeTransport({
+      list_shipments: { items: [DRAFT], hasMore: true, nextCursor: ["c", "d"] },
+    });
+
+    const shipments = createShipments({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const page = await shipments
+      .shipmentPage({
+        sort: { by: "deliveredAt", direction: "desc" },
+        filters: { status: ["draft", "labeled"] },
+      })
+      .orThrow();
+
+    const refused = await shipments.shipmentPage({ sort: { by: "nope" } });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.nextCursor).toEqual(["c", "d"]);
+    expect(fake.calls[0]).toEqual([
+      "list_shipments",
+      {
+        tenant: "org-1",
+        filters: {
+          sort: "deliveredAt",
+          direction: "desc",
+          status: ["draft", "labeled"],
+          paged: true,
+        },
+      },
+    ]);
+    expect(refused.ok).toBe(false);
   });
 });

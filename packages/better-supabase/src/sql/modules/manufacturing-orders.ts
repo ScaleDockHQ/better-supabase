@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { ManufacturingSql } from "./manufacturing-sql.ts";
 
 import { bookSource } from "../accounting-sources-sql.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { movementLots } from "./inventory-ledger.ts";
@@ -55,6 +56,53 @@ export function productionFunctions(ctx: BlockSqlContext): string {
   const la = (column: string): string => ledger.col("accounts", column);
   const inspections = linked(ctx, "inspections");
   const detail = (row: string): string => orderDetail(q, row);
+
+  const orderKeys = (
+    first: "dueOn" | "createdAt" | "number",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] =>
+    first === "dueOn"
+      ? [
+          {
+            expr: `coalesce(x.${po("dueOn")}, 'infinity'::date)`,
+            dir: "asc",
+            type: "date",
+          },
+          { expr: `x.${po("sequence")}`, dir: "desc", type: "bigint" },
+          { expr: `x.${po("id")}`, dir: "asc", type: "uuid" },
+        ]
+      : [
+          first === "createdAt"
+            ? { expr: `x.${po("createdAt")}`, dir: "desc", type: "timestamptz" }
+            : { expr: `x.${po("sequence")}`, dir: "desc", type: "bigint" },
+          { expr: `x.${po("id")}`, dir: "asc", type: "uuid" },
+        ];
+
+  const orderList = {
+    name: "list_production_orders",
+    from: q.orders,
+    alias: "x",
+    where: [
+      `x.${po("tenant")} = list_production_orders.tenant`,
+      filterAny("status", `x.${po("status")}`),
+      filterAny("variantId", `x.${po("variant")}`, "uuid"),
+    ],
+    keys: orderKeys("dueOn"),
+    sorts: {
+      dueOn: orderKeys("dueOn"),
+      createdAt: orderKeys("createdAt"),
+      number: orderKeys("number"),
+    },
+    facets: { status: `x.${po("status")}` },
+    rowJson: q.orderJson("x"),
+    defaultLimit: 100,
+    maxLimit: 500,
+    invalid: q.orderInvalid,
+  } as const;
+
   const reference = (row: string): string => `${row}.${po("id")}::text`;
 
   const load = (
@@ -571,25 +619,26 @@ end;
 $$;
 ${userGrant(`${fn("get_production_order")}(uuid)`)}
 
--- The organization's production orders, due first: filter is { status,
--- variantId, limit } (limit 1 to 500, default 100).
-create or replace function ${fn("list_production_orders")}(tenant ${idType}, filter jsonb default null)
+-- The organization's production orders, due first: filters is { status (a value
+-- or a list), variantId (a value or a list), sort, direction, facet, count,
+-- limit, after, offset, paged, total, totalCap } (ADR 0749; limit 1 to 500,
+-- default 100).
+create or replace function ${fn("list_production_orders")}(tenant ${idType}, filters jsonb default null)
 returns jsonb
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_production_orders.filters, '{}'::jsonb);
+  ${listDeclare(orderList)}
 begin
   if not ${q.allowed("list_production_orders.tenant", q.read)} then
     ${q.forbidden("not allowed to read production orders")}
   end if;
-  return coalesce((select jsonb_agg(${q.orderJson("x")} order by x.${po("dueOn")} nulls last, x.${po("sequence")} desc)
-    from (select * from ${q.orders} y where y.${po("tenant")} = list_production_orders.tenant
-      and (nullif(list_production_orders.filter ->> 'status', '') is null or y.${po("status")} = list_production_orders.filter ->> 'status')
-      and (nullif(list_production_orders.filter ->> 'variantId', '') is null or y.${po("variant")} = (list_production_orders.filter ->> 'variantId')::uuid)
-      order by y.${po("dueOn")} nulls last, y.${po("sequence")} desc
-      limit least(greatest(coalesce(nullif(list_production_orders.filter ->> 'limit', '')::integer, 100), 1), 500)) x), '[]'::jsonb);
+  ${listBody(orderList)}
 end;
 $$;
 ${userGrant(`${fn("list_production_orders")}(${idType}, jsonb)`)}

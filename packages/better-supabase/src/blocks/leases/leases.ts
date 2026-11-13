@@ -4,9 +4,16 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -17,6 +24,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -31,6 +39,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { leaseListSurface } from "./lists.ts";
 
 export type LeaseStatus = "draft" | "active" | "ended" | "terminated";
 
@@ -186,6 +195,18 @@ export interface Leases<F extends object = Record<never, never>> {
   get(leaseId: string): AsyncResult<Lease<F>>;
   list(options?: LeaseListOptions): AsyncResult<readonly Lease<F>[]>;
   /**
+   * One keyset page of leases, latest start first or by `sort`, with `hasMore`
+   * and a `nextCursor`.
+   */
+  leasePage(options?: PageOptions): AsyncResult<ListPage<Lease<F>>>;
+  /**
+   * The values of each facet of leases and their counts, under the page's
+   * filters.
+   */
+  leaseFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many of leases match the page's filters. */
+  leaseCount(options?: CountOptions): AsyncResult<Count>;
+  /**
    * Posts the rent of every due period of the organization's active leases on
    * the ledger, once per period, and returns how many posted.
    */
@@ -293,7 +314,24 @@ export function createLeases<
 
   const fields: BlockFields<F> = blockFields(options.fields, "lease fields");
 
+  const leases = entityList({
+    entity: "lease",
+    surface: leaseListSurface,
+    call,
+    tenant,
+    fn: "list_leases",
+    rowOf: leaseOf,
+  });
+
   const client: Leases<F> = {
+    leasePage: (options = {}) =>
+      leases
+        .page(options)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    leaseFacets: leases.facets,
+    leaseCount: leases.count,
     create: (input) => {
       if (
         input.deposit !== undefined &&
@@ -371,11 +409,14 @@ export function createLeases<
           "list_leases",
           {
             tenant: organizationId,
-            status: list.status ?? null,
-            unit_id: list.unitId ?? null,
-            party_type: list.party?.type ?? null,
-            party_id: list.party?.id ?? null,
-            page_size: list.pageSize ?? null,
+            filters: {
+              ...(list.status === undefined ? {} : { status: list.status }),
+              ...(list.unitId === undefined ? {} : { unitId: list.unitId }),
+              ...(list.party === undefined
+                ? {}
+                : { partyType: list.party.type, partyId: list.party.id }),
+              ...(list.pageSize === undefined ? {} : { limit: list.pageSize }),
+            },
           },
           (value) => recordsOf(value, "list_leases").map(lease("list_leases")),
         ).andThen(fields.rows),

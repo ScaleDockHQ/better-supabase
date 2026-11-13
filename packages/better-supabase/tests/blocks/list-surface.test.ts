@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
+import { commissionsBlock } from "../../src/blocks/commissions/manifest.ts";
 import { damBlock } from "../../src/blocks/dam/manifest.ts";
+import { donationsBlock } from "../../src/blocks/donations/manifest.ts";
+import { leasesBlock } from "../../src/blocks/leases/manifest.ts";
 import { limsBlock } from "../../src/blocks/lims/manifest.ts";
 import { maintenanceBlock } from "../../src/blocks/maintenance/manifest.ts";
+import { manufacturingBlock } from "../../src/blocks/manufacturing/manifest.ts";
+import { periodsBlock } from "../../src/blocks/periods/manifest.ts";
+import { referralsBlock } from "../../src/blocks/referrals/manifest.ts";
 import { rfqsBlock } from "../../src/blocks/rfqs/manifest.ts";
 import { risksBlock } from "../../src/blocks/risks/manifest.ts";
+import { shipmentsBlock } from "../../src/blocks/shipments/manifest.ts";
 import { tillsBlock } from "../../src/blocks/tills/manifest.ts";
 import { warehouseBlock } from "../../src/blocks/warehouse/manifest.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
@@ -15,11 +22,18 @@ import { renderBlocks } from "../../src/sql/render.ts";
 const BLOCKS = [
   agentCheckoutBlock,
   appraisalsBlock,
+  commissionsBlock,
   damBlock,
+  donationsBlock,
+  leasesBlock,
   limsBlock,
   maintenanceBlock,
+  manufacturingBlock,
+  periodsBlock,
+  referralsBlock,
   rfqsBlock,
   risksBlock,
+  shipmentsBlock,
   tillsBlock,
   warehouseBlock,
 ];
@@ -79,6 +93,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(11);
+    expect(CASES).toHaveLength(22);
   });
 });
