@@ -885,11 +885,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Scope: List contract rollout: crm, people and scheduling
 - Status: in progress
 - Branch: `feat/audit-g4`
-- PR: none yet
+- PR: [#918](https://github.com/ScaleDockHQ/better-supabase/pull/918)
 - Findings: EX-1200 to EX-1205, EX-1215
 - Log: 2026-11-12, planned.
   2026-11-13, lane G4 started from main (7f4bcbfdf7) in `../bsb-audit-g4`.
-  2026-11-13, five entities moved over (ADR 0779): sequences, payroll runs, passes, enrollments and prescriptions; sibling `page_*` functions for the positional lists, `get_enrollment` added. Blocks with extra columns and the permission-heavy lists (contacts, contracts, hiring, time-entries, bookings, leave, calendar, shifts, mail-sync, qualifications, medications) stay for a later lane.
+  2026-11-13, PR #918 opened: five entities moved over (ADR 0779): sequences, payroll runs, passes, enrollments and prescriptions; sibling `page_*` functions for the positional lists, `get_enrollment` added. Blocks with extra columns and the permission-heavy lists (contacts, contracts, hiring, time-entries, bookings, leave, calendar, shifts, mail-sync, qualifications, medications) stay for a later lane.
 
 ### Lane G5
 
