@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:7b901dd043f28a08a8061f2b09138180b610950981f4f82fc747d3b4a341fac6
+-- @bsb-hash sha256:97e8d95bf6912284e7e72470adba82a81173f4851faaa7a5c5b566bd167c88a4
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -308,6 +308,7 @@ declare
   v_hint text;
   v_reason text;
   v_touched uuid[] := '{}';
+  v_seen jsonb := '{}';
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -321,9 +322,17 @@ begin
       v_deal := (v_change ->> 'dealId')::uuid;
       select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
-      or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null;
+      or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null for update;
       if v_row."id" is null then
         raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
+      end if;
+      -- expectedVersion is the updatedAt the caller read; every change of the
+      -- batch compares to the row as it was before the batch.
+      if not v_seen ? v_deal::text then
+        v_seen := v_seen || jsonb_build_object(v_deal::text, v_row."updated_at");
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_deal::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        raise exception 'the deal changed since it was read' using errcode = 'BS409', hint = 'STALE_WRITE';
       end if;
       if v_field = 'company' and jsonb_typeof(v_change -> 'value') = 'object' then
         if (v_change -> 'value' ->> 'id') is not null and not false then

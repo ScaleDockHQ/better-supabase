@@ -7,6 +7,7 @@ import type {
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { CustomFields } from "../custom-fields/custom-fields.ts";
@@ -15,6 +16,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
+import { idempotentCall } from "../../core/idempotent-write.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
@@ -209,6 +211,11 @@ export interface TaskWatcher {
  */
 export interface TaskChange<F extends object = Record<never, never>> {
   readonly taskId: string;
+  /**
+   * The item's `updatedAt` as you read it. The change is refused with a
+   * `STALE_WRITE` conflict when the item changed since.
+   */
+  readonly expectedVersion?: Temporal.Instant | undefined;
   readonly field: TaskField | (keyof F & string);
   readonly value: unknown;
 }
@@ -292,6 +299,8 @@ export interface Tasks<F extends object = Record<never, never>> {
     input: TaskInput<F>;
     assigneeIds?: readonly string[] | undefined;
     custom?: Readonly<Record<string, string>> | undefined;
+    /** Makes a retry return the first result (`idempotency` option). */
+    idempotencyKey?: string | undefined;
   }): AsyncResult<Task<F>>;
   /**
    * Copies a task and its assignees, checklist and child tasks. `overrides`
@@ -420,6 +429,8 @@ export interface TasksOptions<
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Tasks<FieldsOf<S>>>>;
   readonly logger?: Logger;
+  /** Claims `create({ idempotencyKey })`: `createIdempotency(...)`. */
+  readonly idempotency?: IdempotencyClaims | undefined;
   readonly mappers?: readonly ErrorMapper[];
   /**
    * The `custom-fields` port, which `create({ custom })` sets values through.
@@ -710,6 +721,26 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
     "work item fields",
   );
 
+  /**
+   * `create_task`, claimed through the `idempotency` option when a key is
+   * given.
+   */
+  const claimed = (
+    name: string,
+    scope: string,
+    key: string | undefined,
+    sent: Readonly<Record<string, unknown>>,
+  ): AsyncResult<Task> =>
+    idempotentCall({
+      claims: options.idempotency,
+      key,
+      scope,
+      name,
+      args: sent,
+      run: () => call(name, sent, (value) => value),
+      decode: itemOf,
+    });
+
   /** Moves the item, then checks the state the stage's category gave it. */
   const settle = (
     { taskId, stageId }: { taskId: string; stageId: string },
@@ -733,7 +764,13 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       );
 
   const client: Tasks<F> = {
-    create: ({ organizationId, input, assigneeIds, custom }) => {
+    create: ({
+      organizationId,
+      input,
+      assigneeIds,
+      custom,
+      idempotencyKey,
+    }) => {
       const { fields: extra, attachmentIds, ...attrs } = input;
       const entries = Object.entries(custom ?? {});
 
@@ -750,21 +787,17 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       return fields
         .args(extra)
         .andThen((checked) =>
-          call(
-            "create_task",
-            {
-              tenant: organizationId,
-              attrs: {
-                ...args(attrs),
-                ...(attachmentIds === undefined
-                  ? {}
-                  : { attachments: [...attachmentIds] }),
-                ...(checked === undefined ? {} : { fields: checked }),
-              },
-              assignees: assigneeIds === undefined ? null : [...assigneeIds],
+          claimed("create_task", organizationId, idempotencyKey, {
+            tenant: organizationId,
+            attrs: {
+              ...args(attrs),
+              ...(attachmentIds === undefined
+                ? {}
+                : { attachments: [...attachmentIds] }),
+              ...(checked === undefined ? {} : { fields: checked }),
             },
-            itemOf,
-          ).andThen(fields.row),
+            assignees: assigneeIds === undefined ? null : [...assigneeIds],
+          }).andThen(fields.row),
         )
         .andThen(async (created) => {
           for (const [definitionId, value] of entries) {
@@ -813,6 +846,9 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
             changes: checked.map((change) => ({
               taskId: change.taskId,
               field: change.field,
+              ...(change.expectedVersion === undefined
+                ? {}
+                : { expectedVersion: change.expectedVersion.toString() }),
               value:
                 change.field === "window" && isRecord(change.value)
                   ? args(change.value)

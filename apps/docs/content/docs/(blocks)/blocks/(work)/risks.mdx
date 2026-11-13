@@ -232,3 +232,39 @@ const risk = await risks
   .create({ title: "Data center outage", category: "operational" })
   .orThrow();
 ```
+
+## Paging a list
+
+`list` is the capped convenience list. `page` is the full contract for risks (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `residualScore`, `number`, `nextReviewOn`, and the default order is residualScore (highest first); filters are `status`, `category`, `band`, `ownerId`, `reviewDue`; facets are `status`, `category`, `band`. `reviewDue` is `["true"]`. `q` matches the title, number, description, cause and consequence. Closed risks are left out unless `filters.status` asks for them.
+
+```ts
+const first = await risks
+  .page({
+    filters: { band: ["high", "critical"] },
+    sort: { by: "residualScore" },
+    limit: 50,
+  })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await risks
+    .page({
+      filters: { band: ["high", "critical"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+// How many rows each facet value holds under the same filters.
+const facets = await risks
+  .facets({ filters: { band: ["high", "critical"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await risks
+  .count({ filters: { band: ["high", "critical"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.

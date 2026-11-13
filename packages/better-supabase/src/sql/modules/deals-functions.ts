@@ -1,5 +1,6 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
+import { STALE_WRITE, STALE_WRITE_SQLSTATE } from "../../core/stale-write.ts";
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
 import { int8Text } from "../money-sql.ts";
@@ -524,6 +525,7 @@ declare
   v_hint text;
   v_reason text;
   v_touched uuid[] := '{}';
+  v_seen jsonb := '{}';
 begin
   if jsonb_typeof(coalesce(update_deals.changes, '[]')) <> 'array' then
     ${fail("DEAL_CHANGES_INVALID", "changes must be a list of { dealId, field, value }", "22023")}
@@ -532,9 +534,17 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_deal := (v_change ->> ${dealId})::uuid;
-      select * into v_row from ${t("deals")} x where x.${d("id")} = v_deal and ${editable("x")} and x.${d("archivedAt")} is null;
+      select * into v_row from ${t("deals")} x where x.${d("id")} = v_deal and ${editable("x")} and x.${d("archivedAt")} is null for update;
       if v_row.${d("id")} is null then
         ${fail("DEAL_NOT_FOUND", "no such deal you can edit", "P0002")}
+      end if;
+      -- expectedVersion is the updatedAt the caller read; every change of the
+      -- batch compares to the row as it was before the batch.
+      if not v_seen ? v_deal::text then
+        v_seen := v_seen || jsonb_build_object(v_deal::text, v_row.${d("updatedAt")});
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_deal::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        ${fail(STALE_WRITE, "the deal changed since it was read", STALE_WRITE_SQLSTATE)}
       end if;
       if v_field = 'company' and jsonb_typeof(v_change -> 'value') = 'object' then
         ${checkCompany("(v_change -> 'value' ->> 'type')", "(v_change -> 'value' ->> 'id')", `v_row.${d("tenant")}`).trim()}

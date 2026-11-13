@@ -2434,6 +2434,69 @@
       "to": "DateBucketOptions",
       "kind": "type",
       "since": "0.66"
+    },
+    {
+      "from": "period_start",
+      "to": "period_starts_at",
+      "kind": "column",
+      "since": "0.66",
+      "table": "better_supabase.marketplace_invoices"
+    },
+    {
+      "from": "period_end",
+      "to": "period_ends_at",
+      "kind": "column",
+      "since": "0.66",
+      "table": "better_supabase.marketplace_invoices"
+    },
+    {
+      "from": "period_start",
+      "to": "period_starts_at",
+      "kind": "column",
+      "since": "0.66",
+      "table": "better_supabase.marketplace_meter_reports"
+    },
+    {
+      "from": "period_end",
+      "to": "period_ends_at",
+      "kind": "column",
+      "since": "0.66",
+      "table": "better_supabase.marketplace_meter_reports"
+    },
+    {
+      "from": "period_start",
+      "to": "period_starts_at",
+      "kind": "column",
+      "since": "0.66",
+      "table": "better_supabase.billing_native_subscriptions"
+    },
+    {
+      "from": "period_end",
+      "to": "period_ends_at",
+      "kind": "column",
+      "since": "0.66",
+      "table": "better_supabase.billing_native_subscriptions"
+    },
+    {
+      "from": "period_end",
+      "to": "period_ends_at",
+      "kind": "column",
+      "since": "0.66",
+      "table": "better_supabase.billing_subscriptions"
+    },
+    {
+      "from": "target_user_id",
+      "to": "target_id",
+      "kind": "column",
+      "since": "0.66",
+      "table": "better_supabase.support_requests"
+    },
+    {
+      "from": "target_user_id",
+      "to": "target_id",
+      "kind": "column",
+      "since": "0.66",
+      "table": "better_supabase.support_sessions"
     }
   ],
   "allowlist": {

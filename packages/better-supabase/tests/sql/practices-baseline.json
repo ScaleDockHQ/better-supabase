@@ -153,7 +153,7 @@
     "security-definer-functions": 56
   },
   "dam": {
-    "security-definer-functions": 42
+    "security-definer-functions": 48
   },
   "data-lifecycle": {
     "security-definer-functions": 114
@@ -210,7 +210,7 @@
     "security-definer-functions": 92
   },
   "field-encryption": {
-    "security-definer-functions": 28
+    "security-definer-functions": 32
   },
   "field-history": {
     "security-definer-functions": 6
@@ -299,7 +299,7 @@
     "security-definer-functions": 80
   },
   "maintenance": {
-    "security-definer-functions": 57,
+    "security-definer-functions": 69,
     "row-triggers": 2
   },
   "manufacturing": {

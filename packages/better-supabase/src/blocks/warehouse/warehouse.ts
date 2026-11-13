@@ -1,5 +1,11 @@
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type {
   OptimizedStops,
@@ -8,9 +14,9 @@ import type {
 } from "../../core/route-optimizer.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { optimizeLocated } from "../../core/route-optimizer.ts";
 import {
@@ -29,6 +35,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { pickListListSurface } from "./lists.ts";
 
 /** Where a pick wave stands. */
 export type PickWaveStatus = (typeof PICK_WAVE_STATUSES)[number];
@@ -129,19 +136,6 @@ export interface PickListOptions {
   /** 1 to 200. Default 50. */
   readonly limit?: number;
   readonly offset?: number;
-}
-
-/**
- * What `pickListPage` reads: the filters of `listPickLists`, paged by keyset
- * (ADR 0642).
- */
-export interface PickListPageOptions extends Omit<PickListOptions, "offset"> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching rows, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most rows the total counts. Default 10,000. */
-  readonly totalCap?: number;
 }
 
 /** A schedule that opens stock counts. */
@@ -351,8 +345,18 @@ export interface Warehouse {
   completePickList(pickListId: string): AsyncResult<PickList>;
   getPickList(pickListId: string): AsyncResult<PickList>;
   listPickLists(options?: PickListOptions): AsyncResult<readonly PickList[]>;
-  /** One keyset page of `listPickLists`, with `hasMore` and a `nextCursor`. */
-  pickListPage(options?: PickListPageOptions): AsyncResult<ListPage<PickList>>;
+  /**
+   * One keyset page of pick lists, in the order of `sort` (the default order
+   * without it), with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  pickListPage(options?: PageOptions): AsyncResult<ListPage<PickList>>;
+  /**
+   * The values of each facet of pick lists and their counts, under the page's
+   * filters.
+   */
+  pickListFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many of pick lists match the page's filters. */
+  pickListCount(options?: CountOptions): AsyncResult<Count>;
   listPickWaves(): AsyncResult<readonly PickWave[]>;
   /**
    * Creates a putaway rule, or changes the one named by `input.id`; needs
@@ -647,6 +651,15 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
   const list = (fn: string) => (value: unknown) => listOf(value, fn);
   const plan = (fn: string) => (value: unknown) => planOf(value, fn);
 
+  const pickLists = entityList({
+    entity: "pick_list",
+    surface: pickListListSurface,
+    call,
+    tenant,
+    fn: "list_pick_lists",
+    rowOf: listOf,
+  });
+
   const client: Warehouse = {
     createPickWave: (input) =>
       tenant().andThen((organizationId) =>
@@ -697,8 +710,9 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
             ),
         ),
       ),
-    pickListPage: (page = {}) =>
-      blockPage(call, tenant, "list_pick_lists", listOf, definedOf(page)),
+    pickListPage: pickLists.page,
+    pickListFacets: pickLists.facets,
+    pickListCount: pickLists.count,
     listPickWaves: () =>
       tenant().andThen((organizationId) =>
         call("list_pick_waves", { tenant: organizationId }, (value) =>

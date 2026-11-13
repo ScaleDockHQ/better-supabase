@@ -21,6 +21,7 @@ import { storageOf } from "./db-storage.ts";
 import {
   ensureFunctions,
   lazyRepository,
+  loadReachedTables,
   runSpec,
   withRelatedTables,
 } from "./define-lazy.ts";
@@ -220,7 +221,17 @@ class Connector {
       $executor: executor,
       $context: context,
       $rpc: (name: string, ...rest: unknown[]) =>
-        rpc(this.schema.meta, executor, errorMappers, tuning, name, rest)
+        rpc(
+          this.schema.meta,
+          executor,
+          errorMappers,
+          tuning,
+          (table) => {
+            this.registerTable(table);
+          },
+          name,
+          rest,
+        )
           .map((data) => {
             const registered = this.options.rpc?.[name];
 
@@ -513,6 +524,7 @@ function rpc(
   executor: Executor,
   errorMappers: readonly ErrorMapper[],
   defaults: RequestTuning,
+  register: (table: SchemaMeta["tables"][string]) => void,
   name: string,
   rest: unknown[],
 ): AsyncResult<unknown> {
@@ -563,6 +575,11 @@ function rpc(
     const limit = deadline(options?.signal, tuning.timeout);
     const schema = options?.schema ?? "public";
     const fn = rpcFunction(meta, name, schema, args ?? {});
+
+    if (options?.raw !== true && fn?.result && "table" in fn.result) {
+      await loadReachedTables(meta, fn.result.table, undefined, register);
+    }
+
     const select = options?.raw === true ? undefined : rpcSelect(meta, fn);
 
     const context = {

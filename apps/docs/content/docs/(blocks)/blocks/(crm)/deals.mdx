@@ -81,6 +81,10 @@ const { accepted, rejected } = await deals
   .orThrow();
 ```
 
+A change takes an optional `expectedVersion`, the `updatedAt` of the deal as you read it. When the deal changed since, the change is refused with the hint `STALE_WRITE` (a `conflict` error under `strict`, see [stale writes](/docs/concepts/results#stale-writes)). Every change of one batch compares to the deal as it was before the batch.
+
+`create` takes an `idempotencyKey` when `createDeals` gets the `idempotency` option (`createIdempotency(...)`). A retry with the same key and input returns the first deal.
+
 The rules the table enforces for every writer:
 
 | Rule                                                                                            | Hint                                           |
@@ -182,6 +186,7 @@ The ReUI CRM Pipeline Workspace sends every gesture through one `actions.write(w
 | `DEAL_ATTRS_INVALID`     | a missing name or close date, or a field with a bad value                   |
 | `DEAL_NOT_FOUND`         | no deal the caller can edit                                                 |
 | `DEAL_FIELD_UNKNOWN`     | `update` names a field it doesn't write                                     |
+| `STALE_WRITE`            | the deal changed since `expectedVersion` was read                           |
 | `DEAL_OUTCOME_INVALID`   | close as `won` or `lost`                                                    |
 | `DEAL_STAGE_MISSING`     | the pipeline has no stage for that outcome                                  |
 | `DEAL_CHANGES_INVALID`   | `changes` isn't a list                                                      |

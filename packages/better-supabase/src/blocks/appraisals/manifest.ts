@@ -4,6 +4,7 @@ import type { AppraisalsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAppraisals } from "./appraisals.ts";
 import { appraisalsEvents } from "./events.ts";
+import { appraisalListSurface } from "./lists.ts";
 import {
   appraisalCycleInputSchema,
   appraisalReviewInputSchema,
@@ -26,7 +27,11 @@ export const appraisalsBlock: BlockOf<
   recipes: [],
   category: "work",
   entities: {
-    appraisal: { mutability: "state-machine", emits: { create: true } },
+    appraisal: {
+      ...appraisalListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
     appraisal_cycle: { mutability: "state-machine", emits: { create: true } },
     appraisal_review: { mutability: "state-machine", emits: { create: false } },
     appraisal_calibration: { mutability: "read-only" },

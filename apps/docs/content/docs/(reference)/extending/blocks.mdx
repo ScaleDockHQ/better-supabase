@@ -366,13 +366,18 @@ declares what it knows today:
 | Field                                                                                     | What it declares                                                                                                                                       |
 | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `mutability`                                                                              | `editable` (has an update), `append-only`, `state-machine` (changes through named transitions) or `read-only`                                          |
-| `sorts`                                                                                   | The columns a list sorts by                                                                                                                            |
-| `facets`                                                                                  | The columns a list counts distinct values of                                                                                                           |
-| `search`                                                                                  | `true`, or the columns the entity's search indexes                                                                                                     |
+| `sorts`                                                                                   | The names `sort.by` accepts, each a sort the SQL list function implements                                                                              |
+| `facets`                                                                                  | The names `facets` counts values of                                                                                                                    |
+| `filters`                                                                                 | The names `filters` accepts, each with a list of values                                                                                                |
+| `search`                                                                                  | `true`, or the columns the entity's search indexes; `q` is accepted only when it is set                                                                |
 | `emits`                                                                                   | Per method (`create`, `update`, `delete`, `archive`, `restore`, `purge`): `true` when it records an event, `false` when a mutating method records none |
+| `expectedVersion`                                                                         | `true` when `update` takes an `expectedVersion` (the row's `updatedAt`) and refuses a stale one with a `STALE_WRITE` conflict                          |
+| `idempotent`                                                                              | The methods that take an `idempotencyKey` and claim it through the idempotency block, such as `["create"]`                                             |
 | `permissions`                                                                             | The permission key each verb checks, as `<block>.<entity>.<verb>` ([Declare permission keys](#declare-permission-keys))                                |
 | `recordAccess`                                                                            | `"team"` when the entity's rows are visible by record team, so a list can filter by the caller's teams                                                 |
 | `personalData`, `retention`, `realtime`, `offline`, `versioned`, `flag`, `meter`, `limit` | Reserved for the generators and checks that read them; each is documented where it starts to take effect                                               |
+
+`tests/blocks/write-safety-gaps.ts` lists the editable entities that take no `expectedVersion` yet and the entities whose `create` takes no `idempotencyKey`; `write-safety.test.ts` fails on one that is missing from the list and on one that is listed after it was fixed. The lists only shrink.
 
 The conformance test fails when an entity has no `mutability`, when `emits`
 names a method that records no event of the entity, and when a method is marked
@@ -437,12 +442,57 @@ The SQL module's `NAMES` stays the source the SQL renders from, and a test
 fails when the manifest and `NAMES` disagree, so the catalog and the page
 generator read the manifest.
 
-The list contract that the entities will serve ships as types in
-`better-supabase/blocks`: `PageOptions` (`q`, `sort`, `filters` with list
-values, `after`, `limit`), `ListPage`, `FacetResult` and `Count`, where
-`Count` is `{ value, exact }` so a capped or estimated count says so. No
-block implements `page` yet; the types fix the shape the implementations will
-share.
+### The list contract
+
+Every list entity has three reads over one SQL list function (ADR 0749):
+`page(options)` returns a keyset page, `facets(options)` returns the values of
+each declared facet with their counts, and `count(options)` returns
+`{ value, exact }`. They take the same options, so a page and the counts beside
+it always describe the same rows.
+
+| Option    | What it does                                                                                                |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| `q`       | Free text over the entity's search columns; an entity without `search` returns `invalid_input`              |
+| `sort`    | `{ by, direction? }`, where `by` is one of the entity's `sorts`; the entity's own order when left out       |
+| `filters` | Column to a list of values; a row matches any of a filter's values, and an empty list leaves the filter off |
+| `after`   | The previous page's `nextCursor`; it is valid only for the sort it came from                                |
+| `limit`   | The most rows to return; each list documents its default and cap                                            |
+
+`ListPage`, `PageOptions`, `FacetOptions`, `FacetResult`, `Count` and
+`EntityList` are exported from `better-supabase/blocks`. `facets` and `count`
+read at most the list's `totalCap` rows (10,000 by default) and report
+`exact: false` when they stopped there. A sort, filter, facet or text the entity
+does not declare returns an `invalid_input` error before any call is made.
+
+To give a block the contract, for each of its list entities:
+
+1. In the SQL module, build the list options with the helpers from
+   `src/sql/list-template.ts`. Replace each `(v_x is null or x.col = v_x)`
+   predicate and its `v_x` variable with `filterAny("key", "x.col", "type")`
+   (a flag is `filterFlag("key")`, a single value `filterFirst("key")`). Add
+   `sorts` (a name to its keys, the first key's `dir` being the default
+   direction) and `facets` (a name to its SQL expression). Every key list ends
+   on the row id so the cursor is unique, and a nullable key goes through
+   `coalesce`. Name the new filters, `sort`, `direction`, `facet` and `count` in
+   the function's header comment.
+2. In `src/blocks/<block>/lists.ts`, export one `EntityListSurface` per entity
+   with `sorts`, `facets`, `filters` and `search`, and spread it into the
+   entity's entry in the manifest. The names are the same as in the SQL.
+3. In the client, build `entityList({ entity, surface, call, tenant, fn, rowOf
+})` once and expose `page`, `facets` and `count` (`xPage`, `xFacets`,
+   `xCount` when the block has several entities). Remove the block's own page
+   options type. Keep `list` as the capped convenience.
+4. Add the manifest to `BLOCKS` in `tests/blocks/list-surface.test.ts`, which
+   fails when the manifest and the SQL name different sorts, facets or
+   filters. Add the client test beside the block's others.
+5. Update the golden SQL files (`pnpm --filter better-supabase exec vitest run
+tests/sql -u`), the block's docs page, `api/exports.json` and the changeset's
+   old-to-new table. A change to a manifest field grows the server chunk, so
+   reset the server baseline in the same PR (ADR 0690, 0750).
+
+An index that serves a sort is still the block's own: the list function seeks
+into an index on the sort keys only when the table has one, and the page
+generator (lane M) adds the missing ones.
 
 Four more fields declare what the app has to provide, so `add` and `init` can
 write it and print the rest ([the wiring](/docs/cli/init#the-wiring-and-the-checklist)):

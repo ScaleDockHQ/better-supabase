@@ -12,6 +12,7 @@ import type {
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { schemaStampPath } from "../../../src/cli/content-mapper.ts";
+import { GENERATED_HEADER } from "../../../src/cli/gen/emit.ts";
 import {
   MAPPER_FILE_CONTENTS,
   renderFiles,
@@ -433,6 +434,33 @@ describe("gen", () => {
       (await runGen({ config: configure({}), env: {}, check: true, snapshot }))
         .code,
     ).toBe(0);
+  });
+
+  // EX-1115: CI starts without the manifest, so a leftover only the manifest
+  // knew about passed there and failed locally.
+  it("reports a file with gen's header that this run doesn't write, without a manifest", async () => {
+    await runGen({ config: configure({}), env: {}, check: false, snapshot });
+    await rm(join(root, "node_modules"), { recursive: true, force: true });
+    await writeFile(
+      join(root, "src/db/orphan.ts"),
+      `${GENERATED_HEADER}\n\nexport const orphan = 1;\n`,
+    );
+    await writeFile(join(root, "src/db/mine.ts"), "hand written\n");
+
+    const check = await runGen({
+      config: configure({}),
+      env: {},
+      check: true,
+      snapshot,
+    });
+
+    expect(check.error).toBe(
+      "Generated files are out of date:\n  src/db/orphan.ts (no longer generated)\nRun `better-supabase gen`.",
+    );
+
+    await runGen({ config: configure({}), env: {}, check: false, snapshot });
+    expect(existsSync(join(root, "src/db/orphan.ts"))).toBe(false);
+    expect(existsSync(join(root, "src/db/mine.ts"))).toBe(true);
   });
 
   it("treats files checked out with CRLF line endings as up to date", async () => {

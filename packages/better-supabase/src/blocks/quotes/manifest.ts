@@ -27,7 +27,11 @@ export const quotesBlock: BlockOf<
   record: quotesBinding,
   category: "crm",
   entities: {
-    quote: { mutability: "editable", emits: { create: true, update: true } },
+    quote: {
+      mutability: "editable",
+      idempotent: ["create"],
+      emits: { create: true, update: true },
+    },
   },
   links: [
     blockLink(

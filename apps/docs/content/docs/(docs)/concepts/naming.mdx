@@ -235,6 +235,18 @@ the config key.
 | hint  | `PRESCRIPTION_*`                     | `E_PRESCRIBING_*`             | 0.66  |
 | hint  | `WEBHOOK_IN_*`                       | `INCOMING_WEBHOOK_*`          | 0.66  |
 
+Columns renamed in 0.66, so timestamps end in `_at` and a user reference
+names the user's role. `better-supabase upgrade` renames them in place
+(`alter table ... rename column`), so no row moves. The functions keep their
+parameter names (`period_start`, `period_end`) and the support session rows
+keep the `target_user_id` key, which `targetUserId` in TypeScript reads.
+
+| Table                                                                                                        | Old              | New                | Since |
+| ------------------------------------------------------------------------------------------------------------ | ---------------- | ------------------ | ----- |
+| `marketplace_invoices`, `marketplace_meter_reports`, `billing_native_subscriptions`                          | `period_start`   | `period_starts_at` | 0.66  |
+| `marketplace_invoices`, `marketplace_meter_reports`, `billing_native_subscriptions`, `billing_subscriptions` | `period_end`     | `period_ends_at`   | 0.66  |
+| `support_sessions`, `support_requests`                                                                       | `target_user_id` | `target_id`        | 0.66  |
+
 The rules:
 
 - Environment variables the library or CLI reads start with `BETTER_SUPABASE_`.

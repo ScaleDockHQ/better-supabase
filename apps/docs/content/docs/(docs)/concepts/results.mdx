@@ -41,7 +41,7 @@ A `DbException` has the `DbError` as `error` and `cause`, and its own
 | `not_found`       | 404    | `get`, `update`, `delete` with no row, `PGRST116`, `P0002` (`no_data_found`)                                                                                                                                                                                                                                                                   |
 | `unauthorized`    | 401    | Missing or expired JWT                                                                                                                                                                                                                                                                                                                         |
 | `forbidden`       | 403    | `42501`, RLS `WITH CHECK` failures; `25006`, a write in a read-only transaction (with a hint); guards with `aal` set `required` ([MFA](/docs/auth/mfa-sso)); an [authorizer](/docs/extending/authorizers) refusal sets `permission`, and `approval` with `code: "APPROVAL_REQUIRED"`; a refusal that names the missing keys sets `permissions` |
-| `conflict`        | 409    | `23505` unique violation, with `constraint` and `columns`                                                                                                                                                                                                                                                                                      |
+| `conflict`        | 409    | `23505` unique violation, with `constraint` and `columns`; hint `STALE_WRITE` when an update's `expectedVersion` no longer matches (see [Stale writes](#stale-writes))                                                                                                                                                                         |
 | `foreign_key`     | 409    | `23503`                                                                                                                                                                                                                                                                                                                                        |
 | `check`           | 422    | `23514`, with `constraint`; a `jsonb-schemas` check is `validation` instead                                                                                                                                                                                                                                                                    |
 | `not_null`        | 422    | `23502`, with `column`                                                                                                                                                                                                                                                                                                                         |
@@ -66,6 +66,27 @@ A `DbException` has the `DbError` as `error` and `cause`, and its own
 
 The `status` field feeds the [RFC 9457](/docs/standards) problem details
 mapping in the server adapters.
+
+## Stale writes
+
+A block's `update` takes an `expectedVersion`: the `updatedAt` of the row as the caller read it. When the row changed since, the write is refused with a `conflict` error whose `hint` is `STALE_WRITE` (status 409), and nothing is written. Problem Details answers it with the type `https://bettersupabase.com/problems/stale-write`, so a client can refetch the row and offer the user the choice. `isStaleWrite(error)` from `better-supabase` tells it from a unique violation, which is also a `conflict`.
+
+```ts
+const task = await db.tasks.get(taskId).orThrow();
+
+const saved = await db.tasks.update({
+  changes: [
+    { taskId, field: "dueAt", value: friday, expectedVersion: task.updatedAt },
+  ],
+  strict: true,
+});
+
+if (!saved.ok && isStaleWrite(saved.error)) {
+  // Reload the task and ask the user.
+}
+```
+
+The entities that take `expectedVersion` declare `expectedVersion: true` in their manifest `entities`. A change without one is last writer wins, as before.
 
 ## Block hint codes
 

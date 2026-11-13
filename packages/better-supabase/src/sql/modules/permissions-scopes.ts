@@ -108,6 +108,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   promotions: { manage: "tenant", read: "tenant" },
   "custom-fields": { manage: "tenant", read: "tenant", sensitive: "tenant" },
+  "field-encryption": { manage: "tenant" },
   "share-links": { create: "tenant", read: "tenant" },
   reminders: { manage: "tenant", read: "tenant" },
   imports: { manage: "tenant" },

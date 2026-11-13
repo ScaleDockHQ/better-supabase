@@ -50,6 +50,12 @@ export const taskChangeSchema: EntitySchema<TaskChange> =
     title: "TaskChange",
     fields: {
       taskId: { kind: "uuid" },
+      expectedVersion: {
+        kind: "instant",
+        optional: true,
+        description:
+          "The item's `updatedAt` as you read it; a newer item is a `STALE_WRITE` conflict.",
+      },
       field: { kind: "string", minLength: 1 },
       value: { kind: "unknown", description: "`null` clears the field." },
     },

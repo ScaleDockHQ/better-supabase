@@ -8,9 +8,16 @@ export interface FieldKeyEventData {
   readonly owner: string;
 }
 
+/** `field_key.rotated`: whose data key was replaced, never key material. */
+export interface FieldKeyRotatedEventData extends FieldKeyEventData {
+  /** How many stored values were encrypted again under the new key. */
+  readonly values: number;
+}
+
 /** The events of the `field-encryption` block: type to data. */
 export type FieldEncryptionEvents = {
   readonly "field_key.dropped": FieldKeyEventData;
+  readonly "field_key.rotated": FieldKeyRotatedEventData;
 };
 
 /**
@@ -18,4 +25,7 @@ export type FieldEncryptionEvents = {
  * `onBlockEvent`.
  */
 export const fieldEncryptionEvents: Events<FieldEncryptionEvents> =
-  defineEvents({ "field_key.dropped": event<FieldKeyEventData>() });
+  defineEvents({
+    "field_key.dropped": event<FieldKeyEventData>(),
+    "field_key.rotated": event<FieldKeyRotatedEventData>(),
+  });

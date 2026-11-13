@@ -180,18 +180,36 @@ The warehouse block calls ports that your own packages implement, such as a rout
 
 ## Paging a list
 
-`listPickLists` still takes `offset`. `pickListPage` pages the same list by keyset and
-returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
-`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+`listPickLists` is the capped convenience list. `pickListPage` is the full contract for pick lists (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `pickedAt`, and the default order is createdAt (newest first); filters are `waveId`, `status`, `documentType`, `documentId`, `mine`; facets are `status`, `documentType`. `mine` is `["true"]` and limits the list to the lists assigned to the caller.
 
 ```ts
 const first = await warehouse
-  .pickListPage({ limit: 50, total: true })
+  .pickListPage({
+    filters: { status: ["open", "picking"] },
+    sort: { by: "createdAt" },
+    limit: 50,
+  })
   .orThrow();
 
 if (first.hasMore) {
   const next = await warehouse
-    .pickListPage({ limit: 50, after: first.nextCursor })
+    .pickListPage({
+      filters: { status: ["open", "picking"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
     .orThrow();
 }
+
+// How many rows each facet value holds under the same filters.
+const facets = await warehouse
+  .pickListFacets({ filters: { status: ["open", "picking"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await warehouse
+  .pickListCount({ filters: { status: ["open", "picking"] } })
+  .orThrow();
 ```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.

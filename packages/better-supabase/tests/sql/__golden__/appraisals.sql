@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:80ccfdc6e91d9c77eb0ce538695e1359b6515af4ed22b1deeeef14f4e7d00cd8
+-- @bsb-hash sha256:7aface01767212c111ec0fdb5679e1becc6093c8332dc2490382e1b06b58d6cf
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -956,9 +956,10 @@ $$;
 revoke execute on function "better_supabase"."get_appraisal"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_appraisal"(uuid) to authenticated, service_role;
 
--- Appraisals of an organization. filters is { cycleId, status, subjectUserId,
--- mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of them; everyone else sees
--- the ones they are the subject or a reviewer of.
+-- Appraisals of an organization. filters is { cycleId, status, subjectUserId
+-- (each a value or a list of them), mine: true, sort, direction, facet, count,
+-- limit, after, offset, paged, total, totalCap } (ADR 0749). Readers see all of
+-- them; everyone else sees the ones they are the subject or a reviewer of.
 create or replace function "better_supabase"."list_appraisals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -978,15 +979,60 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_cycle text := nullif(v_filters ->> 'cycleId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_subject text := nullif(v_filters ->> 'subjectUserId', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_appraisals.tenant is not null and coalesce(better_supabase.can('tenant', list_appraisals.tenant, 'appraisals.read'), false)));
 begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text end) as v
+      from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'rating') then
+    raise exception 'sort is one of createdAt, rating' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -998,16 +1044,132 @@ begin
     from (
       select * from "better_supabase"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1), x."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) <= (v_after ->> 0)::numeric and ((coalesce(x."calibrated_rating"::numeric, x."rating", -1) < (v_after ->> 0)::numeric) or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) = (v_after ->> 0)::numeric and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -1015,10 +1177,10 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       limit v_total_cap + 1
     ) c;
@@ -1207,7 +1369,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:9c129709635a44b78795bfc2f9f82199f42905b4e7899f202a888d2e744ce6f9
+-- @bsb-hash sha256:fddb435b3c4f6a66b3eea629e23cf12ec4d8324189f857974898ee06b80ede1e
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2272,9 +2434,10 @@ $$;
 revoke execute on function "better_supabase"."get_appraisal"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_appraisal"(uuid) to authenticated, service_role;
 
--- Appraisals of an organization. filters is { cycleId, status, subjectUserId,
--- mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of them; everyone else sees
--- the ones they are the subject or a reviewer of.
+-- Appraisals of an organization. filters is { cycleId, status, subjectUserId
+-- (each a value or a list of them), mine: true, sort, direction, facet, count,
+-- limit, after, offset, paged, total, totalCap } (ADR 0749). Readers see all of
+-- them; everyone else sees the ones they are the subject or a reviewer of.
 create or replace function "better_supabase"."list_appraisals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2294,15 +2457,60 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_cycle text := nullif(v_filters ->> 'cycleId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_subject text := nullif(v_filters ->> 'subjectUserId', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_appraisals.tenant is not null and coalesce(better_supabase.can('tenant', list_appraisals.tenant, 'appraisals.read'), false)));
 begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text end) as v
+      from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'rating') then
+    raise exception 'sort is one of createdAt, rating' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -2314,16 +2522,132 @@ begin
     from (
       select * from "better_supabase"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1), x."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) <= (v_after ->> 0)::numeric and ((coalesce(x."calibrated_rating"::numeric, x."rating", -1) < (v_after ->> 0)::numeric) or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) = (v_after ->> 0)::numeric and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -2331,10 +2655,10 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       limit v_total_cap + 1
     ) c;
@@ -2591,7 +2915,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:9274256f65dde9816f8d7382e5b4bd15a251f50156950d50ae09a96002654067
+-- @bsb-hash sha256:e4a15b2f9b1b75087b5f3c02038dce6b537db2f8592add0d2377134def223ce0
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3551,9 +3875,10 @@ $$;
 revoke execute on function "app_private"."get_appraisal"(uuid) from public, anon;
 grant execute on function "app_private"."get_appraisal"(uuid) to authenticated, service_role;
 
--- Appraisals of an organization. filters is { cycleId, status, subjectUserId,
--- mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of them; everyone else sees
--- the ones they are the subject or a reviewer of.
+-- Appraisals of an organization. filters is { cycleId, status, subjectUserId
+-- (each a value or a list of them), mine: true, sort, direction, facet, count,
+-- limit, after, offset, paged, total, totalCap } (ADR 0749). Readers see all of
+-- them; everyone else sees the ones they are the subject or a reviewer of.
 create or replace function "app_private"."list_appraisals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3573,15 +3898,60 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_cycle text := nullif(v_filters ->> 'cycleId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_subject text := nullif(v_filters ->> 'subjectUserId', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_appraisals.tenant is not null and coalesce(better_supabase.can('tenant', list_appraisals.tenant, 'appraisals.read'), false)));
 begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text end) as v
+      from "app_private"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'rating') then
+    raise exception 'sort is one of createdAt, rating' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -3593,16 +3963,132 @@ begin
     from (
       select * from "app_private"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1), x."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) <= (v_after ->> 0)::numeric and ((coalesce(x."calibrated_rating"::numeric, x."rating", -1) < (v_after ->> 0)::numeric) or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) = (v_after ->> 0)::numeric and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -3610,10 +4096,10 @@ begin
     select count(*) into v_total from (
       select 1 from "app_private"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       limit v_total_cap + 1
     ) c;
@@ -3802,7 +4288,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:5bdbeaa3b2e70c8c31ba8450bca744ac868e4e7cd497482fce9f881fb2f6ba88
+-- @bsb-hash sha256:81789ad44f7ec8a438ab5de533568a1f82a0c110f711dc31d80749738d2315d3
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4757,9 +5243,10 @@ $$;
 revoke execute on function "better_supabase"."get_appraisal"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_appraisal"(uuid) to authenticated, service_role;
 
--- Appraisals of an organization. filters is { cycleId, status, subjectUserId,
--- mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of them; everyone else sees
--- the ones they are the subject or a reviewer of.
+-- Appraisals of an organization. filters is { cycleId, status, subjectUserId
+-- (each a value or a list of them), mine: true, sort, direction, facet, count,
+-- limit, after, offset, paged, total, totalCap } (ADR 0749). Readers see all of
+-- them; everyone else sees the ones they are the subject or a reviewer of.
 create or replace function "better_supabase"."list_appraisals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -4779,15 +5266,60 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_cycle text := nullif(v_filters ->> 'cycleId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_subject text := nullif(v_filters ->> 'subjectUserId', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_appraisals.tenant is not null and coalesce(better_supabase.can('tenant', list_appraisals.tenant, 'appraisals.read'), false)));
 begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text end) as v
+      from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'rating') then
+    raise exception 'sort is one of createdAt, rating' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -4799,16 +5331,132 @@ begin
     from (
       select * from "better_supabase"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1), x."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) <= (v_after ->> 0)::numeric and ((coalesce(x."calibrated_rating"::numeric, x."rating", -1) < (v_after ->> 0)::numeric) or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) = (v_after ->> 0)::numeric and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -4816,10 +5464,10 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       limit v_total_cap + 1
     ) c;
@@ -5133,7 +5781,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:4575414946b8061a26a6cf41f2dcae3f12a3976ad7555f7c65bbf5136d2ab77b
+-- @bsb-hash sha256:061122fc85827129518387b43dd5590cad910ebb578b8cfed0cda00e10de1dd1
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6046,9 +6694,10 @@ $$;
 revoke execute on function "better_supabase"."get_appraisal"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_appraisal"(uuid) to authenticated, service_role;
 
--- Appraisals of an organization. filters is { cycleId, status, subjectUserId,
--- mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of them; everyone else sees
--- the ones they are the subject or a reviewer of.
+-- Appraisals of an organization. filters is { cycleId, status, subjectUserId
+-- (each a value or a list of them), mine: true, sort, direction, facet, count,
+-- limit, after, offset, paged, total, totalCap } (ADR 0749). Readers see all of
+-- them; everyone else sees the ones they are the subject or a reviewer of.
 create or replace function "better_supabase"."list_appraisals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -6068,15 +6717,60 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_cycle text := nullif(v_filters ->> 'cycleId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_subject text := nullif(v_filters ->> 'subjectUserId', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_appraisals.tenant is not null and coalesce(better_supabase.can('tenant', list_appraisals.tenant, 'appraisals.read'), false)));
 begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text end) as v
+      from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'rating') then
+    raise exception 'sort is one of createdAt, rating' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -6088,16 +6782,132 @@ begin
     from (
       select * from "better_supabase"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1), x."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."tenant_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) <= (v_after ->> 0)::numeric and ((coalesce(x."calibrated_rating"::numeric, x."rating", -1) < (v_after ->> 0)::numeric) or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) = (v_after ->> 0)::numeric and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -6105,10 +6915,10 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."appraisals" x
       where x."tenant_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       limit v_total_cap + 1
     ) c;
@@ -6297,7 +7107,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_166_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:886695a557bfe25e58207e175f250f348e2650d1188f251695fd96094239c343
+-- @bsb-hash sha256:e2cfb76afed86aeb56bb9dd16366aa83b1adb56e003b942d9ad7a878154ca824
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7252,9 +8062,10 @@ $$;
 revoke execute on function "better_supabase"."get_appraisal"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_appraisal"(uuid) to authenticated, service_role;
 
--- Appraisals of an organization. filters is { cycleId, status, subjectUserId,
--- mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of them; everyone else sees
--- the ones they are the subject or a reviewer of.
+-- Appraisals of an organization. filters is { cycleId, status, subjectUserId
+-- (each a value or a list of them), mine: true, sort, direction, facet, count,
+-- limit, after, offset, paged, total, totalCap } (ADR 0749). Readers see all of
+-- them; everyone else sees the ones they are the subject or a reviewer of.
 create or replace function "better_supabase"."list_appraisals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -7274,15 +8085,60 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_cycle text := nullif(v_filters ->> 'cycleId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_subject text := nullif(v_filters ->> 'subjectUserId', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_appraisals.tenant is not null and coalesce(better_supabase.can('tenant', list_appraisals.tenant, 'appraisals.read'), false)));
 begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text end) as v
+      from "better_supabase"."appraisals" x
+      where x."org_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."appraisals" x
+      where x."org_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'rating') then
+    raise exception 'sort is one of createdAt, rating' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -7294,16 +8150,132 @@ begin
     from (
       select * from "better_supabase"."appraisals" x
       where x."org_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."org_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."org_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."org_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."org_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1), x."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'APPRAISALS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."appraisal_json"(x."id", v_all) as j, jsonb_build_array((coalesce(x."calibrated_rating"::numeric, x."rating", -1))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."appraisals" x
+      where x."org_id" = list_appraisals.tenant
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
+    or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
+        and (v_after is null or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) <= (v_after ->> 0)::numeric and ((coalesce(x."calibrated_rating"::numeric, x."rating", -1) < (v_after ->> 0)::numeric) or (coalesce(x."calibrated_rating"::numeric, x."rating", -1) = (v_after ->> 0)::numeric and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."calibrated_rating"::numeric, x."rating", -1) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -7311,10 +8283,10 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."appraisals" x
       where x."org_id" = list_appraisals.tenant
-        and (v_cycle is null or x."cycle_id" = v_cycle::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_subject is null or x."appraisee_id" = v_subject::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
+        and (not (v_filters -> 'cycleId' is not null and jsonb_typeof(v_filters -> 'cycleId') <> 'null' and not (jsonb_typeof(v_filters -> 'cycleId') = 'array' and jsonb_array_length(v_filters -> 'cycleId') = 0)) or x."cycle_id" = any((case when jsonb_typeof(v_filters -> 'cycleId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cycleId')) else array[v_filters ->> 'cycleId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'subjectUserId' is not null and jsonb_typeof(v_filters -> 'subjectUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectUserId') = 'array' and jsonb_array_length(v_filters -> 'subjectUserId') = 0)) or x."appraisee_id" = any((case when jsonb_typeof(v_filters -> 'subjectUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectUserId')) else array[v_filters ->> 'subjectUserId'] end)::uuid[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       limit v_total_cap + 1
     ) c;

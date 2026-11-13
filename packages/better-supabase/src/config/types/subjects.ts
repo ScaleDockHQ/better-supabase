@@ -176,6 +176,12 @@ export interface SubjectSearch {
    */
   readonly exclude?: string;
   /**
+   * Columns of the row (or of `from`) whose values `search_page` filters on
+   * with `filter`, such as `["customer_id", "status"]`. Their non-null values
+   * are stored in the document's `facets` column and indexed.
+   */
+  readonly facets?: readonly string[];
+  /**
    * A view or table with one row per record, keyed by `key` (the record's id),
    * that `title`, `body`, `description` and `exclude` read instead of the
    * record's own row.

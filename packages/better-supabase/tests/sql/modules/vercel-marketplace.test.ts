@@ -52,7 +52,7 @@ describe("vercel-marketplace module", () => {
 
   it("backfills reported_quantity for rows reported before version 2", () => {
     const [plan] = upgradePlan([{ module: "vercel-marketplace", version: 1 }]);
-    expect(plan).toMatchObject({ from: 1, to: 2 });
+    expect(plan).toMatchObject({ from: 1, to: 3 });
     const sql = plan!.steps[0]!.sql;
     const table = `"better_supabase"."marketplace_meter_reports"`;
 

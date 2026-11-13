@@ -227,6 +227,93 @@ describe.skipIf(!live)("search", () => {
     }
   });
 
+  it("browses and pages with facets through search_page", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.client.query(`${TABLES}
+        alter table search_it.notes add column status text;`);
+      await s.install(["organizations", "share-links", "search"], {
+        ...layout(),
+        subjects: {
+          note: {
+            table: "search_it.notes",
+            title: "title",
+            deletedAt: "deleted_at",
+            permissions: { read: "search.read" },
+            search: { body: ["body"], facets: ["status"] },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const tenant = await s.organization(owner, { member });
+      await s.service();
+      await s.client.query(
+        `insert into search_it.notes (id, organization_id, title, status, private)
+         select 'p' || n, $1, 'Page note ' || lpad(n::text, 2, '0'),
+           case when n % 3 = 0 then 'open' else 'done' end, n = 5
+         from generate_series(1, 9) n`,
+        [tenant],
+      );
+      await s.asRole(member);
+
+      const page = (
+        q: string | null,
+        after: string | null,
+        filter: object | null = null,
+      ): Promise<{
+        items: { subjectId: string; facets: { status?: string } }[];
+        nextCursor: string | null;
+      }> =>
+        s.value(
+          "better_supabase.search_page($1, null, null, $2::jsonb, $3, 3)",
+          [q, filter === null ? null : JSON.stringify(filter), after],
+        );
+
+      const first = await page(null, null);
+      expect(first.items.map((item) => item.subjectId)).toEqual([
+        "p1",
+        "p2",
+        "p3",
+      ]);
+      const second = await page(null, first.nextCursor);
+      expect(second.items.map((item) => item.subjectId)).toEqual([
+        "p4",
+        "p6",
+        "p7",
+      ]);
+      const open = await page(null, null, { status: "open" });
+      expect(open.items.map((item) => item.subjectId)).toEqual([
+        "p3",
+        "p6",
+        "p9",
+      ]);
+      expect(open.items[0]?.facets).toEqual({ status: "open" });
+      expect(open.nextCursor).toBeNull();
+
+      const ranked = await page("page note", null);
+      const rest = await page("page note", ranked.nextCursor);
+      expect(
+        new Set([...ranked.items, ...rest.items].map((item) => item.subjectId))
+          .size,
+      ).toBe(6);
+      expect(
+        await s.hint("better_supabase.search_page($1, null, null, null, $2)", [
+          "other",
+          ranked.nextCursor,
+        ]),
+      ).toBe("SEARCH_CURSOR_INVALID");
+      expect(
+        await s.hint(
+          "better_supabase.search_page(null, null, null, '[]'::jsonb)",
+        ),
+      ).toBe("SEARCH_FILTER_INVALID");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("fuses full-text and embedding ranks when the index keeps embeddings", async () => {
     const s = await BlockSession.open(pool);
 

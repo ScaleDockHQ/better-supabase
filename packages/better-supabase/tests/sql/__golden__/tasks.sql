@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:f3f0c99411eeca4294107167c63c76aa9e6330b9f3d0181dfc40d558f003b1d9
+-- @bsb-hash sha256:7c9443bfd782d3b7a29ff23f92f31cab5093878ead46e2558bd3a8fee4458ce3
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -474,6 +474,8 @@ declare
   v_reason text;
   v_touched uuid[] := '{}';
   v_linked integer;
+  v_seen jsonb := '{}';
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -487,6 +489,16 @@ begin
       v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+      end if;
+      -- expectedVersion is the updatedAt the caller read. Every change of the
+      -- batch compares to the row as it was before the batch, which an earlier
+      -- change of the same item has already moved on.
+      if not v_seen ? v_item::text then
+        select x."updated_at" into v_was from "better_supabase"."tasks" x where x."id" = v_item for update;
+        v_seen := v_seen || jsonb_build_object(v_item::text, v_was);
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_item::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        raise exception 'the work item changed since it was read' using errcode = 'BS409', hint = 'STALE_WRITE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_task_update"(uuid, text, jsonb)');
@@ -1207,7 +1219,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:30dc6e4b5b17dc6d6eddbcf403579209be7966607151542753a22fb49bb955f4
+-- @bsb-hash sha256:c316b4b0009b0203871e5a2a2de80455d3089925464dc93010ad3907adf9bd96
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1691,6 +1703,8 @@ declare
   v_reason text;
   v_touched uuid[] := '{}';
   v_linked integer;
+  v_seen jsonb := '{}';
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1704,6 +1718,16 @@ begin
       v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+      end if;
+      -- expectedVersion is the updatedAt the caller read. Every change of the
+      -- batch compares to the row as it was before the batch, which an earlier
+      -- change of the same item has already moved on.
+      if not v_seen ? v_item::text then
+        select x."updated_at" into v_was from "better_supabase"."tasks" x where x."id" = v_item for update;
+        v_seen := v_seen || jsonb_build_object(v_item::text, v_was);
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_item::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        raise exception 'the work item changed since it was read' using errcode = 'BS409', hint = 'STALE_WRITE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_task_update"(uuid, text, jsonb)');
@@ -2609,7 +2633,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:4c5a2ed85379e3527113c174b8e1d4c74e8f213369287e904546d2ba374c2cd0
+-- @bsb-hash sha256:81f2a96c650c6d23b9bc19eec256a04735db18aae362a2673f4d55819444fad0
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3087,6 +3111,8 @@ declare
   v_reason text;
   v_touched uuid[] := '{}';
   v_linked integer;
+  v_seen jsonb := '{}';
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3100,6 +3126,16 @@ begin
       v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "app_private"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+      end if;
+      -- expectedVersion is the updatedAt the caller read. Every change of the
+      -- batch compares to the row as it was before the batch, which an earlier
+      -- change of the same item has already moved on.
+      if not v_seen ? v_item::text then
+        select x."updated_at" into v_was from "app_private"."tasks" x where x."id" = v_item for update;
+        v_seen := v_seen || jsonb_build_object(v_item::text, v_was);
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_item::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        raise exception 'the work item changed since it was read' using errcode = 'BS409', hint = 'STALE_WRITE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_task_update"(uuid, text, jsonb)');
@@ -3820,7 +3856,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:be9d805158ff1f27b021d16546441e27fb9c6b5ac4e9bef6852a4130cf7e842c
+-- @bsb-hash sha256:dd281fa32f775d702088acfe7230b76ab084cc32b5058555aa4d8ea6625bab1c
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4293,6 +4329,8 @@ declare
   v_reason text;
   v_touched uuid[] := '{}';
   v_linked integer;
+  v_seen jsonb := '{}';
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4306,6 +4344,16 @@ begin
       v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+      end if;
+      -- expectedVersion is the updatedAt the caller read. Every change of the
+      -- batch compares to the row as it was before the batch, which an earlier
+      -- change of the same item has already moved on.
+      if not v_seen ? v_item::text then
+        select x."updated_at" into v_was from "better_supabase"."tasks" x where x."id" = v_item for update;
+        v_seen := v_seen || jsonb_build_object(v_item::text, v_was);
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_item::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        raise exception 'the work item changed since it was read' using errcode = 'BS409', hint = 'STALE_WRITE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_task_update"(uuid, text, jsonb)');
@@ -5216,7 +5264,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:adb2f2662d9e315119de77ad273b41457598afbf4c1d65ecc0cd709a7a073cd3
+-- @bsb-hash sha256:9121e2cc1f2a70ca9db5c1f0be172b76256167c27d4a48a582144bb9731f7ef5
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5672,6 +5720,8 @@ declare
   v_reason text;
   v_touched uuid[] := '{}';
   v_linked integer;
+  v_seen jsonb := '{}';
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5685,6 +5735,16 @@ begin
       v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+      end if;
+      -- expectedVersion is the updatedAt the caller read. Every change of the
+      -- batch compares to the row as it was before the batch, which an earlier
+      -- change of the same item has already moved on.
+      if not v_seen ? v_item::text then
+        select x."updated_at" into v_was from "better_supabase"."tasks" x where x."id" = v_item for update;
+        v_seen := v_seen || jsonb_build_object(v_item::text, v_was);
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_item::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        raise exception 'the work item changed since it was read' using errcode = 'BS409', hint = 'STALE_WRITE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_task_update"(uuid, text, jsonb)');
@@ -6405,7 +6465,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:79f0f268d481800ba4cc1fc307295b5c06eebdd515242202b21978d4d413f274
+-- @bsb-hash sha256:47a2f12c1e57ec31384cad182cb02ff328c433d49a5d18712726ed302e68cf15
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6878,6 +6938,8 @@ declare
   v_reason text;
   v_touched uuid[] := '{}';
   v_linked integer;
+  v_seen jsonb := '{}';
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -6891,6 +6953,16 @@ begin
       v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+      end if;
+      -- expectedVersion is the updatedAt the caller read. Every change of the
+      -- batch compares to the row as it was before the batch, which an earlier
+      -- change of the same item has already moved on.
+      if not v_seen ? v_item::text then
+        select x."updated_at" into v_was from "better_supabase"."tasks" x where x."id" = v_item for update;
+        v_seen := v_seen || jsonb_build_object(v_item::text, v_was);
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_item::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        raise exception 'the work item changed since it was read' using errcode = 'BS409', hint = 'STALE_WRITE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_task_update"(uuid, text, jsonb)');
