@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:5df6e7edbc9c3534899595c583b3768ee1807950bc2bee1024b0b9623967eb23
+-- @bsb-hash sha256:1f2132e7e278412607065916c53d8593f8bdee0335fe8569b847b1014c16b4bd
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1173,6 +1173,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
+
+-- The quotes that name a record as their company or contact, newest first.
+create or replace function "better_supabase"."list_quotes_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_quotes_for_subject.tenant, 'quotes.read'), false)) then
+    raise exception 'not allowed to read this organization''s quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.created desc, z.id desc)
+    from (
+      select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount', x."discount_amount"::text, 'deposit_due', x."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'unit', ql."unit", 'discountKind', ql."discount_kind", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+      from "better_supabase"."quotes" x
+      where x."tenant_id" = list_quotes_for_subject.tenant
+        and ((x."company_type" = list_quotes_for_subject.subject_type and x."company_id"::text = list_quotes_for_subject.subject_id) or (x."contact_type" = list_quotes_for_subject.subject_type and x."contact_id"::text = list_quotes_for_subject.subject_id))
+      order by x."created_at" desc, x."id" desc
+      limit least(greatest(coalesce(list_quotes_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 create or replace function "better_supabase"."clone_quote"(source uuid, overrides jsonb default null)
 returns jsonb
 language plpgsql
@@ -1665,7 +1693,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:4f500d011ce679767681d8f138282d34a8dd469d8eef39c074280a795f63d011
+-- @bsb-hash sha256:e36439d8b116634f095ef506b96810ec7d27afb863b2a5ad2aa569ae7bc39520
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2898,6 +2926,34 @@ $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
 
+-- The quotes that name a record as their company or contact, newest first.
+create or replace function "better_supabase"."list_quotes_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_quotes_for_subject.tenant, 'quotes.read'), false)) then
+    raise exception 'not allowed to read this organization''s quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.created desc, z.id desc)
+    from (
+      select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount', x."discount_amount"::text, 'deposit_due', x."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'unit', ql."unit", 'discountKind', ql."discount_kind", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+      from "better_supabase"."quotes" x
+      where x."tenant_id" = list_quotes_for_subject.tenant
+        and ((x."company_type" = list_quotes_for_subject.subject_type and x."company_id"::text = list_quotes_for_subject.subject_id) or (x."contact_type" = list_quotes_for_subject.subject_type and x."contact_id"::text = list_quotes_for_subject.subject_id))
+      order by x."created_at" desc, x."id" desc
+      limit least(greatest(coalesce(list_quotes_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
 -- A draft quote from a deal: its name, company, primary contact, currency,
 -- owner and lines (or one line for its amount). Converting a deal again
 -- returns the quote it already made.
@@ -3444,7 +3500,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:5eda050458e62cdaf763a841c755dc727a316b1ac0abed0fec21b0b9fd254740
+-- @bsb-hash sha256:e00ea358ed58045611259ab3cdc4a9fc3dd9ec7c0ce7943b44616396be95af9b
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4621,6 +4677,34 @@ end;
 $$;
 revoke execute on function "app_private"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "app_private"."expire_quotes"() to service_role;
+
+-- The quotes that name a record as their company or contact, newest first.
+create or replace function "app_private"."list_quotes_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_quotes_for_subject.tenant, 'quotes.read'), false)) then
+    raise exception 'not allowed to read this organization''s quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.created desc, z.id desc)
+    from (
+      select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount', x."discount_amount"::text, 'deposit_due', x."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'unit', ql."unit", 'discountKind', ql."discount_kind", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "app_private"."quote_tax_lines" tl where tl."parent_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+      from "app_private"."quotes" x
+      where x."tenant_id" = list_quotes_for_subject.tenant
+        and ((x."company_type" = list_quotes_for_subject.subject_type and x."company_id"::text = list_quotes_for_subject.subject_id) or (x."contact_type" = list_quotes_for_subject.subject_type and x."contact_id"::text = list_quotes_for_subject.subject_id))
+      order by x."created_at" desc, x."id" desc
+      limit least(greatest(coalesce(list_quotes_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."list_quotes_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "app_private"."list_quotes_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 create or replace function "app_private"."clone_quote"(source uuid, overrides jsonb default null)
 returns jsonb
 language plpgsql
@@ -5113,7 +5197,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:a5893005f1e44a0ea67bb955f0abafe04f001cd431b86ee3edc6f7623978cc4e
+-- @bsb-hash sha256:ff6e4c8abadc5907e60e63e16af8c7887d7c2838c39b397ee85002df29b9943a
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6285,6 +6369,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
+
+-- The quotes that name a record as their company or contact, newest first.
+create or replace function "better_supabase"."list_quotes_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_quotes_for_subject.tenant, 'quotes.read'), false)) then
+    raise exception 'not allowed to read this organization''s quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.created desc, z.id desc)
+    from (
+      select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount', x."discount_amount"::text, 'deposit_due', x."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'unit', ql."unit", 'discountKind', ql."discount_kind", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+      from "better_supabase"."quotes" x
+      where x."tenant_id" = list_quotes_for_subject.tenant
+        and ((x."company_type" = list_quotes_for_subject.subject_type and x."company_id"::text = list_quotes_for_subject.subject_id) or (x."contact_type" = list_quotes_for_subject.subject_type and x."contact_id"::text = list_quotes_for_subject.subject_id))
+      order by x."created_at" desc, x."id" desc
+      limit least(greatest(coalesce(list_quotes_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 create or replace function "better_supabase"."clone_quote"(source uuid, overrides jsonb default null)
 returns jsonb
 language plpgsql
@@ -6890,6 +7002,16 @@ as $$ select "better_supabase"."expire_quotes"() $$;
 revoke execute on function "api"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "api"."expire_quotes"() to service_role;
 
+create or replace function "api"."list_quotes_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_quotes_for_subject"($1, $2, $3, $4) $$;
+revoke execute on function "api"."list_quotes_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "api"."list_quotes_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
 create or replace function "api"."clone_quote"(source uuid, overrides jsonb default null)
 returns jsonb
 language sql
@@ -6973,7 +7095,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:94a53a27177cbe421d80bb7f65c71bc1bca42ea08c324b360d1f9f9e7861ae62
+-- @bsb-hash sha256:93ca3d24d54239960c6530bf2cf9605671daedf0137fd241cf3a261e39add5bc
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8143,6 +8265,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
+
+-- The quotes that name a record as their company or contact, newest first.
+create or replace function "better_supabase"."list_quotes_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_quotes_for_subject.tenant, 'quotes.read'), false)) then
+    raise exception 'not allowed to read this organization''s quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.created desc, z.id desc)
+    from (
+      select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount', x."discount_amount"::text, 'deposit_due', x."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'unit', ql."unit", 'discountKind', ql."discount_kind", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+      from "better_supabase"."quotes" x
+      where x."tenant_id" = list_quotes_for_subject.tenant
+        and ((x."company_type" = list_quotes_for_subject.subject_type and x."company_id"::text = list_quotes_for_subject.subject_id) or (x."contact_type" = list_quotes_for_subject.subject_type and x."contact_id"::text = list_quotes_for_subject.subject_id))
+      order by x."created_at" desc, x."id" desc
+      limit least(greatest(coalesce(list_quotes_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 create or replace function "better_supabase"."clone_quote"(source uuid, overrides jsonb default null)
 returns jsonb
 language plpgsql
@@ -8635,7 +8785,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:8ea0b4e63252e8c7ad3fbe7701ae1935eabd1be121a8ad26eaec34c8c4cdd20e
+-- @bsb-hash sha256:631e187db2e67e1dc16764c87114d7763867e8a2ae576422979a328436760332
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9807,6 +9957,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."expire_quotes"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_quotes"() to service_role;
+
+-- The quotes that name a record as their company or contact, newest first.
+create or replace function "better_supabase"."list_quotes_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_quotes_for_subject.tenant, 'quotes.read'), false)) then
+    raise exception 'not allowed to read this organization''s quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.created desc, z.id desc)
+    from (
+      select ((to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount', x."discount_amount"::text, 'deposit_due', x."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'unit', ql."unit", 'discountKind', ql."discount_kind", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+      from "better_supabase"."quotes" x
+      where x."org_id" = list_quotes_for_subject.tenant
+        and ((x."company_type" = list_quotes_for_subject.subject_type and x."company_id"::text = list_quotes_for_subject.subject_id) or (x."contact_type" = list_quotes_for_subject.subject_type and x."contact_id"::text = list_quotes_for_subject.subject_id))
+      order by x."created_at" desc, x."id" desc
+      limit least(greatest(coalesce(list_quotes_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_quotes_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 create or replace function "better_supabase"."clone_quote"(source uuid, overrides jsonb default null)
 returns jsonb
 language plpgsql

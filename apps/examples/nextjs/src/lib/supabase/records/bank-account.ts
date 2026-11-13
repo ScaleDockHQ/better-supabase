@@ -7,17 +7,20 @@ import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { contractsBlock } from "better-supabase/blocks/contracts";
 import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
+import { dealsBlock } from "better-supabase/blocks/deals";
 import { dispatchBlock } from "better-supabase/blocks/dispatch";
 import { donationsBlock } from "better-supabase/blocks/donations";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { guestsBlock } from "better-supabase/blocks/guests";
+import { invoicesBlock } from "better-supabase/blocks/invoices";
 import { leasesBlock } from "better-supabase/blocks/leases";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { moderationBlock } from "better-supabase/blocks/moderation";
 import { passesBlock } from "better-supabase/blocks/passes";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
+import { quotesBlock } from "better-supabase/blocks/quotes";
 import { reactionsBlock } from "better-supabase/blocks/reactions";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { scoresBlock } from "better-supabase/blocks/scores";
@@ -35,16 +38,19 @@ import {
   commentsConfig,
   contractsConfig,
   customFieldsConfig,
+  dealsConfig,
   dispatchConfig,
   donationsConfig,
   driveConfig,
   employeesConfig,
   enrollmentsConfig,
   guestsConfig,
+  invoicesConfig,
   leasesConfig,
   ledgerConfig,
   moderationConfig,
   passesConfig,
+  quotesConfig,
   reactionsConfig,
   relationsConfig,
   scoresConfig,
@@ -67,6 +73,7 @@ export const bankAccountRecord = defineRecordType({
     attachments: attachmentsBlock,
     comments: commentsBlock,
     customFields: customFieldsBlock,
+    deals: dealsBlock,
     ledger: ledgerBlock,
     assets: assetsBlock,
     scores: scoresBlock,
@@ -83,6 +90,8 @@ export const bankAccountRecord = defineRecordType({
     drive: driveBlock,
     employees: employeesBlock,
     signatures: signaturesBlock,
+    invoices: invoicesBlock,
+    quotes: quotesBlock,
     reactions: reactionsBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
@@ -94,6 +103,7 @@ export const bankAccountRecord = defineRecordType({
     attachments: attachmentsConfig,
     comments: commentsConfig,
     "custom-fields": customFieldsConfig,
+    deals: dealsConfig,
     ledger: ledgerConfig,
     assets: assetsConfig,
     scores: scoresConfig,
@@ -110,6 +120,8 @@ export const bankAccountRecord = defineRecordType({
     drive: driveConfig,
     employees: employeesConfig,
     signatures: signaturesConfig,
+    invoices: invoicesConfig,
+    quotes: quotesConfig,
     reactions: reactionsConfig,
     relations: relationsConfig,
     "share-links": shareLinksConfig,

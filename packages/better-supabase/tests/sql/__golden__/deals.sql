@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:9d1f168aa228d126f7278db2da5baa994556822b6f788f7687aa68fdf3e32d9b
+-- @bsb-hash sha256:07842557f26dcc779a3593ade7b5a1148868bd15416f8520064b0c571d458d56
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -895,6 +895,34 @@ $$;
 revoke execute on function "better_supabase"."deal_health"(uuid) from public, anon;
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
 
+-- The open and closed deals that name a record as their company or as one of
+-- their contacts, newest first (ADR 0822). It runs as the caller, so the
+-- deals the caller can't read stay out, as on the table.
+create or replace function "better_supabase"."list_deals_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
+  from (
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+    from "better_supabase"."deals" x
+    where x."tenant_id" = list_deals_for_subject.tenant
+      and x."archived_at" is null
+      and ((x."company_type" = list_deals_for_subject.subject_type and x."company_id"::text = list_deals_for_subject.subject_id)
+        or exists (select 1 from "better_supabase"."deal_contacts" dc where dc."deal_id" = x."id"
+          and dc."contact_type" = list_deals_for_subject.subject_type and dc."contact_id"::text = list_deals_for_subject.subject_id))
+    order by x."created_at" desc, x."id" desc
+    limit least(greatest(coalesce(list_deals_for_subject.page_size, 50), 1), 200)
+  ) z;
+$$;
+revoke execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by
 -- the deal's probability (or its stage's). Runs as the caller, so it holds
@@ -1039,7 +1067,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:4545e2723d2e67bce516e14c6f7e5e2383839b08ff4d8b4beacdc705449f6a7a
+-- @bsb-hash sha256:5100a8ba5017e55b77950249e47673f14f7d18da5f66147f515059ba666b988f
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1963,6 +1991,34 @@ $$;
 revoke execute on function "better_supabase"."deal_health"(uuid) from public, anon;
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
 
+-- The open and closed deals that name a record as their company or as one of
+-- their contacts, newest first (ADR 0822). It runs as the caller, so the
+-- deals the caller can't read stay out, as on the table.
+create or replace function "better_supabase"."list_deals_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
+  from (
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+    from "better_supabase"."deals" x
+    where x."tenant_id" = list_deals_for_subject.tenant
+      and x."archived_at" is null
+      and ((x."company_type" = list_deals_for_subject.subject_type and x."company_id"::text = list_deals_for_subject.subject_id)
+        or exists (select 1 from "better_supabase"."deal_contacts" dc where dc."deal_id" = x."id"
+          and dc."contact_type" = list_deals_for_subject.subject_type and dc."contact_id"::text = list_deals_for_subject.subject_id))
+    order by x."created_at" desc, x."id" desc
+    limit least(greatest(coalesce(list_deals_for_subject.page_size, 50), 1), 200)
+  ) z;
+$$;
+revoke execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by
 -- the deal's probability (or its stage's). Runs as the caller, so it holds
@@ -2110,7 +2166,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:5eae7c408ded96498f027ca9cce8f34f61860589d22f9c44819b1bcd4fd62427
+-- @bsb-hash sha256:78492aa85fba2071d48063cd852f9749483399795e26b35313214019753839b8
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3009,6 +3065,34 @@ $$;
 revoke execute on function "app_private"."deal_health"(uuid) from public, anon;
 grant execute on function "app_private"."deal_health"(uuid) to authenticated, service_role;
 
+-- The open and closed deals that name a record as their company or as one of
+-- their contacts, newest first (ADR 0822). It runs as the caller, so the
+-- deals the caller can't read stay out, as on the table.
+create or replace function "app_private"."list_deals_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
+  from (
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "app_private"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "app_private"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+    from "app_private"."deals" x
+    where x."tenant_id" = list_deals_for_subject.tenant
+      and x."archived_at" is null
+      and ((x."company_type" = list_deals_for_subject.subject_type and x."company_id"::text = list_deals_for_subject.subject_id)
+        or exists (select 1 from "app_private"."deal_contacts" dc where dc."deal_id" = x."id"
+          and dc."contact_type" = list_deals_for_subject.subject_type and dc."contact_id"::text = list_deals_for_subject.subject_id))
+    order by x."created_at" desc, x."id" desc
+    limit least(greatest(coalesce(list_deals_for_subject.page_size, 50), 1), 200)
+  ) z;
+$$;
+revoke execute on function "app_private"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "app_private"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by
 -- the deal's probability (or its stage's). Runs as the caller, so it holds
@@ -3153,7 +3237,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:ec37ed27552b76e1df51f59d386433003e3fb765b2be4c7d14e6d27f5e97dce4
+-- @bsb-hash sha256:b08038f7e5ad8de0ca90216d6f0bab341e8365f46810185768653baf1cf1f2c0
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4047,6 +4131,34 @@ $$;
 revoke execute on function "better_supabase"."deal_health"(uuid) from public, anon;
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
 
+-- The open and closed deals that name a record as their company or as one of
+-- their contacts, newest first (ADR 0822). It runs as the caller, so the
+-- deals the caller can't read stay out, as on the table.
+create or replace function "better_supabase"."list_deals_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
+  from (
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+    from "better_supabase"."deals" x
+    where x."tenant_id" = list_deals_for_subject.tenant
+      and x."archived_at" is null
+      and ((x."company_type" = list_deals_for_subject.subject_type and x."company_id"::text = list_deals_for_subject.subject_id)
+        or exists (select 1 from "better_supabase"."deal_contacts" dc where dc."deal_id" = x."id"
+          and dc."contact_type" = list_deals_for_subject.subject_type and dc."contact_id"::text = list_deals_for_subject.subject_id))
+    order by x."created_at" desc, x."id" desc
+    limit least(greatest(coalesce(list_deals_for_subject.page_size, 50), 1), 200)
+  ) z;
+$$;
+revoke execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by
 -- the deal's probability (or its stage's). Runs as the caller, so it holds
@@ -4279,6 +4391,16 @@ as $$ select "better_supabase"."deal_health"($1) $$;
 revoke execute on function "api"."deal_health"(uuid) from public, anon;
 grant execute on function "api"."deal_health"(uuid) to authenticated, service_role;
 
+create or replace function "api"."list_deals_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_deals_for_subject"($1, $2, $3, $4) $$;
+revoke execute on function "api"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "api"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
 create or replace function "api"."deal_board"(pipeline uuid)
 returns jsonb
 language sql
@@ -4306,7 +4428,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:3a977b15e4bf1429f35980fa7d9d0d66cc061a25db79e79f37cbda3313b2088b
+-- @bsb-hash sha256:58fafb237bcf75e7e8a2a7f45da4c3909dc22f6377b555fabc2921f973dba106
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5191,6 +5313,34 @@ $$;
 revoke execute on function "better_supabase"."deal_health"(uuid) from public, anon;
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
 
+-- The open and closed deals that name a record as their company or as one of
+-- their contacts, newest first (ADR 0822). It runs as the caller, so the
+-- deals the caller can't read stay out, as on the table.
+create or replace function "better_supabase"."list_deals_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'number', x."number"::text, 'identifier', x."identifier", 'name', x."name", 'company_type', x."company_type", 'company_id', x."company_id", 'motion', x."motion", 'priority', x."priority", 'owner_id', x."owner_id", 'product', x."product", 'seats', x."seats", 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'currency', x."currency", 'value_period', x."value_period", 'amount_source', x."amount_source", 'pipeline_id', x."pipeline_id", 'stage_id', x."stage_id", 'stage_entered_at', x."stage_entered_at", 'outcome', x."outcome", 'probability', x."probability", 'forecast_category', x."forecast_category", 'opened_on', x."opened_on", 'expected_close_on', x."expected_close_on", 'slipped_from', x."slipped_from", 'push_count', x."push_count", 'closed_at', x."closed_at", 'next_step', x."next_step", 'next_at', x."next_at", 'next_kind', x."next_kind", 'flags', x."flags", 'source', x."source", 'note', x."note", 'lost_reason', x."lost_reason", 'locked', x."locked", 'rank', x."rank", 'archived_at', x."archived_at", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('updated_at', x."updated_at", 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+    from "better_supabase"."deals" x
+    where x."tenant_id" = list_deals_for_subject.tenant
+      and x."archived_at" is null
+      and ((x."company_type" = list_deals_for_subject.subject_type and x."company_id"::text = list_deals_for_subject.subject_id)
+        or exists (select 1 from "better_supabase"."deal_contacts" dc where dc."deal_id" = x."id"
+          and dc."contact_type" = list_deals_for_subject.subject_type and dc."contact_id"::text = list_deals_for_subject.subject_id))
+    order by x."created_at" desc, x."id" desc
+    limit least(greatest(coalesce(list_deals_for_subject.page_size, 50), 1), 200)
+  ) z;
+$$;
+revoke execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by
 -- the deal's probability (or its stage's). Runs as the caller, so it holds
@@ -5335,7 +5485,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:44ffcf6c43a2beb4680d4302e316f6e96928e97ae05fc7a90affd6b947454fbf
+-- @bsb-hash sha256:58895534f47145f569f860a064afc6d66267a58db249419a0c3fbf03097b8025
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6228,6 +6378,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."deal_health"(uuid) from public, anon;
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
+
+-- The open and closed deals that name a record as their company or as one of
+-- their contacts, newest first (ADR 0822). It runs as the caller, so the
+-- deals the caller can't read stay out, as on the table.
+create or replace function "better_supabase"."list_deals_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
+  from (
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+    from "better_supabase"."deals" x
+    where x."org_id" = list_deals_for_subject.tenant
+      and x."archived_at" is null
+      and ((x."company_type" = list_deals_for_subject.subject_type and x."company_id"::text = list_deals_for_subject.subject_id)
+        or exists (select 1 from "better_supabase"."deal_contacts" dc where dc."deal_id" = x."id"
+          and dc."contact_type" = list_deals_for_subject.subject_type and dc."contact_id"::text = list_deals_for_subject.subject_id))
+    order by x."created_at" desc, x."id" desc
+    limit least(greatest(coalesce(list_deals_for_subject.page_size, 50), 1), 200)
+  ) z;
+$$;
+revoke execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by

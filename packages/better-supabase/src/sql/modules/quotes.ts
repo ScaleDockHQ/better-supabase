@@ -586,6 +586,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "expire_quotes", args: [], returns: "integer" },
+    {
+      name: "list_quotes_for_subject",
+      args: ["{id}", "text", "text", "integer"],
+      returns: "jsonb",
+    },
     { name: "quote_totals_by_billing_party", args: ["uuid"], returns: "jsonb" },
     ...(hasVariants(ctx)
       ? [

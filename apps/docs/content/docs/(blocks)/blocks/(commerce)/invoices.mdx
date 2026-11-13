@@ -678,6 +678,10 @@ the period is closed, so the books are corrected with an entry of your own.
 
 Aging has no separate read to add: `aging` already returns the buckets for sales invoices and, with `direction: "purchase"`, for payables, in one call per currency. `accounting.trialBalance` and the other [reports](/docs/blocks/accounting#reports) cover the finance pages the same way.
 
+## On a record page
+
+`invoicesBinding` loads the invoices that name a record as their company or contact, newest first, through `invoices.list({ subject, limit })` with the subject as `{ type: "company", id }` (or the renamed type). The organization comes from `options.tenant`: without it the call fails with `TENANT_REQUIRED`. The read needs the invoices read key, shows at most `limit` invoices (default 50, up to 200) and goes stale on `invoice.*` events. It has no writes, because issuing or paying an invoice takes dates and money, which a Server Action can't carry.
+
 ## Events
 
 | Event                                                                                                                              | Data                                                                                                                                          |

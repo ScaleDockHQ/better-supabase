@@ -157,6 +157,10 @@ const call = await deals
 
 `forecast` sums one currency in a period: deals won in it, open deals closing in it by forecast category (`notCalled` when the rep has made no call), and `later` for open deals that close after it. `attainment` is won plus commit over the target, and `owners` splits the same sums per owner. `health(pipelineId)` lists the open deals with their days in stage, whether they are rotting, whether the close date slipped, whether there is no next step, and whether the next step is overdue. With the [activities](/docs/blocks/activities) module installed, a planned activity on the deal counts as its next step.
 
+## On a record page
+
+`dealsBinding` loads the deals that name a record as their company or as one of their contacts, newest first, through `deals.list({ subject, limit })`. Archived deals stay out. The organization comes from `options.tenant`: without it the call fails with `TENANT_REQUIRED`. The read runs as the caller, so it returns only the deals the caller can read, shows at most `limit` deals (default 50, up to 200) and goes stale on `deal.*` events. It has no writes, because a deal carries money and dates, which a Server Action can't carry.
+
 ## Events
 
 | Event                                                                            | Data                                                                     |

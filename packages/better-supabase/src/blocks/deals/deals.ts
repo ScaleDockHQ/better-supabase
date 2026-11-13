@@ -1,6 +1,7 @@
 import type { Money } from "../../commerce/money.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
@@ -8,12 +9,14 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { DealBoard } from "../../sql/modules/deals-reads.ts";
 import type { DealForecast } from "../deal-forecast.ts";
+import type { RecordRef } from "../sales-shared.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, isMoney } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { idempotentCall } from "../../core/idempotent-write.ts";
 import { decodeRead } from "../../core/read-type.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -251,6 +254,16 @@ export interface DealHealth {
 export type { DealBoard };
 
 export interface Deals<F extends object = Record<never, never>> {
+  /**
+   * The deals that name a record as their company or one of their contacts,
+   * newest first, at most `limit` (default 50, up to 200). Archived deals stay
+   * out. The organization comes from `options.tenant` (without it the call
+   * fails with `TENANT_REQUIRED`).
+   */
+  list(input: {
+    subject: RecordRef;
+    limit?: number | undefined;
+  }): AsyncResult<readonly Deal<F>[]>;
   create(input: {
     organizationId: string;
     input: DealInput<F>;
@@ -328,7 +341,8 @@ export interface Deals<F extends object = Record<never, never>> {
 
 export interface DealsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> extends BlockTemporalOptions {
+>
+  extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
   /**
@@ -754,6 +768,22 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
           )
         : AsyncResult.err(invalid);
     },
+    list: ({ subject, limit }) =>
+      requireTenant(options.tenant).andThen((organizationId) =>
+        call(
+          "list_deals_for_subject",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            page_size: limit ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_deals_for_subject").map((row) =>
+              dealOf(row),
+            ),
+        ).andThen(fields.rows),
+      ),
     board: ({ pipelineId }) =>
       call("deal_board", { pipeline: pipelineId }, (value) =>
         decodeRead<DealBoard>(BOARD, value, "deal_board"),

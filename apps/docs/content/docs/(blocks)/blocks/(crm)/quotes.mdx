@@ -322,6 +322,10 @@ const copy = await db.$blocks.quotes
   .orThrow();
 ```
 
+## On a record page
+
+`quotesBinding` loads the quotes that name a record as their company or contact, newest first, through `quotes.list({ subject, limit })`. The organization comes from `options.tenant`: without it the call fails with `TENANT_REQUIRED`. The read needs the quotes read key, shows at most `limit` quotes (default 50, up to 200) and goes stale on `quote.*` events. It has no writes, because a quote carries lines, money and dates, which a Server Action can't carry.
+
 ## Events
 
 | Event                                                             | Data                                                                      |

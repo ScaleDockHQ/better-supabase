@@ -16445,6 +16445,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
+      "record": [],
       "events": {
         "type": "DealsEvents",
         "types": [
@@ -30223,6 +30224,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "SourceInvoice"
         }
       ],
+      "record": [],
       "events": {
         "type": "InvoicesEvents",
         "types": [
@@ -32755,6 +32757,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "QuoteVersionSummary"
         }
       ],
+      "record": [],
       "events": {
         "type": "QuotesEvents",
         "types": [

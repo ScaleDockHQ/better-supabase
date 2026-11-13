@@ -29,6 +29,7 @@ import {
   quoteKit,
   quoteOrigin,
   quoteParty,
+  quotePartyType,
   quoteTemplatesOn,
 } from "./quotes-kit.ts";
 
@@ -311,6 +312,44 @@ $$;
 ${userGrant(`${fn("quote_from_deal")}(uuid)`)}
 `;
         })();
+
+  const matches = (["company", "contact"] as const)
+    .filter((party) => quoteParty(ctx, party) !== undefined)
+    .map(
+      (party) =>
+        `(${quotePartyType(ctx, party, "x.")} = list_quotes_for_subject.subject_type and x.${q(`${party}Id`)}::text = list_quotes_for_subject.subject_id)`,
+    )
+    .join(" or ");
+
+  // The quotes that name a record as their company or contact (ADR 0822).
+  const forSubject = `
+-- The quotes that name a record as their company or contact, newest first.
+create or replace function ${fn("list_quotes_for_subject")}(tenant ${ctx.idType}, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (${n.service} or ${ctx.scope.can("list_quotes_for_subject.tenant", n.read)}) then
+    ${fail("QUOTE_FORBIDDEN", "not allowed to read this organization's quotes", "42501")}
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.created desc, z.id desc)
+    from (
+      select ${row("x")} as item, x.${q("createdAt")} as created, x.${q("id")} as id
+      from ${t("quotes")} x
+      where x.${q("tenant")} = list_quotes_for_subject.tenant
+        and (${matches || "false"})
+      order by x.${q("createdAt")} desc, x.${q("id")} desc
+      limit least(greatest(coalesce(list_quotes_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+${userGrant(`${fn("list_quotes_for_subject")}(${ctx.idType}, text, text, integer)`)}
+`;
 
   return `
 -- Creates a draft quote. attrs: title (required), currency, company and
@@ -646,7 +685,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("expire_quotes")}()`)}
-${holdsSql(ctx, n)}${appTotalsGuard(ctx, n, k)}${fromDeal}${cloneQuoteSql(ctx, n)}`;
+${forSubject}${holdsSql(ctx, n)}${appTotalsGuard(ctx, n, k)}${fromDeal}${cloneQuoteSql(ctx, n)}`;
 }
 
 /**
