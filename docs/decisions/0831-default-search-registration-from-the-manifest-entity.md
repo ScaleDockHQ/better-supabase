@@ -25,6 +25,11 @@ The manifest fields of ADR 0830 grow the server chunk again. The baseline reset
 follows ADR 0690: empty `server-baseline.json`, run `next build` and the update
 script.
 
+| Baseline                               | Routes            | Change                                                                           |
+| -------------------------------------- | ----------------- | -------------------------------------------------------------------------------- |
+| Server chunks (`server-baseline.json`) | 346 route entries | 337 grow, median +1,153 B gzip, at most +1,173 B                                 |
+| First load (`baseline.json`)           | 8 routes          | at most +259 B gzip: they import `better-supabase/blocks/subjects` on the client |
+
 ## Consequences
 
 The `./blocks/subjects` size baseline moves from 31,813 to 33,812 B gzip for `label`, the party
