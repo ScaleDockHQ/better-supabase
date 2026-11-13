@@ -849,6 +849,31 @@ end;
 $$;
 ${userGrant(`${fn("deal_health")}(uuid)`)}
 
+-- The open and closed deals that name a record as their company or as one of
+-- their contacts, newest first (ADR 0822). It runs as the caller, so the
+-- deals the caller can't read stay out, as on the table.
+create or replace function ${fn("list_deals_for_subject")}(tenant ${ctx.idType}, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
+  from (
+    select ${row("x")} as item, x.${d("createdAt")} as created, x.${d("id")} as id
+    from ${t("deals")} x
+    where x.${d("tenant")} = list_deals_for_subject.tenant
+      and x.${d("archivedAt")} is null
+      and ((x.${d("companyType")} = list_deals_for_subject.subject_type and x.${d("companyId")}::text = list_deals_for_subject.subject_id)
+        or exists (select 1 from ${t("contacts")} dc where dc.${k("deal")} = x.${d("id")}
+          and dc.${k("contactType")} = list_deals_for_subject.subject_type and dc.${k("contactId")}::text = list_deals_for_subject.subject_id))
+    order by x.${d("createdAt")} desc, x.${d("id")} desc
+    limit least(greatest(coalesce(list_deals_for_subject.page_size, 50), 1), 200)
+  ) z;
+$$;
+${userGrant(`${fn("list_deals_for_subject")}(${ctx.idType}, text, text, integer)`)}
+
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by
 -- the deal's probability (or its stage's). Runs as the caller, so it holds

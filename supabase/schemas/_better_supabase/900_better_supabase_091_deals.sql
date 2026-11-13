@@ -1,6 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:e5fb277d103c2af6f97bf02a190dafe8ceee641e3cf2d85b5d95ede67da7b98b
+-- @bsb-hash sha256:c82bf7ef8c97702dd44cceba425b16eacc023f0f752975c00441118968f11d1e
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1128,6 +1128,34 @@ $$;
 revoke execute on function "better_supabase"."deal_health"(uuid) from public, anon;
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
 
+-- The open and closed deals that name a record as their company or as one of
+-- their contacts, newest first (ADR 0822). It runs as the caller, so the
+-- deals the caller can't read stay out, as on the table.
+create or replace function "better_supabase"."list_deals_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
+  from (
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+    from "better_supabase"."deals" x
+    where x."tenant_id" = list_deals_for_subject.tenant
+      and x."archived_at" is null
+      and ((x."company_type" = list_deals_for_subject.subject_type and x."company_id"::text = list_deals_for_subject.subject_id)
+        or exists (select 1 from "better_supabase"."deal_contacts" dc where dc."deal_id" = x."id"
+          and dc."contact_type" = list_deals_for_subject.subject_type and dc."contact_id"::text = list_deals_for_subject.subject_id))
+    order by x."created_at" desc, x."id" desc
+    limit least(greatest(coalesce(list_deals_for_subject.page_size, 50), 1), 200)
+  ) z;
+$$;
+revoke execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by
 -- the deal's probability (or its stage's). Runs as the caller, so it holds
@@ -1383,6 +1411,16 @@ set search_path = ''
 as $$ select "better_supabase"."deal_health"($1) $$;
 revoke execute on function "api"."deal_health"(uuid) from public, anon;
 grant execute on function "api"."deal_health"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_deals_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_deals_for_subject"($1, $2, $3, $4) $$;
+revoke execute on function "api"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "api"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 
 create or replace function "api"."deal_board"(pipeline uuid)
 returns jsonb

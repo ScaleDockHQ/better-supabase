@@ -1,6 +1,6 @@
 # 0822: Bind the remaining blocks through a subject read
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-11-13
 
 ## Context
@@ -48,3 +48,14 @@ checks and hooks.
 
 Seven blocks gain a record section, the catalog records their writes, and each
 manifest grows (ADR 0690 baseline reset in the PR that lands them).
+
+## Consequences
+
+Invoices, quotes and deals landed first (K3a): `list({ subject, limit })` over
+`list_invoices_for_subject`, `list_quotes_for_subject` and
+`list_deals_for_subject`, in migrations `20261214000000` and `20261214000001`.
+The invoices and quotes reads are security definer and check the read key on
+the organization. The deals read runs as the caller so the table's row level
+security decides which deals show. `list` is the verb because the data contract
+retires `forSubject` (`tests/blocks/data-contract.test-d.ts`). A later lane that
+gives these blocks a general `list` extends the same method.

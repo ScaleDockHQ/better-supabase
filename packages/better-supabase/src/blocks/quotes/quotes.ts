@@ -5,6 +5,7 @@ import type {
   RowFields,
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -26,6 +27,7 @@ import {
 } from "../../core/block-fields.ts";
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   amountText,
@@ -363,6 +365,15 @@ export interface Quotes<
     quoteId: string;
     options?: (QuoteActorOptions & { readonly reason?: string }) | undefined;
   }): AsyncResult<Quote<F>>;
+  /**
+   * The quotes that name a record as their company or contact, newest first, at
+   * most `limit` (default 50, up to 200). The organization comes from
+   * `options.tenant` (without it the call fails with `TENANT_REQUIRED`).
+   */
+  list(input: {
+    subject: RecordRef;
+    limit?: number | undefined;
+  }): AsyncResult<readonly Quote<F>[]>;
   /** The revisions sent so far, oldest first. */
   versions(quoteId: string): AsyncResult<readonly QuoteVersionSummary[]>;
   /** The quote as it was sent at `revision`. */
@@ -416,7 +427,8 @@ export interface Quotes<
 
 export interface QuotesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> extends BlockTemporalOptions {
+>
+  extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
   readonly schema?: string;
   /**
@@ -836,6 +848,22 @@ export function createQuotes<
         quoteOf,
       ),
     ...quoteVariants(call),
+    list: ({ subject, limit }) =>
+      requireTenant(options.tenant).andThen((organizationId) =>
+        call(
+          "list_quotes_for_subject",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            page_size: limit ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_quotes_for_subject").map((row) =>
+              quoteOf(row),
+            ),
+        ).andThen(fields.rows),
+      ),
     versions: (quoteId) =>
       call("quote_versions", { quote: quoteId }, (value) =>
         recordsOf(value, "quote versions").map(versionSummaryOf),

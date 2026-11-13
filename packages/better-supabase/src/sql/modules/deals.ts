@@ -503,6 +503,11 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "deal_health", args: ["uuid"], returns: "jsonb" },
     { name: "deal_board", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "list_deals_for_subject",
+      args: ["{id}", "text", "text", "integer"],
+      returns: "jsonb",
+    },
   ];
 }
 

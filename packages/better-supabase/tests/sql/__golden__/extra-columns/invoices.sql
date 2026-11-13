@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:68f30d610398fffd7fbecf9ea0cd32feb0a91c64008731b3000b525d545fa917
+-- @bsb-hash sha256:064154faefd458b0e3914699c260f08312e8c67125f1792334a8de30edee71f0
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1053,6 +1053,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_invoice_payments"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_invoice_payments"(uuid) to authenticated, service_role;
+
+-- A tenant's invoices of one record, such as a company's, newest first, for the
+-- record page. Without a company or contact column it reads nothing.
+create or replace function "better_supabase"."list_invoices_for_subject"(tenant uuid, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', list_invoices_for_subject.tenant, 'invoices.read'), false)) then
+    raise exception 'not allowed to read this organization''s invoices' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.created desc, z.id desc)
+    from (
+      select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount_early', x."discount_amount_early"::text) || jsonb_build_object(
+      'balance', (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total")::text,
+      'charged_total', coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0)::text,
+      'charges', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', y."amount"::text, 'description', y."description", 'createdAt', y."created_at") order by y."created_at") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), '[]'::jsonb),
+      'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
+      'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code", 'taxCodeId', il."tax_code_id", 'unitCost', il."unit_cost"::text, 'dimensions', il."dimensions") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
+      'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), '[]'::jsonb)) as item, x."created_at" as created, x."id" as id
+      from "better_supabase"."invoices" x
+      where x."tenant_id" = list_invoices_for_subject.tenant
+        and ((x."company_type" = list_invoices_for_subject.subject_type and x."company_id"::text = list_invoices_for_subject.subject_id) or (x."contact_type" = list_invoices_for_subject.subject_type and x."contact_id"::text = list_invoices_for_subject.subject_id))
+      order by x."created_at" desc, x."id" desc
+      limit least(greatest(coalesce(list_invoices_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoices_for_subject"(uuid, text, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_invoices_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it. fixed_number: during an

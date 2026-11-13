@@ -62,3 +62,5 @@ export type {
   QuoteVariants,
   QuoteVariantSelection,
 } from "../sales-variants.ts";
+
+export { quotesBinding } from "./record-binding.ts";
