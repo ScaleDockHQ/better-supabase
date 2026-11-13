@@ -1,6 +1,6 @@
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:6bf08d7758023e2abdaff7ddbf2ab75e24b16366ff9df2ec3141d4e952bb4910
+-- @bsb-hash sha256:1970825cdf388636a2410c985d8f532a4b8f5eae5923afe5c03e3a944d0637c8
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,9 @@ create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
 -- The quota that applies to each pair of tenants and meters that has one. It
 -- resolves each distinct tenant's plans once, then picks a quota per pair in
 -- the order usage_quota uses: the tenant's own row, then the highest plan
--- limit, where a null (unlimited) limit is highest.
+-- limit, where a null (unlimited) limit is highest. A tenant's entitlements
+-- and plans are read only when a plan quota on these meters exists, as
+-- usage_quota did before.
 create or replace function "better_supabase"."usage_quotas_for"(tenants uuid[], meters text[])
 returns table (tenant uuid, meter text, quota_limit numeric, period text)
 language sql
@@ -107,7 +109,7 @@ security definer
 set search_path = ''
 as $$
   with t as materialized (
-    select d.tenant, better_supabase.tenant_entitlements(d.tenant)::text[] as entitled, better_supabase.tenant_plans(d.tenant)::text[] as plans
+    select d.tenant, case when exists (select 1 from "better_supabase"."usage_quotas" pq where pq."meter" = any (usage_quotas_for.meters) and pq."tenant_id" is null and pq."plan" <> '*') then better_supabase.tenant_entitlements(d.tenant)::text[] end as entitled, case when exists (select 1 from "better_supabase"."usage_quotas" pq where pq."meter" = any (usage_quotas_for.meters) and pq."tenant_id" is null and pq."plan" <> '*') then better_supabase.tenant_plans(d.tenant)::text[] end as plans
     from (select distinct u.tenant from unnest(usage_quotas_for.tenants) u(tenant) where u.tenant is not null) d
   )
   select distinct on (t.tenant, q."meter") t.tenant, q."meter", q."limit", q."period"

@@ -282,6 +282,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     ? `q.${qc("plan")} = '*' or q.${qc("plan")} = any ((select ${ctx.entitlements("usage_overview.tenant") ?? entitled})::text[])${planKeys === "" ? "" : ` or q.${qc("plan")} = any ((select better_supabase.tenant_plans(usage_overview.tenant))::text[])`}`
     : `q.${qc("plan")} = '*'`;
 
+  const planQuotas = `exists (select 1 from ${quotas} pq where pq.${qc("meter")} = any (usage_quotas_for.meters) and pq.${qc("tenant")} is null and pq.${qc("plan")} <> '*')`;
+
   return `${schemaPreamble(ctx)}
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table if not exists ${counters} (
@@ -435,7 +437,9 @@ drop function if exists ${fn("unreported_usage")}(integer);
 -- The quota that applies to each pair of tenants and meters that has one. It
 -- resolves each distinct tenant's plans once, then picks a quota per pair in
 -- the order usage_quota uses: the tenant's own row, then the highest plan
--- limit, where a null (unlimited) limit is highest.
+-- limit, where a null (unlimited) limit is highest. A tenant's entitlements
+-- and plans are read only when a plan quota on these meters exists, as
+-- usage_quota did before.
 create or replace function ${fn("usage_quotas_for")}(tenants ${id}[], meters text[])
 returns table (tenant ${id}, meter text, quota_limit numeric, period text)
 language sql
@@ -444,7 +448,7 @@ security definer
 set search_path = ''
 as $$
   with t as materialized (
-    select d.tenant${entitled ? `, ${ctx.entitlements("d.tenant")}::text[] as entitled` : ""}${planKeys === "" ? "" : ", better_supabase.tenant_plans(d.tenant)::text[] as plans"}
+    select d.tenant${entitled ? `, case when ${planQuotas} then ${ctx.entitlements("d.tenant")}::text[] end as entitled` : ""}${planKeys === "" ? "" : `, case when ${planQuotas} then better_supabase.tenant_plans(d.tenant)::text[] end as plans`}
     from (select distinct u.tenant from unnest(usage_quotas_for.tenants) u(tenant) where u.tenant is not null) d
   )
   select distinct on (t.tenant, q.${qc("meter")}) t.tenant, q.${qc("meter")}, q.${qc("limit")}, ${quotaPeriod("q")}

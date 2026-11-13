@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:6e46eac9dc52c775cec3a38b413efeb440e754ba0955cccc361a2a5e92b6715b
+-- @bsb-hash sha256:534c25e62c373db5e86021ad307a0f1e332f6293029d9f86686821d966e78cb8
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,7 +78,9 @@ create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
 -- The quota that applies to each pair of tenants and meters that has one. It
 -- resolves each distinct tenant's plans once, then picks a quota per pair in
 -- the order usage_quota uses: the tenant's own row, then the highest plan
--- limit, where a null (unlimited) limit is highest.
+-- limit, where a null (unlimited) limit is highest. A tenant's entitlements
+-- and plans are read only when a plan quota on these meters exists, as
+-- usage_quota did before.
 create or replace function "better_supabase"."usage_quotas_for"(tenants uuid[], meters text[])
 returns table (tenant uuid, meter text, quota_limit numeric, period text)
 language sql
@@ -877,7 +879,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:d9d470e525d3562293e0d1dc2af5d8c01e3b8098ebe105c674fda53c4cc9e07f
+-- @bsb-hash sha256:8f20de52abb9bf5c2d401d4a0573ba348d52fc48dc4021490a85d3fae011da88
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -975,7 +977,9 @@ create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
 -- The quota that applies to each pair of tenants and meters that has one. It
 -- resolves each distinct tenant's plans once, then picks a quota per pair in
 -- the order usage_quota uses: the tenant's own row, then the highest plan
--- limit, where a null (unlimited) limit is highest.
+-- limit, where a null (unlimited) limit is highest. A tenant's entitlements
+-- and plans are read only when a plan quota on these meters exists, as
+-- usage_quota did before.
 create or replace function "better_supabase"."usage_quotas_for"(tenants uuid[], meters text[])
 returns table (tenant uuid, meter text, quota_limit numeric, period text)
 language sql
@@ -984,7 +988,7 @@ security definer
 set search_path = ''
 as $$
   with t as materialized (
-    select d.tenant, better_supabase.tenant_entitlements(d.tenant)::text[] as entitled
+    select d.tenant, case when exists (select 1 from "better_supabase"."usage_quotas" pq where pq."meter" = any (usage_quotas_for.meters) and pq."tenant_id" is null and pq."plan" <> '*') then better_supabase.tenant_entitlements(d.tenant)::text[] end as entitled
     from (select distinct u.tenant from unnest(usage_quotas_for.tenants) u(tenant) where u.tenant is not null) d
   )
   select distinct on (t.tenant, q."meter") t.tenant, q."meter", q."limit", q."period"
@@ -1950,7 +1954,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:8fa08bbb6f255ef8291acc21ea7956fcca82adc34803df38726555a532812f06
+-- @bsb-hash sha256:75516c934d55ee4ca230d68788e3da3c03f458e86cb8ed8d44277ef3512f5cc7
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2032,7 +2036,9 @@ create policy bsb_usage_quotas_read on "app_private"."usage_quotas"
 -- The quota that applies to each pair of tenants and meters that has one. It
 -- resolves each distinct tenant's plans once, then picks a quota per pair in
 -- the order usage_quota uses: the tenant's own row, then the highest plan
--- limit, where a null (unlimited) limit is highest.
+-- limit, where a null (unlimited) limit is highest. A tenant's entitlements
+-- and plans are read only when a plan quota on these meters exists, as
+-- usage_quota did before.
 create or replace function "app_private"."usage_quotas_for"(tenants uuid[], meters text[])
 returns table (tenant uuid, meter text, quota_limit numeric, period text)
 language sql
@@ -2831,7 +2837,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:a0fd7080246921c1dc6f77d8a9efad20807063c8c039ae87f3f28412530c0e64
+-- @bsb-hash sha256:a47c139abaea6aa7fb5789fb354921725038576f9c707a18a9eec06f4c15b5c3
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2908,7 +2914,9 @@ create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
 -- The quota that applies to each pair of tenants and meters that has one. It
 -- resolves each distinct tenant's plans once, then picks a quota per pair in
 -- the order usage_quota uses: the tenant's own row, then the highest plan
--- limit, where a null (unlimited) limit is highest.
+-- limit, where a null (unlimited) limit is highest. A tenant's entitlements
+-- and plans are read only when a plan quota on these meters exists, as
+-- usage_quota did before.
 create or replace function "better_supabase"."usage_quotas_for"(tenants uuid[], meters text[])
 returns table (tenant uuid, meter text, quota_limit numeric, period text)
 language sql
@@ -3913,7 +3921,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:7a589289b5c3493617cbfe03de807df5397f304ee964aeb18bd0f534667d9056
+-- @bsb-hash sha256:b6b650c495b500270604289301afc024280e6fcadeaab133894c1292a0503b7f
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3976,7 +3984,9 @@ create policy bsb_usage_quotas_select on "better_supabase"."usage_quotas"
 -- The quota that applies to each pair of tenants and meters that has one. It
 -- resolves each distinct tenant's plans once, then picks a quota per pair in
 -- the order usage_quota uses: the tenant's own row, then the highest plan
--- limit, where a null (unlimited) limit is highest.
+-- limit, where a null (unlimited) limit is highest. A tenant's entitlements
+-- and plans are read only when a plan quota on these meters exists, as
+-- usage_quota did before.
 create or replace function "better_supabase"."usage_quotas_for"(tenants uuid[], meters text[])
 returns table (tenant uuid, meter text, quota_limit numeric, period text)
 language sql
@@ -4778,7 +4788,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:3d345abd4279a8d489575a9223cb7d43ec3de16ff7ee461dccfa04d6638be8e0
+-- @bsb-hash sha256:f6c3a31b91a5c40ccffb813c2dc6f2b59903fe71def32d531649183d30f4aa07
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4855,7 +4865,9 @@ create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
 -- The quota that applies to each pair of tenants and meters that has one. It
 -- resolves each distinct tenant's plans once, then picks a quota per pair in
 -- the order usage_quota uses: the tenant's own row, then the highest plan
--- limit, where a null (unlimited) limit is highest.
+-- limit, where a null (unlimited) limit is highest. A tenant's entitlements
+-- and plans are read only when a plan quota on these meters exists, as
+-- usage_quota did before.
 create or replace function "better_supabase"."usage_quotas_for"(tenants uuid[], meters text[])
 returns table (tenant uuid, meter text, quota_limit numeric, period text)
 language sql

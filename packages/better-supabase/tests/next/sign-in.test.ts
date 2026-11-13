@@ -924,6 +924,7 @@ describe("auth flows", () => {
       user: { id: USER, email: "a@b.test" },
     });
     expect(await sessionToken()).toBe(token);
+    expect(verifierCookies()).toEqual([]);
     expect((await bsb.getClaims())?.userId).toBe(USER);
   });
 

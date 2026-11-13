@@ -441,8 +441,17 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
         return requested(started, error, "Sign-up");
       }
 
+      // auth-js stores a PKCE verifier for the confirmation link even when
+      // confirmation is off and the session comes back at once; no link will
+      // spend it, so the commit expires it instead.
       if (data.session) {
-        return commit(data.session, started.writes, params.next, options);
+        const writes = started.writes.map((write) =>
+          write.name.endsWith("-code-verifier")
+            ? { ...write, value: "", options: { ...write.options, maxAge: 0 } }
+            : write,
+        );
+
+        return commit(data.session, writes, params.next, options);
       }
 
       if (isStandInUser(data.user)) {
