@@ -12,7 +12,7 @@ import { authContext } from "../../src/auth/context.ts";
 import { clientIp, resolveAuth } from "../../src/auth/resolve.ts";
 import {
   parseCookies,
-  readSession,
+  ssrSession,
   serializeCookie,
   sessionCookieName,
   writeSession,
@@ -117,7 +117,7 @@ describe("session cookies", () => {
     expect(data.session?.access_token).toBe(big.access_token);
   });
 
-  it("expires chunks a smaller session no longer uses, and reads mismatched chunks as none", () => {
+  it("expires chunks a smaller session no longer uses, and reads mismatched chunks as none", async () => {
     const existing = [
       { name: `${NAME}.0`, value: "x" },
       { name: `${NAME}.1`, value: "y" },
@@ -134,7 +134,7 @@ describe("session cookies", () => {
       [`${NAME}.1`, 0],
       [NAME, 400 * 24 * 60 * 60],
     ]);
-    expect(readSession(existing, NAME)).toBeNull();
+    expect(await ssrSession(existing, NAME)).toBeNull();
     expect(serializeCookie(writes[2]!)).toMatch(
       /^sb-abcdefghijklmnopqrst-auth-token=base64-/,
     );
@@ -385,9 +385,9 @@ describe("resolveAuth", async () => {
     for (const resolution of [a, b]) {
       expect(resolution.auth).toMatchObject({ kind: "user", token: fresh });
       expect(resolution.headers["cache-control"]).toContain("no-store");
-      expect(readSession(resolution.requestCookies, NAME)?.refresh_token).toBe(
-        "refresh-2",
-      );
+      expect(
+        (await ssrSession(resolution.requestCookies, NAME))?.refresh_token,
+      ).toBe("refresh-2");
     }
 
     const response = a.apply(new Response("ok"));

@@ -1419,7 +1419,6 @@
       "PROBLEM_TYPE_BASE",
       "problemResponse",
       "purgeKeys",
-      "readSession",
       "realtimeRelay",
       "realtimeTopicAccess",
       "refreshFor",
@@ -1440,6 +1439,7 @@
       "settle",
       "snapshotOf",
       "sqlSupportStore",
+      "ssrSession",
       "subjectReaders",
       "subscribeAuthzVersions",
       "SUPPORT_COOKIE",
@@ -1834,15 +1834,14 @@
   },
   "./ssr": {
     "values": [
-      "applyCookieWrites",
       "authContext",
       "clearSessionCookies",
       "parseCookies",
-      "readSession",
       "resolveAuth",
       "serializeCookie",
       "sessionCookieName",
       "sessionStatus",
+      "ssrSession",
       "toSession"
     ],
     "types": [

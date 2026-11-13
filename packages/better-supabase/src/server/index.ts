@@ -198,10 +198,10 @@ export {
   IDENTITY_SCOPES,
   impersonatorOf,
   permissionsOf,
-  readSession,
   resolveAuth,
   sessionCookieName,
   sessionStatus,
+  ssrSession,
   toSession,
 } from "../auth/internal.ts";
 

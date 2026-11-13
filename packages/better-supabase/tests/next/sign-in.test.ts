@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { readSession } from "../../src/auth/session.ts";
+import { ssrSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { createNext, postAuthPath } from "../../src/next/index.ts";
 import { createServer } from "../../src/server/server.ts";
@@ -148,10 +148,10 @@ function nextRequest(): void {
     .join("; ");
 }
 
-function sessionToken(): string | undefined {
+async function sessionToken(): Promise<string | undefined> {
   const cookies = [...mocks.jar].map(([name, { value }]) => ({ name, value }));
 
-  return readSession(cookies, NAME)?.access_token;
+  return (await ssrSession(cookies, NAME))?.access_token;
 }
 
 describe("auth flows", () => {
@@ -186,7 +186,7 @@ describe("auth flows", () => {
       url: `${PROJECT_URL}/auth/v1/token?grant_type=password`,
       body: { email: "a@b.test", password: "pw" },
     });
-    expect(sessionToken()).toBe(token);
+    expect(await sessionToken()).toBe(token);
 
     const before = bsb.sessions.stats();
 
@@ -212,7 +212,7 @@ describe("auth flows", () => {
     });
 
     expect(signed.data?.redirectTo).toBe("/inbox?tab=1");
-    expect(sessionToken()).toBe(token);
+    expect(await sessionToken()).toBe(token);
   });
 
   it("rejects every next that could leave the origin", async () => {
@@ -465,7 +465,7 @@ describe("auth flows", () => {
       url: `${PROJECT_URL}/auth/v1/logout?scope=global`,
       headers: { authorization: `Bearer ${token}` },
     });
-    expect(sessionToken()).toBeUndefined();
+    expect(await sessionToken()).toBeUndefined();
     expect(mocks.updateTag).toHaveBeenCalledWith(expect.stringContaining(USER));
     expect(await bsb.getClaims()).toBeNull();
     expect((await bsb.claims()).kind).toBe("none");
@@ -485,7 +485,7 @@ describe("auth flows", () => {
     nextRequest();
 
     expect((await bsb.signOut()).ok).toBe(true);
-    expect(sessionToken()).toBeUndefined();
+    expect(await sessionToken()).toBeUndefined();
   });
 
   it("keeps the cookies when the revoke fails", async () => {
@@ -501,7 +501,7 @@ describe("auth flows", () => {
     nextRequest();
 
     expect((await bsb.signOut()).error).toMatchObject({ kind: "network" });
-    expect(sessionToken()).toBe(token);
+    expect(await sessionToken()).toBe(token);
   });
 
   it("keeps this session when signing out the others", async () => {
@@ -524,7 +524,7 @@ describe("auth flows", () => {
       user: { id: USER },
     });
     expect(callsOf(fetch)[1]?.url).toContain("scope=others");
-    expect(sessionToken()).toBe(token);
+    expect(await sessionToken()).toBe(token);
     expect((await bsb.getClaims())?.userId).toBe(USER);
     // The other sessions' tokens stay valid, so their memo entries and tags go.
     expect(mocks.updateTag).toHaveBeenCalledWith(expect.stringContaining(USER));
@@ -570,7 +570,7 @@ describe("auth flows", () => {
         { type: "email", email: "a@b.test", token: "123456" },
       ],
     ]);
-    expect(sessionToken()).toBe(token);
+    expect(await sessionToken()).toBe(token);
   });
 
   it("replaces the session a link lands on instead of merging it", async () => {
@@ -586,7 +586,7 @@ describe("auth flows", () => {
 
     expect(verified.ok).toBe(true);
     expect((await bsb.getClaims())?.userId).toBe(OTHER);
-    expect(sessionToken()).toBe(second);
+    expect(await sessionToken()).toBe(second);
     expect(await bsb.claims()).toMatchObject({ user: { id: OTHER } });
   });
 
@@ -646,7 +646,7 @@ describe("auth flows", () => {
       body: { auth_code: "c1", code_verifier: verifier?.value },
     });
     expect(mocks.jar.has(VERIFIER)).toBe(false);
-    expect(sessionToken()).toBe(token);
+    expect(await sessionToken()).toBe(token);
 
     const replayed = await bsb.exchangeCodeForSession({ code: "c1" });
 
@@ -728,7 +728,7 @@ describe("auth flows", () => {
         headers: { authorization: `Bearer ${aal1}` },
       },
     ]);
-    expect(sessionToken()).toBe(aal2);
+    expect(await sessionToken()).toBe(aal2);
     expect((await bsb.getClaims())?.claims["aal"]).toBe("aal2");
   });
 
@@ -813,7 +813,7 @@ describe("auth flows", () => {
       },
       headers: expect.any(Object),
     });
-    expect(sessionToken()).toBeUndefined();
+    expect(await sessionToken()).toBeUndefined();
 
     nextRequest();
 
@@ -831,7 +831,7 @@ describe("auth flows", () => {
       code_verifier: verifier?.value,
     });
     expect(mocks.jar.has(VERIFIER)).toBe(false);
-    expect(sessionToken()).toBe(token);
+    expect(await sessionToken()).toBe(token);
   });
 
   it("resets a password through a code the raw verifier exchanges", async () => {
@@ -868,7 +868,7 @@ describe("auth flows", () => {
       auth_code: "r1",
       code_verifier: verifier,
     });
-    expect(sessionToken()).toBe(token);
+    expect(await sessionToken()).toBe(token);
   });
 
   it("signs up with email confirmation and leaves the session to the link", async () => {
@@ -892,7 +892,7 @@ describe("auth flows", () => {
         code_challenge: await challengeOf(mocks.jar.get(VERIFIER)?.value),
       },
     });
-    expect(sessionToken()).toBeUndefined();
+    expect(await sessionToken()).toBeUndefined();
   });
 
   it("tells the app when a sign-up hits an existing account, without saying so in an error", async () => {
@@ -916,7 +916,7 @@ describe("auth flows", () => {
       error: null,
     });
     expect(mocks.jar.get(VERIFIER)?.value ?? "").toBe("");
-    expect(sessionToken()).toBeUndefined();
+    expect(await sessionToken()).toBeUndefined();
 
     const fresh = setup(() =>
       Response.json({
@@ -954,7 +954,7 @@ describe("auth flows", () => {
       mfa: false,
       user: { id: USER, email: "a@b.test" },
     });
-    expect(sessionToken()).toBe(token);
+    expect(await sessionToken()).toBe(token);
     expect(mocks.jar.has(VERIFIER)).toBe(false);
     expect((await bsb.getClaims())?.userId).toBe(USER);
   });

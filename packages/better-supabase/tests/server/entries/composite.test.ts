@@ -7,7 +7,7 @@ import type { BetterPostgres, SqlClaims } from "../../../src/postgres/pool.ts";
 
 import { authModeOf } from "../../../src/auth/claims.ts";
 import {
-  readSession,
+  ssrSession,
   sessionCookieName,
   writeSession,
 } from "../../../src/auth/session.ts";
@@ -364,7 +364,7 @@ describe("session cookies", () => {
 
     expect(await response.json()).toEqual({ kind: "user" });
 
-    const written = readSession(
+    const written = await ssrSession(
       response.headers.getSetCookie().map((cookie) => {
         const [pair = ""] = cookie.split(";");
         const at = pair.indexOf("=");

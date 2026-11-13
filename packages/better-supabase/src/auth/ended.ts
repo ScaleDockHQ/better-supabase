@@ -5,9 +5,9 @@ import type { CookieOptions } from "./session.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
 import {
   parseCookies,
-  readSession,
   serializeCookie,
   sessionCookieName,
+  ssrSession,
 } from "./session.ts";
 import { clearCookieSession } from "./ssr-client.ts";
 
@@ -31,17 +31,17 @@ export interface ClearSessionCookiesOptions {
 
 const DEFAULT_TIMEOUT_MS = 5000;
 
-function accessTokenOf(
+async function accessTokenOf(
   request: Request,
   options: SessionStatusOptions,
-): string | undefined {
+): Promise<string | undefined> {
   const bearer = extractCredentials(request).token;
 
   if (bearer) {
     return bearer;
   }
 
-  const session = readSession(
+  const session = await ssrSession(
     parseCookies(request.headers.get("cookie")),
     options.cookieName ?? sessionCookieName(options.url),
   );
@@ -54,7 +54,7 @@ export async function sessionStatus(
   options: SessionStatusOptions,
 ): Promise<SessionStatus> {
   const token =
-    typeof input === "string" ? input : accessTokenOf(input, options);
+    typeof input === "string" ? input : await accessTokenOf(input, options);
 
   if (!token) {
     return "unknown";

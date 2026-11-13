@@ -38,6 +38,7 @@ import type {
 } from "./types.ts";
 
 import { markSessionEnded } from "../auth/ended.ts";
+import { sessionCookieName } from "../auth/session.ts";
 import { isSessionSnapshot, snapshotOf } from "../auth/snapshot.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
@@ -239,7 +240,10 @@ export function createNext<
         ...verify,
       });
 
-      taintResolution(resolution, options.auth?.cookie?.name, base.env.url);
+      await taintResolution(
+        resolution,
+        options.auth?.cookie?.name ?? sessionCookieName(base.env.url),
+      );
 
       return { request, resolution };
     },
