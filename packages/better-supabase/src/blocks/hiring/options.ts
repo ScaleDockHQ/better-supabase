@@ -27,6 +27,8 @@ export type HiringSqlOptions = {
   readonly stages?: "pipelines" | HiringJobStages;
   readonly scorecardKey?: "stage" | "application";
   readonly hiringManager?: "user" | "employee";
+  /** Highest scorecard rating; ratings run from 1 to this number. Defaults to 4. */
+  readonly ratingMax?: number;
 };
 
 export const hiringSqlOptions: BlockOptionsSchema<HiringSqlOptions> =
@@ -35,4 +37,5 @@ export const hiringSqlOptions: BlockOptionsSchema<HiringSqlOptions> =
     stages: option.unknown({ default: "pipelines" }),
     scorecardKey: option.string({ default: "stage" }),
     hiringManager: option.string({ default: "user" }),
+    ratingMax: option.number({ default: 4 }),
   });

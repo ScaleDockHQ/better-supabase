@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:d2fa75635ab3936e06a9bc25e016e925be42b421c89bd40d6c61562310db65f7
+-- @bsb-hash sha256:53a0c38934000ee2d29a3a7a1391be53a42482b30f83ca03083d545fde0a211b
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -353,7 +353,7 @@ begin
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
-    raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
+    raise exception 'a scorecard needs a rating and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
   null;
   return to_jsonb(v_card);
