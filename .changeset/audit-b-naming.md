@@ -19,3 +19,5 @@ Event verbs, hint prefixes and block keys follow one rule, and `pnpm check:namin
 | `FIELD_*` (custom-fields)                         | `CUSTOM_FIELD_*`                                 |
 | `PRESCRIPTION_*` (e-prescribing)                  | `E_PRESCRIBING_*`                                |
 | `WEBHOOK_IN_*` (incoming-webhooks)                | `INCOMING_WEBHOOK_*`                             |
+
+The type `DateBucketArgs` (exported from `better-supabase/list`) is now `DateBucketOptions`, because `Args` is a banned suffix. `codemod naming` rewrites it.

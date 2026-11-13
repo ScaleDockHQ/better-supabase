@@ -95,7 +95,7 @@ An app that matches one of the renamed hint codes, listens for
 `webhooks-in` under `blocks` changes the name. `better-supabase codemod naming`
 rewrites the config key and `better-supabase upgrade` renames the registry row.
 Outbox rows already written keep their old event type, and error codes already
-logged keep their old hint. The hint prefix allowlist has 27 blocks today and
+logged keep their old hint. The hint prefix allowlist has 31 blocks today and
 only shrinks.
 
 The longer block names and hint codes add 28 to 55 raw bytes to 31 server routes

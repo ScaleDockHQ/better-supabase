@@ -2428,13 +2428,17 @@
       "to": "drive_node.document_updated",
       "kind": "event",
       "since": "0.66"
+    },
+    {
+      "from": "DateBucketArgs",
+      "to": "DateBucketOptions",
+      "kind": "type",
+      "since": "0.66"
     }
   ],
   "allowlist": {
     "env": [],
-    "typeNames": [
-      "DateBucketArgs"
-    ],
+    "typeNames": [],
     "subpaths": []
   },
   "hints": {
@@ -2448,6 +2452,9 @@
     "allowlist": {
       "accounting": [
         "PERIOD_"
+      ],
+      "api-keys": [
+        "INVALID_API_KEY"
       ],
       "audit": [
         "CHAIN_",
@@ -2526,6 +2533,9 @@
         "PRODUCTION_",
         "WORK_"
       ],
+      "notifications": [
+        "WEBHOOK_"
+      ],
       "organizations": [
         "INVITATION_"
       ],
@@ -2534,6 +2544,11 @@
       ],
       "promotions": [
         "ORDERS_"
+      ],
+      "queue": [
+        "IDEMPOTENCY_KEY_",
+        "JOB_LEASE_",
+        "WEBHOOK_"
       ],
       "quotes": [
         "LINES_"
@@ -2546,6 +2561,9 @@
       ],
       "usage": [
         "QUOTA_"
+      ],
+      "vercel-marketplace": [
+        "MISSING_CREDENTIALS"
       ]
     }
   },

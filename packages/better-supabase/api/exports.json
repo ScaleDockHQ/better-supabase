@@ -3293,7 +3293,7 @@
     "types": [
       "BucketUnit",
       "DateBucket",
-      "DateBucketArgs",
+      "DateBucketOptions",
       "ListDateBucketsOptions"
     ]
   },
