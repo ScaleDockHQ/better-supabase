@@ -634,7 +634,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 - Permission keys. `read` and `manage` dominate; `write`, `create`, `update`, `delete`, `assign`, `approve`, `publish` appear ad hoc. EX-1231. Keys are not generated with the block, which caused 403 pages in leave, deadlines, commissions, referrals, periods and the admin pages. EX-1232 (EX-807).
 - Hint codes. 13 of 162 catalogs use a prefix other than the block name (`EVAL_`, `HOSTNAME_`, `ORGANIZATION_`, `CREDENTIAL_` and others). EX-1233. One block has up to four names across source, hints and the coverage map. EX-1234.
 - `DbError`. The kinds are stable and serializable. A block error has a `hint` and a message, and no field list or per-code message, so forms show a generic line. EX-1235, EX-1236.
-- Clients, hooks, controllers. 33 blocks have a `client.ts`; typed controller files exist for two. Record bindings are on 50 blocks and missing on invoices, quotes, deals, risks, employees, leave, expenses and bookings. EX-1237, EX-1238 (fixed, PR #905: the trio is the client, the generic controller and the hooks; three deliberate exceptions in `client-trio.test.ts`).
+- Clients, hooks, controllers. 33 blocks have a `client.ts`; typed controller files exist for two. Record bindings are on 50 blocks and missing on invoices, quotes, deals, risks, employees, leave, expenses and bookings. EX-1237, EX-1238 (fixed, PR #908: the trio is the client, the generic controller and the hooks; three deliberate exceptions in `client-trio.test.ts`).
 
 ### Docs, skills and tests
 
@@ -923,7 +923,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Log: 2026-11-12, planned.
   2026-11-13, lane K started from main (6f9b3af232) in `../bsb-audit-k`; K1 is the employees binding.
   2026-11-13, K1 built (ADR 0819): `employeeContractsBinding`. The other seven bindings, the trio, the status union and realtime hooks stay open.
-  2026-11-13, trio PR (`feat/audit-k4-trio`, ADR 0821): EX-1238 fixed. The SQL-backed bindings (K3) wait for a local stack: 24 of the 32 macOS shared memory segments are held by other worktrees' stacks, so `pnpm supabase:start` refuses.
+  2026-11-13, trio PR #908 (`feat/audit-k4-trio`, ADR 0821): EX-1238 fixed. The SQL-backed bindings (K3) wait for a local stack: 24 of the 32 macOS shared memory segments are held by other worktrees' stacks, so `pnpm supabase:start` refuses.
 
 ### Lane N
 
