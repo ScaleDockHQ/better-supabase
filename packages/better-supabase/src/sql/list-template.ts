@@ -45,7 +45,7 @@ export interface ListTemplateOptions {
 }
 
 /** The most values one facet returns. */
-export const FACET_VALUE_LIMIT = 100;
+const FACET_VALUE_LIMIT = 100;
 
 /** The jsonb array of a filter's values: a scalar is a list of one. */
 function filterValues(key: string, filters: string): string {
