@@ -1814,14 +1814,20 @@
       "compileSql",
       "createPostgres",
       "fromPgError",
+      "listenForWork",
       "postgresExecutor",
       "quoteIdent",
       "sharedPostgres",
-      "sqlCompiler"
+      "sqlCompiler",
+      "usesTransactionPooler"
     ],
     "types": [
       "BetterPostgres",
       "CompileSqlOptions",
+      "ListenForWorkOptions",
+      "PgListenClient",
+      "PgListenPool",
+      "PgNotification",
       "PgPool",
       "PgPoolClient",
       "PostgresExecutorOptions",
@@ -1831,7 +1837,8 @@
       "SqlClaims",
       "SqlClient",
       "SqlPlan",
-      "SqlQuery"
+      "SqlQuery",
+      "WorkListener"
     ]
   },
   "./ssr": {
@@ -2756,6 +2763,7 @@
       "JobDelivery",
       "JobHandler",
       "JobsSource",
+      "Kick",
       "Lease",
       "LeaseClaim",
       "LeaseClaimInput",
@@ -3069,6 +3077,7 @@
       "BlockTransport",
       "EmitOptions",
       "HistoryFilter",
+      "Kick",
       "Outbox",
       "OutboxDeadLetter",
       "OutboxEvent",

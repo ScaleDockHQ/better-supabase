@@ -5,6 +5,7 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { Kick } from "../../core/kick.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult, Result } from "../../core/result.ts";
@@ -17,6 +18,8 @@ import { blockFields } from "../../core/block-fields.ts";
 import { budget, leaseHeartbeat } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
+import { kicker, kickHooks } from "../../core/kick.ts";
+import { consoleLogger } from "../../core/logger.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { ok } from "../../core/result.ts";
 import { verifyWebhook } from "../../core/signatures.ts";
@@ -135,7 +138,12 @@ export interface WebhookInboxOptions<
   readonly fields?: S;
   /** `withBlockHooks` hooks around `store`, `list` and `purge`. */
   readonly hooks?: NoInfer<BlockHooks<WebhookInbox<FieldsOf<S>>>>;
-  /** Receives the errors `after` hooks throw. Default: `console`. */
+  /**
+   * Processes right after a successful `store` (which `receive` calls), e.g. `{
+   * waitUntil: bsb.waitUntil, run: () => inbox.process(handler) }`.
+   */
+  readonly kick?: Kick<"inbox">;
+  /** Receives the errors `after` hooks and `kick` throw. Default: `console`. */
   readonly logger?: Logger;
 }
 
@@ -396,6 +404,8 @@ export function createWebhookInbox<
 
   const worker = options.worker ?? workerId();
   const format = options.problem;
+  const logger = options.logger ?? consoleLogger;
+  const kick = options.kick && kicker(options.kick, logger, "webhook-inbox");
   const maxAttempts = options.maxAttempts ?? 8;
 
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
@@ -557,6 +567,8 @@ export function createWebhookInbox<
       if (!stored.ok) {
         return problemResponse(stored.error, { instance, format });
       }
+
+      kick?.("inbox");
 
       return Response.json(stored.data, {
         status: stored.data.duplicate ? 200 : 202,
@@ -738,8 +750,14 @@ export function createWebhookInbox<
     },
   };
 
-  return withBlockHooks(client, options.hooks, {
+  const hooked = withBlockHooks(client, options.hooks, {
     block: "webhook-inbox",
-    ...(options.logger ? { logger: options.logger } : {}),
+    logger,
   });
+
+  return withBlockHooks(
+    hooked,
+    kickHooks<WebhookInbox<F>, "inbox">(kick, ["store"], () => "inbox"),
+    { block: "webhook-inbox", logger },
+  );
 }

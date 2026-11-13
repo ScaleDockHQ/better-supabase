@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
--- @bsb-block outbox@6 managed
--- @bsb-hash sha256:afb2279309aef14761507cf96dd54e37f459b374192e93f7f0418ae312a11c7a
+-- @bsb-block outbox@7 managed
+-- @bsb-hash sha256:eea21b112fe1c177176ae8808e304141d7d7c88edb1c2bef77dc273b48458fcd
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -515,6 +515,24 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."track_events"(regclass, text, text) from public, anon, authenticated;
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function "better_supabase"."outbox_notify"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"outbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function "better_supabase"."outbox_notify"() from public;
+create or replace trigger bsb_notify_work
+  after insert on "better_supabase"."outbox_events"
+  referencing new table as new_rows
+  for each statement execute function "better_supabase"."outbox_notify"();
 
 -- blocks.outbox.api: entry points for the Data API.
 create schema if not exists "api";

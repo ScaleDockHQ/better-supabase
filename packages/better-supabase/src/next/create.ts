@@ -817,6 +817,8 @@ export function createNext<
       });
     },
 
+    waitUntil,
+
     debugRoute() {
       return (request) => {
         const id = new URL(request.url).searchParams.get("id");

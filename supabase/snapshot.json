@@ -175881,7 +175881,8 @@
             "mode": "table",
             "name": "at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -175893,13 +175894,15 @@
             "mode": "table",
             "name": "entry",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -178463,19 +178466,22 @@
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "last_used_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -178487,19 +178493,22 @@
             "mode": "table",
             "name": "plan",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "role",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "slug",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "page_size integer DEFAULT 50, after_last_used_at timestamp with time zone DEFAULT NULL::timestamp with time zone, after_name text DEFAULT NULL::text, after_id uuid DEFAULT NULL::uuid",
@@ -178527,31 +178536,36 @@
             "mode": "table",
             "name": "created_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "email",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "expires_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "invited_by",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -178563,7 +178577,8 @@
             "mode": "table",
             "name": "role",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "organization uuid",
@@ -178591,31 +178606,36 @@
             "mode": "table",
             "name": "avatar_path",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "avatar_url",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "email",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "full_name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "joined_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -178627,13 +178647,15 @@
             "mode": "table",
             "name": "role",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "user_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "organization uuid",
@@ -183139,7 +183161,8 @@
             "mode": "table",
             "name": "holder",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -183163,7 +183186,8 @@
             "mode": "table",
             "name": "response",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -183175,13 +183199,15 @@
             "mode": "table",
             "name": "state",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "status_code",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -183718,31 +183744,36 @@
             "mode": "table",
             "name": "created",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "customer",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "email",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tenant",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -183770,121 +183801,141 @@
             "mode": "table",
             "name": "amount_due",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "amount_paid",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "amount_remaining",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "created",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "currency",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "customer",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "customer_email",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "customer_name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "due_date",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "finalized_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "hosted_invoice_url",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "invoice",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "invoice_pdf",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "number",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "paid_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "status",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subscription",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tenant",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "total",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "updated_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -183912,103 +183963,120 @@
             "mode": "table",
             "name": "amount",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "cancel_at_period_end",
             "type_id": 16,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "created",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "currency",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "current_period_end",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "current_period_start",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "customer",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "customer_email",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "customer_name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "plan",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "price",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "price_metadata",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "quantity",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "recurring_interval",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "status",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subscription",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tenant",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -184462,13 +184530,15 @@
             "mode": "table",
             "name": "ends_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "local_start",
             "type_id": 1114,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -184492,13 +184562,15 @@
             "mode": "table",
             "name": "resource_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "seats",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -184510,7 +184582,8 @@
             "mode": "table",
             "name": "starts_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -185033,25 +185106,29 @@
             "mode": "table",
             "name": "declines",
             "type_id": 16,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "ends_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "event_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "kind",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -185069,7 +185146,8 @@
             "mode": "table",
             "name": "starts_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -185081,7 +185159,8 @@
             "mode": "table",
             "name": "user_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -188669,13 +188748,15 @@
             "mode": "table",
             "name": "first_after",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "job_name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -188687,31 +188768,36 @@
             "mode": "table",
             "name": "next_run",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "payload",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "queue",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "schedule",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "timezone",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "lease integer DEFAULT 60, batch integer DEFAULT 100",
@@ -188819,7 +188905,8 @@
             "mode": "table",
             "name": "attempts",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -188831,13 +188918,15 @@
             "mode": "table",
             "name": "enqueued_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -188849,7 +188938,8 @@
             "mode": "table",
             "name": "message",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -188861,7 +188951,8 @@
             "mode": "table",
             "name": "visible_until",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "queue text, lease integer DEFAULT 300, batch integer DEFAULT 1",
@@ -188895,13 +188986,15 @@
             "mode": "table",
             "name": "lease_expires_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "lease_holder",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -188913,13 +189006,15 @@
             "mode": "table",
             "name": "lease_state",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "retry_after_ms",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -189267,19 +189362,22 @@
             "mode": "table",
             "name": "birth_date",
             "type_id": 1082,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "diagnosis",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -190219,13 +190317,15 @@
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "n",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "conversations uuid[]",
@@ -197532,25 +197632,29 @@
             "mode": "table",
             "name": "col",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tbl",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "user_col",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -197578,43 +197682,50 @@
             "mode": "table",
             "name": "col",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "exported",
             "type_id": 16,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "omit",
             "type_id": 1009,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "purge",
             "type_id": 16,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subject",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tbl",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -206410,7 +206521,8 @@
             "mode": "table",
             "name": "depth",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -206422,7 +206534,8 @@
             "mode": "table",
             "name": "node_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "node uuid",
@@ -207688,13 +207801,15 @@
             "mode": "table",
             "name": "duplicate",
             "type_id": 16,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -215801,7 +215916,8 @@
             "mode": "table",
             "name": "allowed",
             "type_id": 16,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -215831,13 +215947,15 @@
             "mode": "table",
             "name": "remaining",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "retry_after",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -218455,19 +218573,22 @@
             "mode": "table",
             "name": "contact",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "contact_read_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "conversation",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -218817,49 +218938,57 @@
             "mode": "table",
             "name": "enabled",
             "type_id": 16,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "max_body_bytes",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "metadata",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "previous_secret",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "secret",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "signature_header",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tenant",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -218871,7 +219000,8 @@
             "mode": "table",
             "name": "verify",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "token text",
@@ -218953,8 +219083,8 @@
         "schema": "better_supabase",
         "name": "index_job_queue",
         "language": "plpgsql",
-        "definition": "\nbegin\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'q_' || queue || '_dedupe_idx',\n    'q_' || queue\n  );\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'a_' || queue || '_dedupe_idx',\n    'a_' || queue\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.index_job_queue(queue text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'q_' || queue || '_dedupe_idx',\n    'q_' || queue\n  );\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'a_' || queue || '_dedupe_idx',\n    'a_' || queue\n  );\nend;\n$function$\n",
+        "definition": "\nbegin\n  execute format(\n    'create or replace trigger bsb_notify_work after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)',\n    'q_' || queue,\n    queue\n  );\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'q_' || queue || '_dedupe_idx',\n    'q_' || queue\n  );\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'a_' || queue || '_dedupe_idx',\n    'a_' || queue\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.index_job_queue(queue text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  execute format(\n    'create or replace trigger bsb_notify_work after insert on pgmq.%I referencing new table as new_rows for each statement execute function better_supabase.job_queue_notify(%L)',\n    'q_' || queue,\n    queue\n  );\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'q_' || queue || '_dedupe_idx',\n    'q_' || queue\n  );\n  execute format(\n    'create index if not exists %I on pgmq.%I ((message ->> ''dedupe_key'')) where message ? ''dedupe_key''',\n    'a_' || queue || '_dedupe_idx',\n    'a_' || queue\n  );\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -220712,25 +220842,29 @@
             "mode": "table",
             "name": "dead",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "delayed",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "in_flight",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "oldest_age_seconds",
             "type_id": 701,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -220742,7 +220876,8 @@
             "mode": "table",
             "name": "ready",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "queue text",
@@ -221079,7 +221214,8 @@
             "mode": "table",
             "name": "last_sign_in_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -221091,7 +221227,8 @@
             "mode": "table",
             "name": "user_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "p_users uuid[]",
@@ -222017,13 +222154,15 @@
             "mode": "table",
             "name": "permission",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tenant",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -226339,7 +226478,8 @@
             "mode": "table",
             "name": "attempts",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -226351,19 +226491,22 @@
             "mode": "table",
             "name": "died_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "enqueued_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -226375,7 +226518,8 @@
             "mode": "table",
             "name": "message",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -229529,13 +229673,15 @@
             "mode": "table",
             "name": "role",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "user_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "organization uuid",
@@ -229683,25 +229829,29 @@
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "role",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "slug",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -230190,19 +230340,22 @@
             "mode": "table",
             "name": "email",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "expires_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -230214,7 +230367,8 @@
             "mode": "table",
             "name": "role",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "organization uuid",
@@ -231415,55 +231569,64 @@
             "mode": "table",
             "name": "dtstart",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "offset_minutes",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "reminder",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "rrule",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subject_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subject_type",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tenant",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tzid",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "user_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -232021,7 +232184,8 @@
             "mode": "table",
             "name": "created_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -232033,19 +232197,22 @@
             "mode": "table",
             "name": "job_name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "last_run",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "lock_expires_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -232057,43 +232224,50 @@
             "mode": "table",
             "name": "next_run",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "payload",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "probe",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "queue",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "schedule",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tenant",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "timezone",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "name_prefix text DEFAULT NULL::text, for_tenant text DEFAULT NULL::text",
@@ -237849,25 +238023,29 @@
             "mode": "table",
             "name": "at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "reminder",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subject_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subject_type",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -243271,19 +243449,22 @@
             "mode": "table",
             "name": "party_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "party_type",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tenant",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -243351,19 +243532,22 @@
             "mode": "table",
             "name": "subject_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subject_type",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "tenant",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "action text",
@@ -247916,7 +248100,8 @@
             "mode": "table",
             "name": "queue",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -252894,13 +253079,15 @@
             "mode": "table",
             "name": "depth",
             "type_id": 23,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -252936,7 +253123,8 @@
             "mode": "table",
             "name": "type",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -269086,25 +269274,29 @@
             "mode": "table",
             "name": "opened_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "starred_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subject_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "subject_type",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -285091,13 +285283,15 @@
             "mode": "table",
             "name": "period",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "quota_limit",
             "type_id": 1700,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -285239,7 +285433,8 @@
             "mode": "table",
             "name": "ends_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -285251,7 +285446,8 @@
             "mode": "table",
             "name": "starts_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -286747,13 +286943,15 @@
             "mode": "table",
             "name": "claimed",
             "type_id": 16,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "run_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -287016,19 +287214,22 @@
             "mode": "table",
             "name": "actor_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "created_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "hook_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -287040,19 +287241,22 @@
             "mode": "table",
             "name": "metadata",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "metadata_cbor",
             "type_id": 17,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "run_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -287064,13 +287268,15 @@
             "mode": "table",
             "name": "tenant_id",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "workflow",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -287751,19 +287957,22 @@
             "mode": "table",
             "name": "birth_date",
             "type_id": 1082,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "diagnosis",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -287797,19 +288006,22 @@
             "mode": "table",
             "name": "customer_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "last_note_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "note_count",
             "type_id": 20,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -288025,19 +288237,22 @@
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "last_used_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -288049,19 +288264,22 @@
             "mode": "table",
             "name": "plan",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "role",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "slug",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "page_size integer DEFAULT 50, after_last_used_at timestamp with time zone DEFAULT NULL::timestamp with time zone, after_name text DEFAULT NULL::text, after_id uuid DEFAULT NULL::uuid",
@@ -288089,31 +288307,36 @@
             "mode": "table",
             "name": "avatar_path",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "avatar_url",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "email",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "full_name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "username",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "",
@@ -288141,31 +288364,36 @@
             "mode": "table",
             "name": "created_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "email",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "expires_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "invited_by",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -288177,7 +288405,8 @@
             "mode": "table",
             "name": "role",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "organization uuid",
@@ -288205,31 +288434,36 @@
             "mode": "table",
             "name": "avatar_path",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "avatar_url",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "email",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "full_name",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "joined_at",
             "type_id": 1184,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -288241,13 +288475,15 @@
             "mode": "table",
             "name": "role",
             "type_id": 25,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "table",
             "name": "user_id",
             "type_id": 2950,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "organization uuid",
@@ -288393,7 +288629,8 @@
             "mode": "table",
             "name": "id",
             "type_id": 3802,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           },
           {
             "mode": "in",
@@ -288411,7 +288648,8 @@
             "mode": "table",
             "name": "score",
             "type_id": 701,
-            "has_default": null
+            "has_default": null,
+            "is_nullable": true
           }
         ],
         "argument_types": "query vector, k integer DEFAULT 10",
@@ -368490,7 +368728,17 @@
           }
         ],
         "policies": [],
-        "triggers": [],
+        "triggers": [
+          {
+            "name": "bsb_notify_work",
+            "timing": "after",
+            "events": [
+              "insert"
+            ],
+            "level": "statement",
+            "function": "better_supabase.outbox_notify"
+          }
+        ],
         "grants": [
           {
             "role": "service_role",
@@ -401314,7 +401562,17 @@
           }
         ],
         "policies": [],
-        "triggers": [],
+        "triggers": [
+          {
+            "name": "bsb_notify_work",
+            "timing": "after",
+            "events": [
+              "insert"
+            ],
+            "level": "statement",
+            "function": "better_supabase.webhook_inbox_notify"
+          }
+        ],
         "grants": [
           {
             "role": "service_role",

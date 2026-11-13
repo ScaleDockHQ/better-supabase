@@ -761,6 +761,12 @@ export interface BetterNext<
    */
   debugRoute(): (request: Request) => Promise<Response>;
   /**
+   * Keeps `work` running after the response through Next's `after()`. Pass it
+   * as a block's `kick.waitUntil`. Outside a request it logs a warning and the
+   * work still runs.
+   */
+  waitUntil(work: Promise<unknown>): void;
+  /**
    * Starts a support session for the signed-in admin and sets its cookie, so
    * the admin's next requests render as the target. Call it from a server
    * action.

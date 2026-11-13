@@ -1761,7 +1761,7 @@ export interface BlockNameRegistry {
       readonly "consumers": "name" | "cursorXid" | "cursor" | "types" | "leaseOwner" | "leaseUntil" | "attempts" | "lastError" | "retryAt" | "updatedAt";
       readonly "deadLetters": "consumer" | "position" | "eventId" | "type" | "event" | "attempts" | "error" | "deadAt";
     };
-    readonly functions: "emit_event" | "outbox_ack" | "outbox_claim" | "outbox_dead_letters" | "outbox_fail" | "outbox_has_work" | "outbox_history" | "outbox_register" | "outbox_row_event" | "outbox_unregister" | "purge_outbox" | "track_events";
+    readonly functions: "emit_event" | "outbox_ack" | "outbox_claim" | "outbox_dead_letters" | "outbox_fail" | "outbox_has_work" | "outbox_history" | "outbox_notify" | "outbox_register" | "outbox_row_event" | "outbox_unregister" | "purge_outbox" | "track_events";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
