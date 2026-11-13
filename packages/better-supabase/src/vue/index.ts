@@ -126,6 +126,8 @@ export type {
 
 export type {
   BlockEngineOptions,
+  BlockMutationOptions,
+  BlockOptimistic,
   BlockEventSource,
   BlockMutationActions,
   BlockMutationState,
@@ -710,3 +712,9 @@ export function useAction<I, T>(
     },
   };
 }
+
+export {
+  optimisticArchive,
+  optimisticReorder,
+  optimisticUpdate,
+} from "../blocks/optimistic.ts";

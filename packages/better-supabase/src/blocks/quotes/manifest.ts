@@ -19,7 +19,11 @@ export const quotesBlock: BlockOf<"quotes", typeof createQuotes, QuotesEvents> =
     create: createQuotes,
     category: "crm",
     entities: {
-      quote: { mutability: "editable", emits: { create: true, update: true } },
+      quote: {
+        mutability: "editable",
+        idempotent: ["create"],
+        emits: { create: true, update: true },
+      },
     },
     links: [
       blockLink(

@@ -799,8 +799,9 @@ export const dealInput: z.ZodType<{ name: string; closeOn: Temporal.PlainDate; a
   fields: z.json().meta({ description: "The extra columns to set." }).exactOptional(),
 }).meta({ title: "DealInput" });
 
-export const dealChange: z.ZodType<{ dealId: string; field: string; value: unknown }> = z.object({
+export const dealChange: z.ZodType<{ dealId: string; expectedVersion?: Temporal.Instant; field: string; value: unknown }> = z.object({
   dealId: z.guid(),
+  expectedVersion: z.custom<Temporal.Instant>(isInstant).meta({ description: "The deal's `updatedAt` as you read it; a newer deal is a `STALE_WRITE` conflict." }).exactOptional(),
   field: z.string().min(1),
   value: z.unknown().meta({ description: "`null` clears the field." }),
 }).meta({ title: "DealChange" });
@@ -1809,8 +1810,9 @@ export const workItemInput: z.ZodType<{ title: string; body?: string; parentId?:
   fields: z.json().meta({ description: "The extra columns to set." }).exactOptional(),
 }).meta({ title: "WorkItemInput" });
 
-export const workItemChange: z.ZodType<{ workItemId: string; field: string; value: unknown }> = z.object({
+export const workItemChange: z.ZodType<{ workItemId: string; expectedVersion?: Temporal.Instant; field: string; value: unknown }> = z.object({
   workItemId: z.guid(),
+  expectedVersion: z.custom<Temporal.Instant>(isInstant).meta({ description: "The item's `updatedAt` as you read it; a newer item is a `STALE_WRITE` conflict." }).exactOptional(),
   field: z.string().min(1),
   value: z.unknown().meta({ description: "`null` clears the field." }),
 }).meta({ title: "WorkItemChange" });

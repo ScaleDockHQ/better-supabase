@@ -3,6 +3,7 @@ import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { DealBoard } from "../../sql/modules/deals-reads.ts";
@@ -13,6 +14,7 @@ import { isCurrency, isMoney } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { idempotentCall } from "../../core/idempotent-write.ts";
 import { decodeRead } from "../../core/read-type.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -196,6 +198,11 @@ export type DealField =
 /** One cell edit: a field above, or an extra column by name. `null` clears it. */
 export interface DealChange {
   readonly dealId: string;
+  /**
+   * The deal's `updatedAt` as you read it. The change is refused with a
+   * `STALE_WRITE` conflict when the deal changed since.
+   */
+  readonly expectedVersion?: Temporal.Instant | undefined;
   readonly field: DealField | (string & {});
   readonly value: unknown;
 }
@@ -248,6 +255,8 @@ export interface Deals<F extends object = Record<never, never>> {
     organizationId: string;
     input: DealInput<F>;
     contacts?: readonly DealContact[] | undefined;
+    /** Makes a retry return the first result (`idempotency` option). */
+    idempotencyKey?: string | undefined;
   }): AsyncResult<Deal<F>>;
   /**
    * Applies cell edits; a refused change leaves the others applied. With
@@ -330,6 +339,8 @@ export interface DealsOptions<
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Deals<FieldsOf<S>>>>;
   readonly logger?: Logger;
+  /** Claims `create({ idempotencyKey })`: `createIdempotency(...)`. */
+  readonly idempotency?: IdempotencyClaims | undefined;
   readonly mappers?: readonly ErrorMapper[];
 }
 
@@ -558,7 +569,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
     }));
 
   const client: Deals<F> = {
-    create: ({ organizationId, input, contacts }) => {
+    create: ({ organizationId, input, contacts, idempotencyKey }) => {
       const { fields: extra, ...rest } = input;
 
       const invalid = amountsError(input.currency, [
@@ -576,26 +587,32 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
         input.existingAmount?.currency;
 
       return AsyncResult.from(() => fields.write({ ...extra }))
-        .andThen((valid) =>
-          call(
-            "create_deal",
-            {
-              tenant: organizationId,
-              attrs: Object.fromEntries(
-                Object.entries({
-                  ...rest,
-                  ...(currency === undefined ? {} : { currency }),
-                  ...valid,
-                }).map(([key, value]) => [key, valueArg(value)]),
-              ),
-              contacts:
-                contacts === undefined
-                  ? null
-                  : contacts.map((contact) => ({ ...contact })),
-            },
-            dealOf,
-          ),
-        )
+        .andThen((valid) => {
+          const sent = {
+            tenant: organizationId,
+            attrs: Object.fromEntries(
+              Object.entries({
+                ...rest,
+                ...(currency === undefined ? {} : { currency }),
+                ...valid,
+              }).map(([key, value]) => [key, valueArg(value)]),
+            ),
+            contacts:
+              contacts === undefined
+                ? null
+                : contacts.map((contact) => ({ ...contact })),
+          };
+
+          return idempotentCall({
+            claims: options.idempotency,
+            key: idempotencyKey,
+            scope: organizationId,
+            name: "create_deal",
+            args: sent,
+            run: () => call("create_deal", sent, (value) => value),
+            decode: dealOf,
+          });
+        })
         .andThen(parsed);
     },
     update: ({ changes, strict }) =>
@@ -628,6 +645,9 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
             changes: checked.map((change) => ({
               dealId: change.dealId,
               field: change.field,
+              ...(change.expectedVersion === undefined
+                ? {}
+                : { expectedVersion: change.expectedVersion.toString() }),
               value: isMoney(change.value)
                 ? {
                     amount: amountText(change.value),

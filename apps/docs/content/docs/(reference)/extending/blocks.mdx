@@ -370,9 +370,13 @@ declares what it knows today:
 | `facets`                                                                                  | The columns a list counts distinct values of                                                                                                           |
 | `search`                                                                                  | `true`, or the columns the entity's search indexes                                                                                                     |
 | `emits`                                                                                   | Per method (`create`, `update`, `delete`, `archive`, `restore`, `purge`): `true` when it records an event, `false` when a mutating method records none |
+| `expectedVersion`                                                                         | `true` when `update` takes an `expectedVersion` (the row's `updatedAt`) and refuses a stale one with a `STALE_WRITE` conflict                          |
+| `idempotent`                                                                              | The methods that take an `idempotencyKey` and claim it through the idempotency block, such as `["create"]`                                             |
 | `permissions`                                                                             | The permission key each verb checks, as `<block>.<entity>.<verb>` ([Declare permission keys](#declare-permission-keys))                                |
 | `recordAccess`                                                                            | `"team"` when the entity's rows are visible by record team, so a list can filter by the caller's teams                                                 |
 | `personalData`, `retention`, `realtime`, `offline`, `versioned`, `flag`, `meter`, `limit` | Reserved for the generators and checks that read them; each is documented where it starts to take effect                                               |
+
+`tests/blocks/write-safety-gaps.ts` lists the editable entities that take no `expectedVersion` yet and the entities whose `create` takes no `idempotencyKey`; `write-safety.test.ts` fails on one that is missing from the list and on one that is listed after it was fixed. The lists only shrink.
 
 The conformance test fails when an entity has no `mutability`, when `emits`
 names a method that records no event of the entity, and when a method is marked

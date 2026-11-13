@@ -104,6 +104,8 @@ export type {
 
 export type {
   BlockEngineOptions,
+  BlockMutationOptions,
+  BlockOptimistic,
   BlockEventSource,
   BlockMutationActions,
   BlockMutationState,
@@ -717,3 +719,9 @@ export function useSession<C = unknown, P = unknown>(): Current<
     },
   };
 }
+
+export {
+  optimisticArchive,
+  optimisticReorder,
+  optimisticUpdate,
+} from "../blocks/optimistic.ts";

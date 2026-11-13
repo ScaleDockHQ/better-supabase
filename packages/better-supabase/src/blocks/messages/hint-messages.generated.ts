@@ -1511,6 +1511,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "SSO_PROVIDER_NOT_FOUND": "Sso provider not found.",
   "SSO_ROLE_FORBIDDEN": "Sso role forbidden.",
   "SSO_ROLE_INVALID": "Sso role invalid.",
+  "STALE_WRITE": "The deal changed since it was read.",
   "STATE_ACTOR_INVALID": "Actor must be an object of id, name, email, ip and userAgent.",
   "STATE_MACHINE_UNKNOWN": "Unknown subject.",
   "STATE_SUBJECT_NOT_FOUND": "No such record, or the caller can't see it.",
