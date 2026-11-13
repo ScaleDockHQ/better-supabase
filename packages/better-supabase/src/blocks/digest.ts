@@ -43,18 +43,18 @@ export interface DigestRunner<D extends ClaimedDigest> {
   /** Claims the digests that are due. */
   readonly claim: () => AsyncResult<readonly D[]>;
   /** Sends one digest; resolves with the provider's message id. */
-  readonly send: (
-    digest: D,
-    email: string,
-  ) => Promise<
+  readonly send: (input: {
+    readonly digest: D;
+    readonly email: string;
+  }) => Promise<
     | { readonly ok: true; readonly id: string }
     | { readonly ok: false; readonly error: string }
   >;
   /** Records the outcome of one digest. */
-  readonly complete: (
-    digest: D,
-    outcome: DigestOutcome,
-  ) => AsyncResult<unknown>;
+  readonly complete: (input: {
+    readonly digest: D;
+    readonly outcome: DigestOutcome;
+  }) => AsyncResult<unknown>;
 }
 
 /**
@@ -74,9 +74,12 @@ export function runDigests<D extends ClaimedDigest>(
       if (digest.email === null) {
         skipped += 1;
 
-        const done = await runner.complete(digest, {
-          status: "skipped",
-          error: "The member has no email address",
+        const done = await runner.complete({
+          digest,
+          outcome: {
+            status: "skipped",
+            error: "The member has no email address",
+          },
         });
 
         if (!done.ok) {
@@ -86,14 +89,14 @@ export function runDigests<D extends ClaimedDigest>(
         continue;
       }
 
-      const outcome = await runner.send(digest, digest.email);
+      const outcome = await runner.send({ digest, email: digest.email });
 
-      const done = await runner.complete(
+      const done = await runner.complete({
         digest,
-        outcome.ok
+        outcome: outcome.ok
           ? { status: "sent", providerMessageId: outcome.id }
           : { status: "pending", error: outcome.error },
-      );
+      });
 
       if (!done.ok) {
         return done;

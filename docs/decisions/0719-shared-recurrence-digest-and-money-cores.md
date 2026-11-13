@@ -67,3 +67,10 @@ A series in bookings expands exactly like a calendar event. The bookings entry
 grows about 4 KB gzip, because it now includes the expander; the recurrence entry
 grows 0.6 KB for the parser. The pgTAP suite checks that a series keeps its local
 time across a daylight saving change.
+
+The server chunk of every `(app)` route grows about 0.9 KB raw (the rule parser and
+writer, and the digest helper), past the 512 B slack. `tests/next-build/server-baseline.json`
+is re-measured for the grown routes by removing them and running the update, as ADR 0688
+did. The first-load baseline does not move: the `money` column formats on the server
+(`withMoneyCells`), because importing `formatMoney` into the client list view added
+about 3.5 KB raw to 76 routes.

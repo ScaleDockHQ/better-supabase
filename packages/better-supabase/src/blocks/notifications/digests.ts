@@ -111,7 +111,7 @@ export function createNotificationDigests(
             (value) =>
               recordsOf(value, "claim_notification_digests").map(digestOf),
           ),
-        send: async (digest, email) => {
+        send: async ({ digest, email }) => {
           const outcome = await options.mailer.send({
             accountId: options.accountId,
             draft: {
@@ -125,7 +125,7 @@ export function createNotificationDigests(
             ? { ok: true, id: outcome.data.id }
             : { ok: false, error: errorText(outcome.error) };
         },
-        complete: (digest, outcome) =>
+        complete: ({ digest, outcome }) =>
           service(
             "complete_notification_digest",
             {

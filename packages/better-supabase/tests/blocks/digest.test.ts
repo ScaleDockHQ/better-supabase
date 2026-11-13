@@ -31,13 +31,13 @@ describe("runDigests", () => {
 
     const report = await runDigests({
       claim: () => done(digests),
-      send: (digest) =>
+      send: ({ digest }) =>
         Promise.resolve(
           digest.id === "c"
             ? { ok: false as const, error: "bounced" }
             : { ok: true as const, id: "m1" },
         ),
-      complete: (digest, outcome) => {
+      complete: ({ digest, outcome }) => {
         completed.push([digest.id, outcome]);
 
         return done(true);
