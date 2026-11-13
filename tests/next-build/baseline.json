@@ -365,12 +365,12 @@
     "brotli": 429346
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 1493649,
+    "raw": 1493813,
     "gzip": 483344,
     "brotli": 422004
   },
   "/[locale]/(app)/customers/page": {
-    "raw": 1584910,
+    "raw": 1585059,
     "gzip": 507666,
     "brotli": 444613
   },
@@ -980,7 +980,7 @@
     "brotli": 427323
   },
   "/[locale]/(app)/settings/security/page": {
-    "raw": 1353278,
+    "raw": 1353431,
     "gzip": 434144,
     "brotli": 379367
   },
@@ -1215,19 +1215,9 @@
     "brotli": 364204
   },
   "/[locale]/(auth)/book/[token]/page": {
-<<<<<<< HEAD
-    "raw": 857466,
-    "gzip": 280770,
-    "brotli": 246275
-||||||| b4db032c15
-    "raw": 857325,
-    "gzip": 280770,
-    "brotli": 246275
-=======
-    "raw": 859200,
+    "raw": 859343,
     "gzip": 280869,
     "brotli": 246479
->>>>>>> origin/main
   },
   "/[locale]/(auth)/forgot-password/page": {
     "raw": 669121,
@@ -1235,19 +1225,9 @@
     "brotli": 187563
   },
   "/[locale]/(auth)/invite/[token]/page": {
-<<<<<<< HEAD
-    "raw": 793322,
-    "gzip": 257360,
-    "brotli": 225379
-||||||| b4db032c15
-    "raw": 793181,
-    "gzip": 257360,
-    "brotli": 225379
-=======
-    "raw": 844361,
+    "raw": 844504,
     "gzip": 276725,
     "brotli": 242871
->>>>>>> origin/main
   },
   "/[locale]/(auth)/login/page": {
     "raw": 670523,
@@ -1260,13 +1240,7 @@
     "brotli": 190212
   },
   "/[locale]/(auth)/oauth/consent/page": {
-<<<<<<< HEAD
-    "raw": 1161251,
-||||||| b4db032c15
-    "raw": 1161086,
-=======
-    "raw": 1162179,
->>>>>>> origin/main
+    "raw": 1162368,
     "gzip": 366584,
     "brotli": 320253
   },
@@ -1281,19 +1255,9 @@
     "brotli": 188041
   },
   "/[locale]/(auth)/send/[token]/page": {
-<<<<<<< HEAD
-    "raw": 847978,
-    "gzip": 276414,
-    "brotli": 242399
-||||||| b4db032c15
-    "raw": 847837,
-    "gzip": 276414,
-    "brotli": 242399
-=======
-    "raw": 849712,
+    "raw": 849855,
     "gzip": 276465,
     "brotli": 242565
->>>>>>> origin/main
   },
   "/[locale]/(auth)/share/[token]/page": {
     "raw": 647724,
@@ -1306,19 +1270,9 @@
     "brotli": 188787
   },
   "/[locale]/(auth)/waitlist/page": {
-<<<<<<< HEAD
-    "raw": 860030,
-    "gzip": 281908,
-    "brotli": 247191
-||||||| b4db032c15
-    "raw": 859889,
-    "gzip": 281908,
-    "brotli": 247191
-=======
-    "raw": 861764,
+    "raw": 861907,
     "gzip": 282022,
     "brotli": 247437
->>>>>>> origin/main
   },
   "/[locale]/(public)/portal/page": {
     "raw": 630815,
