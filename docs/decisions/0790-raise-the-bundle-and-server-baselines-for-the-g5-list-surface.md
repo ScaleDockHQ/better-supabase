@@ -1,4 +1,4 @@
-# 0790: Raise the bundle baselines for the G5 list surface
+# 0790: Raise the bundle and server baselines for the G5 list surface
 
 - Status: accepted
 - Date: 2026-11-13
@@ -21,6 +21,10 @@ Raise the four entries to the sizes the CI bundle job measured:
 | `./blocks/legal-entities` | 32140           | 34670          |
 | `./blocks/learning`       | 43094           | 45818          |
 
+The next-build server baseline grows for 152 routes from the three new
+manifest declarations. Each size is set to the value the CI next-build job
+measured, and no route is lowered.
+
 ## Alternatives considered
 
 Keeping `entityList` out of each block's client would avoid the growth, but
@@ -29,6 +33,5 @@ function removes.
 
 ## Consequences
 
-The next-build server baseline is reset from CI values if its job reports
-growth, as in ADR 0750. Each further block that moves adds about 2.5 KB gzip to
+Each further block that moves adds about 2.5 KB gzip to
 its own entry.
