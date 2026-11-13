@@ -27,5 +27,9 @@ script.
 
 ## Consequences
 
-An app that installs `search` indexes the 17 subjects that had no registration
+The `./blocks/subjects` size baseline moves from 31,813 to 33,812 B gzip for `label`, the party
+core and the link types the entry re-exports.
+
+Apps run `upgrade` and generate a migration for the new triggers and the two search functions
+(`supabase/migrations/20261215000000_search_defaults_from_manifest.sql` for the example). An app that installs `search` indexes the 17 subjects that had no registration
 by their title. A subject that must stay out sets `search: false` in the config.
