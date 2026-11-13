@@ -18,11 +18,11 @@ emptying the file and running the update.
 
 Measured change per route against the baseline on main, in bytes, over the 346 routes:
 
-| Size | Smallest | Median | Largest |
-| ---- | -------- | ------ | ------- |
-| raw | -1630 | 3731 | 3773 |
-| gzip | -41 | 2019 | 2052 |
-| brotli | -184 | 1726 | 1889 |
+| Size   | Smallest | Median | Largest |
+| ------ | -------- | ------ | ------- |
+| raw    | -1630    | 3731   | 3773    |
+| gzip   | -41      | 2019   | 2052    |
+| brotli | -184     | 1726   | 1889    |
 
 ## Alternatives considered
 
