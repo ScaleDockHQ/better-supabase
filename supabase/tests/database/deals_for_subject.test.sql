@@ -6,17 +6,17 @@ select plan(4);
 
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
+insert into better_supabase.companies (id, tenant_id, name, lifecycle)
+values ('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-000000000001', 'Subject Co', 'lead');
+insert into better_supabase.deals (tenant_id, number, identifier, name, amount, currency, expected_close_on, company_type, company_id)
+values ('00000000-0000-4000-8000-000000000001', 9201, 'FS-1', 'Subject deal', 1000, 'EUR', current_date, 'company', '00000000-0000-4000-8000-0000000000c1');
 create temporary table picked on commit drop as
-select id, company_type, company_id::text as company_id
-from better_supabase.deals
-where company_id is not null and archived_at is null
-order by created_at, id
-limit 1;
+select 'company'::text as company_type, '00000000-0000-4000-8000-0000000000c1'::text as company_id;
 grant select on picked to public;
 
 select ok(
   (select jsonb_array_length(better_supabase.list_deals_for_subject(
-    '00000000-0000-4000-8000-000000000001', p.company_type, p.company_id)) >= 1 from picked p),
+    '00000000-0000-4000-8000-000000000001', p.company_type, p.company_id)) = 1 from picked p),
   'the deals of a company include the one that names it'
 );
 select is(

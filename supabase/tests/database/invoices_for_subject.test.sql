@@ -7,12 +7,10 @@ select plan(5);
 
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-update better_supabase.invoices
-set company_type = 'company', company_id = '00000000-0000-4000-8000-0000000000c1'
-where identifier = 'INV-0001';
-update better_supabase.invoices
-set contact_type = 'company', contact_id = '00000000-0000-4000-8000-0000000000c1', created_at = created_at + interval '1 minute'
-where identifier = 'INV-0002';
+insert into better_supabase.invoices (tenant_id, title, currency, status, company_type, company_id, created_at)
+values ('00000000-0000-4000-8000-000000000001', 'By company', 'EUR', 'draft', 'company', '00000000-0000-4000-8000-0000000000c1', now() - interval '1 hour');
+insert into better_supabase.invoices (tenant_id, title, currency, status, contact_type, contact_id, created_at)
+values ('00000000-0000-4000-8000-000000000001', 'By contact', 'EUR', 'draft', 'company', '00000000-0000-4000-8000-0000000000c1', now());
 
 select is(
   (select jsonb_array_length(better_supabase.list_invoices_for_subject(
@@ -22,8 +20,8 @@ select is(
 );
 select is(
   (better_supabase.list_invoices_for_subject(
-    '00000000-0000-4000-8000-000000000001', 'company', '00000000-0000-4000-8000-0000000000c1', 1) -> 0 ->> 'identifier'),
-  'INV-0002',
+    '00000000-0000-4000-8000-000000000001', 'company', '00000000-0000-4000-8000-0000000000c1', 1) -> 0 ->> 'title'),
+  'By contact',
   'newest first, and the limit applies'
 );
 select is(
