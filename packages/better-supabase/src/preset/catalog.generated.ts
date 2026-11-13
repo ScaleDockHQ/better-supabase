@@ -16337,6 +16337,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "dealId": {
                 "kind": "uuid"
               },
+              "expectedVersion": {
+                "kind": "instant",
+                "optional": true,
+                "description": "The deal's `updatedAt` as you read it; a newer deal is a `STALE_WRITE` conflict."
+              },
               "field": {
                 "kind": "string",
                 "minLength": 1
@@ -16354,6 +16359,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "dealId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "expectedVersion": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "The deal's `updatedAt` as you read it; a newer deal is a `STALE_WRITE` conflict."
                 },
                 "field": {
                   "type": "string",
@@ -34259,6 +34269,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "taskId": {
                 "kind": "uuid"
               },
+              "expectedVersion": {
+                "kind": "instant",
+                "optional": true,
+                "description": "The item's `updatedAt` as you read it; a newer item is a `STALE_WRITE` conflict."
+              },
               "field": {
                 "kind": "string",
                 "minLength": 1
@@ -34276,6 +34291,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "taskId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "expectedVersion": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "The item's `updatedAt` as you read it; a newer item is a `STALE_WRITE` conflict."
                 },
                 "field": {
                   "type": "string",

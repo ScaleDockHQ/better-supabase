@@ -92,6 +92,8 @@ export type { RejectedChange } from "../powersync/connector.ts";
 
 export type {
   BlockEngineOptions,
+  BlockMutationOptions,
+  BlockOptimistic,
   BlockEventSource,
   BlockMutationActions,
   BlockMutationState,
@@ -172,3 +174,9 @@ export type { Impersonator } from "../auth/impersonation.ts";
 export type { MembershipClaim } from "../auth/entitlements.ts";
 
 export type { LiveCountSeed } from "../realtime/live.ts";
+
+export {
+  optimisticArchive,
+  optimisticReorder,
+  optimisticUpdate,
+} from "../blocks/optimistic.ts";

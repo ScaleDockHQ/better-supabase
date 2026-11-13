@@ -955,6 +955,10 @@ as the `rpcTransport` above. `hooks` runs your code around `begin`,
 [extending blocks](/docs/extending/blocks#hooks)); `handle` calls them
 through the hooks.
 
+### Keys on block creates
+
+A block's `create` takes an `idempotencyKey` when its creator gets the same client as the `idempotency` option: `createTasks({ transport, idempotency })`, and likewise `createDeals` and `createQuotes`. The block claims the key through `begin`, runs the call, then `complete`s it with the response, or `release`s the key when the call fails. The key is scoped to the organization, and its fingerprint covers the call's name and arguments. The `idempotent` list in a manifest's `entities` names the methods that take a key.
+
 The fingerprint is a SHA-256 of the method, path, query string and body.
 The lock (`lock`, one minute by default) is renewed at half its length while
 the handler runs, so a slow handler keeps its key. The lock only runs out

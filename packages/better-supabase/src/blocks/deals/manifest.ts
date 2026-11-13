@@ -19,6 +19,8 @@ export const dealsBlock: BlockOf<"deals", typeof createDeals, DealsEvents> =
     entities: {
       deal: {
         mutability: "editable",
+        expectedVersion: true,
+        idempotent: ["create"],
         emits: { create: true, update: true, delete: true },
       },
     },

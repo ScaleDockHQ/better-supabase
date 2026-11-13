@@ -1,5 +1,6 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
+import { STALE_WRITE, STALE_WRITE_SQLSTATE } from "../../core/stale-write.ts";
 import { sqlString } from "../../core/template.ts";
 import { booksAccounting } from "../accounting-sources-sql.ts";
 import { int8Text } from "../money-sql.ts";
@@ -649,6 +650,8 @@ declare
   v_reason text;
   v_touched uuid[] := '{}';
   v_linked integer;
+  v_seen jsonb := '{}';
+  v_was timestamptz;
 begin
   if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
     ${fail("TASK_CHANGES_INVALID", `changes must be a list of { ${e("taskId")}, field, value }`, "22023")}
@@ -659,6 +662,16 @@ begin
       v_item := (v_change ->> ${itemId})::uuid;
       if not exists (select 1 from ${t("items")} x where x.${w("id")} = v_item and ${editable("x")} and x.${w("archivedAt")} is null) then
         ${fail("TASK_NOT_FOUND", "no such work item you can edit", "P0002")}
+      end if;
+      -- expectedVersion is the updatedAt the caller read. Every change of the
+      -- batch compares to the row as it was before the batch, which an earlier
+      -- change of the same item has already moved on.
+      if not v_seen ? v_item::text then
+        select x.${w("updatedAt")} into v_was from ${t("items")} x where x.${w("id")} = v_item for update;
+        v_seen := v_seen || jsonb_build_object(v_item::text, v_was);
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_item::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        ${fail(STALE_WRITE, "the work item changed since it was read", STALE_WRITE_SQLSTATE)}
       end if;
       ${ctx.hook("before_task_update", [
         ["uuid", "v_item"],

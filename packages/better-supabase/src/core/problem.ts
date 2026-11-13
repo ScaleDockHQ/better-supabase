@@ -6,6 +6,7 @@ import type {
 } from "./errors.ts";
 
 import { dbError, statusOf } from "./errors.ts";
+import { isStaleWrite } from "./stale-write.ts";
 
 /** RFC 9457 Problem Details, with the `DbError` fields as extension members. */
 export interface ProblemDetails {
@@ -111,6 +112,12 @@ export function problemType(
   };
 }
 
+/** A `STALE_WRITE` conflict names its own type, so a client can refetch. */
+const STALE_WRITE_PROBLEM = {
+  type: `${PROBLEM_TYPE_BASE}stale-write`,
+  title: "Record changed since it was read",
+} as const;
+
 /**
  * Kinds whose message may contain internals (SQL, hostnames), hidden unless
  * `expose` is set.
@@ -161,7 +168,9 @@ export function toProblem(
   options: ProblemOptions = {},
 ): ProblemDetails {
   const problem: Record<string, unknown> = {
-    ...problemType(error.kind, error.status),
+    ...(isStaleWrite(error)
+      ? STALE_WRITE_PROBLEM
+      : problemType(error.kind, error.status)),
     status: error.status,
     kind: error.kind,
   };

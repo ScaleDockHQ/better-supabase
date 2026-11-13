@@ -253,6 +253,34 @@ const rename = useBlockMutation(tasks, "update", blockReads);
 `createBlockQuery` and `createBlockMutation` take the same options outside
 a framework hook.
 
+### Optimistic writes
+
+With an engine, a write can show its result in the cached reads before the
+call answers. Pass `optimistic` with the reads to rewrite and an `apply`
+function, or build one with `optimisticUpdate`, `optimisticArchive` or
+`optimisticReorder`. The reads are put back when the call fails, so a
+`STALE_WRITE` conflict shows the old row again, and they are marked stale
+when it succeeds. The helpers handle a cached list of rows and a page with
+`items`; `key` names the row's id (`id` by default).
+
+```tsx title="components/task-list.tsx"
+import { optimisticUpdate } from "better-supabase/react";
+
+const rename = useBlockMutation(tasks, "update", {
+  ...blockReads,
+  optimistic: optimisticUpdate({
+    reads: ["list"],
+    target: (input) => ({
+      id: input.changes[0].taskId,
+      patch: { title: input.changes[0].value },
+    }),
+  }),
+});
+```
+
+`optimistic` needs `engine`: without one there is no cache to rewrite.
+Keep the object stable between renders, since the hook reads it once.
+
 ## Ports
 
 A controller reaches the platform only through ports, small interfaces the

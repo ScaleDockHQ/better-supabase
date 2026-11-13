@@ -18,7 +18,11 @@ export const quotesBlock: BlockOf<"quotes", typeof createQuotes, QuotesEvents> =
     create: createQuotes,
     category: "crm",
     entities: {
-      quote: { mutability: "editable", emits: { create: true, update: true } },
+      quote: {
+        mutability: "editable",
+        idempotent: ["create"],
+        emits: { create: true, update: true },
+      },
     },
     description:
       "Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.",

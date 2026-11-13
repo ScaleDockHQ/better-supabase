@@ -7,6 +7,7 @@ import type {
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
@@ -26,6 +27,7 @@ import {
 } from "../../core/block-fields.ts";
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { idempotentCall } from "../../core/idempotent-write.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   amountText,
@@ -291,6 +293,8 @@ export interface Quotes<
     organizationId: string;
     input: QuoteInput<F> & { readonly title: string };
     lines?: readonly QuoteLineInput[] | undefined;
+    /** Makes a retry return the first result (`idempotency` option). */
+    idempotencyKey?: string | undefined;
   }): AsyncResult<Quote<F>>;
   /**
    * Starts a new draft from a quote you already hold (the result of `create`,
@@ -426,6 +430,8 @@ export interface QuotesOptions<
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Quotes<FieldsOf<S>>>>;
   readonly logger?: Logger;
+  /** Claims `create({ idempotencyKey })`: `createIdempotency(...)`. */
+  readonly idempotency?: IdempotencyClaims | undefined;
   readonly mappers?: readonly ErrorMapper[];
 }
 
@@ -707,7 +713,7 @@ export function createQuotes<
   };
 
   const client: Quotes<F> = {
-    create: ({ organizationId, input, lines }) => {
+    create: ({ organizationId, input, lines, idempotencyKey }) => {
       const amounts = lineAmounts(lines ?? []);
       const invalid = amountsError(input.currency, amounts);
 
@@ -720,17 +726,23 @@ export function createQuotes<
       const withCurrency =
         currency === undefined ? input : { ...input, currency };
 
-      return writeFields(fields, input.fields, (checked) =>
-        quote(
-          "create_quote",
-          {
-            tenant: organizationId,
-            attrs: attrsOf(withCurrency, checked),
-            lines: lines === undefined ? null : lines.map(lineArg),
-          },
-          quoteOf,
-        ),
-      );
+      return writeFields(fields, input.fields, (checked) => {
+        const sent = {
+          tenant: organizationId,
+          attrs: attrsOf(withCurrency, checked),
+          lines: lines === undefined ? null : lines.map(lineArg),
+        };
+
+        return idempotentCall({
+          claims: options.idempotency,
+          key: idempotencyKey,
+          scope: organizationId,
+          name: "create_quote",
+          args: sent,
+          run: () => call("create_quote", sent, (value) => value),
+          decode: quoteOf,
+        }).andThen((row) => readFields(fields, row));
+      });
     },
     duplicate: ({ quote: source, title, input: overrides }) =>
       hooked.create({

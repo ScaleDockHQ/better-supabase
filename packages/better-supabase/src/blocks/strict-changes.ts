@@ -2,6 +2,7 @@ import type { Result } from "../core/result.ts";
 
 import { dbError } from "../core/errors.ts";
 import { err, ok } from "../core/result.ts";
+import { STALE_WRITE, staleWriteError } from "../core/stale-write.ts";
 
 /** What `update` reports for cell edits: the ones applied and the ones refused. */
 interface ChangeOutcome {
@@ -13,10 +14,10 @@ interface ChangeOutcome {
 }
 
 /**
- * With `strict`, the first refused change becomes a `raised` error that keeps
- * the refusal's hint as its code, instead of an entry in `rejected` that a
- * caller has to remember to read. Changes that were accepted stay applied
- * (`atomic` rolls a batch back).
+ * With `strict`, the first refused change becomes a `raised` error (a
+ * `conflict` for `STALE_WRITE`) that keeps the refusal's hint as its code,
+ * instead of an entry in `rejected` that a caller has to remember to read.
+ * Changes that were accepted stay applied (`atomic` rolls a batch back).
  */
 export function strictChanges<R extends ChangeOutcome>(
   result: R,
@@ -26,6 +27,12 @@ export function strictChanges<R extends ChangeOutcome>(
 
   if (strict !== true || first === undefined) {
     return Promise.resolve(ok(result));
+  }
+
+  if (first.hint === STALE_WRITE) {
+    return Promise.resolve(
+      err(staleWriteError(`${first.field}: ${first.reason}`)),
+    );
   }
 
   return Promise.resolve(
