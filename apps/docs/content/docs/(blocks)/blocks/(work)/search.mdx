@@ -129,10 +129,24 @@ that table.
 
 ## Imports
 
-While `import_upsert_batch` writes a batch, the index triggers note each touched
-record once and the batch indexes every noted record when it ends, so a record
-that changes several times in one batch is indexed once. A refresh that finds
-the same tenant, title, body, URL and description leaves the document alone.
+While an import run writes through `import_upsert_batch`, the index triggers
+note each touched record once in `better_supabase.import_search_dirty`, and
+`finish_import_run` (or `cancel_import_run`) indexes every noted record when
+the run closes. A record that several batches of one run change is indexed
+once, and a dry run notes nothing. Outside an import run, a write indexes its
+records at once. A refresh that finds the same tenant, title, body, URL and
+description leaves the document alone.
+
+A record type that is written in large sets can set `search.statement: true`.
+Its table then gets one statement trigger per `insert`, `update` and `delete`
+instead of the row trigger, and each call reads the changed ids from the
+statement's transition tables. An update re-indexes only the rows whose
+watched columns changed. Write such a table in set-based statements, as the
+fixture's `public.import_customer_batch` does: it inserts the new customers in
+one statement and updates the changed ones in another, so a batch of any size
+fires two search calls. Switching a type between row and statement triggers
+renames its triggers, so run `better-supabase upgrade` and generate a
+migration.
 Watch triggers are plain `create trigger` statements on the watched table, so
 the table has to exist when the file runs: an app table or a block table gets its
 trigger from its own file, and a table the schema creates later needs the

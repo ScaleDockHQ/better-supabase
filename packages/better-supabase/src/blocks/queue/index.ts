@@ -6,6 +6,8 @@ export {
 
 export type { BlockTransport } from "../../core/block-transport.ts";
 
+export type { Kick } from "../../core/kick.ts";
+
 export { assertCron, nextCronRun } from "../../core/cron.ts";
 
 export {

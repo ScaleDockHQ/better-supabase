@@ -1,6 +1,6 @@
 -- better-supabase module: comments
--- @bsb-block comments@9 managed
--- @bsb-hash sha256:fa2936f0e8d95a3f5ca36f8724aeddd9d496eef43b8f0c3e60650600b30fe510
+-- @bsb-block comments@10 managed
+-- @bsb-hash sha256:f8b6069106f85adac79dc69558a983d942f3520bb360534fc3c2d753877e4502
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -431,21 +431,36 @@ $$;
 revoke execute on function "better_supabase"."list_file_comments"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_file_comments"(uuid, integer) to authenticated, service_role;
 
--- The number of sent, not deleted comments per conversation, as their
--- owner, for the conversations of the list that pass the read check.
-create or replace function "better_supabase"."comment_count_rows"(conversations uuid[])
-returns table (id uuid, n bigint)
+-- Comments per record as their owner: { subject_id: count }. A record
+-- conversation's subject branch counts only for ids in readable that pass
+-- can_subjects here too. As the owner the subject tables' policies (an ended
+-- session, say) don't apply, so comment_counts passes the records it read
+-- under them.
+create or replace function "better_supabase"."comment_count_keys"(
+  tenant uuid,
+  subject_type text,
+  subject_ids text[],
+  readable text[]
+)
+returns jsonb
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
+declare
+  v_readable text[] := array(
+    select "better_supabase"."can_subjects"(comment_count_keys.subject_type, comment_count_keys.readable, 'read')
+  );
 begin
-  return query
-  select x."conversation_id", count(*) from "better_supabase"."messages" x
-  where x."conversation_id" = any (array(
-      select c."id" from "better_supabase"."conversations" c
-      where c."id" = any (comment_count_rows.conversations) and c."kind" = 'subject'
+  return (
+    with c as materialized (
+      select c."id" as id, c."subject_id" as subject_id
+      from "better_supabase"."conversations" c
+      where c."tenant_id" = comment_count_keys.tenant and c."kind" = 'subject'
+        and c."subject_type" = comment_count_keys.subject_type
+        and c."subject_id" = any (comment_count_keys.subject_ids)
         and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when c."kind" = 'inbox'
     then "better_supabase"."inbox_conversation_allowed"(c."id"::text)
     else ((coalesce(better_supabase.can('tenant', c."tenant_id", 'messages.read'), false)
@@ -453,22 +468,32 @@ begin
     and case c."access"
       when 'tenant' then true
       when 'members' then "better_supabase"."is_conversation_member"(c."id")
-      when 'subject' then coalesce("better_supabase"."can_subject"(c."subject_type", c."subject_id", 'read'), false)
+      when 'subject' then c."subject_id" = any (v_readable)
       else false
     end)
     or (c."kind" = 'subject' and ((c."tenant_id")::text, (c."subject_type")::text, (c."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) end))
-    ))
-    and x."sent_at" is not null and x."archived_at" is null
+    ),
+    n as (
+      select x."conversation_id" as id, count(*) as n
+      from "better_supabase"."messages" x
+      where x."conversation_id" = any (array(select c.id from c))
+        and x."sent_at" is not null and x."archived_at" is null
   and (x."kind" = 'message' or "better_supabase"."inbox_note_readable"(x."conversation_id"))
-  group by x."conversation_id";
+      group by x."conversation_id"
+    )
+    select coalesce(jsonb_object_agg(c.subject_id, n.n), '{}'::jsonb)
+    from c
+    join n on n.id = c.id
+  );
 end;
 $$;
-revoke execute on function "better_supabase"."comment_count_rows"(uuid[]) from public, anon;
-grant execute on function "better_supabase"."comment_count_rows"(uuid[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."comment_count_keys"(uuid, text, text[], text[]) from public, anon;
+grant execute on function "better_supabase"."comment_count_keys"(uuid, text, text[], text[]) to authenticated, service_role;
 
 -- Comments per record the caller can read, for counters in a list:
--- { subject_id: count }, deleted ones left out. The records' conversations
--- are read under the caller's policies, then counted by key.
+-- { subject_id: count }, deleted ones left out. One can_subjects call reads
+-- the records under the caller's policies, then comment_count_keys finds
+-- their conversations by key and counts the messages.
 create or replace function "better_supabase"."comment_counts"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb
 language plpgsql
@@ -477,17 +502,11 @@ security invoker
 set search_path = ''
 as $$
 begin
-  return (
-    with c as materialized (
-      select c."id" as id, c."subject_id" as subject_id
-      from "better_supabase"."conversations" c
-      where c."tenant_id" = comment_counts.tenant and c."kind" = 'subject'
-        and c."subject_type" = comment_counts.subject_type
-        and c."subject_id" = any (comment_counts.subject_ids)
-    )
-    select coalesce(jsonb_object_agg(c.subject_id, n.n), '{}'::jsonb)
-    from c
-    join "better_supabase"."comment_count_rows"(array(select c.id from c)) n on n.id = c.id
+  return "better_supabase"."comment_count_keys"(
+    comment_counts.tenant,
+    comment_counts.subject_type,
+    comment_counts.subject_ids,
+    array(select "better_supabase"."can_subjects"(comment_counts.subject_type, comment_counts.subject_ids, 'read'))
   );
 end;
 $$;

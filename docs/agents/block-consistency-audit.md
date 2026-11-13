@@ -264,356 +264,356 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | tenancy       | 10     | 15       | 9        | 1           | 1             | 4         |
 | work          | 30     | 64       | 32       | 10          | 11            | 11        |
 
-| Block                     | Category      | Entity                     | Mutability    | Emits                  | No event               | Sorts                               | Facets                 | Search | Realtime | Offline | Versioned |
-| ------------------------- | ------------- | -------------------------- | ------------- | ---------------------- | ---------------------- | ----------------------------------- | ---------------------- | ------ | -------- | ------- | --------- |
-| audit                     | admin         | audit                      | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| compliance                | admin         | control                    | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| compliance                | admin         | control_framework          | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| compliance                | admin         | evidence_task              | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| compliance                | admin         | compliance_policy          | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| consents                  | admin         | consent                    | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| consents                  | admin         | consent_purpose            | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| data-lifecycle            | admin         | data_export                | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| data-lifecycle            | admin         | organization               | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| data-lifecycle            | admin         | legal_hold                 | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| data-lifecycle            | admin         | data_subject_request       | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| governance                | admin         | governance                 | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| impersonation             | admin         | support_session            | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| metrics                   | admin         | metric                     | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| agents                    | ai            | agent                      | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| ai-cache                  | ai            | ai_cache                   | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| ai-chat                   | ai            | ai_chat                    | editable      | -                      | create, update, delete | -                                   | -                      | -      | -        | -       | -         |
-| ai-chat                   | ai            | ai_project                 | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| ai-evals                  | ai            | ai_eval                    | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| ai-files                  | ai            | ai_document                | editable      | -                      | create, update, delete | -                                   | -                      | -      | -        | -       | -         |
-| ai-guardrails             | ai            | guardrail                  | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| ai-keys                   | ai            | ai_provider_key            | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| ai-schedules              | ai            | ai_scheduled_task          | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| knowledge                 | ai            | knowledge_document         | append-only   | -                      | create, delete         | -                                   | -                      | -      | -        | -       | -         |
-| memory                    | ai            | memory                     | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| prompts                   | ai            | prompt                     | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| vector-search             | ai            | vector_search              | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| automations               | automation    | automation                 | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| connectors                | automation    | connector_server           | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| idempotency               | automation    | idempotency                | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| outbox                    | automation    | outbox                     | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| queue                     | automation    | queue                      | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| rate-limit                | automation    | rate_limit                 | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| streams                   | automation    | stream                     | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| webhook-inbox             | automation    | webhook_inbox              | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| workflow-editor           | automation    | workflow_definition        | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| workflow-sdk              | automation    | workflow_sdk               | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| workflows                 | automation    | workflow_run               | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| acknowledgements          | collaboration | acknowledgement            | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| acknowledgements          | collaboration | acknowledgement_assignment | append-only   | create, delete         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| attachments               | collaboration | attachment                 | state-machine | -                      | create, delete         | -                                   | -                      | -      | -        | -       | -         |
-| channels                  | collaboration | channel                    | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| collaboration             | collaboration | collaboration              | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| comments                  | collaboration | comment                    | append-only   | -                      | create, delete         | -                                   | -                      | -      | -        | -       | -         |
-| guests                    | collaboration | guest                      | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| guests                    | collaboration | guest_grant                | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| meetings                  | collaboration | meeting                    | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| meetings                  | collaboration | meeting_attendee           | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| meetings                  | collaboration | meeting_agenda_item        | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| meetings                  | collaboration | meeting_decision           | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| meetings                  | collaboration | meeting_action_item        | append-only   | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| messaging                 | collaboration | message                    | editable      | delete                 | update                 | -                                   | -                      | -      | -        | -       | -         |
-| messaging                 | collaboration | conversation               | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| moderation                | collaboration | moderation_item            | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| posts                     | collaboration | post_board                 | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| posts                     | collaboration | post                       | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| reactions                 | collaboration | reaction                   | append-only   | create, delete         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| share-links               | collaboration | share_link                 | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| timeline                  | collaboration | timeline_entry             | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| accounting                | commerce      | accounting_account         | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| accounting                | commerce      | accounting_journal         | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| accounting                | commerce      | accounting_period          | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| accounting                | commerce      | accounting_entry           | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| accounting                | commerce      | accounting_dimension       | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| accounting                | commerce      | accounting_budget          | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| agent-checkout            | commerce      | checkout_session           | editable      | create, update         | -                      | createdAt, expiresAt                | status, protocol       | -      | -        | -       | -         |
-| agent-checkout            | commerce      | agent_mandate              | state-machine | create                 | -                      | createdAt, expiresAt                | status, vct            | -      | -        | -       | -         |
-| banking                   | commerce      | bank_transaction           | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| banking                   | commerce      | bank_account               | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| banking                   | commerce      | bank_statement             | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| banking                   | commerce      | bank_match                 | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| banking                   | commerce      | bank_rule                  | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| billable-time             | commerce      | time_rate                  | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| billing                   | commerce      | billing                    | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| catalog                   | commerce      | product                    | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| catalog                   | commerce      | product_variant            | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| commerce                  | commerce      | commerce                   | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| commissions               | commerce      | commission_plan            | editable      | create, update         | -                      | createdAt, name                     | kind                   | -      | -        | -       | -         |
-| commissions               | commerce      | commission_assignment      | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| commissions               | commerce      | commission                 | state-machine | -                      | -                      | occurredOn, createdAt, amount       | status, seller         | -      | -        | -       | -         |
-| commissions               | commerce      | commission_statement       | state-machine | -                      | -                      | endsOn, createdAt, total            | status, seller         | -      | -        | -       | -         |
-| donations                 | commerce      | donation                   | state-machine | -                      | -                      | receivedOn, createdAt               | status, fundId         | -      | -        | -       | -         |
-| donations                 | commerce      | pledge                     | editable      | create, update         | -                      | createdAt                           | status                 | -      | -        | -       | -         |
-| donations                 | commerce      | donation_fund              | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| donations                 | commerce      | donation_receipt           | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| entitlements              | commerce      | entitlement                | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| expenses                  | commerce      | expense_report             | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| expenses                  | commerce      | expense_line               | editable      | -                      | create, update, delete | -                                   | -                      | -      | -        | -       | -         |
-| expenses                  | commerce      | expense_category           | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| finance                   | commerce      | finance                    | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| funding                   | commerce      | funding_product            | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| funding                   | commerce      | funding_award              | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| funding                   | commerce      | funding_delivery           | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| funding                   | commerce      | funding_claim              | state-machine | create, delete         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| funding                   | commerce      | funding_claim_line         | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| inventory                 | commerce      | inventory_location         | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| inventory                 | commerce      | purchase_order             | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| inventory                 | commerce      | purchase_requisition       | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| inventory                 | commerce      | inventory_receipt          | append-only   | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| invoices                  | commerce      | invoice                    | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| leases                    | commerce      | lease                      | state-machine | create                 | -                      | startsOn, endsOn, createdAt         | status, unitId         | -      | -        | -       | -         |
-| ledger                    | commerce      | ledger_account             | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| ledger                    | commerce      | ledger_transaction         | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| ledger                    | commerce      | ledger_hold                | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| manufacturing             | commerce      | production_order           | state-machine | -                      | create                 | dueOn, createdAt, number            | status                 | -      | -        | -       | -         |
-| manufacturing             | commerce      | bom                        | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| manufacturing             | commerce      | bom_component              | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| manufacturing             | commerce      | bom_operation              | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| manufacturing             | commerce      | work_center                | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| manufacturing             | commerce      | production_order_operation | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| manufacturing             | commerce      | production_consumption     | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| manufacturing             | commerce      | stock_lot_link             | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| orders                    | commerce      | order                      | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| orders                    | commerce      | cart                       | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| periods                   | commerce      | period                     | state-machine | create                 | -                      | startsOn, endsOn                    | kind, status           | -      | -        | -       | -         |
-| procurement               | commerce      | procurement                | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| promotions                | commerce      | promotion                  | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| referrals                 | commerce      | referral_code              | append-only   | create                 | -                      | createdAt                           | referrer               | -      | -        | -       | -         |
-| referrals                 | commerce      | referral                   | state-machine | -                      | -                      | createdAt                           | status, referrer       | -      | -        | -       | -         |
-| reviews                   | commerce      | review                     | state-machine | delete                 | create                 | -                                   | -                      | -      | -        | -       | -         |
-| rfqs                      | commerce      | rfq                        | editable      | create, update         | -                      | number, dueAt                       | status                 | -      | -        | -       | -         |
-| rfqs                      | commerce      | rfq_line                   | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| rfqs                      | commerce      | rfq_supplier               | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| rfqs                      | commerce      | rfq_quote                  | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| rfqs                      | commerce      | rfq_quote_line             | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| shipments                 | commerce      | shipment                   | state-machine | create                 | -                      | createdAt, deliveredAt              | status, carrier        | -      | -        | -       | -         |
-| shipments                 | commerce      | shipment_package           | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| shipments                 | commerce      | shipment_tracking_event    | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| shipments                 | commerce      | shipment_line              | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| tax                       | commerce      | tax_code                   | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| tax                       | commerce      | tax_rate                   | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| tax                       | commerce      | tax_return                 | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| tills                     | commerce      | till                       | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| tills                     | commerce      | till_session               | state-machine | -                      | create                 | openedAt, closedAt                  | status, tillId         | -      | -        | -       | -         |
-| tills                     | commerce      | till_movement              | append-only   | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| tills                     | commerce      | till_count                 | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| tills                     | commerce      | till_deposit               | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| usage                     | commerce      | usage                      | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| warehouse                 | commerce      | pick_list                  | state-machine | create                 | -                      | createdAt, pickedAt                 | status, documentType   | -      | -        | -       | -         |
-| warehouse                 | commerce      | pick_wave                  | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| warehouse                 | commerce      | pick_line                  | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| warehouse                 | commerce      | count_plan                 | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| warehouse                 | commerce      | putaway_rule               | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| warehouse                 | commerce      | bin_slot                   | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| warehouse                 | commerce      | variant_size               | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| cms                       | content       | cm                         | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| content                   | content       | content_entry              | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| courses                   | content       | course                     | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| courses                   | content       | course_module              | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| courses                   | content       | course_lesson              | editable      | -                      | create, update, delete | -                                   | -                      | -      | -        | -       | -         |
-| courses                   | content       | course_certificate         | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| dam                       | content       | dam_usage_right            | state-machine | -                      | -                      | expiresOn, startsOn                 | status                 | -      | -        | -       | -         |
-| dam                       | content       | dam_rendition              | append-only   | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| documents                 | content       | document                   | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| documents                 | content       | document_suggestion        | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| drive                     | content       | drive_node                 | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| filespace                 | content       | filespace                  | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| forms                     | content       | form                       | editable      | create                 | update                 | -                                   | -                      | -      | -        | -       | -         |
-| signatures                | content       | signature_request          | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| templates                 | content       | template                   | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| activities                | crm           | activity                   | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| contacts                  | crm           | company                    | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| contacts                  | crm           | person                     | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| contracts                 | crm           | contract                   | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| contracts                 | crm           | contract_obligation        | editable      | create, update         | delete                 | -                                   | -                      | -      | -        | -       | -         |
-| crm                       | crm           | crm                        | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| deals                     | crm           | deal                       | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| enrichment                | crm           | enrichment                 | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| forecasts                 | crm           | forecast_snapshot          | append-only   | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| goals                     | crm           | goal                       | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| lead-scoring              | crm           | lead_scoring               | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| mail-sync                 | crm           | mail_thread                | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| mail-sync                 | crm           | mail_account               | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| mail-sync                 | crm           | mail_message               | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| quotes                    | crm           | quote                      | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| sales                     | crm           | sale                       | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| segments                  | crm           | segment                    | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| sequences                 | crm           | sequence                   | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| field-encryption          | database      | field_key                  | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| field-history             | database      | field_history              | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| imports                   | database      | import                     | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| jsonb-schemas             | database      | jsonb_schema               | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| numbering                 | database      | number                     | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| pgtap                     | database      | pgtap                      | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| rank                      | database      | rank                       | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| read-sets                 | database      | read_set                   | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| realtime-tables           | database      | realtime_table             | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| rls-guard                 | database      | rls_guard                  | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| trash                     | database      | subject                    | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| updated-at                | database      | updated_at                 | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| versions                  | database      | version                    | state-machine | create, delete         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| api-keys                  | developer     | api_key                    | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| credentials               | developer     | credential                 | editable      | update, delete         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| incoming-webhooks         | developer     | incoming_webhook           | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| oauth-server              | developer     | oauth_client               | editable      | delete                 | update                 | -                                   | -                      | -      | -        | -       | -         |
-| oauth-server              | developer     | oauth_grant                | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| security-events           | developer     | ssf_stream                 | editable      | create, delete         | update                 | -                                   | -                      | -      | -        | -       | -         |
-| service-accounts          | developer     | service_principal          | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| signing-keys              | developer     | signing_key                | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| vercel-marketplace        | developer     | marketplace_installation   | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| vercel-marketplace        | developer     | marketplace_invoice        | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| webhooks                  | developer     | webhook_endpoint           | editable      | -                      | create, update, delete | -                                   | -                      | -      | -        | -       | -         |
-| announcements             | growth        | announcement               | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| flags                     | growth        | flag                       | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| onboarding                | growth        | onboarding                 | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| scores                    | growth        | score_model                | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| waitlist                  | growth        | waitlist_entry             | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| access-requests           | identity      | access_request             | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| created-by                | identity      | created_by                 | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| grants                    | identity      | grant                      | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| identities                | identity      | identity                   | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| mfa                       | identity      | mfa                        | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| permissions               | identity      | permission                 | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| sessions                  | identity      | session                    | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| sso                       | identity      | organization               | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| sso                       | identity      | sso_domain                 | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| sso                       | identity      | sso_provider               | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| sso                       | identity      | scim_user                  | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| sso                       | identity      | scim_group                 | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| subjects                  | identity      | subject_member             | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| subjects                  | identity      | subject                    | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| inbox                     | messaging     | inbox                      | editable      | -                      | create, update         | -                                   | -                      | -      | -        | -       | -         |
-| notifications             | messaging     | notification               | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| push                      | messaging     | push                       | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| care                      | people        | care                       | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| care-plans                | people        | care_plan                  | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| care-plans                | people        | care_plan_problem          | editable      | -                      | create, update         | -                                   | -                      | -      | -        | -       | -         |
-| care-plans                | people        | care_plan_goal             | editable      | -                      | create, update         | -                                   | -                      | -      | -        | -       | -         |
-| care-plans                | people        | care_plan_action           | editable      | -                      | create, update         | -                                   | -                      | -      | -        | -       | -         |
-| care-plans                | people        | care_plan_evaluation       | append-only   | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| clinical-decision-support | people        | care_alert                 | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| clinical-decision-support | people        | care_rule                  | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| e-prescribing             | people        | prescription               | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| employees                 | people        | employee                   | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| enrollments               | people        | enrollment_program         | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| enrollments               | people        | enrollment                 | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| hiring                    | people        | job_opening                | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| hiring                    | people        | application                | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| hiring                    | people        | interview                  | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| learning                  | people        | learning                   | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| leave                     | people        | leave_request              | editable      | update                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| leave                     | people        | leave_type                 | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| medications               | people        | medication                 | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| medications               | people        | medication_order           | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| medications               | people        | medication_administration  | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| observations              | people        | observation                | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| observations              | people        | observation_definition     | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| payroll-export            | people        | payroll_run                | state-machine | create                 | delete                 | -                                   | -                      | -      | -        | -       | -         |
-| payroll-export            | people        | payroll_line               | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| people                    | people        | people                     | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| qualifications            | people        | qualification              | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| qualifications            | people        | qualification_type         | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| qualifications            | people        | qualification_requirement  | append-only   | -                      | create, delete         | -                                   | -                      | -      | -        | -       | -         |
-| recruiting                | people        | recruiting                 | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| shifts                    | people        | shift                      | editable      | create                 | update                 | -                                   | -                      | -      | -        | -       | -         |
-| shifts                    | people        | shift_template             | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| shifts                    | people        | shift_assignment           | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| shifts                    | people        | shift_swap                 | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| shifts                    | people        | shift_availability         | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| time-entries              | people        | time_entry                 | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| time-entries              | people        | timesheet                  | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| bookings                  | scheduling    | booking                    | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| calendar                  | scheduling    | calendar_event             | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| calendar                  | scheduling    | calendar                   | editable      | create, update         | delete                 | -                                   | -                      | -      | -        | -       | -         |
-| events                    | scheduling    | event                      | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| passes                    | scheduling    | pass                       | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| passes                    | scheduling    | pass_check_in              | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| reminders                 | scheduling    | reminder                   | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| scheduling                | scheduling    | scheduling                 | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| document-templates        | tenancy       | document_template          | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| document-templates        | tenancy       | document_text_block        | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| document-templates        | tenancy       | document_snapshot          | append-only   | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| domains                   | tenancy       | hostname                   | state-machine | create, delete         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| legal-entities            | tenancy       | legal_entity               | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| legal-entities            | tenancy       | legal_entity_setting       | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| memberships               | tenancy       | membership                 | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| organizations             | tenancy       | organization               | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| organizations             | tenancy       | invitation                 | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| profiles                  | tenancy       | profile                    | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| reserved-slugs            | tenancy       | reserved_slug              | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| saas                      | tenancy       | saa                        | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| settings                  | tenancy       | organization_setting       | editable      | update                 | create                 | -                                   | -                      | -      | -        | -       | -         |
-| settings                  | tenancy       | platform_setting           | editable      | update                 | create                 | -                                   | -                      | -      | -        | -       | -         |
-| teams                     | tenancy       | team                       | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| advisories                | work          | advisory                   | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| advisories                | work          | advisory_product           | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| advisories                | work          | advisory_product_version   | append-only   | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| advisories                | work          | sbom_component             | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| advisories                | work          | vulnerability              | editable      | create                 | update                 | -                                   | -                      | -      | -        | -       | -         |
-| advisories                | work          | vex_statement              | editable      | update                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| advisories                | work          | advisory_vulnerability     | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| appraisals                | work          | appraisal                  | state-machine | create                 | -                      | createdAt, rating                   | status                 | -      | -        | -       | -         |
-| appraisals                | work          | appraisal_cycle            | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| appraisals                | work          | appraisal_review           | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| appraisals                | work          | appraisal_calibration      | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| appraisals                | work          | appraisal_goal             | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| appraisals                | work          | appraisal_competency       | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| appraisals                | work          | appraisal_review_rating    | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| approvals                 | work          | approval                   | state-machine | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| assets                    | work          | asset                      | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| assets                    | work          | asset_location             | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| assignment                | work          | assignment_queue           | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| bulk-actions              | work          | bulk_run                   | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| cases                     | work          | case                       | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| cases                     | work          | case_kind                  | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| cases                     | work          | case_action                | append-only   | create, delete         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| collections               | work          | subject_collection         | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| custom-fields             | work          | field_definition           | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| deadlines                 | work          | deadline                   | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| dispatch                  | work          | work_order                 | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| dispatch                  | work          | dispatch_route             | state-machine | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| dispatch                  | work          | work_order_part            | append-only   | -                      | create, delete         | -                                   | -                      | -      | -        | -       | -         |
-| incidents                 | work          | incident                   | editable      | update                 | create                 | -                                   | -                      | -      | -        | -       | -         |
-| incidents                 | work          | status_component           | editable      | update                 | delete                 | -                                   | -                      | -      | -        | -       | -         |
-| incidents                 | work          | incident_postmortem        | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| incidents                 | work          | status_page                | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| inspections               | work          | inspection                 | editable      | update                 | create                 | -                                   | -                      | -      | -        | -       | -         |
-| inspections               | work          | inspection_program         | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| inspections               | work          | inspection_finding         | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| inspections               | work          | inspection_member          | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| lims                      | work          | lims_sample                | state-machine | -                      | -                      | number, receivedOn                  | status, kind           | -      | -        | -       | -         |
-| lims                      | work          | lims_method                | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| lims                      | work          | lims_result                | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| maintenance               | work          | maintenance_plan           | editable      | create, update, delete | -                      | nextDueAt, title                    | status, kind           | -      | -        | -       | -         |
-| maintenance               | work          | maintenance_plan_part      | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| maintenance               | work          | maintenance_meter          | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| maintenance               | work          | maintenance_meter_reading  | append-only   | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| maintenance               | work          | maintenance_calibration    | append-only   | create                 | -                      | performedAt, dueAt                  | result                 | -      | -        | -       | -         |
-| option-sets               | work          | option_set                 | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| pipelines                 | work          | pipeline                   | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| projects                  | work          | project                    | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| relations                 | work          | relation                   | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| risks                     | work          | risk                       | editable      | create, update         | -                      | residualScore, number, nextReviewOn | status, category, band | y      | -        | -       | -         |
-| risks                     | work          | risk_matrix                | editable      | create, update         | -                      | -                                   | -                      | -      | -        | -       | -         |
-| risks                     | work          | risk_assessment            | read-only     | -                      | -                      | -                                   | -                      | -      | -        | -       | -         |
-| saved-views               | work          | saved_view                 | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| search                    | work          | search                     | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| service                   | work          | service                    | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| sla                       | work          | sla_policy                 | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| state-machine             | work          | status                     | editable      | update                 | -                      | -                                   | -                      | -      | -        | -       | -         |
-| support                   | work          | support                    | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| tags                      | work          | tag                        | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| tasks                     | work          | task                       | editable      | create, update, delete | -                      | -                                   | -                      | -      | -        | -       | -         |
-| tasks                     | work          | project                    | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| tasks                     | work          | iteration                  | editable      | -                      | update                 | -                                   | -                      | -      | -        | -       | -         |
-| tasks                     | work          | checklist_item             | editable      | -                      | update, delete         | -                                   | -                      | -      | -        | -       | -         |
-| undo                      | work          | undo                       | append-only   | -                      | create                 | -                                   | -                      | -      | -        | -       | -         |
-| warranty                  | work          | warranty_claim             | state-machine | create                 | -                      | -                                   | -                      | -      | -        | -       | -         |
+| Block                     | Category      | Entity                     | Mutability    | Emits                  | No event               | Sorts                                    | Facets                 | Search      | Realtime | Offline | Versioned |
+| ------------------------- | ------------- | -------------------------- | ------------- | ---------------------- | ---------------------- | ---------------------------------------- | ---------------------- | ----------- | -------- | ------- | --------- |
+| audit                     | admin         | audit                      | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| compliance                | admin         | control                    | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| compliance                | admin         | control_framework          | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| compliance                | admin         | evidence_task              | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| compliance                | admin         | compliance_policy          | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| consents                  | admin         | consent                    | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| consents                  | admin         | consent_purpose            | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| data-lifecycle            | admin         | data_export                | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| data-lifecycle            | admin         | organization               | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| data-lifecycle            | admin         | legal_hold                 | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| data-lifecycle            | admin         | data_subject_request       | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| governance                | admin         | governance                 | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| impersonation             | admin         | support_session            | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| metrics                   | admin         | metric                     | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| agents                    | ai            | agent                      | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| ai-cache                  | ai            | ai_cache                   | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| ai-chat                   | ai            | ai_chat                    | editable      | -                      | create, update, delete | -                                        | -                      | -           | -        | -       | -         |
+| ai-chat                   | ai            | ai_project                 | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| ai-evals                  | ai            | ai_eval                    | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| ai-files                  | ai            | ai_document                | editable      | -                      | create, update, delete | -                                        | -                      | -           | -        | -       | -         |
+| ai-guardrails             | ai            | guardrail                  | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| ai-keys                   | ai            | ai_provider_key            | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| ai-schedules              | ai            | ai_scheduled_task          | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| knowledge                 | ai            | knowledge_document         | append-only   | -                      | create, delete         | -                                        | -                      | -           | -        | -       | -         |
+| memory                    | ai            | memory                     | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| prompts                   | ai            | prompt                     | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| vector-search             | ai            | vector_search              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| automations               | automation    | automation                 | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| connectors                | automation    | connector_server           | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| idempotency               | automation    | idempotency                | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| outbox                    | automation    | outbox                     | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| queue                     | automation    | queue                      | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| rate-limit                | automation    | rate_limit                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| streams                   | automation    | stream                     | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| webhook-inbox             | automation    | webhook_inbox              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| workflow-editor           | automation    | workflow_definition        | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| workflow-sdk              | automation    | workflow_sdk               | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| workflows                 | automation    | workflow_run               | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| acknowledgements          | collaboration | acknowledgement            | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| acknowledgements          | collaboration | acknowledgement_assignment | append-only   | create, delete         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| attachments               | collaboration | attachment                 | state-machine | -                      | create, delete         | -                                        | -                      | -           | -        | -       | -         |
+| channels                  | collaboration | channel                    | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| collaboration             | collaboration | collaboration              | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| comments                  | collaboration | comment                    | append-only   | -                      | create, delete         | -                                        | -                      | -           | -        | -       | -         |
+| guests                    | collaboration | guest                      | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| guests                    | collaboration | guest_grant                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| meetings                  | collaboration | meeting                    | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| meetings                  | collaboration | meeting_attendee           | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| meetings                  | collaboration | meeting_agenda_item        | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| meetings                  | collaboration | meeting_decision           | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| meetings                  | collaboration | meeting_action_item        | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| messaging                 | collaboration | message                    | editable      | delete                 | update                 | -                                        | -                      | -           | -        | -       | -         |
+| messaging                 | collaboration | conversation               | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| moderation                | collaboration | moderation_item            | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| posts                     | collaboration | post_board                 | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| posts                     | collaboration | post                       | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| reactions                 | collaboration | reaction                   | append-only   | create, delete         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| share-links               | collaboration | share_link                 | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| timeline                  | collaboration | timeline_entry             | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| accounting                | commerce      | accounting_account         | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| accounting                | commerce      | accounting_journal         | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| accounting                | commerce      | accounting_period          | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| accounting                | commerce      | accounting_entry           | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| accounting                | commerce      | accounting_dimension       | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| accounting                | commerce      | accounting_budget          | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| agent-checkout            | commerce      | checkout_session           | editable      | create, update         | -                      | createdAt, expiresAt                     | status, protocol       | -           | -        | -       | -         |
+| agent-checkout            | commerce      | agent_mandate              | state-machine | create                 | -                      | createdAt, expiresAt                     | status, vct            | -           | -        | -       | -         |
+| banking                   | commerce      | bank_transaction           | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| banking                   | commerce      | bank_account               | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| banking                   | commerce      | bank_statement             | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| banking                   | commerce      | bank_match                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| banking                   | commerce      | bank_rule                  | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| billable-time             | commerce      | time_rate                  | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| billing                   | commerce      | billing                    | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| catalog                   | commerce      | product                    | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| catalog                   | commerce      | product_variant            | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| commerce                  | commerce      | commerce                   | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| commissions               | commerce      | commission_plan            | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| commissions               | commerce      | commission_assignment      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| commissions               | commerce      | commission                 | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| commissions               | commerce      | commission_statement       | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| donations                 | commerce      | donation                   | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| donations                 | commerce      | pledge                     | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| donations                 | commerce      | donation_fund              | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| donations                 | commerce      | donation_receipt           | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| entitlements              | commerce      | entitlement                | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| expenses                  | commerce      | expense_report             | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| expenses                  | commerce      | expense_line               | editable      | -                      | create, update, delete | -                                        | -                      | -           | -        | -       | -         |
+| expenses                  | commerce      | expense_category           | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| finance                   | commerce      | finance                    | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| funding                   | commerce      | funding_product            | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| funding                   | commerce      | funding_award              | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| funding                   | commerce      | funding_delivery           | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| funding                   | commerce      | funding_claim              | state-machine | create, delete         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| funding                   | commerce      | funding_claim_line         | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| inventory                 | commerce      | inventory_location         | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| inventory                 | commerce      | purchase_order             | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| inventory                 | commerce      | purchase_requisition       | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| inventory                 | commerce      | inventory_receipt          | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| invoices                  | commerce      | invoice                    | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| leases                    | commerce      | lease                      | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| ledger                    | commerce      | ledger_account             | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| ledger                    | commerce      | ledger_transaction         | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| ledger                    | commerce      | ledger_hold                | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| manufacturing             | commerce      | production_order           | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| manufacturing             | commerce      | bom                        | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| manufacturing             | commerce      | bom_component              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| manufacturing             | commerce      | bom_operation              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| manufacturing             | commerce      | work_center                | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| manufacturing             | commerce      | production_order_operation | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| manufacturing             | commerce      | production_consumption     | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| manufacturing             | commerce      | stock_lot_link             | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| orders                    | commerce      | order                      | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| orders                    | commerce      | cart                       | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| periods                   | commerce      | period                     | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| procurement               | commerce      | procurement                | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| promotions                | commerce      | promotion                  | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| referrals                 | commerce      | referral_code              | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| referrals                 | commerce      | referral                   | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| reviews                   | commerce      | review                     | state-machine | delete                 | create                 | -                                        | -                      | -           | -        | -       | -         |
+| rfqs                      | commerce      | rfq                        | editable      | create, update         | -                      | number, dueAt                            | status                 | -           | -        | -       | -         |
+| rfqs                      | commerce      | rfq_line                   | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| rfqs                      | commerce      | rfq_supplier               | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| rfqs                      | commerce      | rfq_quote                  | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| rfqs                      | commerce      | rfq_quote_line             | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| shipments                 | commerce      | shipment                   | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| shipments                 | commerce      | shipment_package           | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| shipments                 | commerce      | shipment_tracking_event    | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| shipments                 | commerce      | shipment_line              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| tax                       | commerce      | tax_code                   | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| tax                       | commerce      | tax_rate                   | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| tax                       | commerce      | tax_return                 | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| tills                     | commerce      | till                       | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| tills                     | commerce      | till_session               | state-machine | -                      | create                 | openedAt, closedAt                       | status, tillId         | -           | -        | -       | -         |
+| tills                     | commerce      | till_movement              | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| tills                     | commerce      | till_count                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| tills                     | commerce      | till_deposit               | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| usage                     | commerce      | usage                      | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| warehouse                 | commerce      | pick_list                  | state-machine | create                 | -                      | createdAt, pickedAt                      | status, documentType   | -           | -        | -       | -         |
+| warehouse                 | commerce      | pick_wave                  | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| warehouse                 | commerce      | pick_line                  | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| warehouse                 | commerce      | count_plan                 | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| warehouse                 | commerce      | putaway_rule               | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| warehouse                 | commerce      | bin_slot                   | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| warehouse                 | commerce      | variant_size               | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| cms                       | content       | cm                         | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| content                   | content       | content_entry              | editable      | create, update         | -                      | updatedAt, title, createdAt, publishedAt | type, locale, status   | title, slug | -        | -       | -         |
+| courses                   | content       | course                     | editable      | create, update, delete | -                      | title                                    | status                 | -           | -        | -       | -         |
+| courses                   | content       | course_module              | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| courses                   | content       | course_lesson              | editable      | -                      | create, update, delete | -                                        | -                      | -           | -        | -       | -         |
+| courses                   | content       | course_certificate         | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| dam                       | content       | dam_usage_right            | state-machine | -                      | -                      | expiresOn, startsOn                      | status                 | -           | -        | -       | -         |
+| dam                       | content       | dam_rendition              | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| documents                 | content       | document                   | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| documents                 | content       | document_suggestion        | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| drive                     | content       | drive_node                 | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| filespace                 | content       | filespace                  | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| forms                     | content       | form                       | editable      | create                 | update                 | -                                        | -                      | -           | -        | -       | -         |
+| signatures                | content       | signature_request          | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| templates                 | content       | template                   | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| activities                | crm           | activity                   | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| contacts                  | crm           | company                    | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| contacts                  | crm           | person                     | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| contracts                 | crm           | contract                   | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| contracts                 | crm           | contract_obligation        | editable      | create, update         | delete                 | -                                        | -                      | -           | -        | -       | -         |
+| crm                       | crm           | crm                        | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| deals                     | crm           | deal                       | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| enrichment                | crm           | enrichment                 | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| forecasts                 | crm           | forecast_snapshot          | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| goals                     | crm           | goal                       | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| lead-scoring              | crm           | lead_scoring               | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| mail-sync                 | crm           | mail_thread                | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| mail-sync                 | crm           | mail_account               | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| mail-sync                 | crm           | mail_message               | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| quotes                    | crm           | quote                      | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| sales                     | crm           | sale                       | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| segments                  | crm           | segment                    | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| sequences                 | crm           | sequence                   | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| field-encryption          | database      | field_key                  | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| field-history             | database      | field_history              | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| imports                   | database      | import                     | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| jsonb-schemas             | database      | jsonb_schema               | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| numbering                 | database      | number                     | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| pgtap                     | database      | pgtap                      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| rank                      | database      | rank                       | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| read-sets                 | database      | read_set                   | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| realtime-tables           | database      | realtime_table             | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| rls-guard                 | database      | rls_guard                  | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| trash                     | database      | subject                    | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| updated-at                | database      | updated_at                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| versions                  | database      | version                    | state-machine | create, delete         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| api-keys                  | developer     | api_key                    | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| credentials               | developer     | credential                 | editable      | update, delete         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| incoming-webhooks         | developer     | incoming_webhook           | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| oauth-server              | developer     | oauth_client               | editable      | delete                 | update                 | -                                        | -                      | -           | -        | -       | -         |
+| oauth-server              | developer     | oauth_grant                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| security-events           | developer     | ssf_stream                 | editable      | create, delete         | update                 | -                                        | -                      | -           | -        | -       | -         |
+| service-accounts          | developer     | service_principal          | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| signing-keys              | developer     | signing_key                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| vercel-marketplace        | developer     | marketplace_installation   | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| vercel-marketplace        | developer     | marketplace_invoice        | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| webhooks                  | developer     | webhook_endpoint           | editable      | -                      | create, update, delete | -                                        | -                      | -           | -        | -       | -         |
+| announcements             | growth        | announcement               | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| flags                     | growth        | flag                       | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| onboarding                | growth        | onboarding                 | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| scores                    | growth        | score_model                | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| waitlist                  | growth        | waitlist_entry             | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| access-requests           | identity      | access_request             | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| created-by                | identity      | created_by                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| grants                    | identity      | grant                      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| identities                | identity      | identity                   | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| mfa                       | identity      | mfa                        | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| permissions               | identity      | permission                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| sessions                  | identity      | session                    | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| sso                       | identity      | organization               | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| sso                       | identity      | sso_domain                 | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| sso                       | identity      | sso_provider               | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| sso                       | identity      | scim_user                  | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| sso                       | identity      | scim_group                 | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| subjects                  | identity      | subject_member             | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| subjects                  | identity      | subject                    | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| inbox                     | messaging     | inbox                      | editable      | -                      | create, update         | -                                        | -                      | -           | -        | -       | -         |
+| notifications             | messaging     | notification               | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| push                      | messaging     | push                       | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| care                      | people        | care                       | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| care-plans                | people        | care_plan                  | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| care-plans                | people        | care_plan_problem          | editable      | -                      | create, update         | -                                        | -                      | -           | -        | -       | -         |
+| care-plans                | people        | care_plan_goal             | editable      | -                      | create, update         | -                                        | -                      | -           | -        | -       | -         |
+| care-plans                | people        | care_plan_action           | editable      | -                      | create, update         | -                                        | -                      | -           | -        | -       | -         |
+| care-plans                | people        | care_plan_evaluation       | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| clinical-decision-support | people        | care_alert                 | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| clinical-decision-support | people        | care_rule                  | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| e-prescribing             | people        | prescription               | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| employees                 | people        | employee                   | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| enrollments               | people        | enrollment_program         | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| enrollments               | people        | enrollment                 | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| hiring                    | people        | job_opening                | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| hiring                    | people        | application                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| hiring                    | people        | interview                  | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| learning                  | people        | learning                   | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| leave                     | people        | leave_request              | editable      | update                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| leave                     | people        | leave_type                 | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| medications               | people        | medication                 | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| medications               | people        | medication_order           | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| medications               | people        | medication_administration  | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| observations              | people        | observation                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| observations              | people        | observation_definition     | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| payroll-export            | people        | payroll_run                | state-machine | create                 | delete                 | -                                        | -                      | -           | -        | -       | -         |
+| payroll-export            | people        | payroll_line               | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| people                    | people        | people                     | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| qualifications            | people        | qualification              | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| qualifications            | people        | qualification_type         | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| qualifications            | people        | qualification_requirement  | append-only   | -                      | create, delete         | -                                        | -                      | -           | -        | -       | -         |
+| recruiting                | people        | recruiting                 | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| shifts                    | people        | shift                      | editable      | create                 | update                 | -                                        | -                      | -           | -        | -       | -         |
+| shifts                    | people        | shift_template             | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| shifts                    | people        | shift_assignment           | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| shifts                    | people        | shift_swap                 | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| shifts                    | people        | shift_availability         | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| time-entries              | people        | time_entry                 | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| time-entries              | people        | timesheet                  | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| bookings                  | scheduling    | booking                    | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| calendar                  | scheduling    | calendar_event             | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| calendar                  | scheduling    | calendar                   | editable      | create, update         | delete                 | -                                        | -                      | -           | -        | -       | -         |
+| events                    | scheduling    | event                      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| passes                    | scheduling    | pass                       | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| passes                    | scheduling    | pass_check_in              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| reminders                 | scheduling    | reminder                   | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| scheduling                | scheduling    | scheduling                 | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| document-templates        | tenancy       | document_template          | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| document-templates        | tenancy       | document_text_block        | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| document-templates        | tenancy       | document_snapshot          | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| domains                   | tenancy       | hostname                   | state-machine | create, delete         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| legal-entities            | tenancy       | legal_entity               | editable      | create, update         | -                      | code, name                               | isDefault              | -           | -        | -       | -         |
+| legal-entities            | tenancy       | legal_entity_setting       | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| memberships               | tenancy       | membership                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| organizations             | tenancy       | organization               | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| organizations             | tenancy       | invitation                 | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| profiles                  | tenancy       | profile                    | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| reserved-slugs            | tenancy       | reserved_slug              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| saas                      | tenancy       | saa                        | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| settings                  | tenancy       | organization_setting       | editable      | update                 | create                 | -                                        | -                      | -           | -        | -       | -         |
+| settings                  | tenancy       | platform_setting           | editable      | update                 | create                 | -                                        | -                      | -           | -        | -       | -         |
+| teams                     | tenancy       | team                       | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| advisories                | work          | advisory                   | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| advisories                | work          | advisory_product           | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| advisories                | work          | advisory_product_version   | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| advisories                | work          | sbom_component             | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| advisories                | work          | vulnerability              | editable      | create                 | update                 | -                                        | -                      | -           | -        | -       | -         |
+| advisories                | work          | vex_statement              | editable      | update                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| advisories                | work          | advisory_vulnerability     | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| appraisals                | work          | appraisal                  | state-machine | create                 | -                      | createdAt, rating                        | status                 | -           | -        | -       | -         |
+| appraisals                | work          | appraisal_cycle            | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| appraisals                | work          | appraisal_review           | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| appraisals                | work          | appraisal_calibration      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| appraisals                | work          | appraisal_goal             | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| appraisals                | work          | appraisal_competency       | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| appraisals                | work          | appraisal_review_rating    | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| approvals                 | work          | approval                   | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| assets                    | work          | asset                      | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| assets                    | work          | asset_location             | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| assignment                | work          | assignment_queue           | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| bulk-actions              | work          | bulk_run                   | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| cases                     | work          | case                       | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| cases                     | work          | case_kind                  | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| cases                     | work          | case_action                | append-only   | create, delete         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| collections               | work          | subject_collection         | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| custom-fields             | work          | field_definition           | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| deadlines                 | work          | deadline                   | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| dispatch                  | work          | work_order                 | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| dispatch                  | work          | dispatch_route             | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| dispatch                  | work          | work_order_part            | append-only   | -                      | create, delete         | -                                        | -                      | -           | -        | -       | -         |
+| incidents                 | work          | incident                   | editable      | update                 | create                 | -                                        | -                      | -           | -        | -       | -         |
+| incidents                 | work          | status_component           | editable      | update                 | delete                 | -                                        | -                      | -           | -        | -       | -         |
+| incidents                 | work          | incident_postmortem        | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| incidents                 | work          | status_page                | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| inspections               | work          | inspection                 | editable      | update                 | create                 | -                                        | -                      | -           | -        | -       | -         |
+| inspections               | work          | inspection_program         | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| inspections               | work          | inspection_finding         | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| inspections               | work          | inspection_member          | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| lims                      | work          | lims_sample                | state-machine | -                      | -                      | number, receivedOn                       | status, kind           | -           | -        | -       | -         |
+| lims                      | work          | lims_method                | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| lims                      | work          | lims_result                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| maintenance               | work          | maintenance_plan           | editable      | create, update, delete | -                      | nextDueAt, title                         | status, kind           | -           | -        | -       | -         |
+| maintenance               | work          | maintenance_plan_part      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| maintenance               | work          | maintenance_meter          | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| maintenance               | work          | maintenance_meter_reading  | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| maintenance               | work          | maintenance_calibration    | append-only   | create                 | -                      | performedAt, dueAt                       | result                 | -           | -        | -       | -         |
+| option-sets               | work          | option_set                 | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| pipelines                 | work          | pipeline                   | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| projects                  | work          | project                    | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| relations                 | work          | relation                   | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| risks                     | work          | risk                       | editable      | create, update         | -                      | residualScore, number, nextReviewOn      | status, category, band | y           | -        | -       | -         |
+| risks                     | work          | risk_matrix                | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| risks                     | work          | risk_assessment            | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| saved-views               | work          | saved_view                 | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| search                    | work          | search                     | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| service                   | work          | service                    | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| sla                       | work          | sla_policy                 | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| state-machine             | work          | status                     | editable      | update                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| support                   | work          | support                    | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| tags                      | work          | tag                        | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| tasks                     | work          | task                       | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| tasks                     | work          | project                    | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| tasks                     | work          | iteration                  | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| tasks                     | work          | checklist_item             | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
+| undo                      | work          | undo                       | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| warranty                  | work          | warranty_claim             | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 
 <!-- entity-matrix:end -->
 
@@ -785,41 +785,41 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane 0
 
 - Scope: Tracking: Progress and Lane ownership sections, lane checklist
-- Status: PR open #894
+- Status: merged
 - Branch: `docs/audit-lane-0`
 - PR: [#894](https://github.com/ScaleDockHQ/better-supabase/pull/894)
 - Findings: none (docs only)
-- Log: 2026-11-12, lane 0 started from main after PR 887 merged; PR #894 opened.
+- Log: 2026-11-12, lane 0 started from main after PR 887 merged; PR #894 opened. 2026-11-12, merged as [#894](https://github.com/ScaleDockHQ/better-supabase/pull/894).
 
 ### Lane A
 
 - Scope: Entity surface in the manifest and core list types
-- Status: PR open #897
+- Status: merged
 - Branch: `feat/audit-a`
 - PR: [#897](https://github.com/ScaleDockHQ/better-supabase/pull/897)
 - Findings: EX-1208, EX-1216, EX-1352
-- Log: 2026-11-12, lane A started from main in `../bsb-audit-a`; PR #897 opened with `entities` on every manifest, the list contract types and the generated entity matrix.
+- Log: 2026-11-12, lane A started from main in `../bsb-audit-a`; PR #897 opened with `entities` on every manifest, the list contract types and the generated entity matrix. 2026-11-12, merged as [#897](https://github.com/ScaleDockHQ/better-supabase/pull/897).
 
 ### Lane B
 
 - Scope: Event verbs, hint prefix rule, one key per block
-- Status: PR open #900
+- Status: merged
 - Branch: `feat/audit-b`
 - PR: [#900](https://github.com/ScaleDockHQ/better-supabase/pull/900)
 - Findings: EX-1230, EX-1233, EX-1234
 - Log: 2026-11-12, planned.
-- Log: 2026-11-12, lane B started in `../bsb-audit-b` from main.
+- Log: 2026-11-12, lane B started in `../bsb-audit-b` from main. 2026-11-13, merged as [#900](https://github.com/ScaleDockHQ/better-supabase/pull/900).
 
 ### Lane C
 
 - Scope: Field-aware invalid_input, generated messages, locale
-- Status: PR open #898
+- Status: merged
 - Branch: `feat/audit-c`
 - PR: [#898](https://github.com/ScaleDockHQ/better-supabase/pull/898)
 - Findings: EX-1235, EX-1236, EX-1317
 - Log: 2026-11-12, planned.
 - Log: 2026-11-12, lane C started from main in `../bsb-audit-c`.
-- Log: 2026-11-12, PR #898 opened (ADR 0709).
+- Log: 2026-11-12, PR #898 opened (ADR 0709). 2026-11-13, merged as [#898](https://github.com/ScaleDockHQ/better-supabase/pull/898).
 
 ### Lane D
 
@@ -833,22 +833,23 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane E
 
 - Scope: Example follow-up block fixes
-- Status: merged (E1; E2 not started)
+- Status: merged
 - Branch: `feat/audit-e`
-- PR: [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902)
+- PR: [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902), [#914](https://github.com/ScaleDockHQ/better-supabase/pull/914)
 - Findings: EX-1602, EX-1604, EX-1605, EX-1606, EX-1607, EX-1610, EX-1612, EX-1613, EX-1614
-- Log: 2026-11-12, E1 PR opened (fixes 1604 in part, 1605 in part, 1606, 1607, 1610, 1612, 1614). EX-1602 and EX-1613 remain for E2. 2026-11-13, E1 merged as [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902). E2 (EX-1602 extractor warning, EX-1613 column renames, EX-1604 and EX-1605 remainder) is a follow-up, not started.
+- Log: 2026-11-12, E1 PR opened (fixes 1604 in part, 1605 in part, 1606, 1607, 1610, 1612, 1614). EX-1602 and EX-1613 remain for E2. 2026-11-13, E1 merged as [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902). 2026-11-13, the E2 work (EX-1602 extractor warning, EX-1613 column renames, EX-1604 and EX-1605 remainder, plus EX-1115 and EX-1614) merged inside the library findings pass, [#914](https://github.com/ScaleDockHQ/better-supabase/pull/914), so all nine rows are closed.
 
 ### Lane F
 
 - Scope: pgTAP per block check and MCP mapping
-- Status: PR open #896
+- Status: merged
 - Branch: `feat/audit-f`
 - PR: [#896](https://github.com/ScaleDockHQ/better-supabase/pull/896)
 - Findings: EX-1269, EX-1351, EX-1354
 - Log: 2026-11-12, planned.
   2026-11-12, lane F started from main (3220ac7c6a).
   2026-11-12, PR #896 opened: pgTAP rule (87 blocks allowlisted), MCP mapping doc and test; EX-100 to EX-108 and EX-700 to EX-706 are on main.
+  2026-11-12, merged as [#896](https://github.com/ScaleDockHQ/better-supabase/pull/896).
 
 ### Lane G1
 
@@ -856,7 +857,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: merged
 - Branch: `feat/audit-g1`
 - PR: [#906](https://github.com/ScaleDockHQ/better-supabase/pull/906)
-- Findings: EX-1200 to EX-1205, EX-1215
+- Findings: none closed alone (G1 is the shared base; G2 to G5 close the list rows per category)
 - Log: 2026-11-12, planned.
   2026-11-13, lane G1 started from main (6f9b3af232) in `../bsb-audit-g1`.
   2026-11-13, PR #906 opened: shared page, facets and count (ADR 0749), nine blocks moved over, `sso` kept on SCIM paging, `get` added for three entities, migration 20261215140000.
@@ -868,7 +869,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-g2`
 - PR: none yet
-- Findings: EX-1200 to EX-1205, EX-1215
+- Findings: EX-1200 to EX-1205, EX-1215, EX-200, EX-204, EX-901
 - Log: 2026-11-12, planned.
 
 ### Lane G3
@@ -877,7 +878,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-g3`
 - PR: none yet
-- Findings: EX-1200 to EX-1205, EX-1215
+- Findings: EX-1200 to EX-1205, EX-1215, EX-800 to EX-802, EX-811, EX-812, EX-1100 to EX-1105
 - Log: 2026-11-12, planned.
 
 ### Lane G4
@@ -886,27 +887,30 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-g4`
 - PR: none yet
-- Findings: EX-1200 to EX-1205, EX-1215
+- Findings: EX-1200 to EX-1205, EX-1215, EX-600, EX-1000, EX-1001
 - Log: 2026-11-12, planned.
 
 ### Lane G5
 
 - Scope: List contract rollout: all other categories
-- Status: planned
+- Status: PR open #920
 - Branch: `feat/audit-g5`
-- PR: none yet
-- Findings: EX-1200 to EX-1205, EX-1215
+- PR: [#920](https://github.com/ScaleDockHQ/better-supabase/pull/920)
+- Findings: EX-1200 to EX-1205, EX-1215, EX-300, EX-400, EX-401
 - Log: 2026-11-12, planned.
+  2026-11-13, lane G5 started from main (7f4bcbfdf7) in `../bsb-audit-g5`.
+  2026-11-13, PR #920 opened: `legal_entity`, `course` and `content_entry` page, facet and count (migration 20261216050005). `sso` keeps SCIM paging and its bounded lists. The other lists wait for a per-call tenant, a caller scope or a parent scope (ADR 0789).
 
 ### Lane H
 
 - Scope: Generated permission keys, role defaults and scopes
-- Status: PR open #903
+- Status: merged
 - Branch: `feat/audit-h`
 - PR: [#903](https://github.com/ScaleDockHQ/better-supabase/pull/903)
 - Findings: EX-1231, EX-1232, EX-1322, EX-1330, EX-1603, EX-807
 - Log: 2026-11-13, lane H started from main in `../bsb-audit-h`.
   2026-11-13, PR #903 opened with validated `entities.<key>.permissions`, `gen.permissionCatalog` and the scope lists (ADR 0799).
+  2026-11-13, merged as [#903](https://github.com/ScaleDockHQ/better-supabase/pull/903).
 
 ### Lane J
 
@@ -921,9 +925,9 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane K
 
 - Scope: Client, controller and hooks trio, record bindings
-- Status: in progress (K1 #901 and trio #908 merged, K2 #904 open)
-- Branch: `feat/audit-k`, `feat/audit-k2`, `feat/audit-k4-trio`
-- PR: [#901](https://github.com/ScaleDockHQ/better-supabase/pull/901), [#904](https://github.com/ScaleDockHQ/better-supabase/pull/904), [#908](https://github.com/ScaleDockHQ/better-supabase/pull/908)
+- Status: merged
+- Branch: `feat/audit-k`, `feat/audit-k2`, `feat/audit-k4-trio`, `feat/audit-k3`, `feat/audit-k3b`
+- PR: [#901](https://github.com/ScaleDockHQ/better-supabase/pull/901), [#904](https://github.com/ScaleDockHQ/better-supabase/pull/904), [#908](https://github.com/ScaleDockHQ/better-supabase/pull/908), [#910](https://github.com/ScaleDockHQ/better-supabase/pull/910), [#912](https://github.com/ScaleDockHQ/better-supabase/pull/912)
 - Findings: EX-1237, EX-1238, EX-1319, EX-1326
 - Log: 2026-11-12, planned.
   2026-11-13, lane K started from main (6f9b3af232) in `../bsb-audit-k`; K1 is the employees binding.
@@ -932,6 +936,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
   2026-11-13, trio PR #908 (`feat/audit-k4-trio`, ADR 0821): EX-1238 fixed. The SQL-backed bindings (K3) wait for a local stack: 24 of the 32 macOS shared memory segments are held by other worktrees' stacks, so `pnpm supabase:start` refuses.
   2026-11-13, K3a (`feat/audit-k3`, ADR 0822): bindings for invoices, quotes and deals; PR #910.
   2026-11-13, K3b (`feat/audit-k3b`, ADR 0822, PR #912): bindings for bookings, expenses, leave and risks, rebased on main after K3a (#910) merged.
+  2026-11-13, all parts merged: K1 #901, K2 #904, trio #908, K3a #910 and K3b #912. EX-1237, EX-1238, EX-1319 and EX-1326 are fixed.
 
 ### Lane N
 
@@ -958,7 +963,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-l`
 - PR: none yet
-- Findings: EX-1209, EX-1210, EX-1211, EX-1324
+- Findings: EX-1209, EX-1210, EX-1211, EX-1324, EX-515 (check #917's set checks first)
 - Log: 2026-11-12, planned.
 
 ### Lane M1
@@ -967,7 +972,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-m1`
 - PR: none yet
-- Findings: EX-1260, EX-1261, EX-1265, EX-1270
+- Findings: EX-1260, EX-1261, EX-1265, EX-1270, EX-001 to EX-003, EX-012, EX-014, EX-410, EX-607
 - Log: 2026-11-12, planned.
 
 ### Lane M2
@@ -976,7 +981,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-m2`
 - PR: none yet
-- Findings: EX-1262, EX-1263
+- Findings: EX-1262, EX-1263, EX-033, EX-034
 - Log: 2026-11-12, planned.
 
 ### Lane M3
@@ -994,7 +999,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-m4`
 - PR: none yet
-- Findings: EX-1294, EX-1327
+- Findings: EX-1294, EX-1327, EX-813, EX-024 (once the instant allow list is empty)
 - Log: 2026-11-12, planned.
 
 ### Lane O1
@@ -1021,7 +1026,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-o3`
 - PR: none yet
-- Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329
+- Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329, EX-510
 - Log: 2026-11-12, planned.
 
 ### Lane P
@@ -1032,6 +1037,107 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - PR: none yet
 - Findings: EX-1350
 - Log: 2026-11-12, planned.
+
+The lanes X0 to X9 below are the findings program. It closes the unfinished rows of [`example-findings.md`](example-findings.md) that no audit lane owns. One lane is one PR on `feat/findings-x<n>` in `../bsb-findings-x<n>`, and its PR body says "findings program, lane Xn". `pnpm check:example-findings` fails when an unfinished row is named by no lane's Findings line and when a lane is `merged` while one of its rows is unfinished.
+
+### Lane X0
+
+- Scope: Reconcile the report and this tracker with the merged lanes, repair the report tables, add the X lanes and `check:example-findings`
+- Status: in progress
+- Branch: `feat/findings-x0`
+- PR: none yet
+- Findings: EX-1237, EX-1238, EX-1319, EX-1326, EX-611 (closed here; the other lagging rows keep their lane)
+- Log: 2026-11-14, lane X0 started from main (b124ee8206) in `../bsb-findings-x0`.
+
+### Lane X1
+
+- Scope: Dev loop and local stack: open bugs and tooling rows (repo tooling, no changeset)
+- Status: planned
+- Branch: `feat/findings-x1`
+- PR: none yet
+- Findings: EX-309, EX-704, EX-313, EX-318, EX-819, EX-903, EX-430, EX-315, EX-108, EX-050, EX-051, EX-056, EX-1021, EX-505, EX-511, EX-512, EX-605, EX-606, EX-820, EX-207, EX-208, EX-214, EX-316, EX-107, EX-106, EX-902, EX-1507, EX-310, EX-1020
+- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start).
+
+### Lane X2
+
+- Scope: Library follow-ups: what lane H left open, the facet count and the diff rewrites
+- Status: planned
+- Branch: `feat/findings-x2`
+- PR: none yet
+- Findings: EX-611, EX-506, EX-513, EX-808, EX-1108, EX-016, EX-924, EX-814
+- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start).
+
+### Lane X2b
+
+- Scope: Search and calendar (after audit lane G4 for the calendar; ADRs from the range of X2)
+- Status: planned
+- Branch: `feat/findings-x2b`
+- PR: none yet
+- Findings: EX-1504, EX-1508
+- Log: 2026-11-14, planned.
+
+### Lane X3
+
+- Scope: Example-only fixes, and the forms and names on lane C and N
+- Status: planned
+- Branch: `feat/findings-x3`
+- PR: none yet
+- Findings: EX-1505, EX-925, EX-042, EX-804, EX-411, EX-703, EX-104, EX-803, EX-809, EX-610, EX-810, EX-101, EX-402
+- Log: 2026-11-14, planned.
+
+### Lane X4
+
+- Scope: Admin and billing (a maintainer sets Stripe test keys in the three Vercel environments)
+- Status: planned
+- Branch: `feat/findings-x4`
+- PR: none yet
+- Findings: EX-1608, EX-502, EX-507, EX-516
+- Log: 2026-11-14, planned.
+
+### Lane X5
+
+- Scope: Inbox and messaging (after G5; real Slack and WhatsApp adapters need accounts)
+- Status: planned
+- Branch: `feat/findings-x5`
+- PR: none yet
+- Findings: EX-403, EX-404, EX-411, EX-030, EX-422
+- Log: 2026-11-14, planned.
+
+### Lane X6
+
+- Scope: Workflows (after G2)
+- Status: planned
+- Branch: `feat/findings-x6`
+- PR: none yet
+- Findings: EX-201, EX-202, EX-203, EX-205, EX-210, EX-212, EX-213
+- Log: 2026-11-14, planned.
+
+### Lane X7
+
+- Scope: AI ops, EX-301 first (a maintainer sets `AI_GATEWAY_API_KEY`)
+- Status: planned
+- Branch: `feat/findings-x7`
+- PR: none yet
+- Findings: EX-301, EX-302, EX-305, EX-306, EX-307, EX-317
+- Log: 2026-11-14, planned.
+
+### Lane X8
+
+- Scope: Commerce and finance (after G3)
+- Status: planned
+- Branch: `feat/findings-x8`
+- PR: none yet
+- Findings: EX-805, EX-818, EX-1106, EX-1110 to EX-1113, EX-701
+- Log: 2026-11-14, planned.
+
+### Lane X9
+
+- Scope: CRM and records (after G4)
+- Status: planned
+- Branch: `feat/findings-x9`
+- PR: none yet
+- Findings: EX-601, EX-602, EX-032, EX-035, EX-103
+- Log: 2026-11-14, planned.
 
 ## Lane ownership
 
@@ -1070,6 +1176,23 @@ ADR numbers and migration slots are reserved per lane so parallel branches never
 | P    | 0929 to 0938 | 20261225hhmmss | generated skill references under `packages/better-supabase/skills`, the capability matrix in the audit report                                                                          |
 
 The last reserved ADR is 0938; the next free number for later work is 0939.
+
+The findings program continues the numbering after lane P. Each lane X1 to X9 gets ten ADR numbers and a migration slot `202701DDhhmmss` with `DD` equal to the lane number, which sorts after every audit migration (the newest on `main` is `20261215140010`). Lane X0 writes no ADR and no migration, and X2b uses the range of X2. The next free ADR number for later work is 1029.
+
+| Lane | ADR range    | Migration slot | Folders and files it owns                                                                                       |
+| ---- | ------------ | -------------- | --------------------------------------------------------------------------------------------------------------- |
+| X0   | none         | none           | `docs/agents` and `scripts/check-example-findings.ts`                                                           |
+| X1   | 0939 to 0948 | 20270101hhmmss | `scripts/worktree-setup.ts`, the dev-loop scripts and the local stack tooling                                   |
+| X2   | 0949 to 0958 | 20270102hhmmss | role defaults, `permissions-model.ts`, session refresh, the facet count option, `supabase:diff` function output |
+| X3   | 0959 to 0968 | 20270103hhmmss | example-only pages and forms in `apps/examples/nextjs`                                                          |
+| X4   | 0969 to 0978 | 20270104hhmmss | the example's admin and billing routes, the marketplace detail page                                             |
+| X5   | 0979 to 0988 | 20270105hhmmss | the inbox and messaging pages (the block folders wait for G5)                                                   |
+| X6   | 0989 to 0998 | 20270106hhmmss | the workflow pages (the block folders wait for G2)                                                              |
+| X7   | 0999 to 1008 | 20270107hhmmss | the service-role AI blocks' tenant and permission checks, the AI ops pages                                      |
+| X8   | 1009 to 1018 | 20270108hhmmss | the commerce and finance pages (the block folders wait for G3)                                                  |
+| X9   | 1019 to 1028 | 20270109hhmmss | the CRM and records pages, on the K3 record bindings (the block folders wait for G4)                            |
+
+A lane X does not edit a block folder while that category's audit G or I lane is open; its example-side work can start right away.
 
 ### Waves and dependency order
 

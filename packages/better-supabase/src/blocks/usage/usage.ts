@@ -152,6 +152,15 @@ export interface UsageStatus {
   readonly label?: string;
 }
 
+/** A quota that applies to an organization and meter (`usage.quotas`). */
+export interface UsageQuota {
+  readonly organizationId: string;
+  readonly meter: string;
+  /** `null` is unlimited. */
+  readonly limit: number | null;
+  readonly period: UsagePeriod;
+}
+
 export interface Usage {
   /** Adds usage without checking the quota (metering only). */
   record(
@@ -247,6 +256,16 @@ export interface Usage {
     /** Default `month`. */
     period?: UsagePeriod | undefined;
   }): AsyncResult<void>;
+  /**
+   * The quota of each pair of `organizationIds` and `meters` that has one, in
+   * one call: each organization's plans are resolved once. A pair without a
+   * quota is left out, and `limit: null` is unlimited. Needs a service
+   * transport.
+   */
+  quotas(input: {
+    organizationIds: readonly string[];
+    meters: readonly string[];
+  }): AsyncResult<readonly UsageQuota[]>;
   /**
    * Removes the quota of one organization or plan on `meter`; resolves to
    * whether there was one. Needs a service transport.
@@ -485,6 +504,15 @@ export function createUsage(options: UsageOptions): Usage {
           period: period ?? "month",
         },
         () => undefined,
+      ),
+    quotas: ({ organizationIds, meters }) =>
+      call("usage_quotas_for", { tenants: organizationIds, meters }, (value) =>
+        (Array.isArray(value) ? value.filter(isRecord) : []).map((row) => ({
+          organizationId: textOf(row["tenant"]),
+          meter: textOf(row["meter"]),
+          limit: optionalNumber(row["quota_limit"]) ?? null,
+          period: periodOf(row["period"]),
+        })),
       ),
     removeQuota: ({ meter, organizationId, plan }) =>
       call(

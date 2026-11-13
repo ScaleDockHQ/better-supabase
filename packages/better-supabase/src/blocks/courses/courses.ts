@@ -3,11 +3,18 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type {
   FormDefinition,
   FormJsonSchema,
 } from "../../core/contracts/form-definition.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -16,6 +23,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { isFormDefinition } from "../../core/contracts/form-definition.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -30,6 +38,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { courseListSurface } from "./lists.ts";
 
 const COURSE_STATUSES = ["draft", "published", "archived"] as const;
 const LESSON_KINDS = ["content", "video", "quiz"] as const;
@@ -256,11 +265,23 @@ export interface CourseLearnersFilter {
 export interface Courses<F extends object = Record<never, never>> {
   /** Creates or changes a course. */
   upsert(course: CourseInput<F>): AsyncResult<Course<F>>;
-  /** The organization's courses by title; readers get the published ones. */
+  /**
+   * The organization's courses by title; readers get the published ones. At
+   * most `limit` (default 200, cap 500); `page` pages past that.
+   */
   list(options?: {
     readonly status?: CourseStatus;
     readonly limit?: number;
   }): AsyncResult<readonly Course<F>[]>;
+  /**
+   * One keyset page of courses, by title, ascending or descending. Readers get
+   * the published ones.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<Course<F>>>;
+  /** The values of each facet and how many courses hold each. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many courses match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   /** Deletes a course with its enrollments; `false` when it was gone. */
   delete(courseId: string): AsyncResult<boolean>;
   /** The course with its modules and lessons in rank order. */
@@ -600,6 +621,15 @@ export function createCourses<
   const fields: BlockFields<F> = blockFields(options.fields, "course fields");
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
+  const courses = entityList({
+    entity: "course",
+    surface: courseListSurface,
+    call,
+    tenant,
+    fn: "list_courses",
+    rowOf: courseOf,
+  });
+
   const learner =
     (fn: string) =>
     (value: unknown): CourseLearner =>
@@ -631,18 +661,27 @@ export function createCourses<
       tenant().andThen((organizationId) =>
         call(
           "list_courses",
-          { tenant: organizationId, status: filter.status ?? null },
-          (value) => {
-            const rows = recordsOf(value, "list_courses").map((row) =>
-              courseOf(row, "list_courses"),
-            );
-
-            return filter.limit === undefined
-              ? rows
-              : rows.slice(0, filter.limit);
+          {
+            tenant: organizationId,
+            filters: {
+              ...(filter.status === undefined ? {} : { status: filter.status }),
+              ...(filter.limit === undefined ? {} : { limit: filter.limit }),
+            },
           },
+          (value) =>
+            recordsOf(value, "list_courses").map((row) =>
+              courseOf(row, "list_courses"),
+            ),
         ).andThen(fields.rows),
       ),
+    page: (pageOptions) =>
+      courses
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: courses.facets,
+    count: courses.count,
     delete: (courseId) =>
       call("delete_course", { course_id: courseId }, (value) => value === true),
     outline: (courseId) =>

@@ -67,6 +67,13 @@ function build(ctx: BlockSqlContext): string {
   const eventsPolicy = sqlString(eventsPolicyOf(ctx));
   const auditMode = auditModeOf(ctx);
   const searchDeferral = ctx.installed("search");
+
+  // The run's records are indexed once, when it closes (ADR 0844).
+  const refreshRun = (run: string): string =>
+    searchDeferral
+      ? `  perform ${ctx.of("search").fn("search_refresh_run")}(${run});\n`
+      : "";
+
   const refs = `${ctx.schema}.${ctx.tableName("refs").name}`;
   const ref = (column: string): string => ctx.col("refs", column);
   const runsName = ctx.tableName("runs").name;
@@ -372,7 +379,7 @@ begin
   end if;
   update ${runs} r set ${r("status")} = ${ctx.cast("runs", "status", "'canceled'")}, ${r("finishedAt")} = now()
   where r.${r("id")} = cancel_import_run.id;
-  return true;
+${refreshRun("cancel_import_run.id")}  return true;
 end;
 $$;
 ${userGrant(`${ctx.fn("cancel_import_run")}(uuid)`)}
@@ -731,7 +738,7 @@ ${searchDeferral ? "  perform set_config('better_supabase.search_deferred', 'on'
     end;
   else
     v_result := ${ctx.fn("import_apply_batch")}(v_run_id, v_entity, import_upsert_batch.items);
-${searchDeferral ? `    perform ${ctx.of("search").fn("search_refresh_dirty")}();\n` : ""}  end if;
+  end if;
 
   foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     perform set_config(v_name, v_previous ->> v_name, true);
@@ -901,7 +908,7 @@ begin
       audit: false,
     })}
   end if;
-  return v_counts;
+${refreshRun("v_run_id")}  return v_counts;
 end;
 $$;
 ${serviceGrant(`${ctx.fn("finish_import_run")}(uuid)`)}
@@ -976,7 +983,7 @@ export const IMPORTS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   names: IMPORT_NAMES,
   contract,
   build,

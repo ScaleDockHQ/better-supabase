@@ -23,7 +23,7 @@ better-supabase fits in three ways, from the smallest change to the largest:
 
 ## Requirements
 
-Both blocks need the same project settings. Use Supabase CLI 2.117 or later:
+Both blocks need the same project settings. Use Supabase CLI 3.1 or later:
 it supplies asymmetric signing keys locally and passes the function slug to
 the Edge Function, so the URLs in the OAuth metadata are the public ones.
 
@@ -53,7 +53,7 @@ allow_dynamic_registration = true
 `allow_dynamic_registration` lets any compatible client register itself; set
 it to `false` if you register clients yourself. Get an existing project's
 config, schema and Edge Functions into the repo first with `supabase pull`
-(Supabase CLI 2.119 or later), then add a block:
+(Supabase CLI 3.1 or later), then add a block:
 
 ```bash
 npx shadcn@latest add @supabase/mcp

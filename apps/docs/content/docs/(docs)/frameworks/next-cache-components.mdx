@@ -836,10 +836,17 @@ export const GET = bsb.debugRoute();
 
 - **calls** are repository operations and RPCs. **waves** are sequential
   rounds: a call that starts while another is in flight joins its wave, so
-  `Promise.all` of three reads is one wave.
+  `Promise.all` of three reads is one wave. While collecting, the raw
+  `ctx.supabase` client counts too: each PostgREST, RPC, Storage and Edge
+  Function request it sends is a call, named after its table, `name()`,
+  `storage/<bucket>` or `functions/<name>`. Its Auth calls don't count.
 - The proxy gives every render a request id (`x-bsb-request-id`, forwarded to
   Server Components and sent back on the document and `_rsc` responses).
-  `bsb.context()` records into it, across all the scopes of that render.
+  `bsb.context()` records into it, across all the scopes of that render. A
+  `'use cache: private'` fill records on the render that runs it, and a
+  `'use cache: remote'` fill called through `bsb.remote()` records on the
+  render that called it. When renders of one session fill the same remote
+  entry at once, the latest caller gets the calls.
 - In development, a render that goes over `budget` logs a warning once its
   calls have been idle for 250 ms. A private-cache hit makes no call, so
   warm navigations cost 0.

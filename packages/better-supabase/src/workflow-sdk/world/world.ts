@@ -26,6 +26,7 @@ import { memoized } from "../../core/optional-peer.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { watchPoolErrors } from "../../postgres/pool-errors.ts";
+import { usesTransactionPooler } from "../../postgres/pooler.ts";
 import {
   WORKFLOW_DELIVERY_QUEUE,
   WORKFLOW_VAULT_SECRETS,
@@ -87,21 +88,6 @@ function runIdOf(message: StoredMessage): string | undefined {
   }
 
   return undefined;
-}
-
-/** True for a Supabase transaction-pooler URL (port 6543), which has no LISTEN. */
-export function usesTransactionPooler(
-  connectionString: string | undefined,
-): boolean {
-  if (connectionString === undefined) {
-    return false;
-  }
-
-  try {
-    return new URL(connectionString).port === "6543";
-  } catch {
-    return false;
-  }
 }
 
 function deliveryProblem(

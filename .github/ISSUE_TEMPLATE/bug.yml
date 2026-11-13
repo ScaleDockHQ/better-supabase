@@ -38,7 +38,7 @@ body:
     id: supabase
     attributes:
       label: "@supabase/supabase-js and Supabase CLI"
-      placeholder: "2.117.2, CLI 2.118.0"
+      placeholder: "2.119.0, CLI 3.1.0"
     validations:
       required: true
   - type: input

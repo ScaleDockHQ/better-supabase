@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@10 managed
--- @bsb-hash sha256:39af042ba3b8a741503105aafdb86d0ef9c5214b3b11a867513f7e308335067e
+-- @bsb-block webhook-inbox@11 managed
+-- @bsb-hash sha256:3313d319cb8a050ff1cb6c786e8935164df5b001819b4e0e9c9529f6a4f5f8c3
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -279,6 +279,25 @@ begin
 end;
 $$;
 
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function better_supabase.webhook_inbox_notify()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"inbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function better_supabase.webhook_inbox_notify() from public;
+create or replace trigger bsb_notify_work
+  after insert on better_supabase.webhook_inbox
+  referencing new table as new_rows
+  for each statement execute function better_supabase.webhook_inbox_notify();
+
 revoke execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb) from public, anon, authenticated;
 grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer, jsonb) to service_role;
 revoke execute on function better_supabase.claim_webhooks(text, text, integer, interval) from public, anon, authenticated;
@@ -301,13 +320,13 @@ grant execute on function better_supabase.purge_webhooks(interval, boolean, inte
 -- ==== data supabase/better-supabase-data/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block-data webhook-inbox
--- @bsb-hash sha256:c5f43d72270e2ddde5384257e157069600d003d04adf4997aa6096e958705f53
+-- @bsb-hash sha256:51db52578fb675651d33b940a0fc413c20526dc847e6c962a775bdfb99c200b4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhook-inbox', 10, 'managed')
+values ('webhook-inbox', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

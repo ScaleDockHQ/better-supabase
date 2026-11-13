@@ -89,6 +89,7 @@ type SubjectSearchInput = {
   facets?: string[] | undefined;
   from?: { view: string; key: string } | undefined;
   columns?: string[] | undefined;
+  statement?: boolean | undefined;
   watch?:
     | {
         table: string;
@@ -110,6 +111,7 @@ export const subjectSearchSchema: v.GenericSchema<SubjectSearchInput> =
     facets: v.optional(v.array(v.string())),
     from: v.optional(v.strictObject({ view: v.string(), key: v.string() })),
     columns: v.optional(v.array(v.string())),
+    statement: v.optional(v.boolean()),
     watch: v.optional(
       v.array(
         v.strictObject({

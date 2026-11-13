@@ -374,6 +374,7 @@
   "migration",
   "migration/0.53-to-0.54",
   "migration/0.57-to-0.58",
+  "migration/0.66-to-0.67",
   "migration/existing-apps",
   "migration/supabase-cache-helpers",
   "migration/supabase-js",

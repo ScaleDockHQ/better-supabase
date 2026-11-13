@@ -33,6 +33,11 @@ export interface PostgresFunctionArg {
   name: string;
   type_id: number;
   has_default: boolean | null;
+  /**
+   * Set on the `table` arguments: `false` when the column can never be null.
+   * Absent before postgrest-typegen 0.8, which reads as `true`.
+   */
+  is_nullable?: boolean | undefined;
 }
 
 export interface PostgresFunction {
@@ -74,6 +79,8 @@ export interface RpcFunctionArg extends RpcTypeReference {
 
 export interface RpcReturnColumn extends RpcTypeReference {
   name: string;
+  /** Absent before postgrest-typegen 0.8, which reads as `true`. */
+  is_nullable?: boolean | undefined;
 }
 
 export interface RpcFunctionReturns extends RpcTypeReference {

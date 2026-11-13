@@ -1,0 +1,97 @@
+---
+title: From 0.66 to 0.67
+description: What to change when upgrading from better-supabase 0.66 to 0.67. Sessions and sign-in run on @supabase/ssr, the lite browser client is removed, and the Supabase peers start at their newest releases.
+---
+
+0.67 calls Supabase only through its own clients: session cookies are read
+with the `@supabase/ssr` helpers and written by its `createServerClient`, the
+Next.js sign-in flows call auth-js, and the browser client always comes from
+`createBrowserClient` (ADR 0846 and ADR 0847). It is a minor release, and
+below 1.0 a minor version may carry breaking changes. Each change is also in
+the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+| Section                                       | Needs code                                                 |
+| --------------------------------------------- | ---------------------------------------------------------- |
+| [Supabase peers](#supabase-peers)             | Bump the Supabase packages                                 |
+| [Lite browser client](#lite-browser-client)   | Import `better-supabase/client`                            |
+| [Session cookies](#session-cookies)           | Replace `readSession` with `await ssrSession`              |
+| [Sign-in flows](#sign-in-flows)               | Replace `passwordGrant`, and check the PKCE error code     |
+| [Notification avatars](#notification-avatars) | Pass a function to `avatars`                               |
+| [Session status](#session-status)             | None; a 403 that is not Auth's JSON now reads as `unknown` |
+
+## Supabase peers
+
+Install the newest Supabase packages:
+
+```bash
+pnpm add @supabase/supabase-js@^2.119.0 @supabase/ssr @supabase/server@^1.9.2
+pnpm add -D @supabase/postgrest-typegen@0.8.1
+```
+
+`@supabase/config` needs `^1.6.1`. `@supabase/postgrest-typegen` and
+`@supabase/mcp-server-supabase` have a floor and no upper bound. The CLI is
+tested against postgrest-typegen 0.8.1, so install that release to keep
+`database.types.ts` equal to `supabase gen types`.
+
+## Lite browser client
+
+`better-supabase/client/lite` is removed, along with its optional peers
+`@supabase/auth-js` and `@supabase/realtime-js`:
+
+| Before                                                                  | After                                                   |
+| ----------------------------------------------------------------------- | ------------------------------------------------------- |
+| `import { createLiteBrowserClient } from "better-supabase/client/lite"` | `import { createClient } from "better-supabase/client"` |
+
+A route that used the lite client loads about 12 KB more. Uninstall
+`@supabase/auth-js` and `@supabase/realtime-js` if nothing else in the app
+imports them.
+
+## Session cookies
+
+`readSession` is replaced by `ssrSession`, which decodes the cookies with the
+`@supabase/ssr` helpers and returns a promise. `applyCookieWrites` is no
+longer exported: let a `createServerClient` write the cookies.
+
+| Before                       | After                             |
+| ---------------------------- | --------------------------------- |
+| `readSession(cookies, name)` | `await ssrSession(cookies, name)` |
+
+Chunks that don't parse together now read as no session, as they do in
+`@supabase/ssr`.
+
+## Sign-in flows
+
+The Next.js flows (`signInWithPassword`, `verifyOtp`, `signInWithOAuth`,
+`exchangeCodeForSession`, the email flows, `verifyMfa` and `signOut`) call
+auth-js on a `createServerClient`. Their results don't change, but a few
+names do:
+
+| Before                                        | After                                              |
+| --------------------------------------------- | -------------------------------------------------- |
+| `passwordGrant` from `better-supabase/server` | `signInWithPassword` on a `createServerClient`     |
+| error code `code_verifier_missing`            | `pkce_code_verifier_not_found` (auth-js)           |
+| verifier cookie `httpOnly`, 10 minutes        | the auth-js verifier cookie `@supabase/ssr` writes |
+| `SignInWithOAuthParams.provider: string`      | `Provider` from `@supabase/supabase-js`            |
+
+A magic link or OAuth redirect from a flow that started before the deploy
+fails the exchange once with `pkce_code_verifier_not_found`. Show the sign-in
+page again so the user can request a new one. Flows the browser client starts
+can now finish in `exchangeCodeForSession` on the server.
+
+## Notification avatars
+
+The notifications block's `avatars` option takes a function of the object
+path. For a public bucket, pass `getPublicUrl` from a supabase-js client:
+
+```ts
+const users = supabase.storage.from("users");
+
+avatars: (path) => users.getPublicUrl(path).data.publicUrl;
+```
+
+## Session status
+
+`sessionStatus` now calls `auth.getUser`. A 403 whose body is not Auth's JSON
+(a proxy or firewall page) reads as `unknown` instead of `ended`, so it no
+longer signs the user out.

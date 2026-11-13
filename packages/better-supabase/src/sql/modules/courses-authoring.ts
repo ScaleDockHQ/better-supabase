@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { createdOrUpdated } from "../event-verbs.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { COURSE_KEYS, courseSql } from "./courses-sql.ts";
@@ -24,6 +25,32 @@ export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
   const { fn, c, m, l, e, field } = q;
   const idType = ctx.idType;
   const extras = ctx.extraColumns("courses", COURSE_KEYS);
+
+  const list = {
+    name: "list_courses",
+    from: q.courses,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = list_courses.tenant`,
+      `(v_manage or x.${c("status")} = 'published')`,
+      filterAny("status", `x.${c("status")}::text`),
+    ],
+    keys: [
+      { expr: `x.${c("title")}`, dir: "asc", type: "text" },
+      { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      title: [
+        { expr: `x.${c("title")}`, dir: "asc", type: "text" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${c("status")}` },
+    rowJson: q.courseJson("x"),
+    defaultLimit: 200,
+    maxLimit: 500,
+    invalid: q.invalid,
+  } as const;
 
   const courseRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -326,33 +353,29 @@ $$;
 ${userGrant(`${fn("delete_course")}(uuid)`)}
 
 -- The organization's courses by title. Without courses.manage only the
--- published ones.
-create or replace function ${fn("list_courses")}(tenant ${idType}, status text default null)
+-- published ones. filters is { status (a value or a list of them), sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap } (ADR
+-- 0749).
+create or replace function ${fn("list_courses")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_variable
 declare
+  v_filters jsonb := coalesce(list_courses.filters, '{}'::jsonb);
   v_manage boolean := ${q.allowed("list_courses.tenant", q.manage)};
+  ${listDeclare(list)}
 begin
   if not (v_manage or ${q.allowed("list_courses.tenant", q.read)}) then
     ${q.forbidden("not allowed to read courses")}
   end if;
-  if list_courses.status is not null and list_courses.status not in ('draft', 'published', 'archived') then
-    ${q.invalid("status must be draft, published or archived")}
-  end if;
-  return coalesce((
-    select jsonb_agg(${q.courseJson("x")} order by x.${c("title")}, x.${c("id")})
-    from ${q.courses} x
-    where x.${c("tenant")} = list_courses.tenant
-      and (v_manage or x.${c("status")} = 'published')
-      and (list_courses.status is null or x.${c("status")} = ${ctx.cast("courses", "status", "list_courses.status")})
-  ), '[]'::jsonb);
+  ${listBody(list)}
 end;
 $$;
-${userGrant(`${fn("list_courses")}(${idType}, text)`)}
+${userGrant(`${fn("list_courses")}(${idType}, jsonb)`)}
 
 -- Creates or changes a module of a course. module is { id?, title, rank? };
 -- a new module without a rank goes last.

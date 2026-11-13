@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { HonoEnv } from "../../src/hono/index.ts";
 import type { Functions, Models } from "../fixtures/generated-camel.ts";
 
-import { writeSession } from "../../src/auth/session.ts";
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
@@ -18,6 +17,7 @@ import {
   countResolutions,
   expiredRequest,
 } from "../fixtures/instant-sessions.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 

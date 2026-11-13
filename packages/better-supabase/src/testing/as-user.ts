@@ -296,11 +296,11 @@ function payloadOf(token: string): TestJwtClaims {
 }
 
 /**
- * A test user that signs in through the stack's Auth (`/auth/v1/token`, the
- * password grant) instead of signing its own token. The access token carries
- * what the stack puts there, including claims from a custom access token hook,
- * so a test sees the session the app gets. The user must exist, for example
- * from the seed.
+ * A test user that signs in through the stack's Auth (supabase-js
+ * `signInWithPassword`) instead of signing its own token. The access token
+ * carries what the stack puts there, including claims from a custom access
+ * token hook, so a test sees the session the app gets. The user must exist, for
+ * example from the seed.
  *
  * ```ts
  * const alice = await asSignedInUser(betterSupabase, {
@@ -335,27 +335,17 @@ export async function asSignedInUser<
     );
   }
 
-  const request = stack.fetch ?? fetch;
+  const auth = createClient(url, publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    ...(stack.fetch ? { global: { fetch: stack.fetch } } : {}),
+  }).auth;
 
-  const response = await request(
-    `${url.replace(/\/+$/, "")}/auth/v1/token?grant_type=password`,
-    {
-      method: "POST",
-      headers: { apikey: publishableKey, "content-type": "application/json" },
-      body: JSON.stringify(credentials),
-    },
-  );
+  const { data, error } = await auth.signInWithPassword(credentials);
+  const token = data.session?.access_token;
 
-  const body: unknown = await response.json().catch(() => undefined);
-
-  const token =
-    typeof body === "object" && body !== null && "access_token" in body
-      ? body.access_token
-      : undefined;
-
-  if (!response.ok || typeof token !== "string") {
+  if (error || token === undefined) {
     throw new TypeError(
-      `asSignedInUser: Auth refused ${credentials.email} (${String(response.status)}). Does the user exist in the stack?`,
+      `asSignedInUser: Auth refused ${credentials.email} (${String(error?.status)}). Does the user exist in the stack?`,
     );
   }
 

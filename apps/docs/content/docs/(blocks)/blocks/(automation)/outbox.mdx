@@ -138,6 +138,43 @@ default), so two cron runs never send the same batch at the same time.
 `relayRoute` checks the bearer secret and relays every consumer at the same
 time within one budget, since each has its own cursor and lease.
 
+### Relaying right after an emit
+
+A cron route relays once a minute. `kick` relays after each successful
+`emit` instead, and `waitUntil` (`bsb.waitUntil` in Next.js, a Workers
+`ctx.waitUntil`) keeps the relay running after the response. Emits made
+before a relay starts share it, and an emit made while one runs queues one
+more. A relay that throws is logged and never changes the `emit` result.
+Keep the cron route as the fallback: an `emit` inside a transaction that
+hasn't committed yet is invisible to the relay.
+
+```ts
+export const outbox = createOutbox({
+  transport,
+  source: "https://crm.example.com",
+  kick: {
+    waitUntil: bsb.waitUntil,
+    run: () => outbox.relay("billing", billingSink, { budgetMs: 10_000 }),
+  },
+});
+```
+
+An event written by `emit_event` in SQL or a `track_events` trigger never
+passes through `kick`. The events table has a statement trigger that sends
+`pg_notify('better_supabase_work', '{"kind":"outbox"}')` once per insert
+statement, on commit, and `listenForWork` from `better-supabase/postgres`
+relays when it hears it:
+
+```ts title="worker.ts"
+const listener = await listenForWork(pool, {
+  outbox: () => outbox.relay("billing", billingSink),
+});
+```
+
+It needs a session connection (not port 6543), and asks `outbox_has_work`
+after each (re)connect. See
+[Starting jobs right away](/docs/blocks/queue#starting-jobs-right-away).
+
 ### Consumers inside the app
 
 `consume(consumer, handler)` claims and acknowledges the same way, but hands

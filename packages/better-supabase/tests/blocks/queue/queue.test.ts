@@ -2992,6 +2992,30 @@ describe("createWebhookInbox", () => {
     expect(fake.calls).toHaveLength(1);
   });
 
+  it("kicks processing after receive and store", async () => {
+    const fake = fakeSql([
+      ["receive_webhook", [{ value: { id: 5, duplicate: false } }]],
+      ["receive_webhook", [{ value: { id: 6, duplicate: false } }]],
+    ]);
+
+    const kept: Promise<unknown>[] = [];
+    const run = vi.fn(async () => undefined);
+
+    const inbox = createWebhookInbox({
+      transport: sqlTransport(fake.sql),
+      source: "stripe",
+      secrets: secret,
+      kick: { waitUntil: (work) => kept.push(work), run },
+    });
+
+    expect((await inbox.receive(await signed({ type: "a" }))).status).toBe(202);
+    await Promise.all(kept);
+    await inbox.store({ id: "e2", payload: { type: "b" } }).orThrow();
+    await Promise.all(kept);
+
+    expect(run.mock.calls).toEqual([["inbox"], ["inbox"]]);
+  });
+
   it("answers 405 to anything but POST", async () => {
     const fake = fakeSql();
 

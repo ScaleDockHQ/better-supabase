@@ -148,6 +148,18 @@ schema and returns the key's `default` when neither level has a value.
 `legalEntities.resolveSetting` returns the raw `{ source, value,
 legalEntityId }` when you need to know which level answered.
 
+## Paging a list
+
+`list` is the capped convenience list. `page` is the full contract for legal entities (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `code` and `name`. The default order is the default entity first, then `code`; filters are `includeArchived` (`["true"]`) and `isDefault`; the facet is `isDefault`. Archived entities stay out unless `filters.includeArchived` is `["true"]`. `list` returns at most 500 entities (200 by default). A cursor belongs to the sort it came from, so start again from the first page when `sort` or `direction` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error.
+
+```ts
+const entities = await legalEntities
+  .page({ filters: { includeArchived: ["true"] }, sort: { by: "name" } })
+  .orThrow();
+
+const total = await legalEntities.count().orThrow();
+```
+
 ## Errors
 
 | Hint                                   | When                                                                           |

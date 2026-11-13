@@ -76,7 +76,8 @@ function parseJson(part: string): Record<string, unknown> | undefined {
 
 /**
  * Whether the token is HS256 without a `kid`, the shape Supabase Lite (and
- * legacy shared-secret projects) issue.
+ * legacy shared-secret projects) issue. `verifyCredentials` from
+ * `@supabase/server` rejects a token without a `kid`, so these verify here.
  */
 export function isSharedSecretToken(token: string): boolean {
   const part = token.split(".", 1)[0];

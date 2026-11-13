@@ -16,13 +16,21 @@ export function searchPageFunction(
   described: boolean,
 ): string {
   const { docs, c, config } = names;
-  const canSubject = ctx.of("subjects").fn("can_subject");
+  const canSubjects = ctx.of("subjects").fn("can_subjects");
   const normalize = ctx.fn("search_normalize");
   const name = ctx.fn("search_page");
   const desc = described ? `d.${c("description")} as description, ` : "";
 
   const columns = `d.${c("tenant")} as tenant, d.${c("subjectType")} as subject_type, d.${c("subjectId")} as subject_id,
           d.${c("title")} as title, d.${c("url")} as url, d.${c("body")} as body, ${desc}d.${c("facets")} as facets, d.${c("sortKey")} as sort_key`;
+
+  // The ids of `rows` (a CTE with subject_type and subject_id) the caller can
+  // read: one can_subjects call per type instead of a can_subject per row.
+  const readable = (rows: string): string => `select t.subject_type, r.id
+      from (select distinct x.subject_type from ${rows} x) t
+      cross join lateral ${canSubjects}(t.subject_type, array(select y.subject_id from ${rows} y where y.subject_type = t.subject_type), 'read') r(id)`;
+
+  const recordset = `tenant ${ctx.idType}, subject_type text, subject_id text, title text, url text, body text, ${described ? "description text, " : ""}facets jsonb, sort_key text, score numeric`;
 
   const filters = `(search_page.types is null or d.${c("subjectType")} = any (search_page.types))
           and (search_page.tenant is null or d.${c("tenant")} = search_page.tenant)
@@ -72,6 +80,14 @@ declare
   v_more boolean;
   v_last jsonb;
   v_next text;
+  v_batch integer := greatest((v_size + 1) * 2, 50);
+  v_k text;
+  v_i text;
+  v_t text;
+  v_rows jsonb;
+  v_found jsonb;
+  v_scanned integer;
+  v_tail jsonb;
 begin
   if length(v_q) > 256 then
     ${fail("SEARCH_QUERY_TOO_LONG", "a search query is at most 256 characters", "22023")}
@@ -102,13 +118,40 @@ begin
     end if;
   end if;
   if v_mode = 'b' then
+    -- Keyset batches of candidates, each checked in one can_subjects call per
+    -- type, until the page and one more row are readable.
+    v_k := v_cur ->> 'k';
+    v_i := v_cur ->> 'i';
+    v_t := v_cur ->> 't';
+    v_rows := '[]'::jsonb;
+    loop
+      with cand as materialized (
+        select ${columns}, null::numeric as score
+        from ${docs} d
+        where ${filters}
+          and (v_k is null or (d.${c("sortKey")}, d.${c("subjectId")}, d.${c("subjectType")}) > (v_k, v_i, v_t))
+        order by d.${c("sortKey")}, d.${c("subjectId")}, d.${c("subjectType")}
+        limit v_batch
+      ),
+      ok as (
+        ${readable("cand")}
+      )
+      select
+        coalesce(jsonb_agg(to_jsonb(x) order by x.sort_key, x.subject_id, x.subject_type) filter (where ok.id is not null), '[]'::jsonb),
+        count(*),
+        (array_agg(jsonb_build_array(x.sort_key, x.subject_id, x.subject_type) order by x.sort_key desc, x.subject_id desc, x.subject_type desc))[1]
+      into v_found, v_scanned, v_tail
+      from cand x
+      left join ok on ok.subject_type = x.subject_type and ok.id = x.subject_id;
+      v_rows := v_rows || v_found;
+      exit when v_scanned < v_batch or jsonb_array_length(v_rows) > v_size;
+      v_k := v_tail ->> 0;
+      v_i := v_tail ->> 1;
+      v_t := v_tail ->> 2;
+    end loop;
     with lim as (
-      select ${columns}, null::numeric as score
-      from ${docs} d
-      where ${filters}
-        and (v_cur is null or (d.${c("sortKey")}, d.${c("subjectId")}, d.${c("subjectType")}) > (v_cur ->> 'k', v_cur ->> 'i', v_cur ->> 't'))
-        and ${canSubject}(d.${c("subjectType")}, d.${c("subjectId")}, 'read')
-      order by d.${c("sortKey")}, d.${c("subjectId")}, d.${c("subjectType")}
+      select r.* from jsonb_to_recordset(v_rows) as r(${recordset})
+      order by r.sort_key, r.subject_id, r.subject_type
       limit v_size + 1
     ),
     page as (
@@ -129,6 +172,9 @@ begin
       order by score desc, d.${c("subjectType")}, d.${c("subjectId")}
       limit 500
     ),
+    ok as (
+      ${readable("pool")}
+    ),
     lim as (
       select ${columns}, h.score
       from pool h
@@ -136,7 +182,7 @@ begin
       where (v_cur is null
           or h.score < (v_cur ->> 's')::numeric
           or (h.score = (v_cur ->> 's')::numeric and (h.subject_type, h.subject_id) > (v_cur ->> 't', v_cur ->> 'i')))
-        and ${canSubject}(h.subject_type, h.subject_id, 'read')
+        and exists (select 1 from ok where ok.subject_type = h.subject_type and ok.id = h.subject_id)
       order by h.score desc, h.subject_type, h.subject_id
       limit v_size + 1
     ),

@@ -49,6 +49,34 @@ describe("search module", () => {
     );
   });
 
+  it("indexes a subject with search.statement through statement triggers", () => {
+    const sql = sqlOf({
+      subjects: {
+        task: {
+          table: "app.tasks",
+          title: "name",
+          url: "/tasks/{id}?board={board_id}",
+          deletedAt: "deleted_at",
+          search: { statement: true },
+        },
+      },
+    });
+
+    expect(sql).not.toContain(`create trigger "bsb_search_task_index"`);
+    expect(sql).toContain(
+      `after insert on "app"."tasks" referencing new table as new_rows`,
+    );
+    expect(sql).toContain(
+      `after update on "app"."tasks" referencing old table as old_rows new table as new_rows`,
+    );
+    expect(sql).toContain(
+      `"better_supabase"."search_index_stmt"('task', 'id', 'id,organization_id,name,deleted_at,board_id')`,
+    );
+    expect(sql).toContain(
+      `after delete on "app"."tasks" referencing old table as old_rows`,
+    );
+  });
+
   it("leaves the index trigger on a later block's table to that block's file", () => {
     const files = renderBlocks(["search", "tasks"], {
       subjects: {

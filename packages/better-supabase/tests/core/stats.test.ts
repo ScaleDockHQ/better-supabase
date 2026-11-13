@@ -4,7 +4,11 @@ import type { Executor } from "../../src/core/executor.ts";
 
 import { createSupabase } from "../../src/core/define.ts";
 import { ok } from "../../src/core/result.ts";
-import { EMPTY_STATS, StatsRecorder } from "../../src/core/stats.ts";
+import {
+  EMPTY_STATS,
+  StatsRecorder,
+  recordingFetch,
+} from "../../src/core/stats.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const tick = (): Promise<void> =>
@@ -88,6 +92,41 @@ describe("StatsRecorder verifications and admin calls", () => {
       calls: 2,
       verifications: 1,
       adminCalls: 1,
+    });
+  });
+});
+
+describe("recordingFetch", () => {
+  it("records data, RPC, storage and function calls, and passes the request on", async () => {
+    const recorder = new StatsRecorder();
+    const sent: string[] = [];
+
+    const fetch = recordingFetch(recorder, () => async (input) => {
+      sent.push(String(input));
+
+      return Response.json([]);
+    });
+
+    const base = "https://abcdefghijklmnopqrst.supabase.co";
+
+    await Promise.all([
+      fetch(`${base}/rest/v1/customers?select=id`),
+      fetch(new URL(`${base}/rest/v1/rpc/customers_by_status`)),
+    ]);
+    await fetch(new Request(`${base}/storage/v1/object/avatars/a.png`));
+    await fetch(`${base}/functions/v1/send-mail`, { method: "POST" });
+    await fetch(`${base}/auth/v1/user`);
+
+    expect(sent).toHaveLength(5);
+    expect(recorder.snapshot()).toMatchObject({
+      calls: 4,
+      waves: 3,
+      tables: [
+        "customers",
+        "customers_by_status()",
+        "storage/avatars",
+        "functions/send-mail",
+      ],
     });
   });
 });

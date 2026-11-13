@@ -101,7 +101,7 @@ select is(
   'the list hides archived entities'
 );
 select is(
-  jsonb_array_length(better_supabase.list_legal_entities('00000000-0000-4000-8000-000000000001', true)),
+  jsonb_array_length(better_supabase.list_legal_entities('00000000-0000-4000-8000-000000000001', '{"includeArchived": true}'::jsonb)),
   2,
   'the list shows archived entities on request'
 );

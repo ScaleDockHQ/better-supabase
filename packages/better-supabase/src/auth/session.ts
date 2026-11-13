@@ -1,13 +1,10 @@
 import type { CookieOptions } from "@supabase/ssr";
 
 import {
-  createChunks,
-  DEFAULT_COOKIE_OPTIONS,
-  isChunkLike,
+  combineChunks,
   parseCookieHeader,
   serializeCookieHeader,
   stringFromBase64URL,
-  stringToBase64URL,
 } from "@supabase/ssr";
 
 export type { CookieOptions };
@@ -33,13 +30,6 @@ export interface StoredSession {
  */
 export type SessionEncoding = "user-and-tokens" | "tokens-only";
 
-const DEFAULT_SESSION_ENCODING: SessionEncoding = "user-and-tokens";
-
-export interface WriteSessionOptions {
-  /** Defaults to `user-and-tokens`, the `@supabase/ssr` default. */
-  readonly encode?: SessionEncoding;
-}
-
 /** A cookie scope an earlier deploy wrote the session at. */
 export interface CookieScope {
   readonly domain?: string;
@@ -56,8 +46,6 @@ export interface CookieWrite {
   readonly value: string;
   readonly options: CookieOptions;
 }
-
-const BASE64_PREFIX = "base64-";
 
 /** `sb-<first label of the hostname>-auth-token`, the supabase-js default. */
 export function sessionCookieName(url: string): string {
@@ -88,199 +76,78 @@ export function serializeCookie(write: CookieWrite): string {
 }
 
 /**
- * Cookie values by name, per parsed cookie list: one request reads its session
- * more than once.
+ * Sessions read per parsed cookie list: one request reads its session more than
+ * once.
  */
-const cookieMaps = new WeakMap<
+const sessions = new WeakMap<
   readonly CookieRecord[],
-  ReadonlyMap<string, string>
+  Map<string, Promise<StoredSession | null>>
 >();
 
-function byNameOf(
+async function readStored(
   cookies: readonly CookieRecord[],
-): ReadonlyMap<string, string> {
-  let byName = cookieMaps.get(cookies);
+  name: string,
+): Promise<StoredSession | null> {
+  const value = await combineChunks(
+    name,
+    (chunk) => cookies.find((cookie) => cookie.name === chunk)?.value,
+  );
 
-  if (!byName) {
-    byName = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
-    cookieMaps.set(cookies, byName);
+  if (!value) {
+    return null;
   }
 
-  return byName;
-}
-
-function parseSession(raw: string): StoredSession | null {
   try {
-    const json = raw.startsWith(BASE64_PREFIX)
-      ? stringFromBase64URL(raw.slice(BASE64_PREFIX.length))
-      : raw;
+    const stored: unknown = JSON.parse(
+      value.startsWith("base64-")
+        ? stringFromBase64URL(value.slice("base64-".length))
+        : value,
+    );
 
-    const parsed: unknown = JSON.parse(json);
-
-    return isStoredSession(parsed) ? parsed : null;
+    return isStoredSession(stored) ? stored : null;
   } catch {
     return null;
   }
 }
 
-/** A readable session and the cookie names it was read from. */
-interface ReadParts {
-  readonly session: StoredSession | null;
-  readonly used: readonly string[];
+function isStoredSession(value: unknown): value is StoredSession {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "access_token" in value &&
+    typeof value.access_token === "string" &&
+    "refresh_token" in value &&
+    typeof value.refresh_token === "string"
+  );
 }
 
-const readParts = new WeakMap<
-  readonly CookieRecord[],
-  Map<string, ReadParts>
->();
-
 /**
- * The whole cookie, else the `.0`, `.1`, ... chunks. When the joined chunks
- * don't parse (a stale `.2` left by a longer session), the longest prefix that
- * parses wins, so one leftover chunk never signs the user out.
+ * The session `@supabase/ssr` stored in the `cookieName` cookies, decoded the
+ * way its cookie storage does (plain or `base64-`, whole or chunked, either
+ * `encode`). An expired session is returned too: the proxy refreshes it. It
+ * never calls Auth: verify the access token before you trust it.
  */
-function readSessionParts(
+export function ssrSession(
   cookies: readonly CookieRecord[],
-  name: string,
-): ReadParts {
-  let memo = readParts.get(cookies);
-  const known = memo?.get(name);
+  cookieName: string,
+): Promise<StoredSession | null> {
+  let memo = sessions.get(cookies);
+  const known = memo?.get(cookieName);
 
   if (known) {
     return known;
   }
 
-  const byName = byNameOf(cookies);
-  let result: ReadParts = { session: null, used: [] };
-  const whole = byName.get(name);
-
-  if (whole) {
-    result = { session: parseSession(whole), used: [name] };
-  } else {
-    const parts: string[] = [];
-
-    for (let index = 0; ; index += 1) {
-      const part = byName.get(`${name}.${index}`);
-
-      if (!part) {
-        break;
-      }
-
-      parts.push(part);
-    }
-
-    for (let length = parts.length; length > 0; length -= 1) {
-      const session = parseSession(parts.slice(0, length).join(""));
-
-      if (session) {
-        result = {
-          session,
-          used: Array.from({ length }, (_, index) => `${name}.${index}`),
-        };
-        break;
-      }
-    }
-  }
+  const read = readStored(cookies, cookieName);
 
   if (!memo) {
     memo = new Map();
-    readParts.set(cookies, memo);
+    sessions.set(cookies, memo);
   }
 
-  memo.set(name, result);
+  memo.set(cookieName, read);
 
-  return result;
-}
-
-function isStoredSession(value: unknown): value is StoredSession {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  // SAFETY: value is a non-null object here, and every field is checked below.
-  const session = value as Record<string, unknown>;
-
-  return (
-    typeof session["access_token"] === "string" &&
-    typeof session["refresh_token"] === "string"
-  );
-}
-
-/**
- * Reads the session written by `@supabase/ssr` (plain or `base64-`, whole or
- * chunked, `user-and-tokens` or `tokens-only`). Trailing chunks a shorter
- * session no longer uses are ignored; chunks that never form a session read as
- * no session.
- */
-export function readSession(
-  cookies: readonly CookieRecord[],
-  name: string,
-): StoredSession | null {
-  return readSessionParts(cookies, name).session;
-}
-
-function encoded(session: StoredSession, encode: SessionEncoding): string {
-  switch (encode) {
-    case "user-and-tokens": {
-      return JSON.stringify(session);
-    }
-
-    case "tokens-only": {
-      const { user: _user, ...tokens } = session;
-
-      return JSON.stringify(tokens);
-    }
-
-    default: {
-      const unhandled: never = encode;
-
-      return unhandled;
-    }
-  }
-}
-
-/**
- * Cookie writes that store a session a sign-in flow received, exactly like
- * `@supabase/ssr` with the same `encode`, and expire chunks the new value no
- * longer uses. Refreshes and sign-outs write through `@supabase/ssr` itself
- * (`ssr-client.ts`).
- */
-export function writeSession(
-  existing: readonly CookieRecord[],
-  name: string,
-  session: StoredSession | null,
-  options: CookieOptions = {},
-  { encode = DEFAULT_SESSION_ENCODING }: WriteSessionOptions = {},
-): CookieWrite[] {
-  const base: CookieOptions = { ...DEFAULT_COOKIE_OPTIONS, ...options };
-
-  const chunks = session
-    ? createChunks(
-        name,
-        BASE64_PREFIX + stringToBase64URL(encoded(session, encode)),
-      )
-    : [];
-
-  const kept = new Set(chunks.map((chunk) => chunk.name));
-
-  const removals = existing
-    .filter(
-      (cookie) => isChunkLike(cookie.name, name) && !kept.has(cookie.name),
-    )
-    .map((cookie) => ({
-      name: cookie.name,
-      value: "",
-      options: { ...base, maxAge: 0 },
-    }));
-
-  return [
-    ...removals,
-    ...chunks.map((chunk) => ({
-      name: chunk.name,
-      value: chunk.value,
-      options: base,
-    })),
-  ];
+  return read;
 }
 
 /** Applies cookie writes to a cookie list, as the next request would see it. */

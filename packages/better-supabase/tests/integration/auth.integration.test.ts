@@ -10,11 +10,7 @@ import type { CookieRecord } from "../../src/auth/session.ts";
 
 import { resolveAuth } from "../../src/auth/resolve.ts";
 import { verifySession } from "../../src/auth/revocation.ts";
-import {
-  readSession,
-  sessionCookieName,
-  writeSession,
-} from "../../src/auth/session.ts";
+import { ssrSession, sessionCookieName } from "../../src/auth/session.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createClient as createBetterClient } from "../../src/client/index.ts";
 import { createSupabase } from "../../src/core/define.ts";
@@ -27,6 +23,7 @@ import {
 import { createServer } from "../../src/server/server.ts";
 import { moduleBody } from "../../src/sql/render.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 import { deleteAudit } from "./audit-cleanup.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
@@ -161,7 +158,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
 
   it("reads sessions written by @supabase/ssr and verifies them against the JWKS", async () => {
     const cookies = await signInCookies();
-    expect(readSession(cookies, name)?.user).toMatchObject({ email });
+    expect(await ssrSession(cookies, name)).toMatchObject({
+      access_token: expect.any(String),
+    });
 
     const { auth, cookies: writes } = await resolveAuth(toRequest(cookies), {
       env,
@@ -177,7 +176,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
 
   it("refreshes an expiring session with the real refresh token", async () => {
     const cookies = await signInCookies();
-    const session = readSession(cookies, name)!;
+    const session = (await ssrSession(cookies, name))!;
 
     const expiring = writeSession(cookies, name, {
       ...session,
@@ -197,7 +196,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
       kind: "user",
       user: { id: userId },
     });
-    const refreshed = readSession(resolution.requestCookies, name)!;
+    const refreshed = (await ssrSession(resolution.requestCookies, name))!;
     expect(refreshed.refresh_token).not.toBe(session.refresh_token);
     expect(resolution.headers["cache-control"]).toContain("no-store");
   });

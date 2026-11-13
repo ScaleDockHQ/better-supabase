@@ -34,9 +34,9 @@ import { isLoopbackAlias } from "./issuer.ts";
 import {
   applyCookieWrites,
   parseCookies,
-  readSession,
   serializeCookie,
   sessionCookieName,
+  ssrSession,
 } from "./session.ts";
 import {
   clearCookieSession,
@@ -792,41 +792,6 @@ export function clientIp(request: Request): string | undefined {
   return last && IP.test(last) ? last : undefined;
 }
 
-/**
- * Resolves who is calling: custom resolvers, then `Authorization: Bearer`
- * (APIs, MCP, mobile), then the `@supabase/ssr` session cookie (browsers).
- *
- * A valid token costs no network call: it is verified locally against the
- * cached JWKS. An expiring cookie session is refreshed only when `refresh` is
- * set, through a single-flight request, and only then are cookies written.
- */
-/**
- * The access token `resolveAuth` would verify for `request`, without verifying
- * it: the bearer token, else the session cookie's. `null` when there is none.
- */
-export function requestToken(
-  request: Request,
-  cookieName: string,
-  cookies = true,
-): string | null {
-  const credentials = extractCredentials(request);
-
-  if (credentials.token) {
-    return credentials.token;
-  }
-
-  if (!cookies) {
-    return null;
-  }
-
-  const session = readSession(
-    parseCookies(request.headers.get("cookie")),
-    cookieName,
-  );
-
-  return session?.access_token ?? null;
-}
-
 async function timed<T>(
   options: ResolveAuthOptions,
   phase: ResolvePhase,
@@ -845,6 +810,14 @@ async function timed<T>(
   }
 }
 
+/**
+ * Resolves who is calling: custom resolvers, then `Authorization: Bearer`
+ * (APIs, MCP, mobile), then the `@supabase/ssr` session cookie (browsers).
+ *
+ * A valid token costs no network call: it is verified locally against the
+ * cached JWKS. An expiring cookie session is refreshed only when `refresh` is
+ * set, through a single-flight request, and only then are cookies written.
+ */
 export async function resolveAuth(
   request: Request,
   options: ResolveAuthOptions,
@@ -918,7 +891,7 @@ export async function resolveAuth(
   const name = options.cookie?.name ?? sessionCookieName(options.env.url);
 
   const parseStarted = options.onTiming ? performance.now() : 0;
-  const session = readSession(cookies(), name);
+  const session = await ssrSession(cookies(), name);
   options.onTiming?.("parse", performance.now() - parseStarted);
 
   const cleared = (): Promise<CookieChange> =>

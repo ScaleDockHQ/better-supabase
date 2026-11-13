@@ -401,11 +401,14 @@ const SCALE_CHECKS: readonly Rule[] = [
               lastPart(trigger.function),
             );
 
-            // The search module's trigger function calls `search_enqueue`, which
-            // defers the refresh to the end of the transaction while an import runs.
+            // The search module's trigger functions call `search_enqueue` (row)
+            // or `search_enqueue_many` (statement), which defer the refresh to
+            // the end of the transaction while an import runs.
             if (
               source === undefined ||
-              /import_run\s*\(\s*\)|search_enqueue"?\s*\(/i.test(source)
+              /import_run\s*\(\s*\)|search_enqueue(?:_many)?"?\s*\(/i.test(
+                source,
+              )
             ) {
               return [];
             }

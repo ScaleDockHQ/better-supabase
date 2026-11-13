@@ -770,7 +770,6 @@
   "tests/cli/wiring.test.ts": 10,
   "tests/client/functions.test.ts": 31,
   "tests/client/index.test.ts": 42,
-  "tests/client/lite.test.ts": 23,
   "tests/client/native.test.ts": 62,
   "tests/client/native/auth-link.test.ts": 10,
   "tests/client/native/authz-refresh.test.ts": 89,
