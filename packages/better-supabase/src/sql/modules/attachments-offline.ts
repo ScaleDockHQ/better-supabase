@@ -49,7 +49,9 @@ export function attachmentsOfflineSql(
     sql: `
 -- options.offline: an object written to an attachment's current path marks
 -- the record uploaded, so a client without the network for confirm() still
--- gets its file through. confirm_attachment returns early afterwards.
+-- gets its file through. confirm_attachment returns early afterwards. Only a
+-- stored object carries a size: Storage's permission probe for a signed upload
+-- URL inserts a row without one, carrying the request's own content type.
 create or replace function ${fn("attachment_object_uploaded")}()
 returns trigger
 language plpgsql
@@ -76,7 +78,7 @@ revoke execute on function ${fn("attachment_object_uploaded")}() from public, an
 drop trigger if exists ${trigger("object_uploaded")} on storage.objects;
 create trigger ${trigger("object_uploaded")}
   after insert on storage.objects
-  for each row when (new.bucket_id in (${bucketList}))
+  for each row when (new.bucket_id in (${bucketList}) and new.metadata ? 'size')
   execute function ${fn("attachment_object_uploaded")}();
 
 -- The objects of deleted records, until the caller deletes them or
