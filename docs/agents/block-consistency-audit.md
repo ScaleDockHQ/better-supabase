@@ -785,41 +785,41 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane 0
 
 - Scope: Tracking: Progress and Lane ownership sections, lane checklist
-- Status: PR open #894
+- Status: merged
 - Branch: `docs/audit-lane-0`
 - PR: [#894](https://github.com/ScaleDockHQ/better-supabase/pull/894)
 - Findings: none (docs only)
-- Log: 2026-11-12, lane 0 started from main after PR 887 merged; PR #894 opened.
+- Log: 2026-11-12, lane 0 started from main after PR 887 merged; PR #894 opened. 2026-11-12, merged as [#894](https://github.com/ScaleDockHQ/better-supabase/pull/894).
 
 ### Lane A
 
 - Scope: Entity surface in the manifest and core list types
-- Status: PR open #897
+- Status: merged
 - Branch: `feat/audit-a`
 - PR: [#897](https://github.com/ScaleDockHQ/better-supabase/pull/897)
 - Findings: EX-1208, EX-1216, EX-1352
-- Log: 2026-11-12, lane A started from main in `../bsb-audit-a`; PR #897 opened with `entities` on every manifest, the list contract types and the generated entity matrix.
+- Log: 2026-11-12, lane A started from main in `../bsb-audit-a`; PR #897 opened with `entities` on every manifest, the list contract types and the generated entity matrix. 2026-11-12, merged as [#897](https://github.com/ScaleDockHQ/better-supabase/pull/897).
 
 ### Lane B
 
 - Scope: Event verbs, hint prefix rule, one key per block
-- Status: PR open #900
+- Status: merged
 - Branch: `feat/audit-b`
 - PR: [#900](https://github.com/ScaleDockHQ/better-supabase/pull/900)
 - Findings: EX-1230, EX-1233, EX-1234
 - Log: 2026-11-12, planned.
-- Log: 2026-11-12, lane B started in `../bsb-audit-b` from main.
+- Log: 2026-11-12, lane B started in `../bsb-audit-b` from main. 2026-11-13, merged as [#900](https://github.com/ScaleDockHQ/better-supabase/pull/900).
 
 ### Lane C
 
 - Scope: Field-aware invalid_input, generated messages, locale
-- Status: PR open #898
+- Status: merged
 - Branch: `feat/audit-c`
 - PR: [#898](https://github.com/ScaleDockHQ/better-supabase/pull/898)
 - Findings: EX-1235, EX-1236, EX-1317
 - Log: 2026-11-12, planned.
 - Log: 2026-11-12, lane C started from main in `../bsb-audit-c`.
-- Log: 2026-11-12, PR #898 opened (ADR 0709).
+- Log: 2026-11-12, PR #898 opened (ADR 0709). 2026-11-13, merged as [#898](https://github.com/ScaleDockHQ/better-supabase/pull/898).
 
 ### Lane D
 
@@ -833,22 +833,23 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane E
 
 - Scope: Example follow-up block fixes
-- Status: merged (E1; E2 not started)
+- Status: merged
 - Branch: `feat/audit-e`
-- PR: [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902)
+- PR: [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902), [#914](https://github.com/ScaleDockHQ/better-supabase/pull/914)
 - Findings: EX-1602, EX-1604, EX-1605, EX-1606, EX-1607, EX-1610, EX-1612, EX-1613, EX-1614
-- Log: 2026-11-12, E1 PR opened (fixes 1604 in part, 1605 in part, 1606, 1607, 1610, 1612, 1614). EX-1602 and EX-1613 remain for E2. 2026-11-13, E1 merged as [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902). E2 (EX-1602 extractor warning, EX-1613 column renames, EX-1604 and EX-1605 remainder) is a follow-up, not started.
+- Log: 2026-11-12, E1 PR opened (fixes 1604 in part, 1605 in part, 1606, 1607, 1610, 1612, 1614). EX-1602 and EX-1613 remain for E2. 2026-11-13, E1 merged as [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902). 2026-11-13, the E2 work (EX-1602 extractor warning, EX-1613 column renames, EX-1604 and EX-1605 remainder, plus EX-1115 and EX-1614) merged inside the library findings pass, [#914](https://github.com/ScaleDockHQ/better-supabase/pull/914), so all nine rows are closed.
 
 ### Lane F
 
 - Scope: pgTAP per block check and MCP mapping
-- Status: PR open #896
+- Status: merged
 - Branch: `feat/audit-f`
 - PR: [#896](https://github.com/ScaleDockHQ/better-supabase/pull/896)
 - Findings: EX-1269, EX-1351, EX-1354
 - Log: 2026-11-12, planned.
   2026-11-12, lane F started from main (3220ac7c6a).
   2026-11-12, PR #896 opened: pgTAP rule (87 blocks allowlisted), MCP mapping doc and test; EX-100 to EX-108 and EX-700 to EX-706 are on main.
+  2026-11-12, merged as [#896](https://github.com/ScaleDockHQ/better-supabase/pull/896).
 
 ### Lane G1
 
@@ -856,7 +857,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: merged
 - Branch: `feat/audit-g1`
 - PR: [#906](https://github.com/ScaleDockHQ/better-supabase/pull/906)
-- Findings: EX-1200 to EX-1205, EX-1215
+- Findings: none closed alone (G1 is the shared base; G2 to G5 close the list rows per category)
 - Log: 2026-11-12, planned.
   2026-11-13, lane G1 started from main (6f9b3af232) in `../bsb-audit-g1`.
   2026-11-13, PR #906 opened: shared page, facets and count (ADR 0749), nine blocks moved over, `sso` kept on SCIM paging, `get` added for three entities, migration 20261215140000.
@@ -868,7 +869,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-g2`
 - PR: none yet
-- Findings: EX-1200 to EX-1205, EX-1215
+- Findings: EX-1200 to EX-1205, EX-1215, EX-200, EX-204, EX-901
 - Log: 2026-11-12, planned.
 
 ### Lane G3
@@ -877,7 +878,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-g3`
 - PR: none yet
-- Findings: EX-1200 to EX-1205, EX-1215
+- Findings: EX-1200 to EX-1205, EX-1215, EX-800 to EX-802, EX-811, EX-812, EX-1100 to EX-1105
 - Log: 2026-11-12, planned.
 
 ### Lane G4
@@ -886,7 +887,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-g4`
 - PR: none yet
-- Findings: EX-1200 to EX-1205, EX-1215
+- Findings: EX-1200 to EX-1205, EX-1215, EX-600, EX-1000, EX-1001
 - Log: 2026-11-12, planned.
 
 ### Lane G5
@@ -895,7 +896,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: PR open #920
 - Branch: `feat/audit-g5`
 - PR: [#920](https://github.com/ScaleDockHQ/better-supabase/pull/920)
-- Findings: EX-1200 to EX-1205, EX-1215
+- Findings: EX-1200 to EX-1205, EX-1215, EX-300, EX-400, EX-401
 - Log: 2026-11-12, planned.
   2026-11-13, lane G5 started from main (7f4bcbfdf7) in `../bsb-audit-g5`.
   2026-11-13, PR #920 opened: `legal_entity`, `course` and `content_entry` page, facet and count (migration 20261216050005). `sso` keeps SCIM paging and its bounded lists. The other lists wait for a per-call tenant, a caller scope or a parent scope (ADR 0789).
@@ -903,12 +904,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane H
 
 - Scope: Generated permission keys, role defaults and scopes
-- Status: PR open #903
+- Status: merged
 - Branch: `feat/audit-h`
 - PR: [#903](https://github.com/ScaleDockHQ/better-supabase/pull/903)
 - Findings: EX-1231, EX-1232, EX-1322, EX-1330, EX-1603, EX-807
 - Log: 2026-11-13, lane H started from main in `../bsb-audit-h`.
   2026-11-13, PR #903 opened with validated `entities.<key>.permissions`, `gen.permissionCatalog` and the scope lists (ADR 0799).
+  2026-11-13, merged as [#903](https://github.com/ScaleDockHQ/better-supabase/pull/903).
 
 ### Lane J
 
@@ -923,9 +925,9 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane K
 
 - Scope: Client, controller and hooks trio, record bindings
-- Status: in progress (K1 #901 and trio #908 merged, K2 #904 open)
-- Branch: `feat/audit-k`, `feat/audit-k2`, `feat/audit-k4-trio`
-- PR: [#901](https://github.com/ScaleDockHQ/better-supabase/pull/901), [#904](https://github.com/ScaleDockHQ/better-supabase/pull/904), [#908](https://github.com/ScaleDockHQ/better-supabase/pull/908)
+- Status: merged
+- Branch: `feat/audit-k`, `feat/audit-k2`, `feat/audit-k4-trio`, `feat/audit-k3`, `feat/audit-k3b`
+- PR: [#901](https://github.com/ScaleDockHQ/better-supabase/pull/901), [#904](https://github.com/ScaleDockHQ/better-supabase/pull/904), [#908](https://github.com/ScaleDockHQ/better-supabase/pull/908), [#910](https://github.com/ScaleDockHQ/better-supabase/pull/910), [#912](https://github.com/ScaleDockHQ/better-supabase/pull/912)
 - Findings: EX-1237, EX-1238, EX-1319, EX-1326
 - Log: 2026-11-12, planned.
   2026-11-13, lane K started from main (6f9b3af232) in `../bsb-audit-k`; K1 is the employees binding.
@@ -934,6 +936,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
   2026-11-13, trio PR #908 (`feat/audit-k4-trio`, ADR 0821): EX-1238 fixed. The SQL-backed bindings (K3) wait for a local stack: 24 of the 32 macOS shared memory segments are held by other worktrees' stacks, so `pnpm supabase:start` refuses.
   2026-11-13, K3a (`feat/audit-k3`, ADR 0822): bindings for invoices, quotes and deals; PR #910.
   2026-11-13, K3b (`feat/audit-k3b`, ADR 0822, PR #912): bindings for bookings, expenses, leave and risks, rebased on main after K3a (#910) merged.
+  2026-11-13, all parts merged: K1 #901, K2 #904, trio #908, K3a #910 and K3b #912. EX-1237, EX-1238, EX-1319 and EX-1326 are fixed.
 
 ### Lane N
 
@@ -960,7 +963,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-l`
 - PR: none yet
-- Findings: EX-1209, EX-1210, EX-1211, EX-1324
+- Findings: EX-1209, EX-1210, EX-1211, EX-1324, EX-515 (check #917's set checks first)
 - Log: 2026-11-12, planned.
 
 ### Lane M1
@@ -969,7 +972,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-m1`
 - PR: none yet
-- Findings: EX-1260, EX-1261, EX-1265, EX-1270
+- Findings: EX-1260, EX-1261, EX-1265, EX-1270, EX-001 to EX-003, EX-012, EX-014, EX-410, EX-607
 - Log: 2026-11-12, planned.
 
 ### Lane M2
@@ -978,7 +981,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-m2`
 - PR: none yet
-- Findings: EX-1262, EX-1263
+- Findings: EX-1262, EX-1263, EX-033, EX-034
 - Log: 2026-11-12, planned.
 
 ### Lane M3
@@ -996,7 +999,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-m4`
 - PR: none yet
-- Findings: EX-1294, EX-1327
+- Findings: EX-1294, EX-1327, EX-813, EX-024 (once the instant allow list is empty)
 - Log: 2026-11-12, planned.
 
 ### Lane O1
@@ -1023,7 +1026,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-o3`
 - PR: none yet
-- Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329
+- Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329, EX-510
 - Log: 2026-11-12, planned.
 
 ### Lane P
@@ -1034,6 +1037,107 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - PR: none yet
 - Findings: EX-1350
 - Log: 2026-11-12, planned.
+
+The lanes X0 to X9 below are the findings program. It closes the unfinished rows of [`example-findings.md`](example-findings.md) that no audit lane owns. One lane is one PR on `feat/findings-x<n>` in `../bsb-findings-x<n>`, and its PR body says "findings program, lane Xn". `pnpm check:example-findings` fails when an unfinished row is named by no lane's Findings line and when a lane is `merged` while one of its rows is unfinished.
+
+### Lane X0
+
+- Scope: Reconcile the report and this tracker with the merged lanes, repair the report tables, add the X lanes and `check:example-findings`
+- Status: in progress
+- Branch: `feat/findings-x0`
+- PR: none yet
+- Findings: EX-1237, EX-1238, EX-1319, EX-1326, EX-611 (closed here; the other lagging rows keep their lane)
+- Log: 2026-11-14, lane X0 started from main (b124ee8206) in `../bsb-findings-x0`.
+
+### Lane X1
+
+- Scope: Dev loop and local stack: open bugs and tooling rows (repo tooling, no changeset)
+- Status: planned
+- Branch: `feat/findings-x1`
+- PR: none yet
+- Findings: EX-309, EX-704, EX-313, EX-318, EX-819, EX-903, EX-430, EX-315, EX-108, EX-050, EX-051, EX-056, EX-1021, EX-505, EX-511, EX-512, EX-605, EX-606, EX-820, EX-207, EX-208, EX-214, EX-316, EX-107, EX-106, EX-902, EX-1507, EX-310, EX-1020
+- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start).
+
+### Lane X2
+
+- Scope: Library follow-ups: what lane H left open, the facet count and the diff rewrites
+- Status: planned
+- Branch: `feat/findings-x2`
+- PR: none yet
+- Findings: EX-611, EX-506, EX-513, EX-808, EX-1108, EX-016, EX-924, EX-814
+- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start).
+
+### Lane X2b
+
+- Scope: Search and calendar (after audit lane G4 for the calendar; ADRs from the range of X2)
+- Status: planned
+- Branch: `feat/findings-x2b`
+- PR: none yet
+- Findings: EX-1504, EX-1508
+- Log: 2026-11-14, planned.
+
+### Lane X3
+
+- Scope: Example-only fixes, and the forms and names on lane C and N
+- Status: planned
+- Branch: `feat/findings-x3`
+- PR: none yet
+- Findings: EX-1505, EX-925, EX-042, EX-804, EX-411, EX-703, EX-104, EX-803, EX-809, EX-610, EX-810, EX-101, EX-402
+- Log: 2026-11-14, planned.
+
+### Lane X4
+
+- Scope: Admin and billing (a maintainer sets Stripe test keys in the three Vercel environments)
+- Status: planned
+- Branch: `feat/findings-x4`
+- PR: none yet
+- Findings: EX-1608, EX-502, EX-507, EX-516
+- Log: 2026-11-14, planned.
+
+### Lane X5
+
+- Scope: Inbox and messaging (after G5; real Slack and WhatsApp adapters need accounts)
+- Status: planned
+- Branch: `feat/findings-x5`
+- PR: none yet
+- Findings: EX-403, EX-404, EX-411, EX-030, EX-422
+- Log: 2026-11-14, planned.
+
+### Lane X6
+
+- Scope: Workflows (after G2)
+- Status: planned
+- Branch: `feat/findings-x6`
+- PR: none yet
+- Findings: EX-201, EX-202, EX-203, EX-205, EX-210, EX-212, EX-213
+- Log: 2026-11-14, planned.
+
+### Lane X7
+
+- Scope: AI ops, EX-301 first (a maintainer sets `AI_GATEWAY_API_KEY`)
+- Status: planned
+- Branch: `feat/findings-x7`
+- PR: none yet
+- Findings: EX-301, EX-302, EX-305, EX-306, EX-307, EX-317
+- Log: 2026-11-14, planned.
+
+### Lane X8
+
+- Scope: Commerce and finance (after G3)
+- Status: planned
+- Branch: `feat/findings-x8`
+- PR: none yet
+- Findings: EX-805, EX-818, EX-1106, EX-1110 to EX-1113, EX-701
+- Log: 2026-11-14, planned.
+
+### Lane X9
+
+- Scope: CRM and records (after G4)
+- Status: planned
+- Branch: `feat/findings-x9`
+- PR: none yet
+- Findings: EX-601, EX-602, EX-032, EX-035, EX-103
+- Log: 2026-11-14, planned.
 
 ## Lane ownership
 
@@ -1072,6 +1176,23 @@ ADR numbers and migration slots are reserved per lane so parallel branches never
 | P    | 0929 to 0938 | 20261225hhmmss | generated skill references under `packages/better-supabase/skills`, the capability matrix in the audit report                                                                          |
 
 The last reserved ADR is 0938; the next free number for later work is 0939.
+
+The findings program continues the numbering after lane P. Each lane X1 to X9 gets ten ADR numbers and a migration slot `202701DDhhmmss` with `DD` equal to the lane number, which sorts after every audit migration (the newest on `main` is `20261215140010`). Lane X0 writes no ADR and no migration, and X2b uses the range of X2. The next free ADR number for later work is 1029.
+
+| Lane | ADR range    | Migration slot | Folders and files it owns                                                                                       |
+| ---- | ------------ | -------------- | --------------------------------------------------------------------------------------------------------------- |
+| X0   | none         | none           | `docs/agents` and `scripts/check-example-findings.ts`                                                           |
+| X1   | 0939 to 0948 | 20270101hhmmss | `scripts/worktree-setup.ts`, the dev-loop scripts and the local stack tooling                                   |
+| X2   | 0949 to 0958 | 20270102hhmmss | role defaults, `permissions-model.ts`, session refresh, the facet count option, `supabase:diff` function output |
+| X3   | 0959 to 0968 | 20270103hhmmss | example-only pages and forms in `apps/examples/nextjs`                                                          |
+| X4   | 0969 to 0978 | 20270104hhmmss | the example's admin and billing routes, the marketplace detail page                                             |
+| X5   | 0979 to 0988 | 20270105hhmmss | the inbox and messaging pages (the block folders wait for G5)                                                   |
+| X6   | 0989 to 0998 | 20270106hhmmss | the workflow pages (the block folders wait for G2)                                                              |
+| X7   | 0999 to 1008 | 20270107hhmmss | the service-role AI blocks' tenant and permission checks, the AI ops pages                                      |
+| X8   | 1009 to 1018 | 20270108hhmmss | the commerce and finance pages (the block folders wait for G3)                                                  |
+| X9   | 1019 to 1028 | 20270109hhmmss | the CRM and records pages, on the K3 record bindings (the block folders wait for G4)                            |
+
+A lane X does not edit a block folder while that category's audit G or I lane is open; its example-side work can start right away.
 
 ### Waves and dependency order
 
