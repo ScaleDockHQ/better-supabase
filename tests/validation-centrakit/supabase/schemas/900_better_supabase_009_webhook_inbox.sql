@@ -1,6 +1,6 @@
 -- better-supabase module: webhook-inbox
--- @bsb-block webhook-inbox@10 managed
--- @bsb-hash sha256:ac65cd6c2f06750f2e01b750ebb712aec12686ddf7e82b88024722a8ef804221
+-- @bsb-block webhook-inbox@11 managed
+-- @bsb-hash sha256:8952c87f05efb1082cd66011e748e02808502ab98e2ee9225af107106cb95f1d
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -244,6 +244,25 @@ begin
   return v_purged;
 end;
 $$;
+
+-- Wakes listenForWork (better-supabase/postgres) on channel better_supabase_work.
+create or replace function better_supabase.webhook_inbox_notify()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if exists (select 1 from new_rows) then
+    perform pg_catalog.pg_notify('better_supabase_work', '{"kind":"inbox"}');
+  end if;
+  return null;
+end;
+$$;
+revoke all on function better_supabase.webhook_inbox_notify() from public;
+create or replace trigger bsb_notify_work
+  after insert on "centrakit"."inbound_webhook_events"
+  referencing new table as new_rows
+  for each statement execute function better_supabase.webhook_inbox_notify();
 
 revoke execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.receive_webhook(text, text, text, jsonb, jsonb, text, integer) to service_role;

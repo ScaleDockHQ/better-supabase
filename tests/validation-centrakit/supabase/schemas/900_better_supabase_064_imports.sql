@@ -1,5 +1,5 @@
 -- better-supabase module: imports
--- @bsb-block imports@2 managed
+-- @bsb-block imports@3 managed
 -- @bsb-hash sha256:3d20b97d1c01d3ad28e610388655ccf91b41684a70c3e411f05ea7449aa4b5fe
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
