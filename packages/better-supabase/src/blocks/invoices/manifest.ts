@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 import type { InvoicesEvents } from "./events.ts";
 
+import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { invoicesEvents } from "./events.ts";
 import { createInvoices } from "./invoices.ts";
@@ -29,6 +30,18 @@ export const invoicesBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
   },
+  links: [
+    blockLink(
+      "fromQuote",
+      "conversion",
+      "invoice",
+      "quotes",
+      "quote",
+      "invoice_from_quote",
+    ),
+    blockLink("fromOrder", "conversion", "invoice", "orders", "order"),
+  ],
+  concerns: ["lifecycle", "search"],
   description:
     "Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.",
   recipes: ["invoices-table"],

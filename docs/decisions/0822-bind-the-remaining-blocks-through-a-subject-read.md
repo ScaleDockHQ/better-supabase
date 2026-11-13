@@ -53,7 +53,7 @@ manifest grows (ADR 0690 baseline reset in the PR that lands them).
 
 Invoices, quotes and deals landed first (K3a): `list({ subject, limit })` over
 `list_invoices_for_subject`, `list_quotes_for_subject` and
-`list_deals_for_subject`, in migrations `20261214000000` and `20261214000001`.
+`list_deals_for_subject`, in migrations `20261215000001` and `20261215000002`.
 The invoices and quotes reads are security definer and check the read key on
 the organization. The deals read runs as the caller so the table's row level
 security decides which deals show. `list` is the verb because the data contract
@@ -82,4 +82,4 @@ relations block, so `list_risks_for_subject` reads those links, and without
 relations the read does not exist, so EX-1237 holds for risks only where the
 relations block is installed. The new functions are `list_bookings_for_customer`
 (invoker, so policies decide) and `list_risks_for_subject` (definer, checks
-`risks.read`), in migration `20261214000002`.
+`risks.read`), in migration `20261215000003`.

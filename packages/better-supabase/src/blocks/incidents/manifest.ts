@@ -42,6 +42,7 @@ export const incidentsBlock: BlockOf<
     incident_postmortem: { mutability: "editable", emits: { update: false } },
     status_page: { mutability: "editable", emits: { update: false } },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.",
 });

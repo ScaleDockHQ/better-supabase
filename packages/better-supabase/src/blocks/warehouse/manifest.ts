@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 import type { WarehouseEvents } from "./events.ts";
 
+import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { warehouseEvents } from "./events.ts";
 import {
@@ -41,6 +42,10 @@ export const warehouseBlock: BlockOf<
     bin_slot: { mutability: "editable", emits: { update: false } },
     variant_size: { mutability: "editable", emits: { update: false } },
   },
+  links: [
+    blockLink("task", "relation", "pick_list", "tasks", "task", "created_from"),
+  ],
+  concerns: ["lifecycle"],
   description:
     "Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.",
 });

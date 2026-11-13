@@ -40,6 +40,7 @@ export const leaveBlock: BlockOf<
       permissions: { read: "leave.read", manage: "leave.manage" },
     },
   },
+  concerns: ["lifecycle"],
   description:
     'Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app\'s own table of signed amounts instead of the ledger.',
 });

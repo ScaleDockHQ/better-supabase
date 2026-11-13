@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 import type { TimeEntriesEvents } from "./events.ts";
 
+import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { timeEntriesEvents } from "./events.ts";
 import { timeEntriesSqlOptions } from "./options.ts";
@@ -25,6 +26,8 @@ export const timeEntriesBlock: BlockOf<
     },
     timesheet: { mutability: "state-machine", emits: { create: false } },
   },
+  links: [blockLink("task", "reference", "time_entry", "tasks", "task")],
+  concerns: ["lifecycle"],
   description:
     "Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.",
   recipes: ["timesheet"],

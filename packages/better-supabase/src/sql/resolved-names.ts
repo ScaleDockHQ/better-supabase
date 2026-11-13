@@ -12,6 +12,7 @@ import type {
   BlockSqlEntitySpec,
   BlockSqlEntitySubject,
   BlockSqlNames,
+  BlockSqlTableSpec,
 } from "./context.ts";
 
 import { tenantNameOf } from "../config/blocks.ts";
@@ -159,6 +160,54 @@ function checkNoun(
   }
 }
 
+/**
+ * The entity's subject with `search` from the config: the block's default
+ * columns, replaced or dropped by `blocks.<name>.names.<entity>.search`.
+ */
+function subjectOf(
+  where: string,
+  spec: BlockSqlEntitySpec,
+  config: EntityConfig | undefined,
+  columns: BlockSqlTableSpec["columns"] | undefined,
+): BlockSqlEntitySubject | undefined {
+  const subject = spec.subject;
+  const search = config?.search;
+
+  if (subject === undefined || config?.subject === false) {
+    return undefined;
+  }
+
+  if (search === undefined) {
+    return subject;
+  }
+
+  if (search === false) {
+    const { search: _dropped, ...rest } = subject;
+
+    return rest;
+  }
+
+  for (const column of [search.title, ...(search.body ?? [])]) {
+    if (
+      column !== undefined &&
+      columns !== undefined &&
+      !Object.hasOwn(columns, column)
+    ) {
+      throw new TypeError(
+        `${where}.search: "${column}" is not a column of the entity's table (${Object.keys(columns).join(", ")})`,
+      );
+    }
+  }
+
+  return {
+    ...subject,
+    search: {
+      title: search.title ?? subject.search?.title ?? subject.title,
+      body: search.body ?? subject.search?.body ?? [],
+    },
+  };
+}
+
 function resolveEntity(
   where: string,
   key: string,
@@ -185,10 +234,7 @@ function resolveEntity(
   const columns =
     spec.table === undefined ? undefined : names.tables[spec.table]?.columns;
 
-  const subject =
-    spec.subject === undefined || config?.subject === false
-      ? undefined
-      : spec.subject;
+  const subject = subjectOf(`${where}.${key}`, spec, config, columns);
 
   const settings = {
     ...(config?.team === undefined ? {} : { team: config.team }),
@@ -197,9 +243,12 @@ function resolveEntity(
       : { auditReads: config.auditReads }),
   };
 
-  if (Object.keys(settings).length > 0 && subject === undefined) {
+  if (
+    (Object.keys(settings).length > 0 || config?.search !== undefined) &&
+    subject === undefined
+  ) {
     throw new TypeError(
-      `${where}.${key}: team and auditReads apply to a subject, and "${key}" ${spec.subject === undefined ? "is not one" : "sets subject: false"}`,
+      `${where}.${key}: team, auditReads and search apply to a subject, and "${key}" ${spec.subject === undefined ? "is not one" : "sets subject: false"}`,
     );
   }
 
