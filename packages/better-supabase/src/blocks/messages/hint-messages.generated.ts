@@ -668,6 +668,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "FIELD_FORBIDDEN": "Not allowed to manage custom fields.",
   "FIELD_KEY_FORBIDDEN": "Only the service role drops field keys.",
   "FIELD_KEY_OWNER": "A field key needs an owner.",
+  "FIELD_KEY_STATUS_FORBIDDEN": "Only signed-in users and the service role read field key status.",
   "FIELD_NOT_FOUND": "Field not found.",
   "FIELD_PACK_CONFLICT": "The field already exists and doesn't belong to this pack.",
   "FIELD_PACK_INVALID": "A field pack is an object with apiVersion 1.",
