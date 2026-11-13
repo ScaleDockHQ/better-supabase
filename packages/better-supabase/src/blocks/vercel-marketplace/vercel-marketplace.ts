@@ -272,6 +272,17 @@ export interface VercelMarketplace {
   resources(
     configurationId: string,
   ): AsyncResult<readonly MarketplaceResource[]>;
+  /**
+   * The installation linked to `tenant` (`link_marketplace_tenant`), or
+   * `undefined`. The SQL function behind it, `marketplace_installation_for`,
+   * also answers a signed-in member of the tenant, so a settings page can call
+   * it without the service role; the reply has no secret handles.
+   */
+  installationFor(
+    tenant: string,
+  ): AsyncResult<MarketplaceInstallation | undefined>;
+  /** The resources provisioned for `tenant` that are not deleted. */
+  resourcesFor(tenant: string): AsyncResult<readonly MarketplaceResource[]>;
   /** Marks a resource deleted; the row stays for invoices and audit. */
   deleteResource(input: {
     configurationId: string;
@@ -932,6 +943,16 @@ export function createVercelMarketplace(
         "marketplace_resources",
         { configuration_id: configurationId },
         (value) => recordsOf(value, "marketplace_resources").map(resourceOf),
+      ),
+
+    installationFor: (tenant) =>
+      call("marketplace_installation_for", { tenant }, (value) =>
+        isRecord(value) ? installationOf(value) : undefined,
+      ),
+
+    resourcesFor: (tenant) =>
+      call("marketplace_resources_for", { tenant }, (value) =>
+        recordsOf(value, "marketplace_resources_for").map(resourceOf),
       ),
 
     deleteResource: ({ configurationId, externalId }) =>

@@ -401,7 +401,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "support_session.ended",
         "support_session.started"
       ],
-      "subpath": null,
+      "subpath": "better-supabase/blocks/impersonation",
       "react": null,
       "docs": "/docs/blocks/impersonation"
     },
@@ -3997,7 +3997,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "field-encryption",
       "title": "Field encryption",
       "category": "Database primitives",
-      "description": "Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found.",
+      "description": "Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found. Members read which of their owners have keys through field_key_status().",
       "requires": [],
       "integrates": [],
       "modes": [
@@ -4006,7 +4006,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "field_key.dropped"
       ],
-      "subpath": null,
+      "subpath": "better-supabase/blocks/field-encryption",
       "react": null,
       "docs": "/docs/blocks/field-encryption"
     },

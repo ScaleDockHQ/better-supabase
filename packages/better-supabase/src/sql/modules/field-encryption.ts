@@ -209,6 +209,44 @@ end;
 $$;
 ${serviceGrant(`${fn("field_lookup")}(text, text)`)}
 
+-- Which owners the caller reaches have a data key and a lookup key: their
+-- tenants (or themselves) for a signed-in user, every owner with a key for the
+-- service role. It reads no key material, only whether the Vault secret exists.
+create or replace function ${fn("field_key_status")}()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_service boolean := ${SERVICE_CALLER};
+begin
+  if (select auth.uid()) is null and not v_service then
+    ${fail("FIELD_KEY_STATUS_FORBIDDEN", "only signed-in users and the service role read field key status")}
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'owner', o.owner,
+      'has_key', exists (select 1 from vault.secrets s where s.name = ${secret("o.owner")}),
+      'has_lookup_key', exists (select 1 from vault.secrets s where s.name = ${secret("o.owner", FIELD_LOOKUP_KEY_PREFIX)})
+    ) order by o.owner)
+    from (
+      select substr(s.name, ${String(FIELD_KEY_PREFIX.length + 1)}) as owner
+      from vault.secrets s
+      where v_service and left(s.name, ${String(FIELD_KEY_PREFIX.length)}) = '${FIELD_KEY_PREFIX}'
+      union
+      select ${ctx.scope.kind === "none" ? "'app'" : fieldKeyOwner(ctx.scope.kind, "m.id")}
+      from ${ctx.scope.members()} as m(id)
+      where not v_service
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function ${fn("field_key_status")}() from public, anon;
+grant execute on function ${fn("field_key_status")}() to authenticated, service_role;
+
 -- Deletes an owner's data key and lookup key, so every value encrypted with
 -- them reads as null and no lookup finds it (crypto-shredding, for example
 -- after a tenant is erased).
@@ -248,6 +286,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "field_decrypt", args: ["text", "text"], returns: "text" },
     { name: "field_lookup", args: ["text", "text"], returns: "bytea" },
     { name: "drop_field_key", args: ["text"], returns: "boolean" },
+    { name: "field_key_status", args: [], returns: "jsonb" },
   ];
 }
 
@@ -255,7 +294,7 @@ export const FIELD_ENCRYPTION: BlockSqlDefinition = {
   name: "field-encryption",
   title: "Field encryption",
   description:
-    "Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found.",
+    "Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found. Members read which of their owners have keys through field_key_status().",
   requires: [],
   target: "schema",
   modes: ["managed"],

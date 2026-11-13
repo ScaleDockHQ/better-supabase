@@ -2443,6 +2443,9 @@ rotate the key.
 **Warning: env file with secrets isn't ignored by git.** An env file holds a
 secret key or database URL but no `.gitignore` pattern matches it. Add the
 file, for example `.env*.local`, to `.gitignore`. `.example` files are skipped.
+The check reads the `.gitignore` files from the app up to the folder that holds
+`.git`, so a pattern in the repository root counts, and a `!` negation line
+never counts as a pattern.
 
 ### BS503
 

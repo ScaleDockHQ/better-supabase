@@ -25,13 +25,29 @@ describe("vercel-marketplace module", () => {
     expect(body()).toMatch(/where [^\n]*"event_at" <= excluded\."event_at"/);
   });
 
-  it("grants every function to the service role only", () => {
+  it("grants every function but the two tenant reads to the service role only", () => {
     const sql = body();
 
     expect(sql).toContain(
       `grant execute on function ${fn("record_marketplace_invoice")}(text, text, text, timestamptz, timestamptz, numeric, text, jsonb, timestamptz) to service_role;`,
     );
-    expect(sql).not.toMatch(/grant execute[^;]*to [^;]*authenticated/);
+
+    expect(
+      sql.match(/grant execute on function [^;]*to [^;]*authenticated[^;]*;/g),
+    ).toEqual([
+      `grant execute on function ${fn("marketplace_installation_for")}(text) to authenticated, service_role;`,
+      `grant execute on function ${fn("marketplace_resources_for")}(text) to authenticated, service_role;`,
+    ]);
+  });
+
+  it("answers the tenant reads for members and leaves out secret handles", () => {
+    const sql = body();
+
+    expect(sql).toContain(
+      "where m.id::text = marketplace_installation_for.tenant",
+    );
+    expect(sql).toContain("- 'access_token_secret_id'");
+    expect(sql).toContain("- 'secret_refs'");
   });
 
   it("backfills reported_quantity for rows reported before version 2", () => {

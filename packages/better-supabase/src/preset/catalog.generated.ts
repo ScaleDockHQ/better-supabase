@@ -29395,12 +29395,21 @@ export const PRESET_CATALOG: PresetCatalog = {
         "field-encryption"
       ],
       "category": "database",
-      "client": null,
+      "client": {
+        "export": "fieldEncryptionBlock",
+        "subpath": "better-supabase/blocks/field-encryption"
+      },
       "consumes": {},
       "provides": [],
       "composedBy": [
         "care"
-      ]
+      ],
+      "events": {
+        "type": "FieldEncryptionEvents",
+        "types": [
+          "field_key.dropped"
+        ]
+      }
     },
     {
       "name": "flags",
@@ -33039,7 +33048,17 @@ export const PRESET_CATALOG: PresetCatalog = {
           "marketplace_installation.deleted",
           "marketplace_invoice.status_changed"
         ]
-      }
+      },
+      "env": [
+        {
+          "key": "VERCEL_MARKETPLACE_CLIENT_ID",
+          "description": "The integration's client id from the Vercel dashboard; createVercelMarketplace() checks it as the audience of SSO and webhook tokens."
+        },
+        {
+          "key": "VERCEL_MARKETPLACE_CLIENT_SECRET",
+          "description": "Server-only: the integration's client secret; it signs the webhook check and exchanges SSO codes."
+        }
+      ]
     },
     {
       "name": "saved-views",
@@ -33453,9 +33472,20 @@ export const PRESET_CATALOG: PresetCatalog = {
         "impersonation"
       ],
       "category": "admin",
-      "client": null,
+      "client": {
+        "export": "impersonationBlock",
+        "subpath": "better-supabase/blocks/impersonation"
+      },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ImpersonationEvents",
+        "types": [
+          "support_session.started",
+          "support_session.ended",
+          "support_session.denied"
+        ]
+      }
     },
     {
       "name": "tags",
