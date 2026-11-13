@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the two tenant reads add 33 lines past the limit. 1 finding. */
 import type { VercelMarketplaceEvents } from "../../blocks/vercel-marketplace/events.ts";
 import type {
   BlockSqlContext,
@@ -174,6 +175,16 @@ const guard = `
   if not (${SERVICE_CALLER}) then
     ${fail("MARKETPLACE_FORBIDDEN", "only the service role manages Marketplace installations")}
   end if;`;
+
+/**
+ * The grant of a read a signed-in member may call; the function checks the
+ * tenant.
+ */
+const memberGrant = (signature: string): string =>
+  `revoke execute on function ${signature} from public, anon;
+grant execute on function ${signature} to authenticated, service_role;`;
+
+const unquoted = (identifier: string): string => identifier.replaceAll('"', "");
 
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
@@ -883,6 +894,50 @@ begin${guard}
 end;
 $$;
 
+-- Tenant reads for a signed-in member of the tenant an installation or a
+-- resource is linked to (link_marketplace_tenant, set_marketplace_resource_state).
+-- They leave out the Vault handle of the access token and the app's secret
+-- handles, so a settings page can show them without the service role.
+create or replace function ${fn("marketplace_installation_for")}(tenant text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (${SERVICE_CALLER}) and not exists (select 1 from ${ctx.scope.members()} as m(id) where m.id::text = marketplace_installation_for.tenant) then
+    return null;
+  end if;
+  return (
+    select ${json("installations", "x")} - ${sqlString(unquoted(ic("accessTokenSecret")))}
+    from ${i} x
+    where x.${ic("tenant")} = marketplace_installation_for.tenant and x.${ic("status")}::text <> 'removed'
+    order by ${ctx.has("installations", "createdAt") ? `x.${ic("createdAt")} desc` : `x.${ic("id")}`}
+    limit 1
+  );
+end;
+$$;
+
+create or replace function ${fn("marketplace_resources_for")}(tenant text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (${SERVICE_CALLER}) and not exists (select 1 from ${ctx.scope.members()} as m(id) where m.id::text = marketplace_resources_for.tenant) then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(${json("resources", "y")}${ctx.has("resources", "secretRefs") ? ` - ${sqlString(unquoted(rc("secretRefs")))}` : ""} order by y.${ctx.has("resources", "createdAt") ? rc("createdAt") : rc("externalId")}), '[]'::jsonb)
+    from ${r} y join ${i} x on x.${ic("id")} = y.${rc("installation")}
+    where y.${rc("tenant")} = marketplace_resources_for.tenant and y.${rc("status")}::text <> 'deleted'
+  );
+end;
+$$;
+
 -- Marks a resource deleted; the row stays for invoices and audit.
 create or replace function ${fn("delete_marketplace_resource")}(configuration_id text, external_id text)
 returns jsonb
@@ -919,7 +974,9 @@ ${serviceGrant(`${fn("link_marketplace_tenant")}(text, text, boolean)`)}
 ${serviceGrant(`${fn("set_marketplace_resource_state")}(text, text, text, boolean, text[])`)}
 ${serviceGrant(`${fn("marketplace_resource")}(text, text)`)}
 ${serviceGrant(`${fn("marketplace_resources")}(text)`)}
-${serviceGrant(`${fn("delete_marketplace_resource")}(text, text)`)}`;
+${serviceGrant(`${fn("delete_marketplace_resource")}(text, text)`)}
+${memberGrant(`${fn("marketplace_installation_for")}(text)`)}
+${memberGrant(`${fn("marketplace_resources_for")}(text)`)}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -998,6 +1055,8 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "marketplace_resource", args: ["text", "text"], returns: "jsonb" },
     { name: "marketplace_resources", args: ["text"], returns: "jsonb" },
+    { name: "marketplace_installation_for", args: ["text"], returns: "jsonb" },
+    { name: "marketplace_resources_for", args: ["text"], returns: "jsonb" },
     {
       name: "delete_marketplace_resource",
       args: ["text", "text"],

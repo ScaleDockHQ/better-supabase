@@ -877,6 +877,16 @@
       "types": "./dist/blocks/automations/index.d.ts",
       "default": "./dist/blocks/automations/index.js"
     },
+    "./blocks/field-encryption": {
+      "@better-supabase/source": "./src/blocks/field-encryption/index.ts",
+      "types": "./dist/blocks/field-encryption/index.d.ts",
+      "default": "./dist/blocks/field-encryption/index.js"
+    },
+    "./blocks/impersonation": {
+      "@better-supabase/source": "./src/blocks/impersonation/index.ts",
+      "types": "./dist/blocks/impersonation/index.d.ts",
+      "default": "./dist/blocks/impersonation/index.js"
+    },
     "./blocks/vercel-marketplace": {
       "@better-supabase/source": "./src/blocks/vercel-marketplace/index.ts",
       "types": "./dist/blocks/vercel-marketplace/index.d.ts",
@@ -2205,6 +2215,14 @@
       "./blocks/automations": {
         "types": "./dist/blocks/automations/index.d.ts",
         "default": "./dist/blocks/automations/index.js"
+      },
+      "./blocks/field-encryption": {
+        "types": "./dist/blocks/field-encryption/index.d.ts",
+        "default": "./dist/blocks/field-encryption/index.js"
+      },
+      "./blocks/impersonation": {
+        "types": "./dist/blocks/impersonation/index.d.ts",
+        "default": "./dist/blocks/impersonation/index.js"
       },
       "./blocks/vercel-marketplace": {
         "types": "./dist/blocks/vercel-marketplace/index.d.ts",

@@ -52,6 +52,8 @@ const PURE_BARRELS = [
   "blocks/oauth-server",
   "blocks/domains",
   "blocks/automations",
+  "blocks/field-encryption",
+  "blocks/impersonation",
   "blocks/vercel-marketplace",
   "blocks/reviews",
   "blocks/leave",

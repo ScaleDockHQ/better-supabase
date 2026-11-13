@@ -210,7 +210,7 @@
     "security-definer-functions": 92
   },
   "field-encryption": {
-    "security-definer-functions": 24
+    "security-definer-functions": 28
   },
   "field-history": {
     "security-definer-functions": 6
@@ -559,7 +559,7 @@
     "security-definer-functions": 116
   },
   "vercel-marketplace": {
-    "security-definer-functions": 102,
+    "security-definer-functions": 114,
     "row-triggers": 24
   },
   "versions": {

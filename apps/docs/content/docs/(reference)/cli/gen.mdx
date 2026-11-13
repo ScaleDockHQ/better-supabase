@@ -44,6 +44,10 @@ stops at the first task that fails. `--check` runs every task and reports
 everything that is out of date, and leaves `env` out because it writes local
 keys rather than a committed file. With one task, the output is that task's
 own; with several, each gets a section headed by its name.
+When `--check` finds stale SQL files, it adds a line that splits them into
+subject, search and other files (for example `Drift: 3 subject files, 2 search
+files`), so a new subject case reads differently from unrelated drift. The
+JSON output carries the same counts in `data.drift`.
 `gen --metadata` reads the schema from a document and runs no other task.
 
 `gen` introspects your database with

@@ -22,6 +22,7 @@ import { profilesBlock } from "better-supabase/blocks/profiles";
 import { sessionsBlock } from "better-supabase/blocks/sessions";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { ssoBlock } from "better-supabase/blocks/sso";
+import { impersonationBlock } from "better-supabase/blocks/impersonation";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./enterprise.blocks.generated.ts";
@@ -47,6 +48,7 @@ export const blockSet = defineBlocks(blockConfig, {
   sessions: sessionsBlock,
   settings: settingsBlock,
   sso: ssoBlock,
+  impersonation: impersonationBlock,
   teams: teamsBlock,
 });
 

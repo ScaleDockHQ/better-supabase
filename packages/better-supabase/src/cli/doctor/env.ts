@@ -158,7 +158,10 @@ export const ENV_RULES: readonly Rule[] = [
       const patterns = context.gitignore
         .split("\n")
         .map((line) => line.trim())
-        .filter((line) => line.length > 0 && !line.startsWith("#"));
+        .filter(
+          (line) =>
+            line.length > 0 && !line.startsWith("#") && !line.startsWith("!"),
+        );
 
       const ignored = (path: string): boolean =>
         patterns.some((pattern) => {

@@ -113,6 +113,9 @@ const NO_FIELDS: readonly string[] = [
   // Request keys and leases the block writes itself.
   "idempotency",
   "identities",
+  // Sessions and requests come back as fixed records; the ticket or case an
+  // admin works from goes in `metadata`.
+  "impersonation",
   // Runs log an import; the imported rows land in the app's own tables.
   "imports",
   // chat-sdk-state is the Chat SDK's state store, which takes no app columns.

@@ -14,12 +14,6 @@ const NO_CLIENT: Readonly<Record<string, string>> = {
   // Read and written through `vaultCredentials()` in `better-supabase/credentials`,
   // which calls the service-role functions; an app never calls them from a client.
   credentials: "vaultCredentials() in better-supabase/credentials",
-  // Keys are created and dropped by the SQL read paths of the blocks that
-  // encrypt their columns; no app code calls the functions.
-  "field-encryption": "the encrypting blocks' own read paths",
-  // Started and ended through the support session of the auth entry
-  // (`SessionProvider`, `supportOf`), which is lane E's.
-  impersonation: "the support session in the auth entry",
 };
 
 describe("block client trio", () => {
