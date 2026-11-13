@@ -70,6 +70,20 @@ describe("the Next.js init fixture", () => {
     expect(worker?.contents).toContain("request.method !== 'GET'");
   });
 
+  it("serves hashed build files cache first from a bounded cache that deploys keep", () => {
+    const worker = files.find((file) => file.path === "public/sw.js");
+
+    expect(worker?.contents).toContain(
+      "const STATIC_CACHE = 'next-static-v1';",
+    );
+    expect(worker?.contents).toContain("STATIC_MAX_ENTRIES");
+    expect(worker?.contents).toContain(
+      "!url.pathname.startsWith('/_next/static/service-worker/')",
+    );
+    expect(worker?.contents).toContain(String.raw`/\bimmutable\b/i`);
+    expect(worker?.contents).toContain("key !== CACHE && key !== STATIC_CACHE");
+  });
+
   it("stays out of the proxy for html and the manifest", () => {
     const proxy = files.find((file) => file.path === "src/proxy.ts");
 
