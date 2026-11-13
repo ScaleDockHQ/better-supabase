@@ -268,7 +268,7 @@
     "row-triggers": 6
   },
   "invoices": {
-    "security-definer-functions": 351,
+    "security-definer-functions": 357,
     "row-triggers": 6
   },
   "knowledge": {
@@ -419,7 +419,7 @@
     "security-definer-functions": 100
   },
   "quotes": {
-    "security-definer-functions": 133,
+    "security-definer-functions": 139,
     "row-triggers": 6
   },
   "rank": {
