@@ -1,6 +1,6 @@
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:45f9a73505c8298f1592674e6aba6aaf491a1aba98ed2c05128c52f04ea3e9c0
+-- @bsb-hash sha256:29e9ce66e0e38b3362f9b8429326e43d24f07bff1fa8ac7d5a69b9b9b96a8e1c
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1284,6 +1284,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."donations" as restri
 create policy bsb_tenant_scope_delete on "better_supabase"."donations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_donation_fund_index"
+  after insert or delete or update of "id", "tenant_id", "name" on "better_supabase"."donation_funds"
+  for each row execute function "better_supabase"."search_index_row"('donation_fund', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.donations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"donation","event_prefix":"donation"}');

@@ -1,6 +1,6 @@
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:a76a48652f0573adc201c5b5eceb6b035faa0e6ba7c130aa3f9e694e39ff945b
+-- @bsb-hash sha256:a03fcd14d1761f6939a4fdc152ec7741cb8032066d6a19a9ca22d55587192972
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -871,6 +871,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."qualifications" as r
 create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_qualification_type_index"
+  after insert or delete or update of "id", "tenant_id", "name" on "better_supabase"."qualification_types"
+  for each row execute function "better_supabase"."search_index_row"('qualification_type', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.qualifications deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"qualification","event_prefix":"qualification"}');

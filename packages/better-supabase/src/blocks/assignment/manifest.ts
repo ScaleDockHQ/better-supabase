@@ -24,6 +24,7 @@ export const assignmentBlock: BlockOf<
       emits: { update: false, delete: false },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.",
 });

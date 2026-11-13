@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 import type { EmployeesEvents } from "./events.ts";
 
+import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { employeeFromApplicationFactory } from "./actions.ts";
 import { createEmployees } from "./employees.ts";
@@ -31,6 +32,17 @@ export const employeesBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
   },
+  links: [
+    blockLink(
+      "fromApplication",
+      "conversion",
+      "employee",
+      "hiring",
+      "application",
+      "employee_from_application",
+    ),
+  ],
+  concerns: ["lifecycle", "search"],
   description:
     "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.",
   recipes: ["employee-directory"],

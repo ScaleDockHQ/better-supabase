@@ -30,6 +30,7 @@ export const enrollmentsBlock: BlockOf<
     },
     enrollment: { mutability: "state-machine", emits: { create: true } },
   },
+  concerns: ["lifecycle"],
   description:
     "Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.",
 });

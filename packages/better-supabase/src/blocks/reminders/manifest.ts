@@ -35,6 +35,7 @@ export const remindersBlock: BlockOf<
       emits: { update: false, delete: false },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.",
   recipes: ["reminders-list", "my-work"],

@@ -19,6 +19,7 @@ export const collectionsBlock: BlockOf<
   create: createCollections,
   category: "work",
   entities: { subject_collection: { mutability: "read-only" } },
+  concerns: ["lifecycle"],
   description:
     "Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.",
 });

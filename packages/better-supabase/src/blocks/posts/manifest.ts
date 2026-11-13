@@ -30,6 +30,7 @@ export const postsBlock: BlockOf<"posts", typeof createPosts, PostsEvents> =
         emits: { create: true, update: true, delete: true },
       },
     },
+    concerns: ["lifecycle", "search"],
     description:
       "Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.",
     recipes: ["post-board"],
