@@ -88,7 +88,7 @@ import { incomingRequest } from "./incoming-request.ts";
 import { proxyHandler } from "./proxy-handler.ts";
 import { proxyRuntime } from "./proxy-runtime.ts";
 import { recordAtServer, recordServer } from "./record.ts";
-import { handOff, takeHandoff } from "./remote-handoff.ts";
+import { handOff, handoffRequestId, takeHandoff } from "./remote-handoff.ts";
 import { adminForRequest, verifyOption } from "./request-stats.ts";
 import { resourceRoutes } from "./resources.ts";
 import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
@@ -148,11 +148,11 @@ export function createNext<
     flushAfter,
   } = proxyRuntime(betterSupabase, options);
 
-  const statsFor = (request: Request): ContextOptions => {
-    const id = collector && requestIdOf(request.headers);
+  const statsForId = (id: string | undefined): ContextOptions =>
+    collector && id ? { stats: collector.recorderFor(id) } : {};
 
-    return id ? { stats: collector.recorderFor(id) } : {};
-  };
+  const statsFor = (request: Request): ContextOptions =>
+    statsForId(collector && requestIdOf(request.headers));
 
   /** Sets the context's cookies (the replica pin) through Next's cookie jar. */
   const writeCookies = async (
@@ -493,10 +493,10 @@ export function createNext<
     const snapshot = takeHandoff<C>(key);
 
     const ctx = snapshot
-      ? await base.contextFromSession(
-          snapshot,
-          tenant === undefined ? {} : { tenant },
-        )
+      ? await base.contextFromSession(snapshot, {
+          ...(tenant === undefined ? {} : { tenant }),
+          ...statsForId(handoffRequestId(key)),
+        })
       : base.contextFor(
           key.userId === null && key.shared === null && key.support === null
             ? { kind: "none", reason: "none" }
@@ -604,7 +604,13 @@ export function createNext<
           share: remoteOptions.share ?? "session",
         });
 
-        const release = snapshot ? handOff(key, snapshot) : undefined;
+        const requestId = collector
+          ? requestIdOf((await incoming()).request.headers)
+          : undefined;
+
+        const release = snapshot
+          ? handOff(key, snapshot, requestId)
+          : undefined;
 
         try {
           return await fn(key, ...args);
@@ -832,7 +838,9 @@ export function createNext<
           );
         }
 
-        // A render served from private caches never records: it made no calls.
+        // A render served entirely from cache entries records nothing: it made
+        // no calls. A fill records on the request that started it, remote
+        // fills through bsb.remote() included, raw ctx.supabase calls too.
         const stats = collector.get(id) ?? EMPTY_STATS;
 
         return Promise.resolve(
