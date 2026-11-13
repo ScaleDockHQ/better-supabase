@@ -7,6 +7,9 @@ export {
   type SearchHit,
   type SearchListOptions,
   type SearchOptions,
+  type SearchPage,
+  type SearchPageHit,
+  type SearchPageQuery,
   type SearchQuery,
   type SearchUserItem,
 } from "./search.ts";

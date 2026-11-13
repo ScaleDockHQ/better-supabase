@@ -722,7 +722,7 @@ may be your own enum or domain.
   - `better_supabase.score_model_versions`: `model_id`, `version`, `tenant_id`, `rules`, `metrics`, `bands`
   - `better_supabase.scores`: `id`, `tenant_id`, `model_id`, `model_version`, `subject_type`, `subject_id`, `score`, `band`, `is_current`, `computed_at`
 - `search`
-  - `better_supabase.search_documents`: `tenant_id`, `subject_type`, `subject_id`, `title`, `title_search`, `body`, `url`, `tsv`, `content_hash`, `updated_at`
+  - `better_supabase.search_documents`: `tenant_id`, `subject_type`, `subject_id`, `title`, `title_search`, `body`, `url`, `tsv`, `content_hash`, `updated_at`, `facets`, `sort_key`
 - `security-events`
   - `better_supabase.ssf_streams`: `id`, `tenant`, `receiver`, `audience`, `events_requested`, `events_delivered`, `delivery_method`, `endpoint_id`, `status`, `verified_at`; typed: `delivery_method`, `status`
   - `better_supabase.ssf_events`: `stream_id`, `jti`, `token`, `created_at`

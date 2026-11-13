@@ -28,6 +28,8 @@ import {
   typedEqual,
   typedIn,
 } from "./search-keys.ts";
+import { searchPageFunction } from "./search-page.ts";
+import { userStateFunctions } from "./search-state.ts";
 
 const NAMES: BlockSqlNames = {
   hooks: ["before_search_document_index", "after_search_document_index"],
@@ -50,6 +52,8 @@ const NAMES: BlockSqlNames = {
         embedding: "embedding",
         updatedAt: "updated_at",
         description: "description",
+        facets: "facets",
+        sortKey: "sort_key",
       },
       optional: ["embedding", "description"],
     },
@@ -109,6 +113,7 @@ function watchedColumns(subject: RegisteredSubject): readonly string[] {
     own ? (config.search?.title ?? config.title) : undefined,
     ...(own ? (config.search?.body ?? []) : []),
     own ? config.search?.description : undefined,
+    ...(own ? (config.search?.facets ?? []) : []),
     own ? config.search?.exclude : undefined,
     ...(own ? [] : (config.search.columns ?? [])),
     config.deletedAt,
@@ -555,126 +560,6 @@ $$;
 ${userGrant(`${ctx.fn("search")}(text, text[], ${ctx.idType}, integer${embeddingType})`)}`;
 }
 
-interface StateNames {
-  readonly table: string;
-  readonly col: (column: string) => string;
-}
-
-/** Recents and favorites over the share-links block's per-user state. */
-function userStateFunctions(
-  ctx: BlockSqlContext,
-  state: StateNames | undefined,
-): string {
-  const subjects = ctx.of("subjects");
-  const canSubject = subjects.fn("can_subject");
-  const title = subjects.fn("subject_title");
-  const url = subjects.fn("subject_url");
-  const fn = (name: string): string => ctx.fn(name);
-
-  const rows = state
-    ? `select s.${state.col("subjectType")}, s.${state.col("subjectId")}, s.${state.col("starredAt")}, s.${state.col("lastOpenedAt")}
-  from ${state.table} s
-  where s.${state.col("user")} = auth.uid()`
-    : "select null::text, null::text, null::timestamptz, null::timestamptz where false";
-
-  const upsert = (set: "opened" | "starred"): string => {
-    if (!state) {
-      return "return false;";
-    }
-
-    const keys = `${state.col("subjectType")}, ${state.col("subjectId")}, ${state.col("user")}`;
-
-    const value =
-      set === "opened"
-        ? `${state.col("lastOpenedAt")}) values (search_touch.subject_type, search_touch.subject_id, auth.uid(), now())
-  on conflict (${keys}) do update set ${state.col("lastOpenedAt")} = now();`
-        : `${state.col("starredAt")}) values (search_star.subject_type, search_star.subject_id, auth.uid(), case when search_star.starred then now() end)
-  on conflict (${keys}) do update set ${state.col("starredAt")} = case when search_star.starred then coalesce(st.${state.col("starredAt")}, now()) end;`;
-
-    return `insert into ${state.table} as st (${keys}, ${value}
-  return true;`;
-  };
-
-  const list = (
-    name: "search_recents" | "search_favorites",
-    at: "opened_at" | "starred_at",
-  ): string => `
-create or replace function ${fn(name)}(max_results integer default 10, types text[] default null)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(x.item order by x.at desc), '[]'::jsonb)
-  from (
-    select s.${at} as at, jsonb_build_object(
-      'subjectType', s.subject_type,
-      'subjectId', s.subject_id,
-      'title', ${title}(s.subject_type, s.subject_id),
-      'url', ${url}(s.subject_type, s.subject_id),
-      'openedAt', s.opened_at,
-      'starredAt', s.starred_at
-    ) as item
-    from ${fn("search_user_state")}() s
-    where s.${at} is not null
-      and (${name}.types is null or s.subject_type = any (${name}.types))
-      and ${canSubject}(s.subject_type, s.subject_id, 'read')
-    order by s.${at} desc
-    limit least(greatest(coalesce(${name}.max_results, 10), 1), 100)
-  ) x
-$$;
-${userGrant(`${fn(name)}(integer, text[])`)}`;
-
-  return `
--- The caller's own rows of the share-links per-user state. The lists below
--- run as the caller, so can_subject sees what they can read.
-create or replace function ${fn("search_user_state")}()
-returns table (subject_type text, subject_id text, starred_at timestamptz, opened_at timestamptz)
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  ${rows}
-$$;
-${userGrant(`${fn("search_user_state")}()`)}
-${list("search_recents", "opened_at")}
-${list("search_favorites", "starred_at")}
-
-create or replace function ${fn("search_touch")}(subject_type text, subject_id text)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-begin
-  if auth.uid() is null then
-    ${fail("SEARCH_SIGNED_OUT", "sign in to keep recents")}
-  end if;
-  ${upsert("opened")}
-end;
-$$;
-${userGrant(`${fn("search_touch")}(text, text)`)}
-
-create or replace function ${fn("search_star")}(subject_type text, subject_id text, starred boolean)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-begin
-  if auth.uid() is null then
-    ${fail("SEARCH_SIGNED_OUT", "sign in to keep favorites")}
-  end if;
-  ${upsert("starred")}
-end;
-$$;
-${userGrant(`${fn("search_star")}(text, text, boolean)`)}`;
-}
-
 function embeddingFunctions(
   ctx: BlockSqlContext,
   names: SearchNames,
@@ -814,12 +699,19 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   ${c("tsv")} tsvector not null,
   ${c("contentHash")} text not null,
   ${c("updatedAt")} timestamptz not null default now(),
+  ${c("facets")} jsonb not null default '{}',
+  ${c("sortKey")} text not null default '',
   primary key (${c("subjectType")}, ${c("subjectId")})
-);${described ? `\nalter table ${docs} add column if not exists ${c("description")} text;` : ""}${vector ? `\n-- Also for an index created before embeddings were turned on.\nalter table ${docs} add column if not exists ${c("embedding")} ${vector}.vector(${String(dimensions)});` : ""}
+);
+-- Also for an index created before facets and browsing.
+alter table ${docs} add column if not exists ${c("facets")} jsonb not null default '{}';
+alter table ${docs} add column if not exists ${c("sortKey")} text not null default '';${described ? `\nalter table ${docs} add column if not exists ${c("description")} text;` : ""}${vector ? `\n-- Also for an index created before embeddings were turned on.\nalter table ${docs} add column if not exists ${c("embedding")} ${vector}.vector(${String(dimensions)});` : ""}
 ${lockTable(docs, { read: true })}
 create index if not exists search_documents_tsv_idx on ${docs} using gin (${c("tsv")});
 create index if not exists search_documents_title_trgm_idx on ${docs} using gin (${c("titleSearch")} extensions.gin_trgm_ops);
-create index if not exists search_documents_tenant_idx on ${docs} (${c("tenant")}, ${c("subjectType")});${vector ? `\ncreate index if not exists search_documents_embedding_idx on ${docs} using hnsw (${c("embedding")} ${vector}.vector_cosine_ops);\ncreate index if not exists search_documents_pending_idx on ${docs} (${c("updatedAt")}) where ${c("embedding")} is null;` : ""}
+create index if not exists search_documents_facets_idx on ${docs} using gin (${c("facets")} jsonb_path_ops);
+create index if not exists search_documents_browse_idx on ${docs} (${c("tenant")}, ${c("subjectType")}, ${c("sortKey")}, ${c("subjectId")});
+drop index if exists search_documents_tenant_idx;${vector ? `\ncreate index if not exists search_documents_embedding_idx on ${docs} using hnsw (${c("embedding")} ${vector}.vector_cosine_ops);\ncreate index if not exists search_documents_pending_idx on ${docs} (${c("updatedAt")}) where ${c("embedding")} is null;` : ""}
 
 ${renderPolicy(makePolicy({ table: docs, name: "search_documents_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { target: docs })}
 `
@@ -865,6 +757,7 @@ declare
   v_title text;
   v_body text;
   v_url text;${described ? "\n  v_description text;" : ""}
+  v_facets jsonb;
   v_found boolean := false;
   v_hash text;
 begin
@@ -883,12 +776,12 @@ ${cases}
     return false;
   end if;
   v_hash := md5(coalesce(v_title, '') || E'\\x1f' || coalesce(v_body, ''));
-  insert into ${docs} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("title")}, ${c("titleSearch")}, ${c("body")}, ${c("url")}, ${c("tsv")}, ${c("contentHash")}, ${c("updatedAt")}${described ? `, ${c("description")}` : ""})
+  insert into ${docs} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("title")}, ${c("titleSearch")}, ${c("body")}, ${c("url")}, ${c("tsv")}, ${c("contentHash")}, ${c("updatedAt")}, ${c("facets")}, ${c("sortKey")}${described ? `, ${c("description")}` : ""})
   values (
     v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, ${fn("search_normalize")}(v_title), v_body, v_url,
     setweight(to_tsvector('${config}', ${fn("search_normalize")}(v_title)), 'A')
       || setweight(to_tsvector('${config}', ${fn("search_normalize")}(v_body)), 'B'),
-    v_hash, now()${described ? ", v_description" : ""}
+    v_hash, now(), v_facets, left(${fn("search_normalize")}(v_title), 200)${described ? ", v_description" : ""}
   )
   on conflict (${c("subjectType")}, ${c("subjectId")}) do update set
     ${c("tenant")} = excluded.${c("tenant")},
@@ -898,9 +791,11 @@ ${cases}
     ${c("url")} = excluded.${c("url")},${described ? `\n    ${c("description")} = excluded.${c("description")},` : ""}
     ${c("tsv")} = excluded.${c("tsv")},${vector ? `\n    ${c("embedding")} = case when ${docs}.${c("contentHash")} = excluded.${c("contentHash")} then ${docs}.${c("embedding")} end,` : ""}
     ${c("contentHash")} = excluded.${c("contentHash")},
+    ${c("facets")} = excluded.${c("facets")},
+    ${c("sortKey")} = excluded.${c("sortKey")},
     ${c("updatedAt")} = now()
-  where (${docs}.${c("tenant")}, ${docs}.${c("title")}, ${docs}.${c("body")}, ${docs}.${c("url")}${described ? `, ${docs}.${c("description")}` : ""})
-    is distinct from (excluded.${c("tenant")}, excluded.${c("title")}, excluded.${c("body")}, excluded.${c("url")}${described ? `, excluded.${c("description")}` : ""});
+  where (${docs}.${c("tenant")}, ${docs}.${c("title")}, ${docs}.${c("body")}, ${docs}.${c("url")}, ${docs}.${c("facets")}${described ? `, ${docs}.${c("description")}` : ""})
+    is distinct from (excluded.${c("tenant")}, excluded.${c("title")}, excluded.${c("body")}, excluded.${c("url")}, excluded.${c("facets")}${described ? `, excluded.${c("description")}` : ""});
   ${ctx.hook("after_search_document_index", [
     ["text", "search_refresh.subject_type"],
     ["text", "search_refresh.subject_id"],
@@ -1044,6 +939,7 @@ revoke execute on function ${fn("search_index_row")}() from public, anon, authen
 
 ${triggers(ctx, layout, subjects)}${watchTriggers(ctx, layout, subjects)}
 ${searchFunction(ctx, names, described)}
+${searchPageFunction(ctx, names, described)}
 ${userStateFunctions(ctx, state)}
 ${vector ? embeddingFunctions(ctx, names, vector) : ""}
 `;
@@ -1062,6 +958,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "integer",
         ...(embedded ? ["vector"] : []),
       ],
+      returns: "jsonb",
+    },
+    {
+      name: "search_page",
+      args: ["text", "text[]", "{id}", "jsonb", "text", "integer"],
       returns: "jsonb",
     },
     { name: "search_recents", args: ["integer", "text[]"], returns: "jsonb" },
@@ -1089,17 +990,23 @@ export const SEARCH: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Search",
   description:
-    "A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
+    "A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.",
   requires: ["memberships", "permissions", "subjects"],
   integrates: ["share-links", "vector-search"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "search_set_embeddings stores many embeddings in one update, and embedPending calls it once per run.",
+      sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "search_documents gets facets and sort_key columns, their indexes and search_page. The module's data file indexes every record again to fill them.",
       sql: () => "",
     },
   ],

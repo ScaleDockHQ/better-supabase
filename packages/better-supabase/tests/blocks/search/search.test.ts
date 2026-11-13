@@ -52,6 +52,65 @@ const event = (type: string, data: unknown): CloudEvent => ({
 });
 
 describe("search block", () => {
+  it("pages as the caller and maps the items and the cursor", async () => {
+    const { calls, transport } = recorder({
+      search_page: {
+        items: [{ ...hit, score: 0.5, facets: { status: "active" } }],
+        nextCursor: "abc",
+      },
+    });
+
+    const search = createSearch({ transport });
+
+    expect(
+      await search
+        .page({
+          q: "revenue",
+          query: { filter: { status: "active" }, limit: 5 },
+        })
+        .orThrow(),
+    ).toEqual({
+      items: [{ ...hit, score: 0.5, facets: { status: "active" } }],
+      nextCursor: "abc",
+    });
+    expect(calls[0]).toEqual({
+      fn: "search_page",
+      args: {
+        q: "revenue",
+        types: null,
+        tenant: null,
+        filter: { status: "active" },
+        after: null,
+        page_size: 5,
+      },
+    });
+  });
+
+  it("browses without a query and reads a null score", async () => {
+    const { calls, transport } = recorder({
+      search_page: {
+        items: [{ ...hit, snippet: null, score: null }],
+        nextCursor: null,
+      },
+    });
+
+    const page = await createSearch({ transport })
+      .page({ query: { after: "cur" } })
+      .orThrow();
+
+    expect(page.items[0]).toMatchObject({
+      score: null,
+      snippet: null,
+      facets: {},
+    });
+    expect(page.nextCursor).toBeNull();
+    expect(calls[0]?.args).toMatchObject({
+      q: null,
+      after: "cur",
+      page_size: 20,
+    });
+  });
+
   it("searches as the caller and maps the hits", async () => {
     const { calls, transport } = recorder({ search: [hit] });
     const search = createSearch({ transport });

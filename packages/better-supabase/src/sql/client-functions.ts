@@ -257,7 +257,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   scores:
     "compute_score delete_score_model get_score_model list_score_models save_score_model score_history subject_scores top_scores",
   search:
-    "search search_favorites search_recents search_refresh search_reindex search_remove search_star search_touch",
+    "search search_favorites search_page search_recents search_refresh search_reindex search_remove search_star search_touch",
   "security-events":
     "create_ssf_stream delete_ssf_stream forget_ssf_received note_ssf_verification poll_ssf_events purge_shared_signals queue_ssf_set record_ssf_received set_ssf_stream_status ssf_stream ssf_streams ssf_streams_for_event update_ssf_stream",
   segments:

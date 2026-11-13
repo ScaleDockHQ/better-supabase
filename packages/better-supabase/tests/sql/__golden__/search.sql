@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@2 managed
--- @bsb-hash sha256:d131099787faa751cb5f7d10871b6865c9a275af3c51fe98ee744034fca854c8
--- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-block search@3 managed
+-- @bsb-hash sha256:11e1da68c27e0b32eb7af47fb1ff193cbd47dd8f18d29afd65eff4a56f304beb
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -19,15 +19,20 @@ create table "better_supabase"."search_documents" (
   "tsv" tsvector not null,
   "content_hash" text not null,
   "updated_at" timestamptz not null default now(),
+  "facets" jsonb not null default '{}',
+  "sort_key" text not null default '',
   primary key ("subject_type", "subject_id")
 );
+-- Also for an index created before facets and browsing.
+
 alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
 create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_facets_idx on "better_supabase"."search_documents" using gin ("facets" jsonb_path_ops);
+create index search_documents_browse_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type", "sort_key", "subject_id");
 
 create policy bsb_search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
@@ -61,6 +66,7 @@ declare
   v_title text;
   v_body text;
   v_url text;
+  v_facets jsonb;
   v_found boolean := false;
   v_hash text;
 begin
@@ -83,12 +89,12 @@ begin
     return false;
   end if;
   v_hash := md5(coalesce(v_title, '') || E'\x1f' || coalesce(v_body, ''));
-  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at")
+  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at", "facets", "sort_key")
   values (
     v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, "better_supabase"."search_normalize"(v_title), v_body, v_url,
     setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_title)), 'A')
       || setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_body)), 'B'),
-    v_hash, now()
+    v_hash, now(), v_facets, left("better_supabase"."search_normalize"(v_title), 200)
   )
   on conflict ("subject_type", "subject_id") do update set
     "tenant_id" = excluded."tenant_id",
@@ -98,9 +104,11 @@ begin
     "url" = excluded."url",
     "tsv" = excluded."tsv",
     "content_hash" = excluded."content_hash",
+    "facets" = excluded."facets",
+    "sort_key" = excluded."sort_key",
     "updated_at" = now()
-  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url")
-    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url");
+  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url", "better_supabase"."search_documents"."facets")
+    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url", excluded."facets");
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_search_document_index"(text, text)');
   begin
@@ -318,6 +326,149 @@ end;
 $$;
 revoke execute on function "better_supabase"."search"(text, text[], uuid, integer) from public, anon;
 grant execute on function "better_supabase"."search"(text, text[], uuid, integer) to authenticated, service_role;
+
+-- A page of documents as the caller, as { items, nextCursor }. Without q it
+-- browses by (sort_key, subject_id); with q it ranks like search() over at
+-- most 500 candidates. filter keeps the documents whose facets contain it. The
+-- cursor is opaque: pass back what the previous page returned.
+create or replace function "better_supabase"."search_page"(q text default null, types text[] default null, tenant uuid default null, filter jsonb default null, after text default null, page_size integer default 20)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_q text := btrim(coalesce(search_page.q, ''));
+  v_mode text := 'b';
+  v_norm text;
+  v_hash text;
+  v_web tsquery;
+  v_prefix tsquery;
+  v_size integer := least(greatest(coalesce(search_page.page_size, 20), 1), 100);
+  v_filter jsonb := coalesce(search_page.filter, '{}'::jsonb);
+  v_cur jsonb;
+  v_items jsonb;
+  v_more boolean;
+  v_last jsonb;
+  v_next text;
+begin
+  if length(v_q) > 256 then
+    raise exception 'a search query is at most 256 characters' using errcode = '22023', hint = 'SEARCH_QUERY_TOO_LONG';
+  end if;
+  if jsonb_typeof(v_filter) is distinct from 'object' then
+    raise exception 'filter must be a JSON object of facet values' using errcode = '22023', hint = 'SEARCH_FILTER_INVALID';
+  end if;
+  if v_q <> '' then
+    v_mode := 's';
+    v_norm := "better_supabase"."search_normalize"(v_q);
+    v_hash := md5(v_norm);
+    v_web := websearch_to_tsquery('simple', v_norm);
+    select to_tsquery('simple', string_agg(quote_literal(w) || ':*', ' & '))
+      into v_prefix
+      from regexp_split_to_table(v_norm, '[^[:alnum:]]+') w
+      where w <> '';
+  end if;
+  if search_page.after is not null then
+    begin
+      v_cur := convert_from(decode(rpad(translate(search_page.after, '-_', '+/'), length(search_page.after) + (4 - length(search_page.after) % 4) % 4, '='), 'base64'), 'UTF8')::jsonb;
+    exception when others then
+      v_cur := null;
+    end;
+    if v_cur is null or jsonb_typeof(v_cur) is distinct from 'object'
+      or v_cur ->> 'm' is distinct from v_mode
+      or (v_mode = 's' and v_cur ->> 'h' is distinct from v_hash) then
+      raise exception 'this cursor does not belong to this query' using errcode = '22023', hint = 'SEARCH_CURSOR_INVALID';
+    end if;
+  end if;
+  if v_mode = 'b' then
+    with lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, null::numeric as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (v_cur is null or (d."sort_key", d."subject_id", d."subject_type") > (v_cur ->> 'k', v_cur ->> 'i', v_cur ->> 't'))
+        and "better_supabase"."can_subject"(d."subject_type", d."subject_id", 'read')
+      order by d."sort_key", d."subject_id", d."subject_type"
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.sort_key, l.subject_id, l.subject_type) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', null,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  else
+    with pool as materialized (
+      select d."subject_type" as subject_type, d."subject_id" as subject_id,
+        round((2 * coalesce(ts_rank_cd(d."tsv", v_web), 0)
+          + coalesce(ts_rank_cd(d."tsv", v_prefix), 0)
+          + extensions.similarity(d."title_search", v_norm))::numeric, 6) as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (d."tsv" @@ v_web
+          or (v_prefix is not null and d."tsv" @@ v_prefix)
+          or d."title_search" operator(extensions.%) v_norm)
+      order by score desc, d."subject_type", d."subject_id"
+      limit 500
+    ),
+    lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, h.score
+      from pool h
+      join "better_supabase"."search_documents" d on d."subject_type" = h.subject_type and d."subject_id" = h.subject_id
+      where (v_cur is null
+          or h.score < (v_cur ->> 's')::numeric
+          or (h.score = (v_cur ->> 's')::numeric and (h.subject_type, h.subject_id) > (v_cur ->> 't', v_cur ->> 'i')))
+        and "better_supabase"."can_subject"(h.subject_type, h.subject_id, 'read')
+      order by h.score desc, h.subject_type, h.subject_id
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.score desc, l.subject_type, l.subject_id) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', case when p.body is null then null
+          else ts_headline('simple', p.body, coalesce(v_prefix, v_web), 'StartSel="", StopSel="", MaxWords=20, MinWords=8, MaxFragments=1')
+        end,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  end if;
+  if v_more then
+    v_next := translate(encode(convert_to(v_last::text, 'UTF8'), 'base64'), E'+/=\n', '-_');
+  end if;
+  return jsonb_build_object('items', v_items, 'nextCursor', v_next);
+end;
+$$;
+revoke execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) from public, anon;
+grant execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) to authenticated, service_role;
 
 -- The caller's own rows of the share-links per-user state. The lists below
 -- run as the caller, so can_subject sees what they can read.
@@ -446,7 +597,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:e45560981b9f8ba0017c9dd99e94102d44f5e85172772f3cc1bc772aa7b170f9
+-- @bsb-hash sha256:7529bba8f6ab8887231cb7ff7f8efd3486b4b1334cdc490b2d0301844b689f5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -456,15 +607,15 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 2, 'managed')
+values ('search', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@2 managed
--- @bsb-hash sha256:3c6cae593cc8653360009b87a3c04e1b91f16a2408b2f55ad18da8d10091251f
--- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-block search@3 managed
+-- @bsb-hash sha256:d304cc16d227c94ac5ad5f71db8702ae2131498f83b13b4f3e6bc2014cd4687d
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -481,15 +632,20 @@ create table "better_supabase"."search_documents" (
   "tsv" tsvector not null,
   "content_hash" text not null,
   "updated_at" timestamptz not null default now(),
+  "facets" jsonb not null default '{}',
+  "sort_key" text not null default '',
   primary key ("subject_type", "subject_id")
 );
+-- Also for an index created before facets and browsing.
+
 alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
 create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_facets_idx on "better_supabase"."search_documents" using gin ("facets" jsonb_path_ops);
+create index search_documents_browse_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type", "sort_key", "subject_id");
 
 create policy bsb_search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
@@ -523,6 +679,7 @@ declare
   v_title text;
   v_body text;
   v_url text;
+  v_facets jsonb;
   v_found boolean := false;
   v_hash text;
 begin
@@ -545,12 +702,12 @@ begin
     return false;
   end if;
   v_hash := md5(coalesce(v_title, '') || E'\x1f' || coalesce(v_body, ''));
-  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at")
+  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at", "facets", "sort_key")
   values (
     v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, "better_supabase"."search_normalize"(v_title), v_body, v_url,
     setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_title)), 'A')
       || setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_body)), 'B'),
-    v_hash, now()
+    v_hash, now(), v_facets, left("better_supabase"."search_normalize"(v_title), 200)
   )
   on conflict ("subject_type", "subject_id") do update set
     "tenant_id" = excluded."tenant_id",
@@ -560,9 +717,11 @@ begin
     "url" = excluded."url",
     "tsv" = excluded."tsv",
     "content_hash" = excluded."content_hash",
+    "facets" = excluded."facets",
+    "sort_key" = excluded."sort_key",
     "updated_at" = now()
-  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url")
-    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url");
+  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url", "better_supabase"."search_documents"."facets")
+    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url", excluded."facets");
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_search_document_index"(text, text)');
   begin
@@ -780,6 +939,149 @@ end;
 $$;
 revoke execute on function "better_supabase"."search"(text, text[], uuid, integer) from public, anon;
 grant execute on function "better_supabase"."search"(text, text[], uuid, integer) to authenticated, service_role;
+
+-- A page of documents as the caller, as { items, nextCursor }. Without q it
+-- browses by (sort_key, subject_id); with q it ranks like search() over at
+-- most 500 candidates. filter keeps the documents whose facets contain it. The
+-- cursor is opaque: pass back what the previous page returned.
+create or replace function "better_supabase"."search_page"(q text default null, types text[] default null, tenant uuid default null, filter jsonb default null, after text default null, page_size integer default 20)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_q text := btrim(coalesce(search_page.q, ''));
+  v_mode text := 'b';
+  v_norm text;
+  v_hash text;
+  v_web tsquery;
+  v_prefix tsquery;
+  v_size integer := least(greatest(coalesce(search_page.page_size, 20), 1), 100);
+  v_filter jsonb := coalesce(search_page.filter, '{}'::jsonb);
+  v_cur jsonb;
+  v_items jsonb;
+  v_more boolean;
+  v_last jsonb;
+  v_next text;
+begin
+  if length(v_q) > 256 then
+    raise exception 'a search query is at most 256 characters' using errcode = '22023', hint = 'SEARCH_QUERY_TOO_LONG';
+  end if;
+  if jsonb_typeof(v_filter) is distinct from 'object' then
+    raise exception 'filter must be a JSON object of facet values' using errcode = '22023', hint = 'SEARCH_FILTER_INVALID';
+  end if;
+  if v_q <> '' then
+    v_mode := 's';
+    v_norm := "better_supabase"."search_normalize"(v_q);
+    v_hash := md5(v_norm);
+    v_web := websearch_to_tsquery('simple', v_norm);
+    select to_tsquery('simple', string_agg(quote_literal(w) || ':*', ' & '))
+      into v_prefix
+      from regexp_split_to_table(v_norm, '[^[:alnum:]]+') w
+      where w <> '';
+  end if;
+  if search_page.after is not null then
+    begin
+      v_cur := convert_from(decode(rpad(translate(search_page.after, '-_', '+/'), length(search_page.after) + (4 - length(search_page.after) % 4) % 4, '='), 'base64'), 'UTF8')::jsonb;
+    exception when others then
+      v_cur := null;
+    end;
+    if v_cur is null or jsonb_typeof(v_cur) is distinct from 'object'
+      or v_cur ->> 'm' is distinct from v_mode
+      or (v_mode = 's' and v_cur ->> 'h' is distinct from v_hash) then
+      raise exception 'this cursor does not belong to this query' using errcode = '22023', hint = 'SEARCH_CURSOR_INVALID';
+    end if;
+  end if;
+  if v_mode = 'b' then
+    with lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, null::numeric as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (v_cur is null or (d."sort_key", d."subject_id", d."subject_type") > (v_cur ->> 'k', v_cur ->> 'i', v_cur ->> 't'))
+        and "better_supabase"."can_subject"(d."subject_type", d."subject_id", 'read')
+      order by d."sort_key", d."subject_id", d."subject_type"
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.sort_key, l.subject_id, l.subject_type) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', null,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  else
+    with pool as materialized (
+      select d."subject_type" as subject_type, d."subject_id" as subject_id,
+        round((2 * coalesce(ts_rank_cd(d."tsv", v_web), 0)
+          + coalesce(ts_rank_cd(d."tsv", v_prefix), 0)
+          + extensions.similarity(d."title_search", v_norm))::numeric, 6) as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (d."tsv" @@ v_web
+          or (v_prefix is not null and d."tsv" @@ v_prefix)
+          or d."title_search" operator(extensions.%) v_norm)
+      order by score desc, d."subject_type", d."subject_id"
+      limit 500
+    ),
+    lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, h.score
+      from pool h
+      join "better_supabase"."search_documents" d on d."subject_type" = h.subject_type and d."subject_id" = h.subject_id
+      where (v_cur is null
+          or h.score < (v_cur ->> 's')::numeric
+          or (h.score = (v_cur ->> 's')::numeric and (h.subject_type, h.subject_id) > (v_cur ->> 't', v_cur ->> 'i')))
+        and "better_supabase"."can_subject"(h.subject_type, h.subject_id, 'read')
+      order by h.score desc, h.subject_type, h.subject_id
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.score desc, l.subject_type, l.subject_id) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', case when p.body is null then null
+          else ts_headline('simple', p.body, coalesce(v_prefix, v_web), 'StartSel="", StopSel="", MaxWords=20, MinWords=8, MaxFragments=1')
+        end,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  end if;
+  if v_more then
+    v_next := translate(encode(convert_to(v_last::text, 'UTF8'), 'base64'), E'+/=\n', '-_');
+  end if;
+  return jsonb_build_object('items', v_items, 'nextCursor', v_next);
+end;
+$$;
+revoke execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) from public, anon;
+grant execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) to authenticated, service_role;
 
 -- The caller's own rows of the share-links per-user state. The lists below
 -- run as the caller, so can_subject sees what they can read.
@@ -920,7 +1222,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:e45560981b9f8ba0017c9dd99e94102d44f5e85172772f3cc1bc772aa7b170f9
+-- @bsb-hash sha256:7529bba8f6ab8887231cb7ff7f8efd3486b4b1334cdc490b2d0301844b689f5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -930,15 +1232,15 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 2, 'managed')
+values ('search', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@2 managed
--- @bsb-hash sha256:fdf001de00e4490713faaaa0a0d944393aa68fedcfacbfaa55fdfc13c401c1d5
--- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-block search@3 managed
+-- @bsb-hash sha256:d60374a18a1d4578b5ef3a2fd7016459acaec3e91649739c7584fa5dc03fe164
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -960,15 +1262,20 @@ create table "app_private"."search_documents" (
   "tsv" tsvector not null,
   "content_hash" text not null,
   "updated_at" timestamptz not null default now(),
+  "facets" jsonb not null default '{}',
+  "sort_key" text not null default '',
   primary key ("subject_type", "subject_id")
 );
+-- Also for an index created before facets and browsing.
+
 alter table "app_private"."search_documents" enable row level security;
 revoke all on "app_private"."search_documents" from public, anon, authenticated;
 grant select on "app_private"."search_documents" to authenticated;
 grant all on "app_private"."search_documents" to service_role;
 create index search_documents_tsv_idx on "app_private"."search_documents" using gin ("tsv");
 create index search_documents_title_trgm_idx on "app_private"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index search_documents_tenant_idx on "app_private"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_facets_idx on "app_private"."search_documents" using gin ("facets" jsonb_path_ops);
+create index search_documents_browse_idx on "app_private"."search_documents" ("tenant_id", "subject_type", "sort_key", "subject_id");
 
 create policy bsb_search_documents_read on "app_private"."search_documents"
   for select to authenticated
@@ -1002,6 +1309,7 @@ declare
   v_title text;
   v_body text;
   v_url text;
+  v_facets jsonb;
   v_found boolean := false;
   v_hash text;
 begin
@@ -1024,12 +1332,12 @@ begin
     return false;
   end if;
   v_hash := md5(coalesce(v_title, '') || E'\x1f' || coalesce(v_body, ''));
-  insert into "app_private"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at")
+  insert into "app_private"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at", "facets", "sort_key")
   values (
     v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, "app_private"."search_normalize"(v_title), v_body, v_url,
     setweight(to_tsvector('simple', "app_private"."search_normalize"(v_title)), 'A')
       || setweight(to_tsvector('simple', "app_private"."search_normalize"(v_body)), 'B'),
-    v_hash, now()
+    v_hash, now(), v_facets, left("app_private"."search_normalize"(v_title), 200)
   )
   on conflict ("subject_type", "subject_id") do update set
     "tenant_id" = excluded."tenant_id",
@@ -1039,9 +1347,11 @@ begin
     "url" = excluded."url",
     "tsv" = excluded."tsv",
     "content_hash" = excluded."content_hash",
+    "facets" = excluded."facets",
+    "sort_key" = excluded."sort_key",
     "updated_at" = now()
-  where ("app_private"."search_documents"."tenant_id", "app_private"."search_documents"."title", "app_private"."search_documents"."body", "app_private"."search_documents"."url")
-    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url");
+  where ("app_private"."search_documents"."tenant_id", "app_private"."search_documents"."title", "app_private"."search_documents"."body", "app_private"."search_documents"."url", "app_private"."search_documents"."facets")
+    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url", excluded."facets");
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_search_document_index"(text, text)');
   begin
@@ -1260,6 +1570,149 @@ $$;
 revoke execute on function "app_private"."search"(text, text[], uuid, integer) from public, anon;
 grant execute on function "app_private"."search"(text, text[], uuid, integer) to authenticated, service_role;
 
+-- A page of documents as the caller, as { items, nextCursor }. Without q it
+-- browses by (sort_key, subject_id); with q it ranks like search() over at
+-- most 500 candidates. filter keeps the documents whose facets contain it. The
+-- cursor is opaque: pass back what the previous page returned.
+create or replace function "app_private"."search_page"(q text default null, types text[] default null, tenant uuid default null, filter jsonb default null, after text default null, page_size integer default 20)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_q text := btrim(coalesce(search_page.q, ''));
+  v_mode text := 'b';
+  v_norm text;
+  v_hash text;
+  v_web tsquery;
+  v_prefix tsquery;
+  v_size integer := least(greatest(coalesce(search_page.page_size, 20), 1), 100);
+  v_filter jsonb := coalesce(search_page.filter, '{}'::jsonb);
+  v_cur jsonb;
+  v_items jsonb;
+  v_more boolean;
+  v_last jsonb;
+  v_next text;
+begin
+  if length(v_q) > 256 then
+    raise exception 'a search query is at most 256 characters' using errcode = '22023', hint = 'SEARCH_QUERY_TOO_LONG';
+  end if;
+  if jsonb_typeof(v_filter) is distinct from 'object' then
+    raise exception 'filter must be a JSON object of facet values' using errcode = '22023', hint = 'SEARCH_FILTER_INVALID';
+  end if;
+  if v_q <> '' then
+    v_mode := 's';
+    v_norm := "app_private"."search_normalize"(v_q);
+    v_hash := md5(v_norm);
+    v_web := websearch_to_tsquery('simple', v_norm);
+    select to_tsquery('simple', string_agg(quote_literal(w) || ':*', ' & '))
+      into v_prefix
+      from regexp_split_to_table(v_norm, '[^[:alnum:]]+') w
+      where w <> '';
+  end if;
+  if search_page.after is not null then
+    begin
+      v_cur := convert_from(decode(rpad(translate(search_page.after, '-_', '+/'), length(search_page.after) + (4 - length(search_page.after) % 4) % 4, '='), 'base64'), 'UTF8')::jsonb;
+    exception when others then
+      v_cur := null;
+    end;
+    if v_cur is null or jsonb_typeof(v_cur) is distinct from 'object'
+      or v_cur ->> 'm' is distinct from v_mode
+      or (v_mode = 's' and v_cur ->> 'h' is distinct from v_hash) then
+      raise exception 'this cursor does not belong to this query' using errcode = '22023', hint = 'SEARCH_CURSOR_INVALID';
+    end if;
+  end if;
+  if v_mode = 'b' then
+    with lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, null::numeric as score
+      from "app_private"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (v_cur is null or (d."sort_key", d."subject_id", d."subject_type") > (v_cur ->> 'k', v_cur ->> 'i', v_cur ->> 't'))
+        and "better_supabase"."can_subject"(d."subject_type", d."subject_id", 'read')
+      order by d."sort_key", d."subject_id", d."subject_type"
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.sort_key, l.subject_id, l.subject_type) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', null,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  else
+    with pool as materialized (
+      select d."subject_type" as subject_type, d."subject_id" as subject_id,
+        round((2 * coalesce(ts_rank_cd(d."tsv", v_web), 0)
+          + coalesce(ts_rank_cd(d."tsv", v_prefix), 0)
+          + extensions.similarity(d."title_search", v_norm))::numeric, 6) as score
+      from "app_private"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (d."tsv" @@ v_web
+          or (v_prefix is not null and d."tsv" @@ v_prefix)
+          or d."title_search" operator(extensions.%) v_norm)
+      order by score desc, d."subject_type", d."subject_id"
+      limit 500
+    ),
+    lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, h.score
+      from pool h
+      join "app_private"."search_documents" d on d."subject_type" = h.subject_type and d."subject_id" = h.subject_id
+      where (v_cur is null
+          or h.score < (v_cur ->> 's')::numeric
+          or (h.score = (v_cur ->> 's')::numeric and (h.subject_type, h.subject_id) > (v_cur ->> 't', v_cur ->> 'i')))
+        and "better_supabase"."can_subject"(h.subject_type, h.subject_id, 'read')
+      order by h.score desc, h.subject_type, h.subject_id
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.score desc, l.subject_type, l.subject_id) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', case when p.body is null then null
+          else ts_headline('simple', p.body, coalesce(v_prefix, v_web), 'StartSel="", StopSel="", MaxWords=20, MinWords=8, MaxFragments=1')
+        end,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  end if;
+  if v_more then
+    v_next := translate(encode(convert_to(v_last::text, 'UTF8'), 'base64'), E'+/=\n', '-_');
+  end if;
+  return jsonb_build_object('items', v_items, 'nextCursor', v_next);
+end;
+$$;
+revoke execute on function "app_private"."search_page"(text, text[], uuid, jsonb, text, integer) from public, anon;
+grant execute on function "app_private"."search_page"(text, text[], uuid, jsonb, text, integer) to authenticated, service_role;
+
 -- The caller's own rows of the share-links per-user state. The lists below
 -- run as the caller, so can_subject sees what they can read.
 create or replace function "app_private"."search_user_state"()
@@ -1387,7 +1840,7 @@ create policy bsb_tenant_scope_delete on "app_private"."search_documents" as res
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:e45560981b9f8ba0017c9dd99e94102d44f5e85172772f3cc1bc772aa7b170f9
+-- @bsb-hash sha256:7529bba8f6ab8887231cb7ff7f8efd3486b4b1334cdc490b2d0301844b689f5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1397,15 +1850,15 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 2, 'managed')
+values ('search', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@2 managed
--- @bsb-hash sha256:44848446dc3fef47c1f326c7db10885d12bae7a057b0c2219052199bd004b96d
--- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-block search@3 managed
+-- @bsb-hash sha256:fd81a3c53c3441bce05acc92531d0bbd16268e4b481e2e7ccbd5216677ca17d0
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1422,15 +1875,20 @@ create table "better_supabase"."search_documents" (
   "tsv" tsvector not null,
   "content_hash" text not null,
   "updated_at" timestamptz not null default now(),
+  "facets" jsonb not null default '{}',
+  "sort_key" text not null default '',
   primary key ("subject_type", "subject_id")
 );
+-- Also for an index created before facets and browsing.
+
 alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
 create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_facets_idx on "better_supabase"."search_documents" using gin ("facets" jsonb_path_ops);
+create index search_documents_browse_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type", "sort_key", "subject_id");
 
 create policy bsb_search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
@@ -1464,6 +1922,7 @@ declare
   v_title text;
   v_body text;
   v_url text;
+  v_facets jsonb;
   v_found boolean := false;
   v_hash text;
 begin
@@ -1486,12 +1945,12 @@ begin
     return false;
   end if;
   v_hash := md5(coalesce(v_title, '') || E'\x1f' || coalesce(v_body, ''));
-  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at")
+  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at", "facets", "sort_key")
   values (
     v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, "better_supabase"."search_normalize"(v_title), v_body, v_url,
     setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_title)), 'A')
       || setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_body)), 'B'),
-    v_hash, now()
+    v_hash, now(), v_facets, left("better_supabase"."search_normalize"(v_title), 200)
   )
   on conflict ("subject_type", "subject_id") do update set
     "tenant_id" = excluded."tenant_id",
@@ -1501,9 +1960,11 @@ begin
     "url" = excluded."url",
     "tsv" = excluded."tsv",
     "content_hash" = excluded."content_hash",
+    "facets" = excluded."facets",
+    "sort_key" = excluded."sort_key",
     "updated_at" = now()
-  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url")
-    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url");
+  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url", "better_supabase"."search_documents"."facets")
+    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url", excluded."facets");
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_search_document_index"(text, text)');
   begin
@@ -1721,6 +2182,149 @@ end;
 $$;
 revoke execute on function "better_supabase"."search"(text, text[], uuid, integer) from public, anon;
 grant execute on function "better_supabase"."search"(text, text[], uuid, integer) to authenticated, service_role;
+
+-- A page of documents as the caller, as { items, nextCursor }. Without q it
+-- browses by (sort_key, subject_id); with q it ranks like search() over at
+-- most 500 candidates. filter keeps the documents whose facets contain it. The
+-- cursor is opaque: pass back what the previous page returned.
+create or replace function "better_supabase"."search_page"(q text default null, types text[] default null, tenant uuid default null, filter jsonb default null, after text default null, page_size integer default 20)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_q text := btrim(coalesce(search_page.q, ''));
+  v_mode text := 'b';
+  v_norm text;
+  v_hash text;
+  v_web tsquery;
+  v_prefix tsquery;
+  v_size integer := least(greatest(coalesce(search_page.page_size, 20), 1), 100);
+  v_filter jsonb := coalesce(search_page.filter, '{}'::jsonb);
+  v_cur jsonb;
+  v_items jsonb;
+  v_more boolean;
+  v_last jsonb;
+  v_next text;
+begin
+  if length(v_q) > 256 then
+    raise exception 'a search query is at most 256 characters' using errcode = '22023', hint = 'SEARCH_QUERY_TOO_LONG';
+  end if;
+  if jsonb_typeof(v_filter) is distinct from 'object' then
+    raise exception 'filter must be a JSON object of facet values' using errcode = '22023', hint = 'SEARCH_FILTER_INVALID';
+  end if;
+  if v_q <> '' then
+    v_mode := 's';
+    v_norm := "better_supabase"."search_normalize"(v_q);
+    v_hash := md5(v_norm);
+    v_web := websearch_to_tsquery('simple', v_norm);
+    select to_tsquery('simple', string_agg(quote_literal(w) || ':*', ' & '))
+      into v_prefix
+      from regexp_split_to_table(v_norm, '[^[:alnum:]]+') w
+      where w <> '';
+  end if;
+  if search_page.after is not null then
+    begin
+      v_cur := convert_from(decode(rpad(translate(search_page.after, '-_', '+/'), length(search_page.after) + (4 - length(search_page.after) % 4) % 4, '='), 'base64'), 'UTF8')::jsonb;
+    exception when others then
+      v_cur := null;
+    end;
+    if v_cur is null or jsonb_typeof(v_cur) is distinct from 'object'
+      or v_cur ->> 'm' is distinct from v_mode
+      or (v_mode = 's' and v_cur ->> 'h' is distinct from v_hash) then
+      raise exception 'this cursor does not belong to this query' using errcode = '22023', hint = 'SEARCH_CURSOR_INVALID';
+    end if;
+  end if;
+  if v_mode = 'b' then
+    with lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, null::numeric as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (v_cur is null or (d."sort_key", d."subject_id", d."subject_type") > (v_cur ->> 'k', v_cur ->> 'i', v_cur ->> 't'))
+        and "better_supabase"."can_subject"(d."subject_type", d."subject_id", 'read')
+      order by d."sort_key", d."subject_id", d."subject_type"
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.sort_key, l.subject_id, l.subject_type) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', null,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  else
+    with pool as materialized (
+      select d."subject_type" as subject_type, d."subject_id" as subject_id,
+        round((2 * coalesce(ts_rank_cd(d."tsv", v_web), 0)
+          + coalesce(ts_rank_cd(d."tsv", v_prefix), 0)
+          + extensions.similarity(d."title_search", v_norm))::numeric, 6) as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (d."tsv" @@ v_web
+          or (v_prefix is not null and d."tsv" @@ v_prefix)
+          or d."title_search" operator(extensions.%) v_norm)
+      order by score desc, d."subject_type", d."subject_id"
+      limit 500
+    ),
+    lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, h.score
+      from pool h
+      join "better_supabase"."search_documents" d on d."subject_type" = h.subject_type and d."subject_id" = h.subject_id
+      where (v_cur is null
+          or h.score < (v_cur ->> 's')::numeric
+          or (h.score = (v_cur ->> 's')::numeric and (h.subject_type, h.subject_id) > (v_cur ->> 't', v_cur ->> 'i')))
+        and "better_supabase"."can_subject"(h.subject_type, h.subject_id, 'read')
+      order by h.score desc, h.subject_type, h.subject_id
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.score desc, l.subject_type, l.subject_id) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', case when p.body is null then null
+          else ts_headline('simple', p.body, coalesce(v_prefix, v_web), 'StartSel="", StopSel="", MaxWords=20, MinWords=8, MaxFragments=1')
+        end,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  end if;
+  if v_more then
+    v_next := translate(encode(convert_to(v_last::text, 'UTF8'), 'base64'), E'+/=\n', '-_');
+  end if;
+  return jsonb_build_object('items', v_items, 'nextCursor', v_next);
+end;
+$$;
+revoke execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) from public, anon;
+grant execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) to authenticated, service_role;
 
 -- The caller's own rows of the share-links per-user state. The lists below
 -- run as the caller, so can_subject sees what they can read.
@@ -1890,6 +2494,16 @@ as $$ select "better_supabase"."search"($1, $2, $3, $4) $$;
 revoke execute on function "api"."search"(text, text[], uuid, integer) from public, anon;
 grant execute on function "api"."search"(text, text[], uuid, integer) to authenticated, service_role;
 
+create or replace function "api"."search_page"(q text default null, types text[] default null, tenant uuid default null, filter jsonb default null, after text default null, page_size integer default 20)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."search_page"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."search_page"(text, text[], uuid, jsonb, text, integer) from public, anon;
+grant execute on function "api"."search_page"(text, text[], uuid, jsonb, text, integer) to authenticated, service_role;
+
 create or replace function "api"."search_recents"(max_results integer default 10, types text[] default null)
 returns jsonb
 language sql
@@ -1931,7 +2545,7 @@ grant execute on function "api"."search_star"(text, text, boolean) to authentica
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:e45560981b9f8ba0017c9dd99e94102d44f5e85172772f3cc1bc772aa7b170f9
+-- @bsb-hash sha256:7529bba8f6ab8887231cb7ff7f8efd3486b4b1334cdc490b2d0301844b689f5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1941,15 +2555,15 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 2, 'managed')
+values ('search', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@2 managed
--- @bsb-hash sha256:cab80e44dfd64f72f7adcf59cd9006b97863682ec40b71658046dbcf0af542cf
--- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-block search@3 managed
+-- @bsb-hash sha256:c999fb9d8fcc6ad8dcc72996e9cb59766ef1a5138c0921975a838856ef277e04
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1966,12 +2580,18 @@ alter table "better_supabase"."search_documents" add column if not exists "url" 
 alter table "better_supabase"."search_documents" add column if not exists "tsv" tsvector;
 alter table "better_supabase"."search_documents" add column if not exists "content_hash" text;
 alter table "better_supabase"."search_documents" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."search_documents" add column if not exists "facets" jsonb not null default '{}';
+alter table "better_supabase"."search_documents" add column if not exists "sort_key" text not null default '';
+-- Also for an index created before facets and browsing.
+alter table "better_supabase"."search_documents" add column if not exists "facets" jsonb not null default '{}';
+alter table "better_supabase"."search_documents" add column if not exists "sort_key" text not null default '';
 alter table "better_supabase"."search_documents" enable row level security;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index if not exists search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
 create index if not exists search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index if not exists search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+create index if not exists search_documents_facets_idx on "better_supabase"."search_documents" using gin ("facets" jsonb_path_ops);
+create index if not exists search_documents_browse_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type", "sort_key", "subject_id");
 
 create policy bsb_search_documents_select on "better_supabase"."search_documents"
   for select to authenticated
@@ -2005,6 +2625,7 @@ declare
   v_title text;
   v_body text;
   v_url text;
+  v_facets jsonb;
   v_found boolean := false;
   v_hash text;
 begin
@@ -2027,12 +2648,12 @@ begin
     return false;
   end if;
   v_hash := md5(coalesce(v_title, '') || E'\x1f' || coalesce(v_body, ''));
-  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at")
+  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at", "facets", "sort_key")
   values (
     v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, "better_supabase"."search_normalize"(v_title), v_body, v_url,
     setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_title)), 'A')
       || setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_body)), 'B'),
-    v_hash, now()
+    v_hash, now(), v_facets, left("better_supabase"."search_normalize"(v_title), 200)
   )
   on conflict ("subject_type", "subject_id") do update set
     "tenant_id" = excluded."tenant_id",
@@ -2042,9 +2663,11 @@ begin
     "url" = excluded."url",
     "tsv" = excluded."tsv",
     "content_hash" = excluded."content_hash",
+    "facets" = excluded."facets",
+    "sort_key" = excluded."sort_key",
     "updated_at" = now()
-  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url")
-    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url");
+  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url", "better_supabase"."search_documents"."facets")
+    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url", excluded."facets");
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_search_document_index"(text, text)');
   begin
@@ -2263,6 +2886,149 @@ $$;
 revoke execute on function "better_supabase"."search"(text, text[], uuid, integer) from public, anon;
 grant execute on function "better_supabase"."search"(text, text[], uuid, integer) to authenticated, service_role;
 
+-- A page of documents as the caller, as { items, nextCursor }. Without q it
+-- browses by (sort_key, subject_id); with q it ranks like search() over at
+-- most 500 candidates. filter keeps the documents whose facets contain it. The
+-- cursor is opaque: pass back what the previous page returned.
+create or replace function "better_supabase"."search_page"(q text default null, types text[] default null, tenant uuid default null, filter jsonb default null, after text default null, page_size integer default 20)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_q text := btrim(coalesce(search_page.q, ''));
+  v_mode text := 'b';
+  v_norm text;
+  v_hash text;
+  v_web tsquery;
+  v_prefix tsquery;
+  v_size integer := least(greatest(coalesce(search_page.page_size, 20), 1), 100);
+  v_filter jsonb := coalesce(search_page.filter, '{}'::jsonb);
+  v_cur jsonb;
+  v_items jsonb;
+  v_more boolean;
+  v_last jsonb;
+  v_next text;
+begin
+  if length(v_q) > 256 then
+    raise exception 'a search query is at most 256 characters' using errcode = '22023', hint = 'SEARCH_QUERY_TOO_LONG';
+  end if;
+  if jsonb_typeof(v_filter) is distinct from 'object' then
+    raise exception 'filter must be a JSON object of facet values' using errcode = '22023', hint = 'SEARCH_FILTER_INVALID';
+  end if;
+  if v_q <> '' then
+    v_mode := 's';
+    v_norm := "better_supabase"."search_normalize"(v_q);
+    v_hash := md5(v_norm);
+    v_web := websearch_to_tsquery('simple', v_norm);
+    select to_tsquery('simple', string_agg(quote_literal(w) || ':*', ' & '))
+      into v_prefix
+      from regexp_split_to_table(v_norm, '[^[:alnum:]]+') w
+      where w <> '';
+  end if;
+  if search_page.after is not null then
+    begin
+      v_cur := convert_from(decode(rpad(translate(search_page.after, '-_', '+/'), length(search_page.after) + (4 - length(search_page.after) % 4) % 4, '='), 'base64'), 'UTF8')::jsonb;
+    exception when others then
+      v_cur := null;
+    end;
+    if v_cur is null or jsonb_typeof(v_cur) is distinct from 'object'
+      or v_cur ->> 'm' is distinct from v_mode
+      or (v_mode = 's' and v_cur ->> 'h' is distinct from v_hash) then
+      raise exception 'this cursor does not belong to this query' using errcode = '22023', hint = 'SEARCH_CURSOR_INVALID';
+    end if;
+  end if;
+  if v_mode = 'b' then
+    with lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, null::numeric as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (v_cur is null or (d."sort_key", d."subject_id", d."subject_type") > (v_cur ->> 'k', v_cur ->> 'i', v_cur ->> 't'))
+        and "better_supabase"."can_subject"(d."subject_type", d."subject_id", 'read')
+      order by d."sort_key", d."subject_id", d."subject_type"
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.sort_key, l.subject_id, l.subject_type) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', null,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  else
+    with pool as materialized (
+      select d."subject_type" as subject_type, d."subject_id" as subject_id,
+        round((2 * coalesce(ts_rank_cd(d."tsv", v_web), 0)
+          + coalesce(ts_rank_cd(d."tsv", v_prefix), 0)
+          + extensions.similarity(d."title_search", v_norm))::numeric, 6) as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (d."tsv" @@ v_web
+          or (v_prefix is not null and d."tsv" @@ v_prefix)
+          or d."title_search" operator(extensions.%) v_norm)
+      order by score desc, d."subject_type", d."subject_id"
+      limit 500
+    ),
+    lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, h.score
+      from pool h
+      join "better_supabase"."search_documents" d on d."subject_type" = h.subject_type and d."subject_id" = h.subject_id
+      where (v_cur is null
+          or h.score < (v_cur ->> 's')::numeric
+          or (h.score = (v_cur ->> 's')::numeric and (h.subject_type, h.subject_id) > (v_cur ->> 't', v_cur ->> 'i')))
+        and "better_supabase"."can_subject"(h.subject_type, h.subject_id, 'read')
+      order by h.score desc, h.subject_type, h.subject_id
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.score desc, l.subject_type, l.subject_id) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', case when p.body is null then null
+          else ts_headline('simple', p.body, coalesce(v_prefix, v_web), 'StartSel="", StopSel="", MaxWords=20, MinWords=8, MaxFragments=1')
+        end,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  end if;
+  if v_more then
+    v_next := translate(encode(convert_to(v_last::text, 'UTF8'), 'base64'), E'+/=\n', '-_');
+  end if;
+  return jsonb_build_object('items', v_items, 'nextCursor', v_next);
+end;
+$$;
+revoke execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) from public, anon;
+grant execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) to authenticated, service_role;
+
 -- The caller's own rows of the share-links per-user state. The lists below
 -- run as the caller, so can_subject sees what they can read.
 create or replace function "better_supabase"."search_user_state"()
@@ -2390,7 +3156,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:e45560981b9f8ba0017c9dd99e94102d44f5e85172772f3cc1bc772aa7b170f9
+-- @bsb-hash sha256:7529bba8f6ab8887231cb7ff7f8efd3486b4b1334cdc490b2d0301844b689f5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2400,15 +3166,15 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 2, 'managed')
+values ('search', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@2 managed
--- @bsb-hash sha256:1117008e3c1dd31debc24fea0a8aed8d89323e10dae229796c1046b64bcad74c
--- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-block search@3 managed
+-- @bsb-hash sha256:8ac79b6b23e9e3498be30df897314e092e8e8adf58edc6770dfcdb9085c49d97
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2425,15 +3191,20 @@ create table "better_supabase"."search_documents" (
   "tsv" tsvector not null,
   "content_hash" text not null,
   "updated_at" timestamptz not null default now(),
+  "facets" jsonb not null default '{}',
+  "sort_key" text not null default '',
   primary key ("subject_type", "subject_id")
 );
+-- Also for an index created before facets and browsing.
+
 alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
 create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index search_documents_tenant_idx on "better_supabase"."search_documents" ("org_id", "subject_type");
+create index search_documents_facets_idx on "better_supabase"."search_documents" using gin ("facets" jsonb_path_ops);
+create index search_documents_browse_idx on "better_supabase"."search_documents" ("org_id", "subject_type", "sort_key", "subject_id");
 
 create policy bsb_search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
@@ -2467,6 +3238,7 @@ declare
   v_title text;
   v_body text;
   v_url text;
+  v_facets jsonb;
   v_found boolean := false;
   v_hash text;
 begin
@@ -2489,12 +3261,12 @@ begin
     return false;
   end if;
   v_hash := md5(coalesce(v_title, '') || E'\x1f' || coalesce(v_body, ''));
-  insert into "better_supabase"."search_documents" ("org_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at")
+  insert into "better_supabase"."search_documents" ("org_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at", "facets", "sort_key")
   values (
     v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, "better_supabase"."search_normalize"(v_title), v_body, v_url,
     setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_title)), 'A')
       || setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_body)), 'B'),
-    v_hash, now()
+    v_hash, now(), v_facets, left("better_supabase"."search_normalize"(v_title), 200)
   )
   on conflict ("subject_type", "subject_id") do update set
     "org_id" = excluded."org_id",
@@ -2504,9 +3276,11 @@ begin
     "url" = excluded."url",
     "tsv" = excluded."tsv",
     "content_hash" = excluded."content_hash",
+    "facets" = excluded."facets",
+    "sort_key" = excluded."sort_key",
     "updated_at" = now()
-  where ("better_supabase"."search_documents"."org_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url")
-    is distinct from (excluded."org_id", excluded."title", excluded."body", excluded."url");
+  where ("better_supabase"."search_documents"."org_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url", "better_supabase"."search_documents"."facets")
+    is distinct from (excluded."org_id", excluded."title", excluded."body", excluded."url", excluded."facets");
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_search_document_index"(text, text)');
   begin
@@ -2725,6 +3499,149 @@ $$;
 revoke execute on function "better_supabase"."search"(text, text[], uuid, integer) from public, anon;
 grant execute on function "better_supabase"."search"(text, text[], uuid, integer) to authenticated, service_role;
 
+-- A page of documents as the caller, as { items, nextCursor }. Without q it
+-- browses by (sort_key, subject_id); with q it ranks like search() over at
+-- most 500 candidates. filter keeps the documents whose facets contain it. The
+-- cursor is opaque: pass back what the previous page returned.
+create or replace function "better_supabase"."search_page"(q text default null, types text[] default null, tenant uuid default null, filter jsonb default null, after text default null, page_size integer default 20)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_q text := btrim(coalesce(search_page.q, ''));
+  v_mode text := 'b';
+  v_norm text;
+  v_hash text;
+  v_web tsquery;
+  v_prefix tsquery;
+  v_size integer := least(greatest(coalesce(search_page.page_size, 20), 1), 100);
+  v_filter jsonb := coalesce(search_page.filter, '{}'::jsonb);
+  v_cur jsonb;
+  v_items jsonb;
+  v_more boolean;
+  v_last jsonb;
+  v_next text;
+begin
+  if length(v_q) > 256 then
+    raise exception 'a search query is at most 256 characters' using errcode = '22023', hint = 'SEARCH_QUERY_TOO_LONG';
+  end if;
+  if jsonb_typeof(v_filter) is distinct from 'object' then
+    raise exception 'filter must be a JSON object of facet values' using errcode = '22023', hint = 'SEARCH_FILTER_INVALID';
+  end if;
+  if v_q <> '' then
+    v_mode := 's';
+    v_norm := "better_supabase"."search_normalize"(v_q);
+    v_hash := md5(v_norm);
+    v_web := websearch_to_tsquery('simple', v_norm);
+    select to_tsquery('simple', string_agg(quote_literal(w) || ':*', ' & '))
+      into v_prefix
+      from regexp_split_to_table(v_norm, '[^[:alnum:]]+') w
+      where w <> '';
+  end if;
+  if search_page.after is not null then
+    begin
+      v_cur := convert_from(decode(rpad(translate(search_page.after, '-_', '+/'), length(search_page.after) + (4 - length(search_page.after) % 4) % 4, '='), 'base64'), 'UTF8')::jsonb;
+    exception when others then
+      v_cur := null;
+    end;
+    if v_cur is null or jsonb_typeof(v_cur) is distinct from 'object'
+      or v_cur ->> 'm' is distinct from v_mode
+      or (v_mode = 's' and v_cur ->> 'h' is distinct from v_hash) then
+      raise exception 'this cursor does not belong to this query' using errcode = '22023', hint = 'SEARCH_CURSOR_INVALID';
+    end if;
+  end if;
+  if v_mode = 'b' then
+    with lim as (
+      select d."org_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, null::numeric as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."org_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (v_cur is null or (d."sort_key", d."subject_id", d."subject_type") > (v_cur ->> 'k', v_cur ->> 'i', v_cur ->> 't'))
+        and "better_supabase"."can_subject"(d."subject_type", d."subject_id", 'read')
+      order by d."sort_key", d."subject_id", d."subject_type"
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.sort_key, l.subject_id, l.subject_type) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', null,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  else
+    with pool as materialized (
+      select d."subject_type" as subject_type, d."subject_id" as subject_id,
+        round((2 * coalesce(ts_rank_cd(d."tsv", v_web), 0)
+          + coalesce(ts_rank_cd(d."tsv", v_prefix), 0)
+          + extensions.similarity(d."title_search", v_norm))::numeric, 6) as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."org_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (d."tsv" @@ v_web
+          or (v_prefix is not null and d."tsv" @@ v_prefix)
+          or d."title_search" operator(extensions.%) v_norm)
+      order by score desc, d."subject_type", d."subject_id"
+      limit 500
+    ),
+    lim as (
+      select d."org_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, h.score
+      from pool h
+      join "better_supabase"."search_documents" d on d."subject_type" = h.subject_type and d."subject_id" = h.subject_id
+      where (v_cur is null
+          or h.score < (v_cur ->> 's')::numeric
+          or (h.score = (v_cur ->> 's')::numeric and (h.subject_type, h.subject_id) > (v_cur ->> 't', v_cur ->> 'i')))
+        and "better_supabase"."can_subject"(h.subject_type, h.subject_id, 'read')
+      order by h.score desc, h.subject_type, h.subject_id
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.score desc, l.subject_type, l.subject_id) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', case when p.body is null then null
+          else ts_headline('simple', p.body, coalesce(v_prefix, v_web), 'StartSel="", StopSel="", MaxWords=20, MinWords=8, MaxFragments=1')
+        end,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  end if;
+  if v_more then
+    v_next := translate(encode(convert_to(v_last::text, 'UTF8'), 'base64'), E'+/=\n', '-_');
+  end if;
+  return jsonb_build_object('items', v_items, 'nextCursor', v_next);
+end;
+$$;
+revoke execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) from public, anon;
+grant execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) to authenticated, service_role;
+
 -- The caller's own rows of the share-links per-user state. The lists below
 -- run as the caller, so can_subject sees what they can read.
 create or replace function "better_supabase"."search_user_state"()
@@ -2852,7 +3769,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:e45560981b9f8ba0017c9dd99e94102d44f5e85172772f3cc1bc772aa7b170f9
+-- @bsb-hash sha256:7529bba8f6ab8887231cb7ff7f8efd3486b4b1334cdc490b2d0301844b689f5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2862,15 +3779,15 @@ create extension if not exists "pg_trgm" with schema "extensions";
 create extension if not exists "unaccent" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 2, 'managed')
+values ('search', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== searched subject: schema supabase/schemas/900_better_supabase_070_search.sql
 -- better-supabase module: search
--- @bsb-block search@2 managed
--- @bsb-hash sha256:3a89b5c43c9656d5a12fd765e0abff6074dbea5bd3933a6998335c7c0ddd2f21
--- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
+-- @bsb-block search@3 managed
+-- @bsb-hash sha256:b23d10198fea00c7f494b6bb6fb4a51fceeb0108f6e29b5964df4ee5c0339067
+-- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2887,15 +3804,20 @@ create table "better_supabase"."search_documents" (
   "tsv" tsvector not null,
   "content_hash" text not null,
   "updated_at" timestamptz not null default now(),
+  "facets" jsonb not null default '{}',
+  "sort_key" text not null default '',
   primary key ("subject_type", "subject_id")
 );
+-- Also for an index created before facets and browsing.
+
 alter table "better_supabase"."search_documents" enable row level security;
 revoke all on "better_supabase"."search_documents" from public, anon, authenticated;
 grant select on "better_supabase"."search_documents" to authenticated;
 grant all on "better_supabase"."search_documents" to service_role;
 create index search_documents_tsv_idx on "better_supabase"."search_documents" using gin ("tsv");
 create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
-create index search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
+create index search_documents_facets_idx on "better_supabase"."search_documents" using gin ("facets" jsonb_path_ops);
+create index search_documents_browse_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type", "sort_key", "subject_id");
 
 create policy bsb_search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
@@ -2929,6 +3851,7 @@ declare
   v_title text;
   v_body text;
   v_url text;
+  v_facets jsonb;
   v_found boolean := false;
   v_hash text;
 begin
@@ -2942,8 +3865,8 @@ begin
   end;
   case search_refresh.subject_type
     when 'customer' then
-      select s."organization_id", f."label"::text, null, null
-        into v_tenant, v_title, v_body, v_url
+      select s."organization_id", f."label"::text, null, null, '{}'::jsonb
+        into v_tenant, v_title, v_body, v_url, v_facets
         from "public"."customers" s
         join "public"."customer_search" f on f."customer_id" = s."id"
         where s."id" = (search_refresh.subject_id)::uuid
@@ -2958,12 +3881,12 @@ begin
     return false;
   end if;
   v_hash := md5(coalesce(v_title, '') || E'\x1f' || coalesce(v_body, ''));
-  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at")
+  insert into "better_supabase"."search_documents" ("tenant_id", "subject_type", "subject_id", "title", "title_search", "body", "url", "tsv", "content_hash", "updated_at", "facets", "sort_key")
   values (
     v_tenant, search_refresh.subject_type, search_refresh.subject_id, v_title, "better_supabase"."search_normalize"(v_title), v_body, v_url,
     setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_title)), 'A')
       || setweight(to_tsvector('simple', "better_supabase"."search_normalize"(v_body)), 'B'),
-    v_hash, now()
+    v_hash, now(), v_facets, left("better_supabase"."search_normalize"(v_title), 200)
   )
   on conflict ("subject_type", "subject_id") do update set
     "tenant_id" = excluded."tenant_id",
@@ -2973,9 +3896,11 @@ begin
     "url" = excluded."url",
     "tsv" = excluded."tsv",
     "content_hash" = excluded."content_hash",
+    "facets" = excluded."facets",
+    "sort_key" = excluded."sort_key",
     "updated_at" = now()
-  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url")
-    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url");
+  where ("better_supabase"."search_documents"."tenant_id", "better_supabase"."search_documents"."title", "better_supabase"."search_documents"."body", "better_supabase"."search_documents"."url", "better_supabase"."search_documents"."facets")
+    is distinct from (excluded."tenant_id", excluded."title", excluded."body", excluded."url", excluded."facets");
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_search_document_index"(text, text)');
   begin
@@ -3230,6 +4155,149 @@ $$;
 revoke execute on function "better_supabase"."search"(text, text[], uuid, integer) from public, anon;
 grant execute on function "better_supabase"."search"(text, text[], uuid, integer) to authenticated, service_role;
 
+-- A page of documents as the caller, as { items, nextCursor }. Without q it
+-- browses by (sort_key, subject_id); with q it ranks like search() over at
+-- most 500 candidates. filter keeps the documents whose facets contain it. The
+-- cursor is opaque: pass back what the previous page returned.
+create or replace function "better_supabase"."search_page"(q text default null, types text[] default null, tenant uuid default null, filter jsonb default null, after text default null, page_size integer default 20)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_q text := btrim(coalesce(search_page.q, ''));
+  v_mode text := 'b';
+  v_norm text;
+  v_hash text;
+  v_web tsquery;
+  v_prefix tsquery;
+  v_size integer := least(greatest(coalesce(search_page.page_size, 20), 1), 100);
+  v_filter jsonb := coalesce(search_page.filter, '{}'::jsonb);
+  v_cur jsonb;
+  v_items jsonb;
+  v_more boolean;
+  v_last jsonb;
+  v_next text;
+begin
+  if length(v_q) > 256 then
+    raise exception 'a search query is at most 256 characters' using errcode = '22023', hint = 'SEARCH_QUERY_TOO_LONG';
+  end if;
+  if jsonb_typeof(v_filter) is distinct from 'object' then
+    raise exception 'filter must be a JSON object of facet values' using errcode = '22023', hint = 'SEARCH_FILTER_INVALID';
+  end if;
+  if v_q <> '' then
+    v_mode := 's';
+    v_norm := "better_supabase"."search_normalize"(v_q);
+    v_hash := md5(v_norm);
+    v_web := websearch_to_tsquery('simple', v_norm);
+    select to_tsquery('simple', string_agg(quote_literal(w) || ':*', ' & '))
+      into v_prefix
+      from regexp_split_to_table(v_norm, '[^[:alnum:]]+') w
+      where w <> '';
+  end if;
+  if search_page.after is not null then
+    begin
+      v_cur := convert_from(decode(rpad(translate(search_page.after, '-_', '+/'), length(search_page.after) + (4 - length(search_page.after) % 4) % 4, '='), 'base64'), 'UTF8')::jsonb;
+    exception when others then
+      v_cur := null;
+    end;
+    if v_cur is null or jsonb_typeof(v_cur) is distinct from 'object'
+      or v_cur ->> 'm' is distinct from v_mode
+      or (v_mode = 's' and v_cur ->> 'h' is distinct from v_hash) then
+      raise exception 'this cursor does not belong to this query' using errcode = '22023', hint = 'SEARCH_CURSOR_INVALID';
+    end if;
+  end if;
+  if v_mode = 'b' then
+    with lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, null::numeric as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (v_cur is null or (d."sort_key", d."subject_id", d."subject_type") > (v_cur ->> 'k', v_cur ->> 'i', v_cur ->> 't'))
+        and "better_supabase"."can_subject"(d."subject_type", d."subject_id", 'read')
+      order by d."sort_key", d."subject_id", d."subject_type"
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.sort_key, l.subject_id, l.subject_type) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', null,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  else
+    with pool as materialized (
+      select d."subject_type" as subject_type, d."subject_id" as subject_id,
+        round((2 * coalesce(ts_rank_cd(d."tsv", v_web), 0)
+          + coalesce(ts_rank_cd(d."tsv", v_prefix), 0)
+          + extensions.similarity(d."title_search", v_norm))::numeric, 6) as score
+      from "better_supabase"."search_documents" d
+      where (search_page.types is null or d."subject_type" = any (search_page.types))
+          and (search_page.tenant is null or d."tenant_id" = search_page.tenant)
+          and d."facets" @> v_filter
+        and (d."tsv" @@ v_web
+          or (v_prefix is not null and d."tsv" @@ v_prefix)
+          or d."title_search" operator(extensions.%) v_norm)
+      order by score desc, d."subject_type", d."subject_id"
+      limit 500
+    ),
+    lim as (
+      select d."tenant_id" as tenant, d."subject_type" as subject_type, d."subject_id" as subject_id,
+          d."title" as title, d."url" as url, d."body" as body, d."facets" as facets, d."sort_key" as sort_key, h.score
+      from pool h
+      join "better_supabase"."search_documents" d on d."subject_type" = h.subject_type and d."subject_id" = h.subject_id
+      where (v_cur is null
+          or h.score < (v_cur ->> 's')::numeric
+          or (h.score = (v_cur ->> 's')::numeric and (h.subject_type, h.subject_id) > (v_cur ->> 't', v_cur ->> 'i')))
+        and "better_supabase"."can_subject"(h.subject_type, h.subject_id, 'read')
+      order by h.score desc, h.subject_type, h.subject_id
+      limit v_size + 1
+    ),
+    page as (
+      select l.*, row_number() over (order by l.score desc, l.subject_type, l.subject_id) as rn from lim l
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'organizationId', p.tenant,
+        'subjectType', p.subject_type,
+        'subjectId', p.subject_id,
+        'title', p.title,
+        'url', p.url,
+        'snippet', case when p.body is null then null
+          else ts_headline('simple', p.body, coalesce(v_prefix, v_web), 'StartSel="", StopSel="", MaxWords=20, MinWords=8, MaxFragments=1')
+        end,
+        'score', case when p.score is null then null else round(p.score, 6) end,
+        'facets', p.facets
+      ) order by p.rn) filter (where p.rn <= v_size), '[]'::jsonb),
+      count(*) > v_size,
+      (select jsonb_build_object('m', v_mode, 'h', v_hash, 'k', l.sort_key, 'i', l.subject_id, 't', l.subject_type, 's', l.score)
+        from page l where l.rn = v_size)
+    into v_items, v_more, v_last
+    from page p;
+  end if;
+  if v_more then
+    v_next := translate(encode(convert_to(v_last::text, 'UTF8'), 'base64'), E'+/=\n', '-_');
+  end if;
+  return jsonb_build_object('items', v_items, 'nextCursor', v_next);
+end;
+$$;
+revoke execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) from public, anon;
+grant execute on function "better_supabase"."search_page"(text, text[], uuid, jsonb, text, integer) to authenticated, service_role;
+
 -- The caller's own rows of the share-links per-user state. The lists below
 -- run as the caller, so can_subject sees what they can read.
 create or replace function "better_supabase"."search_user_state"()
@@ -3357,7 +4425,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."search_documents" as
 -- ==== searched subject: data supabase/better-supabase-data/900_better_supabase_070_search.sql
 -- better-supabase module: search
 -- @bsb-block-data search
--- @bsb-hash sha256:66567248bb467258295a86977c4ccf9a52d7404124948f9b1d0d531e3b00cb74
+-- @bsb-hash sha256:76c410855f061bbc99827603ef4e6fc6f8823b33cd9b33c1e9a4bd1b34b3be76
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3370,6 +4438,6 @@ create extension if not exists "unaccent" with schema "extensions";
 select "better_supabase"."search_reindex"();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('search', 2, 'managed')
+values ('search', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
