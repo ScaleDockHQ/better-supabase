@@ -128,6 +128,17 @@ export interface GenConfig {
    */
   readonly blockModules?: boolean;
   /**
+   * Writes the permission catalog of the installed blocks as a migration
+   * (`<stamp>_better_supabase_permission_catalog.sql`): a row for every key the
+   * blocks check or their entities declare, and the default grants of the
+   * `owner`, `admin` and `member` roles, so a new block's pages don't answer
+   * 403 until a hand-written migration runs. It also writes
+   * `permission-scopes.ts` with `apiKeyScopes` and `oauthScopes`, the keys an
+   * API key or an OAuth client may hold. Needs `blocks.permissions.model:
+   * "catalog"` with the managed tables. Defaults to `false` (ADR 0799).
+   */
+  readonly permissionCatalog?: boolean;
+  /**
    * Block instances the browser client wires: `gen` writes `blocks.client.ts`
    * with `clientBlocks`, a `defineBlocks` set over only these instances, so
    * `createClient(app.blocks(clientBlocks))` has `db.<instance>` without

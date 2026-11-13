@@ -109,7 +109,10 @@ codemod; a new block uses the convention from the start.
   because renaming them would orphan the old objects or files. Add the module's keys to
   `OPERATIONS` and `MODULE_PERMISSION_SCOPES` in
   `src/sql/modules/permissions-model.ts`, and to `DEFAULT_ROLES` when a default
-  role should hold them.
+  role should hold them. Declare the keys on the manifest's `entities.<key>.permissions`
+  as `<block>.<entity>.<verb>` (`src/blocks/permission-keys.ts`, ADR 0799), so
+  `gen.permissionCatalog` writes the catalog rows and the default grants; a new
+  block never needs a hand-written catalog migration.
 - Every entity a user can rename goes in `NAMES.entities` (ADR 0060): its
   table, its `singular`, `primary: true` for the one a bare string renames,
   and `subject` when it registers as a subject. Event types, hooks, payload

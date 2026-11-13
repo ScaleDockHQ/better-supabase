@@ -767,6 +767,12 @@ export function moduleOperations<M extends OperationModule>(
   return (operationsByModule.get(module) ?? {}) as BlockSqlOperations<M>;
 }
 
+/** The key `module`'s `action` checks by default, before any rename. */
+export const defaultOperationKey = (
+  module: string,
+  action: string,
+): string | undefined => operationsByModule.get(module)?.[action];
+
 /** Whether `name` is a module with actions in `OPERATIONS`. */
 export const isOperationModule = (name: string): name is OperationModule =>
   operationsByModule.has(name);

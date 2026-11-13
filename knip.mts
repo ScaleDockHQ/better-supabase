@@ -109,6 +109,8 @@ const config: KnipConfig = {
         "src/lib/supabase/generated.zod.ts",
         "src/lib/supabase/generated.nuqs.ts",
         // `gen.serverBlocks` writes `<name>Instances` and `<name>Blocks` for each set (ADR 0542).
+        // `gen.permissionCatalog` writes `apiKeyScopes` and `oauthScopes`, which no page imports yet (ADR 0799).
+        "src/lib/supabase/permission-scopes.ts",
         "src/lib/supabase/blocks.core.ts",
         "src/lib/supabase/blocks.api.ts",
         // Copied from the registry, which knip checks as entries.

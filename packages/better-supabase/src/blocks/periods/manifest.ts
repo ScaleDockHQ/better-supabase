@@ -19,7 +19,15 @@ export const periodsBlock: BlockOf<
   recipes: [],
   category: "commerce",
   entities: {
-    period: { mutability: "state-machine", emits: { create: true } },
+    period: {
+      mutability: "state-machine",
+      emits: { create: true },
+      permissions: {
+        read: "periods.read",
+        create: "periods.write",
+        manage: "periods.manage",
+      },
+    },
   },
   description:
     "Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.",
