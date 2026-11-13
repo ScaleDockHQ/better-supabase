@@ -2,7 +2,6 @@ import { posix } from "node:path";
 
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
-import { declaredPermissions } from "../../blocks/permission-keys.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   DEFAULT_ROLES,
@@ -103,13 +102,11 @@ export function permissionCatalogKeys(config: CatalogConfig): CatalogKey[] {
       continue;
     }
 
-    for (const permission of declaredPermissions(
-      Object.fromEntries(
-        Object.entries(manifest.entityPermissions ?? {}).map(
-          ([entity, permissions]) => [entity, { permissions }],
-        ),
-      ),
-    )) {
+    const declared = Object.values(manifest.entityPermissions ?? {}).flatMap(
+      (verbs) => Object.entries(verbs).map(([verb, key]) => ({ verb, key })),
+    );
+
+    for (const permission of declared) {
       const held = keys.get(permission.key);
 
       keys.set(permission.key, {
