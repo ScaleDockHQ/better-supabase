@@ -121,7 +121,7 @@ const { job, stages } = await db.hiring
 
 ## Interviews and scorecards
 
-`scheduleInterview` records an interview with its interviewers, who can then read it. `score(id, { rating, recommendation, notes })` saves the caller's scorecard at the application's current stage: a rating from 1 to 4 and a recommendation from `strong_no` to `strong_yes`. Scoring again at the same stage replaces it. `detail(id)` returns the application with its scorecards, its interviews and the average rating.
+`scheduleInterview` records an interview with its interviewers, who can then read it. `score(id, { rating, recommendation, notes })` saves the caller's scorecard at the application's current stage: a rating from 1 to `ratingMax` (4 unless set) and a recommendation from `strong_no` to `strong_yes`. Scoring again at the same stage replaces it. `detail(id)` returns the application with its scorecards, its interviews and the average rating.
 
 ## Over your own tables
 
@@ -155,7 +155,7 @@ Map `tables.interviewers` (`interview`, `user`, and an optional `tenant`) to kee
 
 ### Scorecards
 
-`options.scorecardKey: "application"` keeps one scorecard per reviewer per application instead of one per stage; a scorecards table without a stage column works that way too. `columns.scorecards.recommendation` can be `null`, and then `score` refuses a recommendation with `HIRING_RECOMMENDATION_UNSUPPORTED`. Map `tables.scorecardScores` (`scorecard`, `criterion`, `score`, optional `tenant` and `notes`) to store a score per criterion: `submit_scorecard` takes an extra `scores jsonb` argument, a list of `{ criterion, score, notes }` that replaces the card's scores (`HIRING_SCORES_INVALID` for a value the columns reject), and `detail` returns them as `scores` on each scorecard:
+`options.ratingMax` sets the highest scorecard rating (default 4), so `5` scores from 1 to 5. `options.scorecardKey: "application"` keeps one scorecard per reviewer per application instead of one per stage; a scorecards table without a stage column works that way too. `columns.scorecards.recommendation` can be `null`, and then `score` refuses a recommendation with `HIRING_RECOMMENDATION_UNSUPPORTED`. Map `tables.scorecardScores` (`scorecard`, `criterion`, `score`, optional `tenant` and `notes`) to store a score per criterion: `submit_scorecard` takes an extra `scores jsonb` argument, a list of `{ criterion, score, notes }` that replaces the card's scores (`HIRING_SCORES_INVALID` for a value the columns reject), and `detail` returns them as `scores` on each scorecard:
 
 ```ts
 await hiring.score(applicationId, {
@@ -256,7 +256,7 @@ The ReUI Recruiting Pipeline board reads its columns from the job's pipeline boa
 | `HIRING_APPLICATION_NOT_FOUND`      | no application the caller can change or review               |
 | `HIRING_OUTCOME_INVALID`            | close as hired, rejected or withdrawn                        |
 | `HIRING_STAGE_MISSING`              | the job's pipeline has no stage of that category             |
-| `HIRING_SCORECARD_INVALID`          | a rating from 1 to 4 and a recommendation                    |
+| `HIRING_SCORECARD_INVALID`          | a rating and a recommendation                                |
 | `HIRING_INTERVIEW_INVALID`          | an interview starts before it ends                           |
 | `HIRING_CANDIDATE_TYPE_UNSUPPORTED` | applications take candidates of `options.candidate` only     |
 | `HIRING_STAGE_INVALID`              | the stage is not an active stage of the application's job    |

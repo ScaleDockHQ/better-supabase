@@ -5959,6 +5959,10 @@
               "hiringManager": {
                 "type": "string",
                 "default": "user"
+              },
+              "ratingMax": {
+                "type": "number",
+                "default": 4
               }
             }
           }

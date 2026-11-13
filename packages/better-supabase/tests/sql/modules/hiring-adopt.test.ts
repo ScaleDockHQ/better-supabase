@@ -432,6 +432,28 @@ describe("hiring's managed tables in the new modes", BOOT, () => {
     );
   });
 
+  it("takes the highest scorecard rating from options.ratingMax", () => {
+    const { hiring } = MANAGED;
+
+    const rated = (ratingMax?: number): string =>
+      moduleSql(
+        managedFiles({
+          hiring: {
+            ...hiring,
+            options: {
+              ...hiring?.options,
+              ...(ratingMax === undefined ? {} : { ratingMax }),
+            },
+          },
+        }),
+        "hiring",
+      );
+
+    expect(rated()).toContain('"rating" <= 4');
+    expect(rated(5)).toContain('"rating" <= 5');
+    expect(rated(5)).not.toContain('"rating" <= 4');
+  });
+
   it("checks an employee hiring manager against the employees table", () => {
     const sql = moduleSql(
       renderBlocks(["hiring", "employees"], {

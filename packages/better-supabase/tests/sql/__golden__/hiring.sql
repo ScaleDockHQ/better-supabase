@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:9a5e9ea0fcd87027dbaf9101f99f5a495bc8404aa0d9f92c83aa1ea1fb84f8da
+-- @bsb-hash sha256:35bbcb7279b04b5ecea7c250a86a6973d62fc5cd1a52f872f65197e7aae03a62
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -349,7 +349,7 @@ begin
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
-    raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
+    raise exception 'a scorecard needs a rating and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
   null;
   return to_jsonb(v_card);
@@ -545,7 +545,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:1231731327bb233460675cfb92618331d878e79c165106ebe9f9a9f27d3eaf05
+-- @bsb-hash sha256:050fbfc564ed9929f66b608ac22f102499e3723e2a18383eef26aa1a275d1542
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -893,7 +893,7 @@ begin
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
-    raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
+    raise exception 'a scorecard needs a rating and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
   perform "better_supabase".emit_event('scorecard.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id", 'reviewerId', v_card."reviewer_id", 'recommendation', v_card."recommendation"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
   return to_jsonb(v_card);
@@ -1098,7 +1098,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:5876031a174576b378d87cd6465ffae35b7c7e9213a19107ea9e5145aedba579
+-- @bsb-hash sha256:0e905b9027c32b52914c4bd0cf3e3c49d09fcf7d50194d9bd995fe86aa4587e2
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1451,7 +1451,7 @@ begin
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
-    raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
+    raise exception 'a scorecard needs a rating and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
   null;
   return to_jsonb(v_card);
@@ -1647,7 +1647,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:27f23b8a616f738431c31e11f1abc2724e97ad0a58dda8ab1af766aa9b7f3ae2
+-- @bsb-hash sha256:249748fe8f98a53f080d1cdfd30ac99485e37493220ecffb7c0103d4fd3652ee
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1995,7 +1995,7 @@ begin
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
-    raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
+    raise exception 'a scorecard needs a rating and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
   null;
   return to_jsonb(v_card);
@@ -2280,7 +2280,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:ddea00031b5a37df67a0d8f69991e246aea2553e23426ac346652d5b17627842
+-- @bsb-hash sha256:617998afc801616d53dd281fc820eeff82fd59ad60e0adc40c44fe9199a01f9e
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2612,7 +2612,7 @@ begin
   end if;
   if submit_scorecard.rating is null or submit_scorecard.rating not between 1 and 4
     or submit_scorecard.recommendation is null or submit_scorecard.recommendation not in ('strong_no', 'no', 'yes', 'strong_yes') then
-    raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
+    raise exception 'a scorecard needs a rating and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end if;
   begin
     insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_id", "rating", "recommendation", "notes")
@@ -2622,7 +2622,7 @@ begin
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
-    raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
+    raise exception 'a scorecard needs a rating and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
   null;
   return to_jsonb(v_card);
@@ -2821,7 +2821,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:07e4ed06384c8ba6af606dc15294aa9cceb8bf39e1f61e531c5115ac0732249f
+-- @bsb-hash sha256:bd086eb829d45b2264fe0be69aa88a4aacaf8b1b3f9d02e92f87073ecb5c8e56
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3169,7 +3169,7 @@ begin
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
-    raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
+    raise exception 'a scorecard needs a rating and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
   null;
   return (to_jsonb(v_card) || jsonb_build_object('tenant_id', v_card."org_id"));

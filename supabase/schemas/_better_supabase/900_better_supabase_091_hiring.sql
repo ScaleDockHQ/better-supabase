@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:3de0b4e5e5aa9b335af08825f4276a02823f0d126707c689e77c91d352cc93fe
+-- @bsb-hash sha256:0a1d8546175ddf254499c9c03bd2c70ac9dfa6e2312da4536b95ae8a7bf4e04b
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -413,7 +413,7 @@ begin
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
-    raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
+    raise exception 'a scorecard needs a rating and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
   perform "better_supabase".emit_event('scorecard.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id", 'reviewerId', v_card."reviewer_id", 'recommendation', v_card."recommendation"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
   return to_jsonb(v_card);

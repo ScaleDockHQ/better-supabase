@@ -741,7 +741,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "HIRING_FORBIDDEN": "Not allowed to manage jobs.",
   "HIRING_INTERVIEW_INVALID": "An interview needs a start before its end.",
   "HIRING_OUTCOME_INVALID": "Close as hired, rejected or withdrawn.",
-  "HIRING_SCORECARD_INVALID": "A scorecard needs a rating from 1 to 4 and a recommendation.",
+  "HIRING_SCORECARD_INVALID": "A scorecard needs a rating and a recommendation.",
   "HIRING_STAGE_MISSING": "The job's pipeline has no stage for that.",
   "IDEMPOTENCY_KEY_INVALID": "Idempotency key invalid.",
   "IDEMPOTENCY_KEY_IN_USE": "Idempotency key in use.",
