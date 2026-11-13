@@ -31,6 +31,7 @@ export const mailSyncBlock: BlockOf<
     mail_account: { mutability: "editable", emits: { update: false } },
     mail_message: { mutability: "state-machine" },
   },
+  concerns: ["lifecycle"],
   description:
     "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.",
   providers: [

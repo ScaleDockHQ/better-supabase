@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 import type { OrdersEvents } from "./events.ts";
 
+import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { orderFromQuoteFactory } from "./actions.ts";
 import { ordersEvents } from "./events.ts";
@@ -20,6 +21,17 @@ export const ordersBlock: BlockOf<"orders", typeof createOrders, OrdersEvents> =
       order: { mutability: "state-machine" },
       cart: { mutability: "append-only", emits: { create: false } },
     },
+    links: [
+      blockLink(
+        "fromQuote",
+        "conversion",
+        "order",
+        "quotes",
+        "quote",
+        "order_from_quote",
+      ),
+    ],
+    concerns: ["lifecycle", "search"],
     description:
       "Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.",
     recipes: ["order-detail", "kitchen-display", "order-state-board"],

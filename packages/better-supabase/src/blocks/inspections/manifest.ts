@@ -44,6 +44,7 @@ export const inspectionsBlock: BlockOf<
     },
     inspection_member: { mutability: "read-only" },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.",
   schedules: [

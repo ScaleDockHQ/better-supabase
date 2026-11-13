@@ -23,6 +23,7 @@ export const savedViewsBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.",
   recipes: ["record-form", "record-grid", "work-item-grid"],

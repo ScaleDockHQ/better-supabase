@@ -35,6 +35,7 @@ export const commissionsBlock: BlockOf<
     commission: { mutability: "state-machine" },
     commission_statement: { mutability: "state-machine" },
   },
+  concerns: ["lifecycle"],
   description:
     "Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.",
 });

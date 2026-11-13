@@ -30,6 +30,7 @@ export const activitiesBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.",
   recipes: ["activity-timeline"],

@@ -29,6 +29,7 @@ export const versionsBlock: BlockOf<
       emits: { create: true, delete: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.",
   recipes: ["version-history", "record-history", "subject-timeline"],

@@ -21,6 +21,7 @@ export const agentsBlock: BlockOf<"agents", typeof createAgents, AgentsEvents> =
         emits: { create: true, update: true, delete: true },
       },
     },
+    concerns: ["lifecycle"],
     description:
       "Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.",
     recipes: ["agent-run-trace"],

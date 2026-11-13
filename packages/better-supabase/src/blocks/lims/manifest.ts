@@ -29,6 +29,7 @@ export const limsBlock: BlockOf<"lims", typeof createLims, LimsEvents> =
       },
       lims_result: { mutability: "state-machine", emits: { create: true } },
     },
+    concerns: ["lifecycle", "search"],
     description:
       "Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.",
   });

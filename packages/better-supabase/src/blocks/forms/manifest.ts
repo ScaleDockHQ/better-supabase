@@ -19,6 +19,7 @@ export const formsBlock: BlockOf<"forms", typeof createForms, FormsEvents> =
     entities: {
       form: { mutability: "editable", emits: { create: true, update: false } },
     },
+    concerns: ["lifecycle", "search"],
     description:
       "Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.",
     recipes: ["form-builder"],

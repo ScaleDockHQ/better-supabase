@@ -20,6 +20,7 @@ export const warrantyBlock: BlockOf<
   entities: {
     warranty_claim: { mutability: "state-machine", emits: { create: true } },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Warranty claims for an asset: the supplier or manufacturer, the covered amount, a status, a decision and attachments on the claim.",
 });

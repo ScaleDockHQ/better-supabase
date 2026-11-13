@@ -1,6 +1,6 @@
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:5cf3c852300687ac0a83df126c84bec805b2bbb4c8785d0d0b1e70b6fd751551
+-- @bsb-hash sha256:7fe131e36f59c7469e12a26bc369ba37b64571cf5bee667ecb44e872bf9803cc
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1062,6 +1062,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."eu_sales_list_lines"
 create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_tax_code_index"
+  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."tax_codes"
+  for each row execute function "better_supabase"."search_index_row"('tax_code', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.tax_codes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tax_code","event_prefix":"tax_code"}');

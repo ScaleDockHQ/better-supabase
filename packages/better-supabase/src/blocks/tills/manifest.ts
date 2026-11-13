@@ -23,6 +23,7 @@ export const tillsBlock: BlockOf<"tills", typeof createTills, TillsEvents> =
       till_count: { mutability: "read-only" },
       till_deposit: { mutability: "state-machine", emits: { create: true } },
     },
+    concerns: ["lifecycle", "search"],
     description:
       "Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.",
   });

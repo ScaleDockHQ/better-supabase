@@ -316,3 +316,35 @@ describe("record helpers", () => {
     expect(seen).toEqual(["summary"]);
   });
 });
+
+describe("createSubjects label", () => {
+  it("gives every ref a label and marks the ones nothing named", async () => {
+    const fake = fakeTransport();
+    const subjects = createSubjects({ transport: fake.transport });
+
+    const labels = await subjects
+      .label([
+        { type: "customer", id: "1" },
+        { type: "note", id: "hidden" },
+      ])
+      .orThrow();
+
+    expect(labels).toEqual({
+      "customer:1": {
+        type: "customer",
+        id: "1",
+        label: "Title 1",
+        url: "/customers/1",
+        found: true,
+      },
+      "note:hidden": {
+        type: "note",
+        id: "hidden",
+        label: "hidden",
+        found: false,
+      },
+    });
+
+    expect(fake.calls).toHaveLength(1);
+  });
+});

@@ -26,6 +26,7 @@ export const leasesBlock: BlockOf<
   record: leasesBinding,
   category: "commerce",
   entities: { lease: { mutability: "state-machine", emits: { create: true } } },
+  concerns: ["lifecycle", "search"],
   description:
     "Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.",
 });

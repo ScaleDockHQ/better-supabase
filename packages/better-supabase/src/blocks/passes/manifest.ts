@@ -29,6 +29,7 @@ export const passesBlock: BlockOf<
     pass: { mutability: "state-machine", emits: { create: false } },
     pass_check_in: { mutability: "read-only" },
   },
+  concerns: ["lifecycle"],
   description:
     "Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.",
 });
