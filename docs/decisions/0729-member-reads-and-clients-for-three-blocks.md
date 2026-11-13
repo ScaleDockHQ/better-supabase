@@ -26,7 +26,7 @@ classifies stale files as subject, search or other.
 
 The new functions are `security definer`, because they read Vault names and
 tables that members cannot select. The practices baseline for definer functions
-rises by 4 for `field-encryption` and 12 for `vercel-marketplace`.
+rises by 4 for `field-encryption` and 12 for `vercel-marketplace`. The impersonation block instance and the example's env keys raise the Next.js first-load baselines by 13 to 37 bytes on five auth routes and the server chunks by a few hundred bytes per route; the baselines are raised once, in the same change.
 
 ## Alternatives considered
 

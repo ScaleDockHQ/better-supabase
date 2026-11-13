@@ -1215,7 +1215,7 @@
     "brotli": 363110
   },
   "/[locale]/(auth)/book/[token]/page": {
-    "raw": 857325,
+    "raw": 857466,
     "gzip": 280770,
     "brotli": 246275
   },
@@ -1225,7 +1225,7 @@
     "brotli": 187563
   },
   "/[locale]/(auth)/invite/[token]/page": {
-    "raw": 793181,
+    "raw": 793322,
     "gzip": 257360,
     "brotli": 225379
   },
@@ -1240,7 +1240,7 @@
     "brotli": 190202
   },
   "/[locale]/(auth)/oauth/consent/page": {
-    "raw": 1161086,
+    "raw": 1161251,
     "gzip": 366584,
     "brotli": 320184
   },
@@ -1255,7 +1255,7 @@
     "brotli": 188041
   },
   "/[locale]/(auth)/send/[token]/page": {
-    "raw": 847837,
+    "raw": 847978,
     "gzip": 276414,
     "brotli": 242399
   },
@@ -1270,7 +1270,7 @@
     "brotli": 188787
   },
   "/[locale]/(auth)/waitlist/page": {
-    "raw": 859889,
+    "raw": 860030,
     "gzip": 281908,
     "brotli": 247191
   },
