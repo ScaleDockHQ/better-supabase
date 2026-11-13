@@ -6,13 +6,17 @@ import { employeeFromApplicationFactory } from "./actions.ts";
 import { createEmployees } from "./employees.ts";
 import { employeesEvents } from "./events.ts";
 import { employeesSqlOptions } from "./options.ts";
+import { employeeContractsBinding } from "./record-binding.ts";
 import { employeeChangeSchema, employeeInputSchema } from "./schemas.ts";
 
 /** The `employees` block's manifest (ADR 0029). */
 export const employeesBlock: BlockOf<
   "employees",
   typeof createEmployees,
-  EmployeesEvents
+  EmployeesEvents,
+  Record<never, never>,
+  never,
+  typeof employeeContractsBinding
 > = defineBlock({
   name: "employees",
   sql: ["employees"],
@@ -20,6 +24,7 @@ export const employeesBlock: BlockOf<
   events: employeesEvents,
   create: createEmployees,
   category: "people",
+  record: employeeContractsBinding,
   entities: {
     employee: {
       mutability: "editable",
