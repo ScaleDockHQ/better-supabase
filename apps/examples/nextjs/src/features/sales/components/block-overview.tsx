@@ -2,10 +2,7 @@ import type { ReactNode } from "react";
 
 import { getExtracted, getLocale } from "next-intl/server";
 
-import type {
-  BlockColumn,
-  BlockRow,
-} from "@/components/record-list/block-list-view";
+import type { BlockColumn } from "@/components/record-list/block-list-view";
 import type { BlockRowInput } from "@/components/record-list/money-text";
 import type { Loaded } from "@/features/crm/crm-queries";
 import type { BlockListQuery, BlockListSpec } from "@/lib/array-list";
@@ -15,7 +12,7 @@ import { withMoneyCells } from "@/components/record-list/money-text";
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { applyBlockList } from "@/lib/array-list";
 
-export type { BlockColumn, BlockRow };
+export type { BlockColumn };
 
 /**
  * The server half of a block-backed overview: it takes the loaded items, runs
