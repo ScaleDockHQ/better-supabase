@@ -10,6 +10,7 @@ import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { dispatchBlock } from "better-supabase/blocks/dispatch";
 import { donationsBlock } from "better-supabase/blocks/donations";
 import { driveBlock } from "better-supabase/blocks/drive";
+import { employeesBlock } from "better-supabase/blocks/employees";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { leasesBlock } from "better-supabase/blocks/leases";
@@ -38,6 +39,7 @@ import {
   dispatchConfig,
   donationsConfig,
   driveConfig,
+  employeesConfig,
   enrollmentsConfig,
   guestsConfig,
   leasesConfig,
@@ -81,6 +83,7 @@ export const projectRecord = defineRecordType({
     shipments: shipmentsBlock,
     contracts: contractsBlock,
     drive: driveBlock,
+    employees: employeesBlock,
     signatures: signaturesBlock,
     reactions: reactionsBlock,
     relations: relationsBlock,
@@ -108,6 +111,7 @@ export const projectRecord = defineRecordType({
     shipments: shipmentsConfig,
     contracts: contractsConfig,
     drive: driveConfig,
+    employees: employeesConfig,
     signatures: signaturesConfig,
     reactions: reactionsConfig,
     relations: relationsConfig,

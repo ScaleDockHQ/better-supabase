@@ -28850,6 +28850,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
+      "record": [
+        "remove"
+      ],
       "events": {
         "type": "EmployeesEvents",
         "types": [

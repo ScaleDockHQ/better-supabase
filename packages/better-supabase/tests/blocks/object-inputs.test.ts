@@ -104,6 +104,8 @@ const POSITIONAL = new Set<string>([
   "drive/extract.ts:extract",
   "drive/preview.ts:render",
   "employees/actions.ts:map",
+  "employees/record-binding.ts:load",
+  "employees/record-binding.ts:run",
   "enrollments/record-binding.ts:load",
   "flags/flags.ts:getBooleanDetails",
   "flags/flags.ts:getNumberDetails",

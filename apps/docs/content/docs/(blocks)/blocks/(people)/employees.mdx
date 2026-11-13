@@ -213,6 +213,8 @@ app's own salary period column maps its labels through
 [`values`](/docs/blocks/own-schemas#your-columns-values), as in
 `values: { contracts: { salaryPeriod: { hour: "hourly", month: "monthly" } } }`.
 
+On the employee's own page, the block's record binding (`employeeContractsBinding`) loads the contracts with the employee as the subject (`{ type: "employee", id }`, or the renamed type) and reads again on `employee.updated` and `employee.deleted`. It needs the contracts read key and hides itself from a viewer without it. Its `remove` write calls `deleteContract`, so it works with `options.contracts: "editable"`. Adding a contract takes dates and money, which a Server Action can't carry, so `addContract` stays a call on the client.
+
 An app's own contracts table can map `salary` and `currency` to `null`, and
 the module then reads and writes contracts without them. When its salary
 column holds major units, such as a `numeric` of euros, set
