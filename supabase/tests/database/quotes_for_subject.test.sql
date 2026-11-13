@@ -6,14 +6,15 @@ select plan(4);
 
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
+insert into better_supabase.companies (id, tenant_id, name, lifecycle)
+values ('00000000-0000-4000-8000-0000000000c1', '00000000-0000-4000-8000-000000000001', 'Subject Co', 'lead');
+insert into better_supabase.deals (tenant_id, number, identifier, name, amount, currency, expected_close_on, company_type, company_id)
+values ('00000000-0000-4000-8000-000000000001', 9202, 'FS-2', 'Subject deal', 1000, 'EUR', current_date, 'company', '00000000-0000-4000-8000-0000000000c1');
 create temporary table picked on commit drop as
-select company_type as type, company_id::text as id
-from better_supabase.deals
-where company_id is not null
-limit 1;
+select 'company'::text as type, '00000000-0000-4000-8000-0000000000c1'::text as id;
 select better_supabase.create_quote(
   '00000000-0000-4000-8000-000000000001',
-  (select jsonb_build_object('title', 'Fit-out', 'currency', 'EUR', 'company', jsonb_build_object('type', type, 'id', id)) from picked),
+  jsonb_build_object('title', 'Fit-out', 'currency', 'EUR', 'company', jsonb_build_object('type', 'company', 'id', '00000000-0000-4000-8000-0000000000c1')),
   null
 );
 
