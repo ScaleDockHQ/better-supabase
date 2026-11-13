@@ -82,4 +82,4 @@ relations block, so `list_risks_for_subject` reads those links, and without
 relations the read does not exist, so EX-1237 holds for risks only where the
 relations block is installed. The new functions are `list_bookings_for_customer`
 (invoker, so policies decide) and `list_risks_for_subject` (definer, checks
-`risks.read`), in migration `20261215000003`.
+`risks.read`), in migration `20261215140009`.
