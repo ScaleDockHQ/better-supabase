@@ -179,10 +179,10 @@ declare
 begin
   select x.* into v_dataset from ${datasets} x where x.${d("id")} = add_eval_items_from_feedback.dataset;
   if not found then
-    ${missing("eval dataset", "EVAL_DATASET_NOT_FOUND", "add_eval_items_from_feedback.dataset")}
+    ${missing("eval dataset", "AI_EVAL_DATASET_NOT_FOUND", "add_eval_items_from_feedback.dataset")}
   end if;
   if add_eval_items_from_feedback.rating not in (-1, 1) then
-    ${raise("rating must be 1 or -1", "22023", "EVAL_INVALID")}
+    ${raise("rating must be 1 or -1", "22023", "AI_EVAL_INVALID")}
   end if;
   with picked as materialized (
     select fb.${f("chat")} as chat_id, fb.${f("message")}::text as message_id,
@@ -224,7 +224,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  ${raise("add_eval_items_from_feedback needs the ai-chat block", "55000", "EVAL_FEEDBACK_UNAVAILABLE")}
+  ${raise("add_eval_items_from_feedback needs the ai-chat block", "55000", "AI_EVAL_FEEDBACK_UNAVAILABLE")}
 end;
 $$;
 ${serviceGrant(`${fn("add_eval_items_from_feedback")}(uuid, integer, timestamptz, integer)`)}`;
@@ -324,16 +324,16 @@ declare
   v_count integer;
 begin
   if not exists (select 1 from ${datasets} x where x.${d("id")} = add_eval_items.dataset) then
-    ${missing("eval dataset", "EVAL_DATASET_NOT_FOUND", "add_eval_items.dataset")}
+    ${missing("eval dataset", "AI_EVAL_DATASET_NOT_FOUND", "add_eval_items.dataset")}
   end if;
   if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
-    ${raise("items must be a JSON array", "22023", "EVAL_INVALID")}
+    ${raise("items must be a JSON array", "22023", "AI_EVAL_INVALID")}
   end if;
   if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
-    ${raise("every item needs an input", "22023", "EVAL_INVALID")}
+    ${raise("every item needs an input", "22023", "AI_EVAL_INVALID")}
   end if;
   if (select count(*) from ${items} x where x.${i("dataset")} = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > ${maxItems} then
-    ${raise(`A dataset holds at most ${maxItems} items`, "54000", "EVAL_DATASET_FULL")}
+    ${raise(`A dataset holds at most ${maxItems} items`, "54000", "AI_EVAL_DATASET_FULL")}
   end if;
   insert into ${items} (${i("dataset")}, ${i("input")}, ${i("expected")}, ${i("metadata")})
   select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
@@ -388,7 +388,7 @@ declare
 begin
   select x.* into v_dataset from ${datasets} x where x.${d("id")} = create_eval_run.dataset;
   if not found then
-    ${missing("eval dataset", "EVAL_DATASET_NOT_FOUND", "create_eval_run.dataset")}
+    ${missing("eval dataset", "AI_EVAL_DATASET_NOT_FOUND", "create_eval_run.dataset")}
   end if;
   insert into ${runs} (${r("dataset")}, ${r("tenant")}, ${r("promptName")}, ${r("promptVersion")}, ${r("model")}, ${r("scorers")})
   values (create_eval_run.dataset, v_dataset.${d("tenant")}, create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
@@ -416,16 +416,16 @@ declare
 begin
   select x.* into v_run from ${runs} x where x.${r("id")} = record_eval_result.run;
   if not found then
-    ${missing("eval run", "EVAL_RUN_NOT_FOUND", "record_eval_result.run")}
+    ${missing("eval run", "AI_EVAL_RUN_NOT_FOUND", "record_eval_result.run")}
   end if;
   if v_run.${r("status")} <> 'running' then
-    ${raise("Eval run % is closed", "55000", "EVAL_RUN_CLOSED", "record_eval_result.run")}
+    ${raise("Eval run % is closed", "55000", "AI_EVAL_RUN_CLOSED", "record_eval_result.run")}
   end if;
   if not exists (select 1 from ${items} x where x.${i("id")} = record_eval_result.item and x.${i("dataset")} = v_run.${r("dataset")}) then
-    ${missing("eval item", "EVAL_ITEM_NOT_FOUND", "record_eval_result.item")}
+    ${missing("eval item", "AI_EVAL_ITEM_NOT_FOUND", "record_eval_result.item")}
   end if;
   if jsonb_typeof(v_scores) <> 'object' then
-    ${raise("scores must be a JSON object", "22023", "EVAL_INVALID")}
+    ${raise("scores must be a JSON object", "22023", "AI_EVAL_INVALID")}
   end if;
   insert into ${results} (${s("run")}, ${s("item")}, ${s("output")}, ${s("scores")}, ${s("passed")}, ${s("error")}, ${s("latencyMs")})
   values (record_eval_result.run, record_eval_result.item, record_eval_result.output, v_scores,
@@ -482,7 +482,7 @@ declare
   v_row ${runs}%rowtype;
 begin
   if finish_eval_run.status not in ('completed', 'failed', 'cancelled') then
-    ${raise("status must be completed, failed or cancelled", "22023", "EVAL_INVALID")}
+    ${raise("status must be completed, failed or cancelled", "22023", "AI_EVAL_INVALID")}
   end if;
   update ${runs} x set ${r("status")} = finish_eval_run.status, ${r("summary")} = ${fn("eval_run_summary")}(finish_eval_run.run), ${r("finishedAt")} = now()
   where x.${r("id")} = finish_eval_run.run and x.${r("status")} = 'running'
@@ -490,7 +490,7 @@ begin
   if not found then
     select x.* into v_row from ${runs} x where x.${r("id")} = finish_eval_run.run;
     if not found then
-      ${missing("eval run", "EVAL_RUN_NOT_FOUND", "finish_eval_run.run")}
+      ${missing("eval run", "AI_EVAL_RUN_NOT_FOUND", "finish_eval_run.run")}
     end if;
   end if;
   return ${runJson("v_row")};
@@ -584,14 +584,14 @@ declare
 begin
   select x.* into v_base from ${runs} x where x.${r("id")} = compare_eval_runs.base;
   if not found then
-    ${missing("eval run", "EVAL_RUN_NOT_FOUND", "compare_eval_runs.base")}
+    ${missing("eval run", "AI_EVAL_RUN_NOT_FOUND", "compare_eval_runs.base")}
   end if;
   select x.* into v_candidate from ${runs} x where x.${r("id")} = compare_eval_runs.candidate;
   if not found then
-    ${missing("eval run", "EVAL_RUN_NOT_FOUND", "compare_eval_runs.candidate")}
+    ${missing("eval run", "AI_EVAL_RUN_NOT_FOUND", "compare_eval_runs.candidate")}
   end if;
   if v_base.${r("dataset")} <> v_candidate.${r("dataset")} then
-    ${raise("Runs belong to different datasets", "22023", "EVAL_RUN_MISMATCH")}
+    ${raise("Runs belong to different datasets", "22023", "AI_EVAL_RUN_MISMATCH")}
   end if;
   v_base_summary := ${fn("eval_run_summary")}(compare_eval_runs.base);
   v_candidate_summary := ${fn("eval_run_summary")}(compare_eval_runs.candidate);

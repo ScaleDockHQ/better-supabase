@@ -91,7 +91,7 @@ describe("adoptedColumnProblems", () => {
       Object.keys(
         adoptedTables(
           {
-            "webhooks-out": {
+            webhooks: {
               tables: { secrets: "public.hook_secrets" },
               options: { secretStorage },
             },

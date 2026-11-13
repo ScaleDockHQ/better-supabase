@@ -239,7 +239,7 @@ function streamOf(value: unknown): SsfStream {
 const interval = (seconds: number): string => `${String(seconds)} seconds`;
 
 const invalid = (message: string): DbError =>
-  dbError("invalid_input", message, { hint: "SSF_REQUEST_INVALID" });
+  dbError("invalid_input", message, { hint: "SECURITY_EVENT_REQUEST_INVALID" });
 
 const json = (
   body: unknown,
@@ -264,8 +264,8 @@ const strings = (value: unknown): readonly string[] | undefined =>
 
 /**
  * An SSF transmitter: streams and their status live in the `security-events`
- * module, push SETs go out through webhooks-out endpoints with format `set`,
- * and poll SETs wait in the module's queue. Service role only.
+ * module, push SETs go out through webhooks endpoints with format `set`, and
+ * poll SETs wait in the module's queue. Service role only.
  */
 export function createSsfTransmitter(
   options: SsfTransmitterOptions,
@@ -400,7 +400,7 @@ export function createSsfTransmitter(
       if (found === null) {
         return err(
           dbError("not_found", "Stream not found", {
-            hint: "SSF_STREAM_NOT_FOUND",
+            hint: "SECURITY_EVENT_STREAM_NOT_FOUND",
           }),
         );
       }
@@ -444,7 +444,7 @@ export function createSsfTransmitter(
       found === null
         ? AsyncResult.err<string>(
             dbError("not_found", "Stream not found", {
-              hint: "SSF_STREAM_NOT_FOUND",
+              hint: "SECURITY_EVENT_STREAM_NOT_FOUND",
             }),
           )
         : send(id, found.audience, streamSubject(id), {
@@ -632,13 +632,15 @@ const failure = (error: DbError): Response => problemResponse(error);
 const unauthorized = (): Response =>
   failure(
     dbError("unauthorized", "The request is not authorized", {
-      hint: "SSF_UNAUTHORIZED",
+      hint: "SECURITY_EVENT_UNAUTHORIZED",
     }),
   );
 
 const notFound = (): Response =>
   failure(
-    dbError("not_found", "Stream not found", { hint: "SSF_STREAM_NOT_FOUND" }),
+    dbError("not_found", "Stream not found", {
+      hint: "SECURITY_EVENT_STREAM_NOT_FOUND",
+    }),
   );
 
 async function bodyOf(

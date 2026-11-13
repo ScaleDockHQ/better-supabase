@@ -112,7 +112,7 @@ The permission action keys under `blocks.<name>.permissions` follow ADR 0130:
 `view` is `read`, `viewAll` is `readAll`, `viewSensitive` is `readSensitive`,
 `edit` is `write` and `admin` is `manage`, for the blocks that had them (`audit`,
 `automations`, `billing`, `employees`, `impersonation`, `invitations`,
-`segments`, `webhooks-in`, `webhooks-out`, `workflow-editor`, `workflows` and
+`segments`, `incoming-webhooks`, `webhooks`, `workflow-editor`, `workflows` and
 `ai-chat`). The config refuses an old key and names the new one, and `codemod
 naming` renames it.
 

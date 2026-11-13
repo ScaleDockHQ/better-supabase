@@ -187,7 +187,7 @@ describe("createDomainsAdmin", () => {
 
     expect(result.ok).toBe(false);
     expect(result.ok ? undefined : result.error.hint).toBe(
-      "HOSTNAME_RECORD_MISSING",
+      "DOMAIN_RECORD_MISSING",
     );
     expect(calls.map(([fn]) => fn)).toEqual(["hostname_by_id"]);
   });

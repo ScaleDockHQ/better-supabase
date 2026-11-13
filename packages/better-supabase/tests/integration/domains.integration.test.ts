@@ -66,10 +66,10 @@ describe.skipIf(!live)("domains module", () => {
         await s.hint("better_supabase.add_hostname($1, 'not a host')", [
           tenant,
         ]),
-      ).toBe("HOSTNAME_INVALID");
+      ).toBe("DOMAIN_INVALID");
       expect(
         await s.hint("better_supabase.set_primary_hostname($1)", [added.id]),
-      ).toBe("HOSTNAME_NOT_VERIFIED");
+      ).toBe("DOMAIN_NOT_VERIFIED");
 
       await s.as(member);
       expect(
@@ -77,7 +77,7 @@ describe.skipIf(!live)("domains module", () => {
       ).toHaveLength(1);
       expect(
         await s.hint("better_supabase.add_hostname($1, $2)", [tenant, host()]),
-      ).toBe("HOSTNAME_FORBIDDEN");
+      ).toBe("DOMAIN_FORBIDDEN");
       expect(
         await s.value<boolean>("better_supabase.remove_hostname($1)", [
           added.id,
@@ -85,7 +85,7 @@ describe.skipIf(!live)("domains module", () => {
       ).toBe(false);
       expect(
         await s.hint("better_supabase.verify_hostname($1)", [added.id]),
-      ).toBe("HOSTNAME_FORBIDDEN");
+      ).toBe("DOMAIN_FORBIDDEN");
 
       // A rival's pending claim doesn't block the owner from verifying.
       await s.as(rival);
@@ -101,7 +101,7 @@ describe.skipIf(!live)("domains module", () => {
           added.id,
           member.id,
         ]),
-      ).toBe("HOSTNAME_NOT_FOUND");
+      ).toBe("DOMAIN_NOT_FOUND");
 
       const admin = createDomainsAdmin({
         transport: sqlTransport(s.sql),
@@ -116,7 +116,7 @@ describe.skipIf(!live)("domains module", () => {
       expect(done.record).toBeUndefined();
       expect(
         await s.hint("better_supabase.verify_hostname($1)", [claim.id]),
-      ).toBe("HOSTNAME_TAKEN");
+      ).toBe("DOMAIN_TAKEN");
 
       await s.as(owner);
       const domains = createDomains({ transport: sqlTransport(s.sql) });
@@ -182,7 +182,7 @@ describe.skipIf(!live)("domains module", () => {
           tenant,
           `a.b.${PLATFORM}`,
         ]),
-      ).toBe("HOSTNAME_INVALID");
+      ).toBe("DOMAIN_INVALID");
       expect(
         await s.hint("better_supabase.add_hostname($1, $2)", [
           tenant,
@@ -196,7 +196,7 @@ describe.skipIf(!live)("domains module", () => {
           other,
           `${label}.${PLATFORM}`,
         ]),
-      ).toBe("HOSTNAME_TAKEN");
+      ).toBe("DOMAIN_TAKEN");
     } finally {
       await s.close();
     }

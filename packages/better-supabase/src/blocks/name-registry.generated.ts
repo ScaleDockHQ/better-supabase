@@ -1251,6 +1251,16 @@ export interface BlockNameRegistry {
     };
     readonly primary: "incident";
   };
+  readonly "incoming-webhooks": {
+    readonly tables: {
+      readonly "endpoints": "id" | "tenant" | "name" | "tokenHash" | "verify" | "secret" | "secretId" | "previousSecret" | "previousSecretId" | "previousSecretExpiresAt" | "signatureHeader" | "enabled" | "maxBodyBytes" | "receiveCount" | "lastReceivedAt" | "lastStatus" | "metadata" | "subjectType" | "subjectId" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "create_incoming_webhook" | "delete_incoming_webhook" | "drop_incoming_webhook_secret" | "incoming_webhook_by_token" | "incoming_webhook_subject_readable" | "incoming_webhook_tenant_ids" | "list_incoming_webhooks" | "record_incoming_webhook" | "rotate_incoming_webhook" | "rotate_incoming_webhook_secret" | "set_incoming_webhook_enabled" | "update_incoming_webhook";
+    readonly actions: "create" | "update" | "delete" | "read";
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "inspections": {
     readonly tables: {
       readonly "programs": "id" | "tenant" | "name" | "periodStart" | "periodEnd" | "owner" | "status" | "notes" | "archivedAt" | "createdAt" | "updatedAt";
@@ -2610,17 +2620,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "webhooks-in": {
-    readonly tables: {
-      readonly "endpoints": "id" | "tenant" | "name" | "tokenHash" | "verify" | "secret" | "secretId" | "previousSecret" | "previousSecretId" | "previousSecretExpiresAt" | "signatureHeader" | "enabled" | "maxBodyBytes" | "receiveCount" | "lastReceivedAt" | "lastStatus" | "metadata" | "subjectType" | "subjectId" | "createdBy" | "createdAt" | "updatedAt";
-    };
-    readonly functions: "create_incoming_webhook" | "delete_incoming_webhook" | "drop_incoming_webhook_secret" | "incoming_webhook_by_token" | "incoming_webhook_subject_readable" | "incoming_webhook_tenant_ids" | "list_incoming_webhooks" | "record_incoming_webhook" | "rotate_incoming_webhook" | "rotate_incoming_webhook_secret" | "set_incoming_webhook_enabled" | "update_incoming_webhook";
-    readonly actions: "create" | "update" | "delete" | "read";
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-  };
-  readonly "webhooks-out": {
+  readonly "webhooks": {
     readonly tables: {
       readonly "endpoints": "id" | "tenant" | "name" | "url" | "enabled" | "eventTypes" | "permissions" | "batch" | "signing" | "format" | "credentialRef" | "failingSince" | "disabledAt" | "disabledReason" | "createdBy" | "createdAt" | "updatedAt";
       readonly "secrets": "id" | "endpoint" | "tenant" | "secret" | "vaultId" | "expiresAt" | "createdAt";

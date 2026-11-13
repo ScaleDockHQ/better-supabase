@@ -89,7 +89,7 @@ describe.skipIf(!live)("integrations on CentraKit's tables", () => {
           "better_supabase.create_incoming_webhook($1, 'Other', 'none')",
           [organization],
         ),
-      ).toBe("WEBHOOK_IN_FORBIDDEN");
+      ).toBe("INCOMING_WEBHOOK_FORBIDDEN");
 
       await s.as("service");
       expect(

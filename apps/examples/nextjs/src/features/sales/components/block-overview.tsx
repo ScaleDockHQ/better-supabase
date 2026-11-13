@@ -1,19 +1,18 @@
 import type { ReactNode } from "react";
 
-import { getExtracted } from "next-intl/server";
+import { getExtracted, getLocale } from "next-intl/server";
 
-import type {
-  BlockColumn,
-  BlockRow,
-} from "@/components/record-list/block-list-view";
+import type { BlockColumn } from "@/components/record-list/block-list-view";
+import type { BlockRowInput } from "@/components/record-list/money-text";
 import type { Loaded } from "@/features/crm/crm-queries";
 import type { BlockListQuery, BlockListSpec } from "@/lib/array-list";
 
 import { BlockListView } from "@/components/record-list/block-list-view";
+import { withMoneyCells } from "@/components/record-list/money-text";
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { applyBlockList } from "@/lib/array-list";
 
-export type { BlockColumn, BlockRow };
+export type { BlockColumn };
 
 /**
  * The server half of a block-backed overview: it takes the loaded items, runs
@@ -39,7 +38,7 @@ export async function BlockOverview<Item>({
   loaded: Loaded<readonly Item[]>;
   query: BlockListQuery;
   spec: BlockListSpec<Item>;
-  toRow: (item: Item) => BlockRow;
+  toRow: (item: Item) => BlockRowInput;
   columns: readonly BlockColumn[];
   facet?: {
     readonly key: string;
@@ -63,6 +62,7 @@ export async function BlockOverview<Item>({
   }
 
   const t = await getExtracted("sales");
+  const locale = await getLocale();
   const result = applyBlockList(loaded.data, query, spec);
 
   const facetOptions = facet
@@ -78,7 +78,9 @@ export async function BlockOverview<Item>({
   return (
     <div className="flex flex-col gap-2">
       <BlockListView
-        rows={result.rows.map(toRow)}
+        rows={result.rows.map((item) =>
+          withMoneyCells(toRow(item), columns, locale),
+        )}
         columns={columns}
         {...(facet && facetOptions
           ? { facetKey: facet.key, facetLabel: facet.label, facetOptions }

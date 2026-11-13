@@ -1,8 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
-import type { HookNames } from "./webhooks-out-sql.ts";
+import type { HookNames } from "./webhooks-sql.ts";
 
 import { fail } from "../shared.ts";
-import { grants, guard, touched } from "./webhooks-out-sql.ts";
+import { grants, guard, touched } from "./webhooks-sql.ts";
 
 const VARIABLES = "#variable_conflict use_column";
 

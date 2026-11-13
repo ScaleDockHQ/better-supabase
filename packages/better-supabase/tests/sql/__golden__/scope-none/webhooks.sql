@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
--- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@6 managed
+-- better-supabase module: webhooks
+-- @bsb-block webhooks@6 managed
 -- @bsb-hash sha256:7d2f41458567929918b88f97b7f5fe5b57b7eb1d834b1e6a447c91373bc0b55d
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -712,8 +712,8 @@ revoke execute on function "better_supabase"."delete_webhook_endpoint"(uuid) fro
 grant execute on function "better_supabase"."delete_webhook_endpoint"(uuid) to authenticated, service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_025_webhooks_out.sql
--- better-supabase module: webhooks-out
--- @bsb-block-data webhooks-out
+-- better-supabase module: webhooks
+-- @bsb-block-data webhooks
 -- @bsb-hash sha256:486063f44e46ac376b92702fb399294c552924e1c16c678fdb4e52577c7346f0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
@@ -721,6 +721,6 @@ grant execute on function "better_supabase"."delete_webhook_endpoint"(uuid) to a
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-out', 6, 'managed')
+values ('webhooks', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

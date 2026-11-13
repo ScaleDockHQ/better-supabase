@@ -522,7 +522,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/notifications"
     },
     {
-      "name": "webhooks-out",
+      "name": "webhooks",
       "title": "Outgoing webhooks",
       "category": "Developer platform",
       "description": "Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.",
@@ -544,7 +544,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "webhook_endpoint.disabled",
         "webhook_endpoint.secret_rotated"
       ],
-      "subpath": null,
+      "subpath": "better-supabase/blocks/webhooks",
       "react": null,
       "docs": "/docs/blocks/webhooks"
     },
@@ -570,7 +570,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/sessions"
     },
     {
-      "name": "webhooks-in",
+      "name": "incoming-webhooks",
       "title": "Incoming webhook endpoints",
       "category": "Developer platform",
       "description": "Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.",
@@ -1811,7 +1811,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "description": "Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "recurrence"
       ],
       "integrates": [
         "queue",
@@ -2905,10 +2906,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "security-events",
       "title": "Shared signals",
       "category": "Developer platform",
-      "description": "OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.",
+      "description": "OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.",
       "requires": [],
       "integrates": [
-        "webhooks-out",
+        "webhooks",
         "outbox",
         "audit"
       ],
@@ -3678,10 +3679,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "conversation.member_added",
         "conversation.member_removed",
         "message.deleted",
-        "message.edited",
         "message.pinned",
         "message.resolved",
-        "message.sent"
+        "message.sent",
+        "message.updated"
       ],
       "subpath": "better-supabase/blocks/messaging",
       "react": {
@@ -6536,6 +6537,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "signing-keys",
         "enrollments",
         "passes",
+        "recurrence",
         "housekeeping",
         "seeds"
       ]
@@ -6743,6 +6745,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ledger",
         "enrollments",
         "tills",
+        "recurrence",
         "seeds"
       ]
     },
@@ -7324,7 +7327,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "profiles",
         "outbox",
         "notifications",
-        "webhooks-out",
+        "webhooks",
         "api-keys",
         "settings",
         "usage",
@@ -7356,7 +7359,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "profiles",
         "outbox",
         "notifications",
-        "webhooks-out",
+        "webhooks",
         "api-keys",
         "settings",
         "billing",
@@ -7470,9 +7473,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "profiles",
         "outbox",
         "notifications",
-        "webhooks-out",
+        "webhooks",
         "sessions",
-        "webhooks-in",
+        "incoming-webhooks",
         "api-keys",
         "settings",
         "usage",

@@ -65,9 +65,7 @@ export default defineConfig({
     expect(text).toContain(
       'audit: { permissions: { read: "a.view", readAll: "a.all" } }',
     );
-    expect(text).toContain(
-      '"webhooks-out": { permissions: { read: "w.view" } }',
-    );
+    expect(text).toContain('"webhooks": { permissions: { read: "w.view" } }');
     expect(text).toContain('tasks: { permissions: { view: "keep" } }');
   });
 });

@@ -474,6 +474,12 @@ export const permissions = {
     write: "incidents.write",
     manage: "incidents.manage",
   },
+  "incoming-webhooks": {
+    create: "webhooks.manage",
+    update: "webhooks.manage",
+    delete: "webhooks.manage",
+    read: "webhooks.read",
+  },
   inspection: {
     read: "inspections.read",
     write: "inspections.write",
@@ -919,13 +925,7 @@ export const permissions = {
     write: "warranty.write",
     upload: "warranty.write",
   },
-  "webhooks-in": {
-    create: "webhooks.manage",
-    update: "webhooks.manage",
-    delete: "webhooks.manage",
-    read: "webhooks.read",
-  },
-  "webhooks-out": {
+  webhooks: {
     manage: "webhooks.manage",
     read: "webhooks.read",
   },

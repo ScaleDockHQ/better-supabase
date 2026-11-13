@@ -167,14 +167,14 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       [OTHER],
     );
     await expect(start(OTHER)).rejects.toMatchObject({
-      hint: "SUPPORT_TARGET_PLATFORM",
+      hint: "IMPERSONATION_TARGET_PLATFORM",
     });
     await postgres.admin.queryRaw(
       "update auth.users set raw_app_meta_data = raw_app_meta_data - 'platform_permissions' where id = $1",
       [OTHER],
     );
     await expect(start(MEMBER, false)).rejects.toMatchObject({
-      hint: "SUPPORT_WRITES_DISABLED",
+      hint: "IMPERSONATION_WRITES_DISABLED",
     });
 
     const session = await start(MEMBER);

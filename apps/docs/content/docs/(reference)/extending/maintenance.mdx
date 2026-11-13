@@ -10,7 +10,7 @@ select better_supabase.maintenance_schedule();
 The `housekeeping` module installs with the first block that has a recurring cleanup:
 `approvals` (expire requests), `trash` (purge batches), `webhook-inbox`, `rate-limit`,
 `idempotency`, `chat-sdk-state`, `support` (end expired sessions), `usage` (purge idempotency
-keys, refresh computed meters) and `webhooks-out` (purge the delivery log). Each block lists its cleanup as a job, and
+keys, refresh computed meters) and `webhooks` (purge the delivery log). Each block lists its cleanup as a job, and
 `better_supabase.maintenance()` runs every job that is due, in name order, and records
 what happened in `maintenance_state`.
 

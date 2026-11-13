@@ -39,10 +39,10 @@ export function prescribingSql(ctx: BlockSqlContext): PrescribingSql {
     manage: ctx.permission("manage", OPERATIONS["e-prescribing.manage"]),
     allowed: (tenant, permission) =>
       `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.can("tenant", tenant, permission)}))`,
-    invalid: (message) => fail("PRESCRIPTION_INVALID", message, "22023"),
-    forbidden: (message) => fail("PRESCRIPTION_FORBIDDEN", message),
-    status: (message) => fail("PRESCRIPTION_STATUS", message, "55000"),
-    missing: fail("PRESCRIPTION_NOT_FOUND", "no such prescription", "P0002"),
+    invalid: (message) => fail("E_PRESCRIBING_INVALID", message, "22023"),
+    forbidden: (message) => fail("E_PRESCRIBING_FORBIDDEN", message),
+    status: (message) => fail("E_PRESCRIBING_STATUS", message, "55000"),
+    missing: fail("E_PRESCRIBING_NOT_FOUND", "no such prescription", "P0002"),
     medications: ctx.of("medications"),
     json: (row) =>
       `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'orderId', ${row}.${p("order")}, 'subjectType', ${row}.${p("subjectType")}, 'subjectId', ${row}.${p("subjectId")}, 'prescriberId', ${row}.${p("prescriber")}, 'prescriberName', ${row}.${p("prescriberName")}, 'status', ${row}.${p("status")}, 'order', ${row}.${p("snapshot")}, 'signedBy', ${row}.${p("signedBy")}, 'signedAt', ${row}.${p("signedAt")}, 'gateway', ${row}.${p("gateway")}, 'gatewayReference', ${row}.${p("gatewayReference")}, 'sentAt', ${row}.${p("sentAt")}, 'deliveryError', ${row}.${p("deliveryError")}, 'dispensedAt', ${row}.${p("dispensedAt")}, 'cancelledAt', ${row}.${p("cancelledAt")}, 'cancelReason', ${row}.${p("cancelReason")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")})`,

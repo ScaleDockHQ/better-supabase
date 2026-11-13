@@ -428,7 +428,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "webhooks-out",
+      "name": "webhooks",
       "title": "Outgoing webhooks",
       "category": "developer",
       "requires": [
@@ -519,7 +519,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "webhooks-in",
+      "name": "incoming-webhooks",
       "title": "Incoming webhook endpoints",
       "category": "developer",
       "requires": [
@@ -2455,7 +2455,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "scheduling",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "recurrence"
       ],
       "integrates": [
         "queue",
@@ -5164,7 +5165,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "developer",
       "requires": [],
       "integrates": [
-        "webhooks-out",
+        "webhooks",
         "outbox",
         "audit"
       ],
@@ -28620,7 +28621,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "drive_node.shared",
           "drive_node.unshared",
           "drive_node.purged",
-          "drive_node.document_saved",
+          "drive_node.document_updated",
           "drive_node.submitted",
           "drive_node.released",
           "drive_node.obsoleted",
@@ -30612,7 +30613,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "conversation.member_added",
           "conversation.member_removed",
           "message.sent",
-          "message.edited",
+          "message.updated",
           "message.deleted",
           "message.pinned",
           "message.resolved"
@@ -34022,7 +34023,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "incoming-webhooks",
       "sql": [
-        "webhooks-in"
+        "incoming-webhooks"
       ],
       "category": "developer",
       "client": {
@@ -34046,7 +34047,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "webhooks",
       "sql": [
-        "webhooks-out"
+        "webhooks"
       ],
       "category": "developer",
       "client": {

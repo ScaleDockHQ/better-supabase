@@ -209,7 +209,9 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
       const rejected = await linked(s, third.id);
       await s.as(approver, staff);
       await s.value(DECIDE, [rejected.id, "rejected", "not now"]);
-      expect(await s.hint(APPROVE, [third.id])).toBe("SUPPORT_REQUEST_CLOSED");
+      expect(await s.hint(APPROVE, [third.id])).toBe(
+        "IMPERSONATION_REQUEST_CLOSED",
+      );
 
       // The support module decides who approves, so nobody delegates.
       await s.as(requester, staff);

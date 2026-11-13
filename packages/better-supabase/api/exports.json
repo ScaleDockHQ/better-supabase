@@ -955,6 +955,8 @@
   "./react": {
     "values": [
       "BetterSupabaseProvider",
+      "blockListStatus",
+      "blockRealtimeRefetch",
       "can",
       "createHooks",
       "createRecordProvider",
@@ -1013,11 +1015,13 @@
       "BetterSupabaseProviderProps",
       "BlockEngineOptions",
       "BlockEventSource",
+      "BlockListStatus",
       "BlockMutationActions",
       "BlockMutationState",
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
+      "BlockRealtimeManifest",
       "BlockRefetchOn",
       "BroadcastOptions",
       "ClaimsOf",
@@ -2279,6 +2283,8 @@
   "./vue": {
     "values": [
       "betterSupabase",
+      "blockListStatus",
+      "blockRealtimeRefetch",
       "createBindings",
       "defineDataHooks",
       "defineListHook",
@@ -2311,12 +2317,14 @@
       "BetterSupabaseVueOptions",
       "BlockEngineOptions",
       "BlockEventSource",
+      "BlockListStatus",
       "BlockMutationActions",
       "BlockMutationState",
       "BlockOptions",
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
+      "BlockRealtimeManifest",
       "BlockRefetchOn",
       "BroadcastOptions",
       "ClaimsOf",
@@ -2343,6 +2351,8 @@
   "./solid": {
     "values": [
       "BetterSupabaseProvider",
+      "blockListStatus",
+      "blockRealtimeRefetch",
       "createBindings",
       "defineDataHooks",
       "defineListHook",
@@ -2373,12 +2383,14 @@
       "BetterSupabaseProviderProps",
       "BlockEngineOptions",
       "BlockEventSource",
+      "BlockListStatus",
       "BlockMutationActions",
       "BlockMutationState",
       "BlockOptions",
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
+      "BlockRealtimeManifest",
       "BlockRefetchOn",
       "BroadcastOptions",
       "ClaimsOf",
@@ -2406,6 +2418,8 @@
   "./svelte": {
     "values": [
       "betterSupabase",
+      "blockListStatus",
+      "blockRealtimeRefetch",
       "createBetterSvelte",
       "defineDataHooks",
       "defineListHook",
@@ -2436,12 +2450,14 @@
       "BetterSvelteOptions",
       "BlockEngineOptions",
       "BlockEventSource",
+      "BlockListStatus",
       "BlockMutationActions",
       "BlockMutationState",
       "BlockOptions",
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
+      "BlockRealtimeManifest",
       "BlockRefetchOn",
       "BroadcastOptions",
       "ClaimsOf",
@@ -3293,7 +3309,7 @@
     "types": [
       "BucketUnit",
       "DateBucket",
-      "DateBucketArgs",
+      "DateBucketOptions",
       "ListDateBucketsOptions"
     ]
   },
@@ -3558,12 +3574,15 @@
   "./recurrence": {
     "values": [
       "expandRule",
+      "formatRrule",
+      "parseRrule",
       "rruleOccurrences",
       "weekdayName"
     ],
     "types": [
       "ExpandInput",
-      "OccurrencesInput"
+      "OccurrencesInput",
+      "RecurrenceRule"
     ]
   },
   "./generators/zod": {

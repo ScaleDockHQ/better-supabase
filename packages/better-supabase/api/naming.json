@@ -1984,13 +1984,601 @@
       "to": "taskIds",
       "kind": "argument",
       "since": "0.58"
+    },
+    {
+      "from": "blocks.webhooks-out",
+      "to": "blocks.webhooks",
+      "kind": "configKey",
+      "since": "0.66"
+    },
+    {
+      "from": "blocks.webhooks-in",
+      "to": "blocks.incoming-webhooks",
+      "kind": "configKey",
+      "since": "0.66"
+    },
+    {
+      "from": "WEBHOOK_IN_METADATA_INVALID",
+      "to": "INCOMING_WEBHOOK_METADATA_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "CARE_ALERT_SUBJECT_INVALID",
+      "to": "DECISION_SUPPORT_ALERT_SUBJECT_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "WEBHOOK_IN_SUBJECT_INVALID",
+      "to": "INCOMING_WEBHOOK_SUBJECT_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "EVAL_FEEDBACK_UNAVAILABLE",
+      "to": "AI_EVAL_FEEDBACK_UNAVAILABLE",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_APPROVAL_REQUIRED",
+      "to": "IMPERSONATION_APPROVAL_REQUIRED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "WEBHOOK_IN_VERIFY_UNKNOWN",
+      "to": "INCOMING_WEBHOOK_VERIFY_UNKNOWN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "WEBHOOK_IN_NAME_REQUIRED",
+      "to": "INCOMING_WEBHOOK_NAME_REQUIRED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "HOSTNAME_RECORD_MISSING",
+      "to": "DOMAIN_RECORD_MISSING",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_REASON_REQUIRED",
+      "to": "IMPERSONATION_REASON_REQUIRED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_REQUEST_DECIDED",
+      "to": "IMPERSONATION_REQUEST_DECIDED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_REQUEST_MISSING",
+      "to": "IMPERSONATION_REQUEST_MISSING",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_TARGET_PLATFORM",
+      "to": "IMPERSONATION_TARGET_PLATFORM",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_WRITES_DISABLED",
+      "to": "IMPERSONATION_WRITES_DISABLED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "TIMESHEET_TIMER_RUNNING",
+      "to": "TIME_ENTRIES_TIMESHEET_TIMER_RUNNING",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "EVAL_DATASET_NOT_FOUND",
+      "to": "AI_EVAL_DATASET_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_REQUEST_CLOSED",
+      "to": "IMPERSONATION_REQUEST_CLOSED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_TARGET_MISSING",
+      "to": "IMPERSONATION_TARGET_MISSING",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "TIMESHEET_NOT_APPROVED",
+      "to": "TIME_ENTRIES_TIMESHEET_NOT_APPROVED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "PRESCRIPTION_FORBIDDEN",
+      "to": "E_PRESCRIBING_FORBIDDEN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "PRESCRIPTION_NOT_FOUND",
+      "to": "E_PRESCRIBING_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "HOSTNAME_NOT_VERIFIED",
+      "to": "DOMAIN_NOT_VERIFIED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_SELF_APPROVAL",
+      "to": "IMPERSONATION_SELF_APPROVAL",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SSF_AUDIENCE_MISMATCH",
+      "to": "SECURITY_EVENT_AUDIENCE_MISMATCH",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "FIELD_VALUE_NOT_FOUND",
+      "to": "CUSTOM_FIELD_VALUE_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "CARE_ALERT_FORBIDDEN",
+      "to": "DECISION_SUPPORT_ALERT_FORBIDDEN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "CARE_ALERT_NOT_FOUND",
+      "to": "DECISION_SUPPORT_ALERT_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SSF_PUSH_UNAVAILABLE",
+      "to": "SECURITY_EVENT_PUSH_UNAVAILABLE",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SSF_STREAM_NOT_FOUND",
+      "to": "SECURITY_EVENT_STREAM_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "FIELD_ENTITY_UNKNOWN",
+      "to": "CUSTOM_FIELD_ENTITY_UNKNOWN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "PRESCRIPTION_INVALID",
+      "to": "E_PRESCRIBING_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "WEBHOOK_IN_FORBIDDEN",
+      "to": "INCOMING_WEBHOOK_FORBIDDEN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "WEBHOOK_IN_NOT_FOUND",
+      "to": "INCOMING_WEBHOOK_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "WEBHOOK_IN_NO_SECRET",
+      "to": "INCOMING_WEBHOOK_NO_SECRET",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "EVAL_ITEM_NOT_FOUND",
+      "to": "AI_EVAL_ITEM_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "CARE_RULE_NOT_FOUND",
+      "to": "DECISION_SUPPORT_RULE_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SSF_ISSUER_MISMATCH",
+      "to": "SECURITY_EVENT_ISSUER_MISMATCH",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SSF_REQUEST_INVALID",
+      "to": "SECURITY_EVENT_REQUEST_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SSF_STREAM_NOT_POLL",
+      "to": "SECURITY_EVENT_STREAM_NOT_POLL",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "TIMESHEET_NOT_FOUND",
+      "to": "TIME_ENTRIES_TIMESHEET_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "TIMESHEET_SUBMITTED",
+      "to": "TIME_ENTRIES_TIMESHEET_SUBMITTED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "FIELD_PACK_CONFLICT",
+      "to": "CUSTOM_FIELD_PACK_CONFLICT",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "FIELD_VALUE_INVALID",
+      "to": "CUSTOM_FIELD_VALUE_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "PRESCRIPTION_STATUS",
+      "to": "E_PRESCRIBING_STATUS",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "EVAL_RUN_NOT_FOUND",
+      "to": "AI_EVAL_RUN_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "HOSTNAME_FORBIDDEN",
+      "to": "DOMAIN_FORBIDDEN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "HOSTNAME_NOT_FOUND",
+      "to": "DOMAIN_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "CARE_ALERT_INVALID",
+      "to": "DECISION_SUPPORT_ALERT_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "CARE_ENGINE_FAILED",
+      "to": "DECISION_SUPPORT_ENGINE_FAILED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SSF_STATUS_INVALID",
+      "to": "SECURITY_EVENT_STATUS_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "TIMESHEET_APPROVED",
+      "to": "TIME_ENTRIES_TIMESHEET_APPROVED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "FIELD_PACK_INVALID",
+      "to": "CUSTOM_FIELD_PACK_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "FIELD_RANK_INVALID",
+      "to": "CUSTOM_FIELD_RANK_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "EVAL_DATASET_FULL",
+      "to": "AI_EVAL_DATASET_FULL",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "EVAL_RUN_MISMATCH",
+      "to": "AI_EVAL_RUN_MISMATCH",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_FORBIDDEN",
+      "to": "IMPERSONATION_FORBIDDEN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "CARE_ALERT_STATUS",
+      "to": "DECISION_SUPPORT_ALERT_STATUS",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "HOSTNAME_INVALID",
+      "to": "DOMAIN_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SSF_UNAUTHORIZED",
+      "to": "SECURITY_EVENT_UNAUTHORIZED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "EVAL_RUN_CLOSED",
+      "to": "AI_EVAL_RUN_CLOSED",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "FIELD_FORBIDDEN",
+      "to": "CUSTOM_FIELD_FORBIDDEN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "FIELD_NOT_FOUND",
+      "to": "CUSTOM_FIELD_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "HOSTNAME_TAKEN",
+      "to": "DOMAIN_TAKEN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "BOM_NOT_ACTIVE",
+      "to": "MANUFACTURING_BOM_NOT_ACTIVE",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "BOM_NOT_FOUND",
+      "to": "MANUFACTURING_BOM_NOT_FOUND",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SSF_FORBIDDEN",
+      "to": "SECURITY_EVENT_FORBIDDEN",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "EVAL_INVALID",
+      "to": "AI_EVAL_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_SELF",
+      "to": "IMPERSONATION_SELF",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "SUPPORT_TTL",
+      "to": "IMPERSONATION_TTL",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "BOM_INVALID",
+      "to": "MANUFACTURING_BOM_INVALID",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "BOM_CYCLE",
+      "to": "MANUFACTURING_BOM_CYCLE",
+      "kind": "hint",
+      "since": "0.66"
+    },
+    {
+      "from": "message.edited",
+      "to": "message.updated",
+      "kind": "event",
+      "since": "0.66"
+    },
+    {
+      "from": "drive_node.document_saved",
+      "to": "drive_node.document_updated",
+      "kind": "event",
+      "since": "0.66"
+    },
+    {
+      "from": "DateBucketArgs",
+      "to": "DateBucketOptions",
+      "kind": "type",
+      "since": "0.66"
     }
   ],
   "allowlist": {
     "env": [],
-    "typeNames": [
-      "DateBucketArgs"
-    ],
+    "typeNames": [],
     "subpaths": []
+  },
+  "hints": {
+    "shared": [
+      "ACTOR_",
+      "CREDENTIAL_",
+      "IMPORT_ITEM_",
+      "NUMBER_",
+      "ORGANIZATION_ROLE_UNKNOWN"
+    ],
+    "allowlist": {
+      "accounting": [
+        "PERIOD_"
+      ],
+      "api-keys": [
+        "INVALID_API_KEY"
+      ],
+      "audit": [
+        "CHAIN_",
+        "CHECKPOINT_",
+        "ROW_",
+        "TABLE_"
+      ],
+      "automations": [
+        "ACTION_",
+        "RULE_"
+      ],
+      "banking": [
+        "BANK_",
+        "SEPA_"
+      ],
+      "billable-time": [
+        "INVOICE_"
+      ],
+      "catalog": [
+        "RANK_"
+      ],
+      "collections": [
+        "FAVORITE_",
+        "SAVED_"
+      ],
+      "compliance": [
+        "CONTROL_",
+        "EVIDENCE_",
+        "OSCAL_"
+      ],
+      "contacts": [
+        "DELIVERY_",
+        "PARTY_",
+        "PAYMENT_"
+      ],
+      "dam": [
+        "C2PA_"
+      ],
+      "data-lifecycle": [
+        "DSAR_",
+        "LEGAL_",
+        "ORGANIZATION_",
+        "RETENTION_"
+      ],
+      "deals": [
+        "LINES_"
+      ],
+      "forms": [
+        "JSON_"
+      ],
+      "hiring": [
+        "JOB_"
+      ],
+      "inbox": [
+        "CONTACT_",
+        "CONVERSATION_",
+        "MESSAGE_",
+        "SCHEDULED_"
+      ],
+      "incidents": [
+        "STATUS_"
+      ],
+      "invoices": [
+        "E_",
+        "LINES_"
+      ],
+      "jsonb-schemas": [
+        "JSON_"
+      ],
+      "knowledge": [
+        "AI_",
+        "EMBEDDING_"
+      ],
+      "manufacturing": [
+        "INVENTORY_",
+        "PRODUCTION_",
+        "WORK_"
+      ],
+      "notifications": [
+        "WEBHOOK_"
+      ],
+      "organizations": [
+        "INVITATION_"
+      ],
+      "passes": [
+        "PASS_"
+      ],
+      "promotions": [
+        "ORDERS_"
+      ],
+      "queue": [
+        "IDEMPOTENCY_KEY_",
+        "JOB_LEASE_",
+        "WEBHOOK_"
+      ],
+      "quotes": [
+        "LINES_"
+      ],
+      "sso": [
+        "SCIM_"
+      ],
+      "subjects": [
+        "RECORD_"
+      ],
+      "usage": [
+        "QUOTA_"
+      ],
+      "vercel-marketplace": [
+        "MISSING_CREDENTIALS"
+      ]
+    }
+  },
+  "eventVerbs": {
+    "banned": {
+      "canceled": "cancelled",
+      "edited": "updated",
+      "removed": "deleted (a child record may use <child>_removed)",
+      "saved": "created or updated",
+      "upserted": "created or updated"
+    },
+    "bannedSuffixes": {
+      "_edited": "_updated",
+      "_saved": "_updated",
+      "_set": "_changed"
+    }
   }
 }

@@ -4,7 +4,7 @@
 -- credits that is refunded on an early cancellation. The member (…00a2)
 -- outside the bookings permissions can't move a booking.
 begin;
-select plan(16);
+select plan(17);
 
 insert into auth.users (id, email, email_confirmed_at, aud, role, instance_id) values
   ('00000000-0000-4000-8000-0000000000e1', 'holder@example.test', now(), 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000');
@@ -66,6 +66,12 @@ select throws_ok(
   '22023',
   null,
   'a monthly rule is refused'
+);
+select is(
+  (select array_agg(to_char(o at time zone 'Europe/Amsterdam', 'HH24:MI') order by o)
+   from better_supabase.booking_series_starts('{"freq":"daily","count":3}', timestamptz '2030-03-29 08:00+00', 'Europe/Amsterdam') o),
+  array['09:00', '09:00', '09:00'],
+  'a series keeps its local time across the daylight saving change'
 );
 
 select set_config(

@@ -263,7 +263,7 @@ describe.skipIf(!live)("comments", () => {
         "conversation.created",
         "message.sent",
         "message.sent",
-        "message.edited",
+        "message.updated",
         "message.deleted",
       ]);
       expect(events[1]!.payload).toMatchObject({

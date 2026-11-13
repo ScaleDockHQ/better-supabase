@@ -113,6 +113,16 @@ export type {
   BlockRefetchOn,
 } from "../blocks/block-controller.ts";
 
+export type {
+  BlockListStatus,
+  BlockRealtimeManifest,
+} from "../blocks/block-list-status.ts";
+
+export {
+  blockListStatus,
+  blockRealtimeRefetch,
+} from "../blocks/block-list-status.ts";
+
 /**
  * A value read through `.current`, reactive in templates, `$derived` and
  * `$effect`.

@@ -5,7 +5,7 @@ permissions
 impersonation
 organizations
 notifications
-webhooks-in
+incoming-webhooks
 api-keys
 settings
 usage

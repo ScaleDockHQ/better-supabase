@@ -40,9 +40,13 @@ type BadgeTone =
 export interface BlockColumn {
   readonly key: string;
   readonly header: string;
-  readonly kind: "text" | "link" | "number" | "badge" | "muted";
+  readonly kind: "text" | "link" | "number" | "badge" | "muted" | "money";
   /** The width in pixels. */
   readonly size?: number;
+  /**
+   * For `money`: the row's cell is the amount already formatted for the page's
+   * locale (`withMoneyCells`), so this client file never loads the money code.
+   */
   /** For `link`: the path with `{id}` for the row's id. */
   readonly href?: string;
   /** For `badge`: the label of each value; a value without one shows as is. */
@@ -96,6 +100,7 @@ function cellOf(column: BlockColumn): (context: RowCell) => React.ReactNode {
         );
       }
 
+      case "money":
       case "number": {
         return <span className="tabular-nums">{text === "" ? "–" : text}</span>;
       }

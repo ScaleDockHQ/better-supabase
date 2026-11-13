@@ -275,11 +275,11 @@ describe("custom-fields module", () => {
       expect(sql).toContain(
         `if save_field_definition.entity is null or save_field_definition.entity <> all (array['task']::text[]) then`,
       );
-      expect(sql).toContain("FIELD_ENTITY_UNKNOWN");
+      expect(sql).toContain("CUSTOM_FIELD_ENTITY_UNKNOWN");
     });
 
     it("leaves the entity free text without registered types", () => {
-      expect(sqlOf()).not.toContain("FIELD_ENTITY_UNKNOWN");
+      expect(sqlOf()).not.toContain("CUSTOM_FIELD_ENTITY_UNKNOWN");
     });
 
     it("installs a field pack idempotently by pack and key", () => {
@@ -288,8 +288,8 @@ describe("custom-fields module", () => {
       expect(sql).toContain(
         'create or replace function "better_supabase"."install_field_pack"(tenant uuid, pack jsonb)',
       );
-      expect(sql).toContain("FIELD_PACK_INVALID");
-      expect(sql).toContain("FIELD_PACK_CONFLICT");
+      expect(sql).toContain("CUSTOM_FIELD_PACK_INVALID");
+      expect(sql).toContain("CUSTOM_FIELD_PACK_CONFLICT");
       expect(sql).toContain(`"pack" text,`);
       expect(sql).toContain(`"pack_version" integer,`);
     });
@@ -306,7 +306,7 @@ describe("custom-fields module", () => {
       const sql = sqlOf(registry, ["subjects", "imports"]);
 
       expect(sql).toContain("import_field_value");
-      expect(sql).toContain("FIELD_VALUE_INVALID");
+      expect(sql).toContain("CUSTOM_FIELD_VALUE_INVALID");
     });
 
     it("keeps values per legal entity with the legal-entities block", () => {

@@ -1,6 +1,6 @@
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:df1d482b8bd8f0c3c074da05f4fc9c6ce45084626cb9e91d939606c97eef3d4a
+-- @bsb-hash sha256:ff95a17484477e420c4e3c596141122a2787874d21dbd07b7838c17274919f5b
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,17 +49,17 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', add_hostname.tenant, 'domains.manage'), false)) then
-    raise exception 'You may not manage this organization''s hostnames' using errcode = '42501', hint = 'HOSTNAME_FORBIDDEN';
+    raise exception 'You may not manage this organization''s hostnames' using errcode = '42501', hint = 'DOMAIN_FORBIDDEN';
   end if;
   if v_hostname is null or length(v_hostname) > 253 or v_hostname !~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$' then
-    raise exception 'Not a hostname: %', add_hostname.hostname using errcode = '22023', hint = 'HOSTNAME_INVALID';
+    raise exception 'Not a hostname: %', add_hostname.hostname using errcode = '22023', hint = 'DOMAIN_INVALID';
   end if;
   select * into v_row from "better_supabase"."hostnames" x where x."tenant_id" = add_hostname.tenant and x."hostname" = v_hostname;
   if v_row."id" is not null then
     return (to_jsonb(v_row) - 'verification_token') || case when v_row."verified_at" is null then jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || v_row."hostname", 'value', 'better-supabase-hostname-verification=' || v_row."verification_token")) else '{}'::jsonb end;
   end if;
   if v_kind = 'subdomain' and exists (select 1 from "better_supabase"."hostnames" x where x."hostname" = v_hostname and x."verified_at" is not null) then
-    raise exception 'Another organization holds %', v_hostname using errcode = '23505', hint = 'HOSTNAME_TAKEN';
+    raise exception 'Another organization holds %', v_hostname using errcode = '23505', hint = 'DOMAIN_TAKEN';
   end if;
   insert into "better_supabase"."hostnames" ("tenant_id", "hostname", "kind", "verified_at")
   values (add_hostname.tenant, v_hostname, v_kind, case when v_kind = 'subdomain' then now() end)
@@ -90,7 +90,7 @@ begin
   end if;
   return (to_jsonb(v_row) - 'verification_token') || case when v_row."verified_at" is null then jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || v_row."hostname", 'value', 'better-supabase-hostname-verification=' || v_row."verification_token")) else '{}'::jsonb end;
 exception when unique_violation then
-  raise exception 'Another organization holds %', v_hostname using errcode = '23505', hint = 'HOSTNAME_TAKEN';
+  raise exception 'Another organization holds %', v_hostname using errcode = '23505', hint = 'DOMAIN_TAKEN';
 end;
 $$;
 
@@ -104,7 +104,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_hostnames.tenant, 'domains.read'), false)) then
-    raise exception 'You may not read this organization''s hostnames' using errcode = '42501', hint = 'HOSTNAME_FORBIDDEN';
+    raise exception 'You may not read this organization''s hostnames' using errcode = '42501', hint = 'DOMAIN_FORBIDDEN';
   end if;
   return (
     select coalesce(jsonb_agg((to_jsonb(x) - 'verification_token') || case when x."verified_at" is null then jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."hostname", 'value', 'better-supabase-hostname-verification=' || x."verification_token")) else '{}'::jsonb end order by x."is_primary" desc, x."hostname"), '[]'::jsonb)
@@ -144,17 +144,17 @@ declare
   v_row "better_supabase"."hostnames";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'Only the service role verifies hostnames' using errcode = '42501', hint = 'HOSTNAME_FORBIDDEN';
+    raise exception 'Only the service role verifies hostnames' using errcode = '42501', hint = 'DOMAIN_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."hostnames" x where x."id" = verify_hostname.id for update;
   if v_row."id" is null or not (verify_hostname.actor is null or coalesce(better_supabase.can_user(verify_hostname.actor, 'tenant', v_row."tenant_id", 'domains.manage'), false)) then
-    raise exception 'No hostname you manage has this id' using errcode = 'P0002', hint = 'HOSTNAME_NOT_FOUND';
+    raise exception 'No hostname you manage has this id' using errcode = 'P0002', hint = 'DOMAIN_NOT_FOUND';
   end if;
   if v_row."verified_at" is not null then
     return (to_jsonb(v_row) - 'verification_token') || case when v_row."verified_at" is null then jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || v_row."hostname", 'value', 'better-supabase-hostname-verification=' || v_row."verification_token")) else '{}'::jsonb end;
   end if;
   if exists (select 1 from "better_supabase"."hostnames" x where x."hostname" = v_row."hostname" and x."verified_at" is not null) then
-    raise exception 'Another organization holds %', v_row."hostname" using errcode = '23505', hint = 'HOSTNAME_TAKEN';
+    raise exception 'Another organization holds %', v_row."hostname" using errcode = '23505', hint = 'DOMAIN_TAKEN';
   end if;
   update "better_supabase"."hostnames" x set "verified_at" = now() where x."id" = v_row."id" returning * into v_row;
   perform "better_supabase".emit_event('hostname.verified', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'hostnameId', v_row."id"::text, 'hostname', v_row."hostname"), 'hostnames/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/domains');
@@ -188,10 +188,10 @@ begin
   end if;
   select * into v_row from "better_supabase"."hostnames" x where x."id" = set_primary_hostname.id for update;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'domains.manage'), false)) then
-    raise exception 'No hostname you manage has this id' using errcode = 'P0002', hint = 'HOSTNAME_NOT_FOUND';
+    raise exception 'No hostname you manage has this id' using errcode = 'P0002', hint = 'DOMAIN_NOT_FOUND';
   end if;
   if v_row."verified_at" is null then
-    raise exception 'Verify the hostname first' using errcode = '22023', hint = 'HOSTNAME_NOT_VERIFIED';
+    raise exception 'Verify the hostname first' using errcode = '22023', hint = 'DOMAIN_NOT_VERIFIED';
   end if;
   if v_row."is_primary" then
     return (to_jsonb(v_row) - 'verification_token') || case when v_row."verified_at" is null then jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || v_row."hostname", 'value', 'better-supabase-hostname-verification=' || v_row."verification_token")) else '{}'::jsonb end;

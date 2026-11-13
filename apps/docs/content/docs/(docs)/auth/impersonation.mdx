@@ -107,13 +107,13 @@ as the target over Postgres.
 
 ### What the admin can do
 
-| Policy option   | Default      | Effect                                                                                    |
-| --------------- | ------------ | ----------------------------------------------------------------------------------------- |
-| `ttl`           | `1800`       | Session length in seconds when the request names none                                     |
-| `maxTtl`        | `14400`      | Longest session allowed (`SUPPORT_TTL` above it); the SQL module checks `maxTtl` too      |
-| `requireReason` | `true`       | Refuses a start without a reason (`SUPPORT_REASON_REQUIRED`)                              |
-| `readOnly`      | `"always"`   | Every session is read-only; `"default"` lets the request pass `readOnly: false` for fixes |
-| `approval`      | `"distinct"` | A start needs another admin's approval; `"none"` turns it off                             |
+| Policy option   | Default      | Effect                                                                                     |
+| --------------- | ------------ | ------------------------------------------------------------------------------------------ |
+| `ttl`           | `1800`       | Session length in seconds when the request names none                                      |
+| `maxTtl`        | `14400`      | Longest session allowed (`IMPERSONATION_TTL` above it); the SQL module checks `maxTtl` too |
+| `requireReason` | `true`       | Refuses a start without a reason (`IMPERSONATION_REASON_REQUIRED`)                         |
+| `readOnly`      | `"always"`   | Every session is read-only; `"default"` lets the request pass `readOnly: false` for fixes  |
+| `approval`      | `"distinct"` | A start needs another admin's approval; `"none"` turns it off                              |
 
 A read-only session runs each transaction with `begin read only`, so any write
 fails with Postgres error `25006`, which a repository or block call returns as
@@ -278,7 +278,7 @@ signed upload URLs and claims in a writable session resolve to a `403` error
 with code `SUPPORT_STORAGE_WRITES`.
 
 Starting a second session ends the admin's first one. Admins can't start a
-session for themselves (`SUPPORT_SELF`) or from inside another one
+session for themselves (`IMPERSONATION_SELF`) or from inside another one
 (`SUPPORT_NESTED`).
 
 ### Deciding who may start one
@@ -288,7 +288,7 @@ the reason, `readOnly`, `memberships` and `metadata`. It returns a decision:
 
 | Decision                 | Effect                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------ |
-| `false`, a throw         | Refused with `SUPPORT_FORBIDDEN`                                               |
+| `false`, a throw         | Refused with `IMPERSONATION_FORBIDDEN`                                         |
 | `true`                   | Allowed once another admin approved a request (see below)                      |
 | `{ approvedBy: "<id>" }` | Allowed, and `<id>` is recorded as the approver; the admin's own id is refused |
 
@@ -332,8 +332,8 @@ const { session, cookie } = await server.support
   .orThrow();
 ```
 
-A start without an approved request fails with `SUPPORT_APPROVAL_REQUIRED`.
-The requester can never approve their own request (`SUPPORT_SELF_APPROVAL`),
+A start without an approved request fails with `IMPERSONATION_APPROVAL_REQUIRED`.
+The requester can never approve their own request (`IMPERSONATION_SELF_APPROVAL`),
 and the SQL module refuses it again in a check constraint, so a client that
 calls the database directly can't skip the second admin. A request stays open
 for the module's `approvalTtl` (1 hour) and starts one session. A read-only
@@ -346,14 +346,14 @@ checks the approver in the database: the provider's `isApprover` template,
 or `is_platform('impersonation.start')` without a provider. Rename that key with
 `blocks["impersonation"].permissions.approve`.
 
-| Code                           | When                                                       |
-| ------------------------------ | ---------------------------------------------------------- |
-| `SUPPORT_APPROVAL_REQUIRED`    | A start finds no approved, unused request                  |
-| `SUPPORT_SELF_APPROVAL`        | The requester approves, or `approvedBy` names the admin    |
-| `SUPPORT_REQUEST_MISSING`      | `approve` names a request that doesn't exist               |
-| `SUPPORT_REQUEST_DECIDED`      | Another admin already approved the request                 |
-| `SUPPORT_REQUEST_CLOSED`       | The request expired or already started a session           |
-| `SUPPORT_APPROVAL_UNSUPPORTED` | `request` or `approve` on a store without approval methods |
+| Code                              | When                                                       |
+| --------------------------------- | ---------------------------------------------------------- |
+| `IMPERSONATION_APPROVAL_REQUIRED` | A start finds no approved, unused request                  |
+| `IMPERSONATION_SELF_APPROVAL`     | The requester approves, or `approvedBy` names the admin    |
+| `IMPERSONATION_REQUEST_MISSING`   | `approve` names a request that doesn't exist               |
+| `IMPERSONATION_REQUEST_DECIDED`   | Another admin already approved the request                 |
+| `IMPERSONATION_REQUEST_CLOSED`    | The request expired or already started a session           |
+| `SUPPORT_APPROVAL_UNSUPPORTED`    | `request` or `approve` on a store without approval methods |
 
 Set `policy.approval: "none"` and the module's `options.approval: "none"`
 together to start without a second admin; the SQL store checks its own
@@ -366,7 +366,7 @@ With the [approvals](/docs/blocks/approvals#tool-calls-and-support-sessions)
 module installed, a request for a tenant also files an approval request
 (`subjectType` `support_request`, action `start`), so it shows up in the
 approvals inbox. Approving it there approves the support request, rejecting
-it closes the support request (`SUPPORT_REQUEST_CLOSED`), and
+it closes the support request (`IMPERSONATION_REQUEST_CLOSED`), and
 `approve_support_request` closes the approval request. The approvers stay
 the ones above.
 
