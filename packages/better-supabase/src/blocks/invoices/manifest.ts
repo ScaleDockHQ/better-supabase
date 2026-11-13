@@ -5,18 +5,23 @@ import { defineBlock } from "../define-block.ts";
 import { invoicesEvents } from "./events.ts";
 import { createInvoices } from "./invoices.ts";
 import { invoicesSqlOptions } from "./options.ts";
+import { invoicesBinding } from "./record-binding.ts";
 
 /** The `invoices` block's manifest (ADR 0029). */
 export const invoicesBlock: BlockOf<
   "invoices",
   typeof createInvoices,
-  InvoicesEvents
+  InvoicesEvents,
+  Record<never, never>,
+  never,
+  typeof invoicesBinding
 > = defineBlock({
   name: "invoices",
   sql: ["invoices"],
   options: { invoices: invoicesSqlOptions },
   events: invoicesEvents,
   create: createInvoices,
+  record: invoicesBinding,
   category: "commerce",
   entities: {
     invoice: {

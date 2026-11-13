@@ -904,6 +904,42 @@ end;
 $$;
 ${userGrant(`${fn("list_invoice_payments")}(uuid)`)}
 
+-- A tenant's invoices of one record, such as a company's, newest first, for the
+-- record page. Without a company or contact column it reads nothing.
+create or replace function ${fn("list_invoices_for_subject")}(tenant ${ctx.idType}, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (${n.service} or ${ctx.scope.can("list_invoices_for_subject.tenant", n.read)}) then
+    ${fail("INVOICE_FORBIDDEN", "not allowed to read this organization's invoices", "42501")}
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.created desc, z.id desc)
+    from (
+      select ${row("x")} as item, x.${i("createdAt")} as created, x.${i("id")} as id
+      from ${t("invoices")} x
+      where x.${i("tenant")} = list_invoices_for_subject.tenant
+        and (${
+          (["company", "contact"] as const)
+            .filter((party) => invoiceParty(ctx, party) !== undefined)
+            .map(
+              (party) =>
+                `(${partyTypeSql(ctx, n, party, "x")} = list_invoices_for_subject.subject_type and x.${i(`${party}Id`)}::text = list_invoices_for_subject.subject_id)`,
+            )
+            .join(" or ") || "false"
+        })
+      order by x.${i("createdAt")} desc, x.${i("id")} desc
+      limit least(greatest(coalesce(list_invoices_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+${userGrant(`${fn("list_invoices_for_subject")}(${ctx.idType}, text, text, integer)`)}
+
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it. fixed_number: during an
 -- import (better_supabase.import_run()), a historical credit note number; the

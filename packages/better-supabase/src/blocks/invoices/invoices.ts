@@ -1,6 +1,7 @@
 import type { Money } from "../../commerce/money.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -25,6 +26,7 @@ import type { InvoiceSources } from "./sources.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -454,6 +456,15 @@ export interface Invoices<F extends object = Record<never, never>>
   match(invoiceId: string): AsyncResult<InvoiceMatch>;
   payments(invoiceId: string): AsyncResult<readonly InvoicePayment[]>;
   /**
+   * The invoices of one record, such as a company's, newest first, in the
+   * block's tenant (`options.tenant`; without one the call fails with
+   * `TENANT_REQUIRED`). Reads the company and contact columns.
+   */
+  list(input: {
+    subject: RecordRef;
+    limit?: number | undefined;
+  }): AsyncResult<readonly Invoice<F>[]>;
+  /**
    * An invoice from an accepted quote: the full invoice once, minus the
    * deposits already issued, or a deposit invoice for `depositBps` of it or a
    * fixed `depositAmount`, tax included.
@@ -469,7 +480,8 @@ export interface Invoices<F extends object = Record<never, never>>
 
 export interface InvoicesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> extends BlockTemporalOptions {
+>
+  extends BlockTemporalOptions, BlockTenantOptions {
   /**
    * A Standard Schema for the invoices' extra columns (columns the app's schema
    * files add to the table), keyed by column name. It types and parses `fields`
@@ -955,6 +967,22 @@ export function createInvoices<
     ...invoiceSources(call),
     match: (invoiceId) =>
       call("purchase_bill_match", { invoice: invoiceId }, matchOf),
+    list: ({ subject, limit }) =>
+      requireTenant(options.tenant).andThen((organizationId) =>
+        call(
+          "list_invoices_for_subject",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            page_size: limit ?? null,
+          },
+          (value) =>
+            recordsOf(value, "list_invoices_for_subject").map((row) =>
+              invoiceOf(row),
+            ),
+        ).andThen(fields.rows),
+      ),
     payments: (invoiceId) =>
       call("list_invoice_payments", { invoice: invoiceId }, (value) => {
         const row = recordOf(value, "list_invoice_payments");

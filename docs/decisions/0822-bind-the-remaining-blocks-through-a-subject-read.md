@@ -19,13 +19,13 @@ organization id and a record page of another organization reads nothing.
 
 | Block    | Read                          | Subject it binds to                  |
 | -------- | ----------------------------- | ------------------------------------ |
-| invoices | `forSubject({ subject })`     | the invoice's company or contact     |
-| quotes   | `forSubject({ subject })`     | the quote's company, contact or deal |
-| deals    | `forSubject({ subject })`     | the deal's company or contact        |
+| invoices | `list({ subject })`           | the invoice's company or contact     |
+| quotes   | `list({ subject })`           | the quote's company, contact or deal |
+| deals    | `list({ subject })`           | the deal's company or contact        |
 | expenses | `forEmployee({ employeeId })` | an employee                          |
 | leave    | `forEmployee({ employeeId })` | an employee, in every owner mode     |
-| bookings | `forSubject({ subject })`     | the customer                         |
-| risks    | `forSubject({ subject })`     | the record a risk is about           |
+| bookings | `list({ subject })`           | the customer                         |
+| risks    | `list({ subject })`           | the record a risk is about           |
 
 Each read is a SQL function in the block's module (a new migration in slot
 20261214), with a pgTAP test for the allowed and the forbidden caller, and a

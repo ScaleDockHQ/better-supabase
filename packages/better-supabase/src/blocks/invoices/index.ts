@@ -97,3 +97,5 @@ export type {
   ReceiveEInvoicesOptions,
   SendEInvoiceOptions,
 } from "./e-delivery.ts";
+
+export { invoicesBinding } from "./record-binding.ts";
