@@ -31,6 +31,7 @@ import { medicationsBlock } from "better-supabase/blocks/medications";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { activitiesBlock } from "better-supabase/blocks/activities";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
+import { fieldEncryptionBlock } from "better-supabase/blocks/field-encryption";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { queueBlock } from "better-supabase/blocks/queue";
@@ -82,6 +83,7 @@ export const blockSet = defineBlocks(blockConfig, {
   drive: driveBlock,
   activities: activitiesBlock,
   entitlements: entitlementsBlock,
+  fieldEncryption: fieldEncryptionBlock,
   forms: formsBlock,
   signatures: signaturesBlock,
   queue: queueBlock,

@@ -14,6 +14,7 @@ import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
+import { fieldEncryptionBlock } from "better-supabase/blocks/field-encryption";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { queueBlock } from "better-supabase/blocks/queue";
@@ -43,6 +44,7 @@ export const blockSet = defineBlocks(blockConfig, {
   enrollments: enrollmentsBlock,
   guests: guestsBlock,
   entitlements: entitlementsBlock,
+  fieldEncryption: fieldEncryptionBlock,
   forms: formsBlock,
   signatures: signaturesBlock,
   queue: queueBlock,

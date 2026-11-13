@@ -17,6 +17,8 @@ const {
   SUPABASE_SECRET_KEY,
   FLAGS_SECRET,
   CRON_SECRET,
+  VERCEL_MARKETPLACE_CLIENT_ID,
+  VERCEL_MARKETPLACE_CLIENT_SECRET,
   AI_GATEWAY_API_KEY,
   WORKFLOW_POSTGRES_URL,
   PDL_API_KEY,
@@ -47,6 +49,9 @@ export const env = createEnv({
     FLAGS_SECRET: v.optional(v.string()),
     // The bearer token the cron routes check.
     CRON_SECRET: v.optional(v.string()),
+    // The Vercel Marketplace integration the `vercel-marketplace` block serves; server-only.
+    VERCEL_MARKETPLACE_CLIENT_ID: v.optional(v.string()),
+    VERCEL_MARKETPLACE_CLIENT_SECRET: v.optional(v.string()),
     // The assistant and chat summaries answer with a scripted model without it.
     AI_GATEWAY_API_KEY: v.optional(v.string()),
     WORKFLOW_POSTGRES_URL: v.optional(v.string()),
@@ -75,6 +80,8 @@ export const env = createEnv({
     SUPABASE_SECRET_KEY,
     FLAGS_SECRET,
     CRON_SECRET,
+    VERCEL_MARKETPLACE_CLIENT_ID,
+    VERCEL_MARKETPLACE_CLIENT_SECRET,
     AI_GATEWAY_API_KEY,
     WORKFLOW_POSTGRES_URL,
     PDL_API_KEY,

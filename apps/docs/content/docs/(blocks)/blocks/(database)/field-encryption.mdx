@@ -58,7 +58,10 @@ and a lookup key, and the service role sees every owner with a key. It returns
 no key material. The `better-supabase/blocks/field-encryption` client wraps it:
 
 ```ts
-const owners = await db.fieldEncryption.keyStatus().orThrow();
+import { createFieldEncryption } from "better-supabase/blocks/field-encryption";
+
+const fieldEncryption = createFieldEncryption({ transport });
+const owners = await fieldEncryption.keyStatus().orThrow();
 // [{ owner: "tenant:7c1e...", hasKey: true, hasLookupKey: true }]
 ```
 
