@@ -97,3 +97,7 @@ rewrites the config key and `better-supabase upgrade` renames the registry row.
 Outbox rows already written keep their old event type, and error codes already
 logged keep their old hint. The hint prefix allowlist has 27 blocks today and
 only shrinks.
+
+The longer block names and hint codes add 28 to 55 raw bytes to 31 server routes
+of the Next.js example, so their entries in `tests/next-build/server-baseline.json`
+rise by that amount. No client first-load number changes.
