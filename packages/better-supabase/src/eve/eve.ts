@@ -15,9 +15,14 @@ export { approvalPolicy } from "./approvals.ts";
 
 export type { ApprovalPolicyOptions, EveApprovalsClient } from "./approvals.ts";
 
-export { EveAuthRejection, principalOf, supabaseAuth } from "./auth.ts";
+export {
+  EveAuthRejection,
+  principalOf,
+  supabaseAuth,
+  supabaseJwtAuth,
+} from "./auth.ts";
 
-export type { SupabaseAuthOptions } from "./auth.ts";
+export type { SupabaseAuthOptions, SupabaseJwtAuthOptions } from "./auth.ts";
 
 export {
   ConnectionAuthorizationFailedError,

@@ -12,6 +12,7 @@ import type {
 import type * as Connect from "@vercel/connect";
 import type * as ConnectChat from "@vercel/connect/chat";
 import type * as VercelSandbox from "@vercel/sandbox";
+import type { AuthFn } from "eve/channels/auth";
 import type {
   ConnectionAuthDefinition,
   ProvidedArgumentValue,
@@ -45,6 +46,7 @@ import type {
   EveToolApproval,
   approvalPolicy,
   queueSchedules,
+  supabaseJwtAuth,
   supabaseMemory,
   tenantArgument,
 } from "../src/eve/index.ts";
@@ -139,6 +141,7 @@ describe("structurally typed optional peers", () => {
     expectTypeOf<
       EveScheduleOptions["appAuth"]
     >().toExtend<SessionAuthContext>();
+    expectTypeOf<ReturnType<typeof supabaseJwtAuth>>().toExtend<AuthFn>();
   });
 
   it("a PowerSync database has what syncWithAuth drives", () => {
