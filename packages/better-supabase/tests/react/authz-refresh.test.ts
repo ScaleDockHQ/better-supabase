@@ -194,6 +194,37 @@ describe("startAuthzRefresh", () => {
     stop();
   });
 
+  it("reads the version through schema() with api as the default", async () => {
+    const fake = fakeClient(4);
+    const schemas: string[] = [];
+
+    const client: AuthzRefreshClient = {
+      ...fake.client,
+      schema(name) {
+        schemas.push(name);
+
+        return { rpc: fake.rpc };
+      },
+    };
+
+    for (const schema of [undefined, "private"]) {
+      const stop = startAuthzRefresh({
+        client,
+        userId: "u1",
+        channel: false,
+        tokenVersion: () => 4,
+        onChange: vi.fn(),
+        ...(schema ? { schema } : {}),
+      });
+
+      await settle();
+      stop();
+    }
+
+    expect(schemas).toEqual(["api", "private"]);
+    expect(fake.rpc).toHaveBeenCalledTimes(2);
+  });
+
   it("does not refresh on join when the token is current or has no version", async () => {
     for (const tokenVersion of [4, null]) {
       const fake = fakeClient(4);
