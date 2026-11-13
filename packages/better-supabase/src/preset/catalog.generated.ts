@@ -16574,6 +16574,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "leave_request.split",
           "leave_balance.adjusted"
         ]
+      },
+      "entityPermissions": {
+        "leave_request": {
+          "read": "leave.read",
+          "create": "leave.request",
+          "approve": "leave.approve",
+          "manage": "leave.manage"
+        },
+        "leave_type": {
+          "read": "leave.read",
+          "manage": "leave.manage"
+        }
       }
     },
     {
@@ -25015,6 +25027,13 @@ export const PRESET_CATALOG: PresetCatalog = {
           "period.closed",
           "period.reopened"
         ]
+      },
+      "entityPermissions": {
+        "period": {
+          "read": "periods.read",
+          "create": "periods.write",
+          "manage": "periods.manage"
+        }
       }
     },
     {
@@ -25100,6 +25119,13 @@ export const PRESET_CATALOG: PresetCatalog = {
           "deadline.computed",
           "deadline.satisfied"
         ]
+      },
+      "entityPermissions": {
+        "deadline": {
+          "read": "deadlines.read",
+          "update": "deadlines.write",
+          "manage": "deadlines.manage"
+        }
       }
     },
     {
@@ -25192,6 +25218,14 @@ export const PRESET_CATALOG: PresetCatalog = {
           "commission_statement.finalized",
           "commission_statement.paid"
         ]
+      },
+      "entityPermissions": {
+        "commission_plan": {
+          "read": "commissions.read",
+          "create": "commissions.write",
+          "update": "commissions.write",
+          "manage": "commissions.manage"
+        }
       }
     },
     {
@@ -25256,6 +25290,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "referral.rewarded",
           "referral.voided"
         ]
+      },
+      "entityPermissions": {
+        "referral_code": {
+          "read": "referrals.read",
+          "create": "referrals.write"
+        },
+        "referral": {
+          "read": "referrals.read",
+          "manage": "referrals.manage"
+        }
       }
     },
     {
@@ -25731,7 +25775,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "enrichDue()",
           "description": "Fills new and stale vulnerabilities from OSV, EPSS and the CISA KEV catalog."
         }
-      ]
+      ],
+      "entityPermissions": {
+        "advisory": {
+          "read": "advisories.read",
+          "create": "advisories.write",
+          "update": "advisories.write",
+          "publish": "advisories.publish"
+        }
+      }
     },
     {
       "name": "manufacturing",

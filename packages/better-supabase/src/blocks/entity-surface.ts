@@ -53,8 +53,19 @@ export interface EntitySurface {
   readonly filters?: readonly string[];
   /** `true` when the entity registers for search, or the searched columns. */
   readonly search?: boolean | readonly string[];
-  /** The permission key each verb checks, by verb (`{ read: "risks.read" }`). */
+  /**
+   * The permission key each verb checks, by verb, as `<block>.<entity>.<verb>`
+   * (`{ read: "risks.risk.read" }`). The verbs are `read`, `create`, `update`,
+   * `archive`, `delete`, `export`, `import` and `manage`, plus named domain
+   * verbs. `gen` adds each key to the permission catalog and grants it to the
+   * default roles (ADR 0799).
+   */
   readonly permissions?: Readonly<Record<string, string>>;
+  /**
+   * `"team"` when the entity's rows are visible by record team (ADR 0134), so a
+   * list filters by the caller's teams by declaration.
+   */
+  readonly recordAccess?: "team";
   /** The columns that hold personal data. */
   readonly personalData?: readonly string[];
   /** The retention class the entity's rows follow. */
