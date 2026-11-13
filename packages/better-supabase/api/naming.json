@@ -2497,6 +2497,12 @@
       "kind": "column",
       "since": "0.66",
       "table": "better_supabase.support_sessions"
+    },
+    {
+      "from": "readSession",
+      "to": "ssrSession",
+      "kind": "function",
+      "since": "0.67"
     }
   ],
   "allowlist": {
