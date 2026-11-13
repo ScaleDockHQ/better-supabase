@@ -71,7 +71,7 @@ nothing checks.
    `incoming-webhooks`, as `blocks.webhooks` and `blocks.incoming-webhooks`
    `configKey` rows of `api/naming.json`. `FORMER_BLOCK_NAMES` makes the
    generated data file rename the `better_supabase.blocks` row, and
-   `20261202090001_better_supabase_module_data_347f6bcf.sql` does the same for
+   `20261213090001_better_supabase_module_data_347f6bcf.sql` does the same for
    the fixture. `tests/blocks/registry.test.ts` fails when a module has a name
    other than its block's, except for the six modules a block installs as a
    second part (`invitations`, `seeds`, `chat-sdk-state`, `drive-files`,
