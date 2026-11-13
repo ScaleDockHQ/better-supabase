@@ -23,8 +23,8 @@ export const NATIVE_TABLE = {
     quantity: "quantity",
     interval: "billing_interval",
     status: "status",
-    periodStart: "period_start",
-    periodEnd: "period_end",
+    periodStart: "period_starts_at",
+    periodEnd: "period_ends_at",
     canceledAt: "canceled_at",
     createdAt: "created_at",
   },
@@ -69,7 +69,8 @@ export function nativeSubscriptionsSql(ctx: BlockSqlContext): string {
 
   return `
 -- A subscription kept in Postgres: unit_amount is the price of one unit for one
--- billing_interval in minor units of currency, and [period_start, period_end)
+-- billing_interval in minor units of currency, and
+-- [period_starts_at, period_ends_at)
 -- is the current period.
 create table if not exists ${table} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -113,7 +114,7 @@ begin
   returning * into v_row;
   return jsonb_build_object('id', v_row.${c("id")}, 'plan', v_row.${c("plan")}, 'currency', v_row.${c("currency")},
     'unit_amount', v_row.${c("unitAmount")}::text, 'quantity', v_row.${c("quantity")}, 'interval', v_row.${c("interval")},
-    'period_start', v_row.${c("periodStart")}, 'period_end', v_row.${c("periodEnd")});
+    'period_starts_at', v_row.${c("periodStart")}, 'period_ends_at', v_row.${c("periodEnd")});
 exception when check_violation or invalid_text_representation then
   ${raise("The subscription is invalid", "22023", "BILLING_SUBSCRIPTION_INVALID")}
 end;

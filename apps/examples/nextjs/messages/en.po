@@ -11889,6 +11889,11 @@ msgid "Retry"
 msgstr "Retry"
 
 #: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.du1laW"
+msgid "Never"
+msgstr "Never"
+
+#: src/features/encryption/components/encrypted-fields.tsx
 msgctxt "encryption.hkENym"
 msgid "Customer"
 msgstr "Customer"
@@ -11904,14 +11909,44 @@ msgid "Data key"
 msgstr "Data key"
 
 #: src/features/encryption/components/encrypted-fields.tsx
-msgctxt "encryption.g5AEsp"
-msgid "Values of sensitive fields are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them."
-msgstr "Values of sensitive fields are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them."
+msgctxt "encryption.M_fgIO"
+msgid "Values of sensitive fields and encrypted columns are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them."
+msgstr "Values of sensitive fields and encrypted columns are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them."
 
 #: src/features/encryption/components/encrypted-fields.tsx
 msgctxt "encryption.UVKDU0"
 msgid "Key owner"
 msgstr "Key owner"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.ORGv1Q"
+msgid "Created"
+msgstr "Created"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.SWWUQl"
+msgid "No key yet"
+msgstr "No key yet"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.ffRGLy"
+msgid "Last rotated"
+msgstr "Last rotated"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.u8xl3o"
+msgid "Lookup key"
+msgstr "Lookup key"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.450Fty"
+msgid "None"
+msgstr "None"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.hPF2iF"
+msgid "Encrypted columns"
+msgstr "Encrypted columns"
 
 #: src/features/encryption/components/encrypted-fields.tsx
 msgctxt "encryption.pxKgbm"
@@ -11972,6 +12007,31 @@ msgstr "State"
 msgctxt "encryption.-Cegy-"
 msgid "Encrypted"
 msgstr "Encrypted"
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.1YrFvL"
+msgid "Key rotated; {count} stored values encrypted again"
+msgstr "Key rotated; {count} stored values encrypted again"
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.afYI6-"
+msgid "Rotate key"
+msgstr "Rotate key"
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.c97Bzv"
+msgid "Rotate the data key?"
+msgstr "Rotate the data key?"
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.9yC9I0"
+msgid "A new key replaces the current one and every encrypted value is encrypted again in one step. Writes to those tables wait until it finishes."
+msgstr "A new key replaces the current one and every encrypted value is encrypted again in one step. Writes to those tables wait until it finishes."
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
 
 #: src/features/evals/components/eval-items-card.tsx
 msgctxt "evals.IRrIur"
@@ -16668,26 +16728,31 @@ msgid "Queued"
 msgstr "Queued"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.cXAlMR"
 msgid "Scheduled"
 msgstr "Scheduled"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.nDyaq_"
 msgid "Running"
 msgstr "Running"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.6p8Isg"
 msgid "Retrying"
 msgstr "Retrying"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.LOghU6"
 msgid "Succeeded"
 msgstr "Succeeded"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.vXCeIi"
 msgid "Failed"
 msgstr "Failed"
@@ -31408,6 +31473,51 @@ msgid "Send a test event"
 msgstr "Send a test event"
 
 #: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.eKEL_g"
+msgid "Pending"
+msgstr "Pending"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.rVHwFO"
+msgid "Delivering"
+msgstr "Delivering"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.DMqnF4"
+msgid "Delivered"
+msgstr "Delivered"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.6p8Isg"
+msgid "Retrying"
+msgstr "Retrying"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.vXCeIi"
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.PFtMy9"
+msgid "Canceled"
+msgstr "Canceled"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.OvzONl"
+msgid "Off"
+msgstr "Off"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.tKELc3"
+msgid "Failing"
+msgstr "Failing"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
 msgctxt "webhooks.G3Nn73"
 msgid "Webhook endpoints"
 msgstr "Webhook endpoints"
@@ -32210,6 +32320,7 @@ msgid "No node matches {query}"
 msgstr "No node matches {query}"
 
 #: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/builder/components/schema-form.tsx
 msgctxt "workflows.Sa3kyT"
 msgid "Pick a credential"
 msgstr "Pick a credential"
@@ -32374,6 +32485,21 @@ msgstr "Open the run"
 msgctxt "workflows.orxoH6"
 msgid "This is not valid JSON"
 msgstr "This is not valid JSON"
+
+#: src/features/workflows/builder/components/schema-form.tsx
+msgctxt "workflows.x3H7PM"
+msgid "Pick a step"
+msgstr "Pick a step"
+
+#: src/features/workflows/builder/components/schema-form.tsx
+msgctxt "workflows.iGwcJE"
+msgid "Pick a workflow"
+msgstr "Pick a workflow"
+
+#: src/features/workflows/builder/components/schema-form.tsx
+msgctxt "workflows.jv0kC8"
+msgid "Its published version starts when this node runs."
+msgstr "Its published version starts when this node runs."
 
 #: src/features/workflows/builder/components/schema-form.tsx
 msgctxt "workflows.lXeyAt"

@@ -28,13 +28,15 @@ function columnsOf(meta: SchemaMeta, fn: FunctionMeta): Columns | null {
   if (result && "table" in result) {
     const table = meta.tables[result.table];
 
-    if (table) {
-      columns = new Map();
+    if (!table) {
+      return null;
+    }
 
-      for (const [db, [app, column]] of lookupOf(table).byDb) {
-        if (app !== db || column.codec) {
-          columns.set(db, [app, column.codec]);
-        }
+    columns = new Map();
+
+    for (const [db, [app, column]] of lookupOf(table).byDb) {
+      if (app !== db || column.codec) {
+        columns.set(db, [app, column.codec]);
       }
     }
   } else if (result) {
@@ -76,6 +78,10 @@ export function rpcSelect(
 
     const table =
       result && "table" in result ? meta.tables[result.table] : undefined;
+
+    if (result && "table" in result && !table) {
+      return undefined;
+    }
 
     const columns: readonly (readonly [string, Codec | undefined])[] = table
       ? [...lookupOf(table).byDb].map(([db, [, column]]) => [db, column.codec])

@@ -166,4 +166,20 @@ describe("rpcSelect", () => {
     expect(rpcSelect(meta, meta.functions["ping"])).toBeUndefined();
     expect(rpcSelect(meta, undefined)).toBeUndefined();
   });
+
+  it("does not remember a result table that has not loaded yet", () => {
+    const later: FunctionMeta = { ...deals, name: "later_deals" };
+
+    expect(rpcSelect(meta, later)).toBeUndefined();
+    expect(decodeRpcResult(meta, later, { value_amount: "5" })).toEqual({
+      value_amount: "5",
+    });
+    expect(rpcSelect(withTable, later)).toEqual([
+      { column: "id" },
+      { column: "value_amount", cast: "text" },
+    ]);
+    expect(decodeRpcResult(withTable, later, { value_amount: "5" })).toEqual({
+      valueAmount: 5n,
+    });
+  });
 });

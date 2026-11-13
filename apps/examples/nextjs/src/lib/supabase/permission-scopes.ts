@@ -168,6 +168,7 @@ export const apiKeyScopes = [
   "expenses.manage",
   "expenses.read",
   "expenses.submit",
+  "field_encryption.manage",
   "field_history.read",
   "forecasts.read",
   "forecasts.snapshot",

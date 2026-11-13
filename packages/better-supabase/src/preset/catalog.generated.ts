@@ -1943,7 +1943,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
-        "imports"
+        "imports",
+        "field-encryption"
       ],
       "entities": {
         "specs": {
@@ -29473,8 +29474,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "FieldEncryptionEvents",
         "types": [
-          "field_key.dropped"
+          "field_key.dropped",
+          "field_key.rotated"
         ]
+      },
+      "entityPermissions": {
+        "field_key": {
+          "manage": "field_encryption.manage"
+        }
       }
     },
     {

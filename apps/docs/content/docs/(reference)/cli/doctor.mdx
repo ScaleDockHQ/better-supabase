@@ -2441,11 +2441,14 @@ rotate the key.
 ### BS502
 
 **Warning: env file with secrets isn't ignored by git.** An env file holds a
-secret key or database URL but no `.gitignore` pattern matches it. Add the
-file, for example `.env*.local`, to `.gitignore`. `.example` files are skipped.
-The check reads the `.gitignore` files from the app up to the folder that holds
-`.git`, so a pattern in the repository root counts, and a `!` negation line
-never counts as a pattern.
+secret key or database URL but git doesn't ignore it. Doctor asks
+`git check-ignore`, so the `.gitignore` files of parent folders (a monorepo
+root's, for example), `.git/info/exclude` and the global excludes count, and a
+committed file is reported even when a pattern matches it. Outside a git work
+tree it reads every `.gitignore` from the app up to the folder that holds
+`.git`, each against paths relative to its own folder, with `!` negations.
+Add the file, for example `.env*.local`, to a `.gitignore`, and run
+`git rm --cached` on one that was committed. `.example` files are skipped.
 
 ### BS503
 

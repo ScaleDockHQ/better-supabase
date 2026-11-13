@@ -133,7 +133,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   housekeeping: "maintenance maintenance_scheduler",
   idempotency:
     "acquire_lease begin_idempotent complete_idempotent extend_idempotent extend_lease purge_idempotency_keys release_idempotent release_lease",
-  "field-encryption": "field_key_status",
+  "field-encryption": "field_key_status rotate_field_key",
   identities:
     "backfill_verified_emails begin_identity_link my_identities principal_by_identity redeem_identity_link unlink_identity",
   impersonation:

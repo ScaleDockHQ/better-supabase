@@ -195,7 +195,7 @@ may be your own enum or domain.
   - `better_supabase.time_rates`: `id`, `tenant_id`, `user_id`, `subject_type`, `subject_id`, `rate`, `currency`, `effective_from`
   - `better_supabase.time_invoice_entries`: `entry_id`, `tenant_id`, `invoice_id`, `rate`, `currency`, `seconds`
 - `billing`
-  - `better_supabase.billing_native_subscriptions`: `id`, `tenant_id`, `plan`, `currency`, `unit_amount`, `quantity`, `billing_interval`, `status`, `period_start`, `period_end`, `canceled_at`, `created_at`
+  - `better_supabase.billing_native_subscriptions`: `id`, `tenant_id`, `plan`, `currency`, `unit_amount`, `quantity`, `billing_interval`, `status`, `period_starts_at`, `period_ends_at`, `canceled_at`, `created_at`
   - `better_supabase.billing_customers`: `tenant_id`, `stripe_customer_id`
   - `better_supabase.billing_subscriptions`: `tenant_id`, `subscription_id`, `status`, `event_at`; typed: `status`
 - `bookings`
@@ -425,8 +425,8 @@ may be your own enum or domain.
   - `better_supabase.identity_links`: `id`, `kind`, `provider`, `value`, `user_id`, `source`; typed: `kind`, `source`
   - `better_supabase.identity_link_codes`: `id`, `user_id`, `kind`, `provider`, `code_hash`, `expires_at`, `used_at`; typed: `kind`
 - `impersonation`
-  - `better_supabase.support_sessions`: `id`, `admin_id`, `target_user_id`, `reason`, `started_at`, `expires_at`, `ended_at`
-  - `better_supabase.support_requests`: `id`, `admin_id`, `target_user_id`, `reason`, `tenant_id`, `read_only`, `metadata`, `requested_at`, `expires_at`, `approved_by`, `approved_at`, `session_id`
+  - `better_supabase.support_sessions`: `id`, `admin_id`, `target_id`, `reason`, `started_at`, `expires_at`, `ended_at`
+  - `better_supabase.support_requests`: `id`, `admin_id`, `target_id`, `reason`, `tenant_id`, `read_only`, `metadata`, `requested_at`, `expires_at`, `approved_by`, `approved_at`, `session_id`
 - `imports`
   - `better_supabase.import_runs`: `id`, `tenant_id`, `source`, `status`, `mapping`, `counts`, `errors`, `diff`, `dry_run`, `full`, `input_checksum`, `correlation_id`, `mapper_version`, `scope_aliases`, `plan`, `outcome`, `lease_expires_at`, `heartbeat_at`, `created_by`, `created_at`, `started_at`, `finished_at`; typed: `status`
   - `better_supabase.import_records`: `id`, `tenant_id`, `source`, `scope`, `entity`, `external_key`, `role`, `subject_type`, `subject_id`, `content_hash`, `first_run_id`, `last_run_id`, `subject_imported_updated_at`, `source_updated_at`, `owned_hash`, `went_missing_at`
@@ -833,7 +833,7 @@ may be your own enum or domain.
   - `better_supabase.marketplace_resources`: `id`, `installation_id`, `external_id`, `name`, `status`, `tenant`; typed: `status`
   - `better_supabase.marketplace_plans`: `id`, `name`, `kind`; typed: `kind`
   - `better_supabase.marketplace_invoices`: `id`, `installation_id`, `external_id`, `state`, `total`, `currency`, `event_at`; typed: `state`
-  - `better_supabase.marketplace_meter_reports`: `id`, `installation_id`, `resource_external_id`, `meter_id`, `period_start`, `period_end`, `quantity`, `reported_quantity`, `reported_at`
+  - `better_supabase.marketplace_meter_reports`: `id`, `installation_id`, `resource_external_id`, `meter_id`, `period_starts_at`, `period_ends_at`, `quantity`, `reported_quantity`, `reported_at`
 - `versions`
   - `better_supabase.versions`: `id`, `tenant_id`, `subject_type`, `subject_id`, `number`, `label`, `content`, `storage_path`, `content_hash`, `file_hash`, `hash_version`, `source`, `frozen`, `created_by`, `created_at`
 - `waitlist`

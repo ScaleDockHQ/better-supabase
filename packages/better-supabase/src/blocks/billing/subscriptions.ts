@@ -99,8 +99,8 @@ export function createNativeSubscriptions(
             unitAmount: textOf(row["unit_amount"]),
             quantity: Number(row["quantity"]),
             interval: intervalOf(row["interval"]),
-            periodStart: textOf(row["period_start"]),
-            periodEnd: textOf(row["period_end"]),
+            periodStart: textOf(row["period_starts_at"]),
+            periodEnd: textOf(row["period_ends_at"]),
           };
         },
       ),

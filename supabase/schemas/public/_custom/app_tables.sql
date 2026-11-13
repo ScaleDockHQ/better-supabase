@@ -49,18 +49,18 @@ begin
     v_old_owner := 'tenant:' || (old."organization_id")::text;
     v_moved := v_owner is distinct from v_old_owner;
   end if;
-  if new."diagnosis" is not null and (case when tg_op = 'INSERT' then true else new."diagnosis" is distinct from old."diagnosis" end or left(new."diagnosis", 5) <> 'bsf1:') then
+  if new."diagnosis" is not null and left(new."diagnosis", 5) is distinct from 'bsf1:' then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."diagnosis" := "better_supabase"."field_seal"(v_key, new."diagnosis");
-  elsif new."diagnosis" is not null and v_moved then
+  elsif new."diagnosis" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."diagnosis" is distinct from old."diagnosis" end) then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."diagnosis" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."diagnosis"));
   end if;
-  if new."birth_date" is not null and (case when tg_op = 'INSERT' then true else new."birth_date" is distinct from old."birth_date" end or left(new."birth_date", 5) <> 'bsf1:') then
+  if new."birth_date" is not null and left(new."birth_date", 5) is distinct from 'bsf1:' then
     new."birth_date" := ((new."birth_date")::date)::text;
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."birth_date" := "better_supabase"."field_seal"(v_key, new."birth_date");
-  elsif new."birth_date" is not null and v_moved then
+  elsif new."birth_date" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."birth_date" is distinct from old."birth_date" end) then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."birth_date" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."birth_date"));
   end if;

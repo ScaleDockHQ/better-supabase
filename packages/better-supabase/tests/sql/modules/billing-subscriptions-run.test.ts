@@ -54,14 +54,14 @@ declare
 begin
   ${SERVICE}
   v_sub := better_supabase.create_native_subscription('${TENANT}', 'pro', 'eur', 3000, 2, 'month', '2026-01-01T00:00:00Z');
-  v_result := better_supabase.prorate_change((v_sub ->> 'id')::uuid, 6000, null, ((v_sub ->> 'period_start')::timestamptz + ((v_sub ->> 'period_end')::timestamptz - (v_sub ->> 'period_start')::timestamptz) / 2));
+  v_result := better_supabase.prorate_change((v_sub ->> 'id')::uuid, 6000, null, ((v_sub ->> 'period_starts_at')::timestamptz + ((v_sub ->> 'period_ends_at')::timestamptz - (v_sub ->> 'period_starts_at')::timestamptz) / 2));
   if v_result ->> 'credit' <> '3000' or v_result ->> 'charge' <> '6000' or v_result ->> 'net' <> '3000' or v_result ->> 'transaction_id' is null then
     raise exception 'upgrade %', v_result;
   end if;
   if (select sum(amount) from better_supabase.ledger_entries) <> 0 or (select count(*) from better_supabase.ledger_transactions) <> 1 then
     raise exception 'ledger';
   end if;
-  v_again := better_supabase.prorate_change((v_sub ->> 'id')::uuid, 3000, 2, ((v_sub ->> 'period_start')::timestamptz + ((v_sub ->> 'period_end')::timestamptz - (v_sub ->> 'period_start')::timestamptz) / 2));
+  v_again := better_supabase.prorate_change((v_sub ->> 'id')::uuid, 3000, 2, ((v_sub ->> 'period_starts_at')::timestamptz + ((v_sub ->> 'period_ends_at')::timestamptz - (v_sub ->> 'period_starts_at')::timestamptz) / 2));
   if v_again ->> 'net' <> '-3000' then
     raise exception 'downgrade %', v_again;
   end if;

@@ -118,7 +118,7 @@ describe("impersonation module", () => {
     );
     expect(sql).toContain('create table "better_supabase"."support_requests"');
     expect(sql).toContain(
-      'insert into "public"."impersonation_sessions" ("impersonator_id", "target_user_id", "reason", "expires_at")',
+      'insert into "public"."impersonation_sessions" ("impersonator_id", "target_id", "reason", "expires_at")',
     );
     expect(sql).toContain("'read_only', true,");
     expect(sql).toContain("'metadata', '{}'::jsonb");

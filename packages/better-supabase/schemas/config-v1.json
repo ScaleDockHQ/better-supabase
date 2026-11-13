@@ -5818,7 +5818,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "sealed": {}
+            }
           }
         }
       },

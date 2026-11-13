@@ -40,6 +40,15 @@ const EVENTS: BlockSqlEvents<VercelMarketplaceEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: [
+    ["invoices", "Invoice"],
+    ["meterReports", "Meter report"],
+  ].map(([table = "", noun = ""]) => ({
+    from: 2,
+    description: `${noun} periods are period_starts_at and period_ends_at: timestamp columns end in _at.`,
+    table,
+    columns: { periodStart: "period_start", periodEnd: "period_end" },
+  })),
   events: EVENTS,
   options: ["currency"],
   tables: {
@@ -120,8 +129,8 @@ const NAMES: BlockSqlNames = {
         installation: "installation_id",
         externalId: "external_id",
         state: "state",
-        periodStart: "period_start",
-        periodEnd: "period_end",
+        periodStart: "period_starts_at",
+        periodEnd: "period_ends_at",
         total: "total",
         currency: "currency",
         items: "items",
@@ -140,8 +149,8 @@ const NAMES: BlockSqlNames = {
         installation: "installation_id",
         resourceExternalId: "resource_external_id",
         meterId: "meter_id",
-        periodStart: "period_start",
-        periodEnd: "period_end",
+        periodStart: "period_starts_at",
+        periodEnd: "period_ends_at",
         quantity: "quantity",
         reportedQuantity: "reported_quantity",
         reportedAt: "reported_at",
@@ -1073,7 +1082,7 @@ export const VERCEL_MARKETPLACE: BlockSqlDefinition = {
   requires: [],
   integrates: ["outbox", "audit"],
   target: "schema",
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,

@@ -181,6 +181,13 @@ export function SchemaForm({
 
   const entries = Object.entries(properties.output);
 
+  const texts: FieldTexts = {
+    pickStep: t("Pick a step"),
+    pickWorkflow: t("Pick a workflow"),
+    publishedVersion: t("Its published version starts when this node runs."),
+    pickCredential: t("Pick a credential"),
+  };
+
   if (entries.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -206,13 +213,21 @@ export function SchemaForm({
           set: (next) => {
             onChange(key, next);
           },
-          t,
+          texts,
         });
 
         return <div key={key}>{input}</div>;
       })}
     </FieldGroup>
   );
+}
+
+/** The form's fixed texts, translated where the form calls `useExtracted`. */
+interface FieldTexts {
+  readonly pickStep: string;
+  readonly pickWorkflow: string;
+  readonly publishedVersion: string;
+  readonly pickCredential: string;
 }
 
 function renderField({
@@ -223,7 +238,7 @@ function renderField({
   value,
   context,
   set,
-  t,
+  texts,
 }: {
   key: string;
   field: FieldSchema;
@@ -232,7 +247,7 @@ function renderField({
   value: JsonValue | undefined;
   context: SchemaFormContext;
   set: (value: JsonValue | undefined) => void;
-  t: ReturnType<typeof useExtracted>;
+  texts: FieldTexts;
 }) {
   const hint = field.description;
 
@@ -261,7 +276,7 @@ function renderField({
           }))}
         >
           <SelectTrigger id={fieldId}>
-            <SelectValue placeholder={t("Pick a step")} />
+            <SelectValue placeholder={texts.pickStep} />
           </SelectTrigger>
           <SelectContent>
             {context.steps.map((step) => (
@@ -317,7 +332,7 @@ function renderField({
           }))}
         >
           <SelectTrigger id={fieldId}>
-            <SelectValue placeholder={t("Pick a workflow")} />
+            <SelectValue placeholder={texts.pickWorkflow} />
           </SelectTrigger>
           <SelectContent>
             {context.definitions.map((definition) => (
@@ -327,9 +342,7 @@ function renderField({
             ))}
           </SelectContent>
         </Select>
-        <FieldDescription>
-          {t("Its published version starts when this node runs.")}
-        </FieldDescription>
+        <FieldDescription>{texts.publishedVersion}</FieldDescription>
       </Field>
     );
   }
@@ -353,7 +366,7 @@ function renderField({
           }))}
         >
           <SelectTrigger id={fieldId}>
-            <SelectValue placeholder={t("Pick a credential")} />
+            <SelectValue placeholder={texts.pickCredential} />
           </SelectTrigger>
           <SelectContent>
             {options.map((credential) => (
