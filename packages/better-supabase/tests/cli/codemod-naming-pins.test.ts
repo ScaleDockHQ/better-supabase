@@ -52,6 +52,27 @@ describe("columnPins", () => {
     ).toEqual([]);
   });
 
+  it("pins no tenant column that sql.tenantColumn already names", () => {
+    const blocks = { outbox: { tables: { events: "public.workflow_events" } } };
+    const own = { "public.workflow_events": "table" } as const;
+
+    const columns = {
+      "public.workflow_events": ["id", "organization_id", "created_at"],
+    };
+
+    expect(
+      columnPins({ blocks }, NAMING_RENAMES, own, columns).pins,
+    ).toContainEqual(expect.objectContaining({ column: "tenant" }));
+    expect(
+      columnPins(
+        { blocks, sql: { tenantColumn: "organization_id" } },
+        NAMING_RENAMES,
+        own,
+        columns,
+      ).pins,
+    ).toEqual([]);
+  });
+
   it("pins a state-machine history actor and a hiring scorecard column", () => {
     const history = columnPins(
       {
