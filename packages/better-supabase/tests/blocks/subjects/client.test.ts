@@ -31,8 +31,10 @@ const reads = {} as Subjects["reads"];
 const record = {} as Subjects["record"];
 const can = (() => resolved({})) as Subjects["can"];
 const view = (() => resolved(undefined)) as Subjects["view"];
+const label = (() => resolved({})) as Subjects["label"];
 
 const resolver = () => ({
+  label,
   can,
   view,
   record,
@@ -50,6 +52,22 @@ const resolver = () => ({
       ),
     ),
   ),
+});
+
+describe("batchSubjects label", () => {
+  it("labels through the joined resolve call", async () => {
+    const inner = resolver();
+    const batched = batchSubjects(inner);
+
+    const [first, second] = await Promise.all([
+      batched.label([{ type: "task", id: "a" }]),
+      batched.label([{ type: "task", id: "b" }]),
+    ]);
+
+    expect(inner.resolve).toHaveBeenCalledOnce();
+    expect(first.ok && first.data["task:a"]?.label).toBe("A");
+    expect(second.ok && second.data["task:b"]?.found).toBe(true);
+  });
 });
 
 describe("batchSubjects", () => {
@@ -72,6 +90,7 @@ describe("batchSubjects", () => {
 
   it("passes an error to every caller of the batch", async () => {
     const batched = batchSubjects({
+      label,
       can,
       view,
       record,
@@ -92,6 +111,7 @@ describe("batchSubjects", () => {
 
   it("leaves out a subject the source didn't return", async () => {
     const batched = batchSubjects({
+      label,
       can,
       view,
       record,

@@ -34,6 +34,7 @@ export const observationsBlock: BlockOf<
       emits: { create: true, update: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.",
 });

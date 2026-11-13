@@ -34,6 +34,7 @@ export const appraisalsBlock: BlockOf<
     appraisal_competency: { mutability: "read-only" },
     appraisal_review_rating: { mutability: "read-only" },
   },
+  concerns: ["lifecycle"],
   description:
     "Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.",
 });

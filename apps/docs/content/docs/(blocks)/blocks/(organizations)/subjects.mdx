@@ -42,6 +42,44 @@ type registered in `config.recordTypes` gets a branch in each one.
 `better-supabase/blocks/subjects` reads the same functions from the client.
 The `subject-link`, `subject-chip` and `my-work` recipes render them.
 
+`label(refs)` returns a label for every subject you pass, keyed by
+`type:id`, so a review, a segment or an inbox row never shows a raw id. It
+reads the same titles as `resolve` and adds a fallback: a subject nothing names
+gets its id as the label and `found: false`. `batchSubjects` joins the calls of
+one tick, so a list of labels costs one round trip:
+
+```ts
+const labels = await subjects
+  .label([{ type: "person", id: personId }])
+  .orThrow();
+
+labels[`person:${personId}`]; // { type, id, label: "Ada Lovelace", url, found: true }
+```
+
+`createPartyResolver` goes one step further for subjects that stand for a
+person or an organization. Contacts, people, employees, identities and
+profiles each store a name and a picture in their own table, so you give the
+resolver a reader per type and it answers with a name, initials and an avatar
+URL for any subject. A type without a reader gets its label and no avatar:
+
+```ts
+import {
+  createPartyResolver,
+  createSubjects,
+} from "better-supabase/blocks/subjects";
+
+const subjects = createSubjects({ transport });
+
+const parties = createPartyResolver({
+  label: subjects.label,
+  readers: {
+    employee: (ids) => readEmployeeProfiles(ids), // { [id]: { name, avatarUrl } }
+  },
+});
+
+const found = await parties.resolve([{ type: "employee", id }]).orThrow();
+```
+
 `members` manages the record teams of the types that declare
 `subjects.<type>.team`:
 

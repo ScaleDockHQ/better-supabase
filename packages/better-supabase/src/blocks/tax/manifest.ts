@@ -23,6 +23,7 @@ export const taxBlock: BlockOf<"tax", typeof createTax, TaxEvents> =
       tax_rate: { mutability: "editable", emits: { update: false } },
       tax_return: { mutability: "state-machine" },
     },
+    concerns: ["lifecycle", "search"],
     description:
       "Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.",
   });

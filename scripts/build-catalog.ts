@@ -41,6 +41,7 @@ import type { PresetAccess } from "../packages/better-supabase/src/preset/fields
 import type { BlockSql } from "../packages/better-supabase/src/sql/index.ts";
 
 import { ENTITY_SCHEMA_KINDS } from "../packages/better-supabase/src/blocks/entity-schema.ts";
+import { withSearchDefault } from "../packages/better-supabase/src/blocks/entity-search.ts";
 import { PORT_NAMES } from "../packages/better-supabase/src/blocks/ports.ts";
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
 import {
@@ -757,7 +758,10 @@ function presetBlock(module: BlockSql): PresetCatalogBlock {
     block = { ...block, tenantNameClashes: clashes };
   }
 
-  const entities = Object.entries(module.names?.entities ?? {});
+  const entities = Object.entries(module.names?.entities ?? {}).map(
+    ([key, spec]) =>
+      [key, withSearchDefault(spec, manifest.entities ?? {})] as const,
+  );
 
   if (entities.length > 0) {
     block = {

@@ -26,6 +26,7 @@ export const agentCheckoutBlock: BlockOf<
     },
     agent_mandate: { mutability: "state-machine", emits: { create: true } },
   },
+  concerns: ["lifecycle"],
   description:
     "ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.",
 });

@@ -30,6 +30,7 @@ export const assetsBlock: BlockOf<
       emits: { create: true, update: true },
     },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.",
 });

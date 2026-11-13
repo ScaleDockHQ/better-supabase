@@ -32,6 +32,7 @@ export const shipmentsBlock: BlockOf<
     shipment_tracking_event: { mutability: "read-only" },
     shipment_line: { mutability: "read-only" },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.",
   recipes: ["shipment-tracking"],

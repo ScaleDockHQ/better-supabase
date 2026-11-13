@@ -26,6 +26,7 @@ export const clinicalDecisionSupportBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.",
 });

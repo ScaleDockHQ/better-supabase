@@ -28,6 +28,7 @@ export const payrollExportBlock: BlockOf<
     },
     payroll_line: { mutability: "read-only" },
   },
+  concerns: ["lifecycle"],
   description:
     "Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.",
 });

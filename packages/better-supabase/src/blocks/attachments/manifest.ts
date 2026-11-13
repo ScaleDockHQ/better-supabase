@@ -32,6 +32,7 @@ export const attachmentsBlock: BlockOf<
       emits: { create: false, delete: false },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.",
   recipes: ["attachments-uploader", "subject-timeline", "message-composer"],

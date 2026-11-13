@@ -38,6 +38,7 @@ export const qualificationsBlock: BlockOf<
       emits: { create: false, delete: false },
     },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.",
 });

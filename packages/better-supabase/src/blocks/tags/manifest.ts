@@ -29,6 +29,7 @@ export const tagsBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.",
   recipes: ["record-page", "tag-input"],

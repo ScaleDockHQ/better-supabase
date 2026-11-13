@@ -5634,6 +5634,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           }
@@ -6186,6 +6190,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "read": "read",
                 "write": "manage",
                 "upload": "submit"
+              },
+              "search": {
+                "title": "description",
+                "body": []
               }
             }
           },
@@ -6303,6 +6311,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -6788,6 +6800,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -6808,6 +6824,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           }
@@ -7183,6 +7203,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "read": "read",
                 "write": "send",
                 "upload": "send"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           }
@@ -7979,6 +8003,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -9272,6 +9300,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -9283,6 +9315,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -9444,6 +9480,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -9708,6 +9748,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -9881,6 +9925,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -10522,6 +10570,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "licensee",
+                "body": []
               }
             }
           },
@@ -10613,6 +10665,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -12123,6 +12179,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
