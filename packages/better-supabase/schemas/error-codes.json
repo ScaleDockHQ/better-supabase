@@ -4832,8 +4832,16 @@
     "message": "no rule fields for this subject type; sync them first"
   },
   {
+    "code": "SEARCH_CURSOR_INVALID",
+    "message": "this cursor does not belong to this query"
+  },
+  {
     "code": "SEARCH_EMBEDDINGS_MISMATCH",
     "message": "Every array needs one element per document"
+  },
+  {
+    "code": "SEARCH_FILTER_INVALID",
+    "message": "filter must be a JSON object of facet values"
   },
   {
     "code": "SEARCH_QUERY_TOO_LONG",

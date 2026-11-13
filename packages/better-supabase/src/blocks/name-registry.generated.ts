@@ -2142,9 +2142,9 @@ export interface BlockNameRegistry {
   };
   readonly "search": {
     readonly tables: {
-      readonly "documents": "tenant" | "subjectType" | "subjectId" | "title" | "titleSearch" | "body" | "url" | "tsv" | "contentHash" | "embedding" | "updatedAt" | "description";
+      readonly "documents": "tenant" | "subjectType" | "subjectId" | "title" | "titleSearch" | "body" | "url" | "tsv" | "contentHash" | "embedding" | "updatedAt" | "description" | "facets" | "sortKey";
     };
-    readonly functions: "search" | "search_enqueue" | "search_favorites" | "search_index_row" | "search_normalize" | "search_recents" | "search_refresh" | "search_refresh_dirty" | "search_reindex" | "search_remove" | "search_star" | "search_touch" | "search_user_state";
+    readonly functions: "search" | "search_enqueue" | "search_favorites" | "search_index_row" | "search_normalize" | "search_page" | "search_recents" | "search_refresh" | "search_refresh_dirty" | "search_reindex" | "search_remove" | "search_star" | "search_touch" | "search_user_state";
     readonly actions: "read";
     readonly hooks: "before_search_document_index" | "after_search_document_index";
     readonly entities: {};

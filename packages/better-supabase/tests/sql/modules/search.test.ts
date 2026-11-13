@@ -137,6 +137,37 @@ describe("search module", () => {
     expect(sqlOf()).not.toContain("search_documents_pending_idx");
   });
 
+  it("indexes facets and a sort key, and pages with search_page", () => {
+    const sql = sqlOf({
+      subjects: {
+        task: {
+          table: "app.tasks",
+          title: "name",
+          search: { facets: ["customer_id", "status"] },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      `jsonb_strip_nulls(jsonb_build_object('customer_id', s."customer_id", 'status', s."status"))`,
+    );
+    expect(sql).toContain(
+      `after insert or delete or update of "id", "organization_id", "name", "customer_id", "status" on "app"."tasks"`,
+    );
+    expect(sql).toContain(`using gin ("facets" jsonb_path_ops)`);
+    expect(sql).toContain(
+      `search_documents_browse_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type", "sort_key", "subject_id")`,
+    );
+    expect(sql).not.toContain("search_documents_tenant_idx on");
+    expect(sql).toContain(
+      `left("better_supabase"."search_normalize"(v_title), 200)`,
+    );
+    expect(sql).toContain(`"better_supabase"."search_page"(q text`);
+    expect(sql).toContain("limit 500");
+    expect(sql).toContain(`d."facets" @> v_filter`);
+    expect(sql).toMatch(/search_page[^]*security invoker/);
+  });
+
   it("reindexes in the data file, only when a subject is searched", () => {
     const data = (layout: BlockSqlLayout) =>
       render(layout)

@@ -1400,6 +1400,8 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "SCORES_SUBJECT_INVALID": "Subject must be an object and subject_id set.",
   "SCORES_SUBJECT_MISMATCH": "The score model scores another subject type.",
   "SCORES_SUBJECT_UNKNOWN": "No rule fields for this subject type; sync them first.",
+  "SEARCH_CURSOR_INVALID": "This cursor does not belong to this query.",
+  "SEARCH_FILTER_INVALID": "Filter must be a JSON object of facet values.",
   "SEARCH_QUERY_TOO_LONG": "A search query is at most 256 characters.",
   "SEARCH_SIGNED_OUT": "Sign in to keep recents.",
   "SEARCH_SUBJECT_UNKNOWN": "This subject type has no search entry in config.recordTypes.",

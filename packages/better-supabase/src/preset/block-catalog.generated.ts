@@ -1726,7 +1726,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "search",
       "title": "Search",
       "category": "Work management",
-      "description": "A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
+      "description": "A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.",
       "requires": [
         "memberships",
         "permissions",
