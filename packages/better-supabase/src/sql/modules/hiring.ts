@@ -97,7 +97,13 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_application_hire", "after_application_hire"],
-  options: ["candidate", "stages", "scorecardKey", "hiringManager"],
+  options: [
+    "candidate",
+    "stages",
+    "scorecardKey",
+    "hiringManager",
+    "ratingMax",
+  ],
   tables: {
     jobs: {
       name: "job_openings",
@@ -279,6 +285,8 @@ function build(ctx: BlockSqlContext): string {
   const interviewerRows = optIn(ctx, "interviewers");
   const scoreRows = optIn(ctx, "scorecardScores");
   const pipelined = stages === undefined && ctx.has("applications", "pipeline");
+
+  const ratingMax = ctx.number("ratingMax", 4);
 
   const perApplication =
     choice(ctx, "scorecardKey", ["stage", "application"]) === "application" ||
@@ -497,7 +505,7 @@ create table if not exists ${t("scorecards")} (
   ${s("tenant")} ${ctx.idType} not null,
   ${s("application")} uuid not null references ${t("applications")} (${a("id")}) on delete cascade,${column("scorecards", "stage", "uuid")}
   ${s("reviewer")} uuid not null,
-  ${s("rating")} smallint not null check (${s("rating")} between 1 and 4),${ctx.has("scorecards", "recommendation") ? `\n  ${s("recommendation")} text not null check (${s("recommendation")} in ('strong_no', 'no', 'yes', 'strong_yes')),` : ""}${column("scorecards", "notes", "text")}
+  ${s("rating")} smallint not null check (${s("rating")} between 1 and ${ratingMax}),${ctx.has("scorecards", "recommendation") ? `\n  ${s("recommendation")} text not null check (${s("recommendation")} in ('strong_no', 'no', 'yes', 'strong_yes')),` : ""}${column("scorecards", "notes", "text")}
   ${s("submittedAt")} timestamptz not null default now(),
   ${perApplication ? `unique (${s("application")}, ${s("reviewer")})` : `unique nulls not distinct (${s("application")}, ${s("stage")}, ${s("reviewer")})`}
 );${perApplication ? appUniqueIndex(ctx, "scorecards", ["application", "reviewer"]) : appUniqueIndex(ctx, "scorecards", ["application", "stage", "reviewer"]).replace(/;$/, " nulls not distinct;")}
@@ -759,7 +767,7 @@ $$;
 ${userGrant(`${fn("close_application")}(uuid, text, text)`)}
 
 -- The caller's scorecard on an application at its current stage: a rating
--- from 1 to 4 and a recommendation. Submitting again replaces it.
+-- from 1 to ${ratingMax} and a recommendation. Submitting again replaces it.
 ${scoreRows ? `drop function if exists ${fn("submit_scorecard")}(uuid, integer, text, text);\n` : ""}create or replace function ${fn("submit_scorecard")}(application uuid, rating integer, recommendation text, notes text${scoreRows ? ", scores jsonb default null" : ""})
 returns jsonb
 language plpgsql
@@ -777,13 +785,13 @@ begin
     ctx.appOwned.includes("scorecards")
       ? ctx.has("scorecards", "recommendation")
         ? `
-  if submit_scorecard.rating is null or submit_scorecard.rating not between 1 and 4
+  if submit_scorecard.rating is null or submit_scorecard.rating not between 1 and ${ratingMax}
     or submit_scorecard.recommendation is null or submit_scorecard.recommendation not in ('strong_no', 'no', 'yes', 'strong_yes') then
-    ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating from 1 to 4 and a recommendation", "22023")}
+    ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating and a recommendation", "22023")}
   end if;`
         : `
-  if submit_scorecard.rating is null or submit_scorecard.rating not between 1 and 4 then
-    ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating from 1 to 4", "22023")}
+  if submit_scorecard.rating is null or submit_scorecard.rating not between 1 and ${ratingMax} then
+    ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating", "22023")}
   end if;`
       : ""
   }
@@ -795,7 +803,7 @@ begin
       ${perApplication && ctx.has("scorecards", "stage") ? `${s("stage")} = excluded.${s("stage")}, ` : ""}${ctx.has("scorecards", "notes") ? `${s("notes")} = excluded.${s("notes")}, ` : ""}${s("submittedAt")} = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
-    ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating from 1 to 4 and a recommendation", "22023")}
+    ${fail("HIRING_SCORECARD_INVALID", "a scorecard needs a rating and a recommendation", "22023")}
   end;${scoreRows ? scoresWrite(ctx) : ""}
   ${record("scorecard.submitted", "v_row", `, 'reviewerId', v_card.${s("reviewer")}, 'recommendation', ${or("scorecards", "v_card", "recommendation")}`)}
   return ${scorecardJson("v_card")};

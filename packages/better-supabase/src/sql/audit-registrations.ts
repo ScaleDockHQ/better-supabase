@@ -217,6 +217,11 @@ const DROP = /* @__PURE__ */ new RegExp(
   "gi",
 );
 
+const RENAME = /* @__PURE__ */ new RegExp(
+  String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(?:(${IDENT})\s*\.\s*)?(${IDENT})\s+rename\s+to\s+(${IDENT})`,
+  "gi",
+);
+
 const names = (value: unknown): string[] =>
   Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -255,8 +260,9 @@ function triggerRegistration(
  * The tables `files` register with `better_supabase.audit(...)` or a static
  * `create trigger bsb_audit ... execute function
  * better_supabase.audit_row_change('{...}')`, in file order: a later
- * registration for the same table replaces the earlier one, and `unaudit(...)`
- * or a `drop table` removes it. Calls with non-literal arguments are skipped.
+ * registration for the same table replaces the earlier one, `unaudit(...)` or a
+ * `drop table` removes it, and `alter table ... rename to` moves it to the new
+ * name. Calls with non-literal arguments are skipped.
  */
 export function auditRegistrations(
   files: readonly { readonly text: string }[],
@@ -279,9 +285,27 @@ export function auditRegistrations(
         match,
         kind: "drop" as const,
       })),
+      ...[...text.matchAll(RENAME)].map((match) => ({
+        match,
+        kind: "rename" as const,
+      })),
     ].toSorted((a, b) => a.match.index - b.match.index);
 
     for (const { match, kind } of found) {
+      if (kind === "rename") {
+        const [, schema = "public", table, renamed] = match;
+        const from = qualifiedName(`${schema}.${table!}`);
+        const entry = tables.get(from);
+
+        if (entry) {
+          const target = qualifiedName(`${schema}.${renamed!}`);
+          tables.delete(from);
+          tables.set(target, { ...entry, target });
+        }
+
+        continue;
+      }
+
       if (kind === "drop") {
         for (const [name] of match[1]!.matchAll(new RegExp(TABLE_NAME, "g"))) {
           tables.delete(qualifiedName(name.replaceAll(/\s+/g, "")));

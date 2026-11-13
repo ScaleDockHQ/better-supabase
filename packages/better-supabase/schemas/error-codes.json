@@ -2398,7 +2398,7 @@
   },
   {
     "code": "HIRING_SCORECARD_INVALID",
-    "message": "a scorecard needs a rating from 1 to 4 and a recommendation"
+    "message": "a scorecard needs a rating and a recommendation"
   },
   {
     "code": "HIRING_SCORES_INVALID",

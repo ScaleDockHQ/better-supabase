@@ -209,6 +209,7 @@ export function columnPins(
   config: {
     readonly blocks: ResolvedConfig["blocks"];
     readonly instances?: ResolvedConfig["instances"];
+    readonly sql?: Pick<ResolvedConfig["sql"], "tenantColumn">;
   },
   renames: readonly NamingRename[],
   ownTables: Readonly<Record<string, string>>,
@@ -236,6 +237,9 @@ export function columnPins(
       ]),
     ),
     ownTables,
+    ...(config.sql?.tenantColumn === undefined
+      ? {}
+      : { blockTenantColumn: config.sql.tenantColumn }),
     ...(config.instances === undefined
       ? {}
       : {
@@ -301,6 +305,7 @@ export function columnPins(
         if (
           rename !== undefined &&
           configured[table]?.[column] === undefined &&
+          !(column === "tenant" && rename.from === config.sql?.tenantColumn) &&
           has.includes(rename.from) &&
           !has.includes(rename.to)
         ) {
