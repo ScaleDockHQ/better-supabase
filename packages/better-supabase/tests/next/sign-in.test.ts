@@ -88,7 +88,6 @@ const env = {
 };
 
 const NAME = "sb-abcdefghijklmnopqrst-auth-token";
-const VERIFIER = `${NAME}-code-verifier`;
 const USER = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
 const signer = await createTestSigner();
@@ -114,9 +113,32 @@ function callsOf(
   return fetch.mock.calls.map(([input, init]) => ({
     url: String(input),
     body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
-    // SAFETY: the grants pass headers as a plain object.
-    headers: (init?.headers ?? {}) as Record<string, string>,
+    headers: Object.fromEntries(new Headers(init?.headers)),
   }));
+}
+
+/** The PKCE verifier cookies auth-js keeps through `@supabase/ssr`. */
+function verifierCookies(): string[] {
+  return [...mocks.jar.keys()].filter((name) =>
+    name.endsWith("-code-verifier"),
+  );
+}
+
+async function challengeOf(verifier: unknown): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(String(verifier)),
+  );
+
+  return Buffer.from(new Uint8Array(digest)).toString("base64url");
+}
+
+function bodyOf(
+  fetch: ReturnType<typeof vi.fn<Fetch>>,
+  index: number,
+): Record<string, unknown> {
+  // SAFETY: Auth requests send JSON objects.
+  return (callsOf(fetch)[index]?.body ?? {}) as Record<string, unknown>;
 }
 
 function setup(
@@ -293,7 +315,7 @@ describe("auth flows", () => {
     expect(
       (await odd.bsb.signInWithPassword({ email: "a@b.test", password: "pw" }))
         .error,
-    ).toMatchObject({ kind: "network", message: "fetch failed" });
+    ).toMatchObject({ kind: "network" });
 
     const fetch = vi.fn<Fetch>(
       async (_input, init) =>
@@ -560,7 +582,7 @@ describe("auth flows", () => {
     expect(linked.data?.redirectTo).toBe("/welcome");
     expect(coded.data?.redirectTo).toBe("/");
     expect((await bsb.getClaims())?.userId).toBe(USER);
-    expect(callsOf(fetch).map((call) => [call.url, call.body])).toEqual([
+    expect(callsOf(fetch).map((call) => [call.url, call.body])).toMatchObject([
       [
         `${PROJECT_URL}/auth/v1/verify`,
         { type: "magiclink", token_hash: "hash" },
@@ -603,7 +625,6 @@ describe("auth flows", () => {
     });
 
     const target = new URL(url);
-    const verifier = mocks.jar.get(VERIFIER);
 
     expect(target.origin + target.pathname).toBe(
       `${PROJECT_URL}/auth/v1/authorize`,
@@ -615,23 +636,8 @@ describe("auth flows", () => {
       scopes: "read:user",
       prompt: "consent",
     });
-    expect(verifier?.options).toMatchObject({
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 600,
-      path: "/",
-    });
-
-    const challenge = new Uint8Array(
-      await crypto.subtle.digest(
-        "SHA-256",
-        new TextEncoder().encode(verifier?.value),
-      ),
-    );
-
-    expect(target.searchParams.get("code_challenge")).toBe(
-      Buffer.from(challenge).toString("base64url"),
-    );
+    expect(target.searchParams.get("code_challenge")).not.toBe("forged");
+    expect(verifierCookies()).not.toEqual([]);
 
     nextRequest();
 
@@ -643,17 +649,18 @@ describe("auth flows", () => {
     expect(exchanged.data?.redirectTo).toBe("/projects");
     expect(callsOf(fetch)[0]).toMatchObject({
       url: `${PROJECT_URL}/auth/v1/token?grant_type=pkce`,
-      body: { auth_code: "c1", code_verifier: verifier?.value },
+      body: { auth_code: "c1" },
     });
-    expect(mocks.jar.has(VERIFIER)).toBe(false);
+    expect(await challengeOf(bodyOf(fetch, 0)["code_verifier"])).toBe(
+      target.searchParams.get("code_challenge"),
+    );
     expect(await sessionToken()).toBe(token);
+
+    nextRequest();
 
     const replayed = await bsb.exchangeCodeForSession({ code: "c1" });
 
-    expect(replayed.error).toMatchObject({
-      kind: "unauthorized",
-      code: "code_verifier_missing",
-    });
+    expect(replayed.error).toMatchObject({ kind: "unauthorized" });
     expect(fetch).toHaveBeenCalledOnce();
   });
 
@@ -671,7 +678,7 @@ describe("auth flows", () => {
     );
   });
 
-  it("deletes the verifier when the exchange fails", async () => {
+  it("passes a failed exchange through", async () => {
     const { bsb } = setup(() =>
       Response.json({ error_code: "flow_state_expired" }, { status: 400 }),
     );
@@ -684,7 +691,6 @@ describe("auth flows", () => {
     const exchanged = await bsb.exchangeCodeForSession({ code: "old" });
 
     expect(exchanged.error).toMatchObject({ code: "flow_state_expired" });
-    expect(mocks.jar.has(VERIFIER)).toBe(false);
   });
 
   it("verifies MFA and commits the aal2 session", async () => {
@@ -732,24 +738,13 @@ describe("auth flows", () => {
     expect((await bsb.getClaims())?.claims["aal"]).toBe("aal2");
   });
 
-  it("refuses MFA without a session or a challenge id", async () => {
-    const token = await signer.sign({ sub: USER });
-
-    const { bsb } = setup((url) =>
-      url.endsWith("/challenge")
-        ? Response.json({ type: "totp" })
-        : tokens(token),
-    );
+  it("refuses MFA without a session", async () => {
+    const { bsb, fetch } = setup(() => Response.error());
 
     expect(
       (await bsb.verifyMfa({ factorId: "f1", code: "1" })).error,
     ).toMatchObject({ kind: "unauthorized" });
-
-    await bsb.signInWithPassword({ email: "a@b.test", password: "pw" });
-
-    expect(
-      (await bsb.verifyMfa({ factorId: "f1", code: "1" })).error,
-    ).toMatchObject({ kind: "unauthorized", message: "MFA challenge failed" });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("passes a failed challenge through", async () => {
@@ -768,15 +763,6 @@ describe("auth flows", () => {
     ).toMatchObject({ code: "mfa_factor_not_found" });
   });
 
-  async function challengeOf(verifier: string | undefined): Promise<string> {
-    const digest = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(verifier),
-    );
-
-    return Buffer.from(new Uint8Array(digest)).toString("base64url");
-  }
-
   const CALLBACK = "https://app.test/auth/callback";
 
   it("emails a magic link with a PKCE challenge and exchanges its code", async () => {
@@ -793,25 +779,16 @@ describe("auth flows", () => {
       data: { name: "A" },
     });
 
-    const verifier = mocks.jar.get(VERIFIER);
-
     expect(sent).toEqual({ ok: true, data: null, error: null });
-    expect(verifier?.options).toMatchObject({
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 600,
-      path: "/",
-    });
-    expect(callsOf(fetch)[0]).toEqual({
+    expect(verifierCookies()).not.toEqual([]);
+    expect(callsOf(fetch)[0]).toMatchObject({
       url: `${PROJECT_URL}/auth/v1/otp?redirect_to=${encodeURIComponent(`${CALLBACK}?next=%2Fprojects`)}`,
       body: {
         email: "a@b.test",
         create_user: true,
         data: { name: "A" },
-        code_challenge: await challengeOf(verifier?.value),
         code_challenge_method: "s256",
       },
-      headers: expect.any(Object),
     });
     expect(await sessionToken()).toBeUndefined();
 
@@ -826,11 +803,10 @@ describe("auth flows", () => {
       redirectTo: "/projects",
       user: { id: USER, email: "a@b.test" },
     });
-    expect(callsOf(fetch)[1]?.body).toEqual({
-      auth_code: "c1",
-      code_verifier: verifier?.value,
-    });
-    expect(mocks.jar.has(VERIFIER)).toBe(false);
+    expect(bodyOf(fetch, 1)).toMatchObject({ auth_code: "c1" });
+    expect(await challengeOf(bodyOf(fetch, 1)["code_verifier"])).toBe(
+      bodyOf(fetch, 0)["code_challenge"],
+    );
     expect(await sessionToken()).toBe(token);
   });
 
@@ -847,16 +823,10 @@ describe("auth flows", () => {
       next: "//evil.test",
     });
 
-    const verifier = mocks.jar.get(VERIFIER)?.value;
-
     expect(sent.ok).toBe(true);
     expect(callsOf(fetch)[0]).toMatchObject({
       url: `${PROJECT_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(`${CALLBACK}?type=recovery`)}`,
-      body: {
-        email: "a@b.test",
-        code_challenge: await challengeOf(verifier),
-        code_challenge_method: "s256",
-      },
+      body: { email: "a@b.test", code_challenge_method: "s256" },
     });
 
     nextRequest();
@@ -864,10 +834,10 @@ describe("auth flows", () => {
     const exchanged = await bsb.exchangeCodeForSession({ code: "r1" });
 
     expect(exchanged.ok).toBe(true);
-    expect(callsOf(fetch)[1]?.body).toEqual({
-      auth_code: "r1",
-      code_verifier: verifier,
-    });
+    expect(bodyOf(fetch, 1)).toMatchObject({ auth_code: "r1" });
+    expect(await challengeOf(bodyOf(fetch, 1)["code_verifier"])).toBe(
+      bodyOf(fetch, 0)["code_challenge"],
+    );
     expect(await sessionToken()).toBe(token);
   });
 
@@ -889,7 +859,7 @@ describe("auth flows", () => {
         email: "a@b.test",
         password: "pw",
         data: {},
-        code_challenge: await challengeOf(mocks.jar.get(VERIFIER)?.value),
+        code_challenge: expect.any(String),
       },
     });
     expect(await sessionToken()).toBeUndefined();
@@ -915,7 +885,6 @@ describe("auth flows", () => {
       data: { existingAccount: true },
       error: null,
     });
-    expect(mocks.jar.get(VERIFIER)?.value ?? "").toBe("");
     expect(await sessionToken()).toBeUndefined();
 
     const fresh = setup(() =>
@@ -955,7 +924,6 @@ describe("auth flows", () => {
       user: { id: USER, email: "a@b.test" },
     });
     expect(await sessionToken()).toBe(token);
-    expect(mocks.jar.has(VERIFIER)).toBe(false);
     expect((await bsb.getClaims())?.userId).toBe(USER);
   });
 
@@ -967,7 +935,6 @@ describe("auth flows", () => {
       password: "pw",
       redirectTo: CALLBACK,
     });
-    const first = mocks.jar.get(VERIFIER)?.value;
 
     const sent = await bsb.resend({
       type: "signup",
@@ -975,22 +942,21 @@ describe("auth flows", () => {
       redirectTo: CALLBACK,
     });
 
-    const second = mocks.jar.get(VERIFIER)?.value;
-
     expect(sent.ok).toBe(true);
-    expect(second).not.toBe(first);
     expect(callsOf(fetch)[1]).toMatchObject({
       url: `${PROJECT_URL}/auth/v1/resend?redirect_to=${encodeURIComponent(CALLBACK)}`,
       body: {
         email: "a@b.test",
         type: "signup",
-        code_challenge: await challengeOf(second),
         code_challenge_method: "s256",
       },
     });
+    expect(bodyOf(fetch, 1)["code_challenge"]).not.toBe(
+      bodyOf(fetch, 0)["code_challenge"],
+    );
   });
 
-  it("maps a refused email request without Auth's message and drops the verifier", async () => {
+  it("maps a refused email request without Auth's message", async () => {
     const { bsb } = setup((url) =>
       url.includes("/otp")
         ? Response.json(
@@ -1014,7 +980,6 @@ describe("auth flows", () => {
       error: { kind: "unauthorized", code: "otp_disabled" },
     });
     expect(refused.error?.message).not.toContain("Signups");
-    expect(mocks.jar.has(VERIFIER)).toBe(false);
 
     const limited = await bsb.resetPasswordForEmail({
       email: "a@b.test",
@@ -1025,7 +990,6 @@ describe("auth flows", () => {
       kind: "rate_limited",
       code: "over_email_send_rate_limit",
     });
-    expect(mocks.jar.has(VERIFIER)).toBe(false);
   });
 });
 

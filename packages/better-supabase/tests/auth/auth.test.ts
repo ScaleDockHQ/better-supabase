@@ -15,7 +15,6 @@ import {
   ssrSession,
   serializeCookie,
   sessionCookieName,
-  writeSession,
 } from "../../src/auth/session.ts";
 import { sessionMemo } from "../../src/auth/snapshot.ts";
 import { toSession } from "../../src/auth/view.ts";
@@ -27,6 +26,7 @@ import {
 } from "../../src/core/problem.ts";
 import { envSchema, parseEnv, toServerEnv } from "../../src/env/index.ts";
 import { createTestSigner, signTestJwt } from "../../src/testing/jwt.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 

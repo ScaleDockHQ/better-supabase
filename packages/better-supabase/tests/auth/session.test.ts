@@ -3,11 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CookieWrite, StoredSession } from "../../src/auth/session.ts";
 
-import {
-  applyCookieWrites,
-  ssrSession,
-  writeSession,
-} from "../../src/auth/session.ts";
+import { applyCookieWrites, ssrSession } from "../../src/auth/session.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const NAME = "sb-abcdefghijklmnopqrst-auth-token";

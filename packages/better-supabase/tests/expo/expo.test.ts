@@ -2,7 +2,6 @@ import { StatusError } from "expo-server";
 import { ImmutableRequest } from "expo-server/private";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { writeSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { dbError, DbException } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
@@ -10,6 +9,7 @@ import { createExpo } from "../../src/expo/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { countResolutions } from "../fixtures/instant-sessions.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const written = vi.hoisted(() => ({ headers: new Headers() }));
 

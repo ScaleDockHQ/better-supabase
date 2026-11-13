@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { Executor } from "../../src/core/executor.ts";
 import type { FunctionSpec, FunctionSpecOptions } from "../../src/core/spec.ts";
 
-import { writeSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
@@ -21,6 +20,7 @@ import {
 import { testAdapter } from "../../src/testing/adapter.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const mocks = vi.hoisted(() => ({
   headers: new Headers(),

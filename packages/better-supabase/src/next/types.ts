@@ -801,18 +801,17 @@ export interface BetterNext<
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
   /**
-   * The Auth server's OAuth URL for `provider`, for a `redirect()`. It writes
-   * the PKCE verifier cookie (httpOnly, `lax`, 10 minutes) that
-   * `exchangeCodeForSession` reads. `next` rides on `redirectTo` as `?next=`
-   * when it is a same-origin path.
+   * The Auth server's OAuth URL for `provider`, for a `redirect()`, from
+   * auth-js's `signInWithOAuth`. auth-js stores the PKCE verifier in a cookie
+   * through `@supabase/ssr`, where `exchangeCodeForSession` reads it. `next`
+   * rides on `redirectTo` as `?next=` when it is a same-origin path.
    */
   signInWithOAuth(
     params: SignInWithOAuthParams,
   ): Promise<{ readonly url: string }>;
   /**
    * Exchanges the callback's `?code=` and the PKCE verifier cookie for a
-   * session, deletes the verifier cookie and commits the session like
-   * `signInWithPassword`.
+   * session with auth-js, and commits it like `signInWithPassword`.
    */
   exchangeCodeForSession(
     params: ExchangeCodeParams,
@@ -868,7 +867,7 @@ export interface BetterNext<
   ): Promise<ActionResult<SignedIn | ExistingAccount | null>>;
   /**
    * Emails the sign-up confirmation or the email change link again, with a new
-   * PKCE verifier cookie.
+   * PKCE verifier.
    */
   resend(params: ResendParams): Promise<ActionResult<null>>;
 }
@@ -897,11 +896,7 @@ export interface SignInWithOAuthParams extends AuthorizeUrlParams {
   readonly next?: string | null;
 }
 
-/**
- * Where an email link lands. The verifier cookie lives 10 minutes and holds one
- * flow: a newer `signInWithOAuth` or email flow in the same browser replaces
- * it.
- */
+/** Where an email link lands. */
 export interface EmailRedirect {
   /**
    * The absolute URL of the callback route that calls `exchangeCodeForSession`.

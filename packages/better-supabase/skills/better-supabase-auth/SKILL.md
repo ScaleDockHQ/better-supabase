@@ -206,8 +206,9 @@ membership lasts until the next refresh. When that window matters:
   `bsb.getClaims()`) see the new session, so build the landing
   context from them.
 - Start email link flows with `bsb.signInWithOtp`, `resetPasswordForEmail`,
-  `signUp` or `resend`, not supabase-js: they write the PKCE verifier cookie
-  that `exchangeCodeForSession` reads on the link's callback.
+  `signUp` or `resend`, or with the browser client: auth-js stores the PKCE
+  verifier in a cookie that `exchangeCodeForSession` reads on the link's
+  callback.
 - After signing in or out in the browser client: `useSessionChange(sessionChanged)` from
   `better-supabase/next/client`. After switching the active organization:
   `useSessionChange(sessionChanged, router, { refreshToken: supabase })`, so

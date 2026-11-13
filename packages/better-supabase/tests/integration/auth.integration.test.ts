@@ -10,11 +10,7 @@ import type { CookieRecord } from "../../src/auth/session.ts";
 
 import { resolveAuth } from "../../src/auth/resolve.ts";
 import { verifySession } from "../../src/auth/revocation.ts";
-import {
-  ssrSession,
-  sessionCookieName,
-  writeSession,
-} from "../../src/auth/session.ts";
+import { ssrSession, sessionCookieName } from "../../src/auth/session.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createClient as createBetterClient } from "../../src/client/index.ts";
 import { createSupabase } from "../../src/core/define.ts";
@@ -27,6 +23,7 @@ import {
 import { createServer } from "../../src/server/server.ts";
 import { moduleBody } from "../../src/sql/render.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 import { deleteAudit } from "./audit-cleanup.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
 

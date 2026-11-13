@@ -2,13 +2,9 @@ import type { CookieOptions } from "@supabase/ssr";
 
 import {
   combineChunks,
-  createChunks,
-  DEFAULT_COOKIE_OPTIONS,
-  isChunkLike,
   parseCookieHeader,
   serializeCookieHeader,
   stringFromBase64URL,
-  stringToBase64URL,
 } from "@supabase/ssr";
 
 export type { CookieOptions };
@@ -33,13 +29,6 @@ export interface StoredSession {
  * server and the browser client must use the same value.
  */
 export type SessionEncoding = "user-and-tokens" | "tokens-only";
-
-const DEFAULT_SESSION_ENCODING: SessionEncoding = "user-and-tokens";
-
-export interface WriteSessionOptions {
-  /** Defaults to `user-and-tokens`, the `@supabase/ssr` default. */
-  readonly encode?: SessionEncoding;
-}
 
 /** A cookie scope an earlier deploy wrote the session at. */
 export interface CookieScope {
@@ -159,70 +148,6 @@ export function ssrSession(
   memo.set(cookieName, read);
 
   return read;
-}
-
-function encoded(session: StoredSession, encode: SessionEncoding): string {
-  switch (encode) {
-    case "user-and-tokens": {
-      return JSON.stringify(session);
-    }
-
-    case "tokens-only": {
-      const { user: _user, ...tokens } = session;
-
-      return JSON.stringify(tokens);
-    }
-
-    default: {
-      const unhandled: never = encode;
-
-      return unhandled;
-    }
-  }
-}
-
-/**
- * Cookie writes that store a session a sign-in flow received, exactly like
- * `@supabase/ssr` with the same `encode`, and expire chunks the new value no
- * longer uses. Refreshes and sign-outs write through `@supabase/ssr` itself
- * (`ssr-client.ts`).
- */
-export function writeSession(
-  existing: readonly CookieRecord[],
-  name: string,
-  session: StoredSession | null,
-  options: CookieOptions = {},
-  { encode = DEFAULT_SESSION_ENCODING }: WriteSessionOptions = {},
-): CookieWrite[] {
-  const base: CookieOptions = { ...DEFAULT_COOKIE_OPTIONS, ...options };
-
-  const chunks = session
-    ? createChunks(
-        name,
-        `base64-${stringToBase64URL(encoded(session, encode))}`,
-      )
-    : [];
-
-  const kept = new Set(chunks.map((chunk) => chunk.name));
-
-  const removals = existing
-    .filter(
-      (cookie) => isChunkLike(cookie.name, name) && !kept.has(cookie.name),
-    )
-    .map((cookie) => ({
-      name: cookie.name,
-      value: "",
-      options: { ...base, maxAge: 0 },
-    }));
-
-  return [
-    ...removals,
-    ...chunks.map((chunk) => ({
-      name: chunk.name,
-      value: chunk.value,
-      options: base,
-    })),
-  ];
 }
 
 /** Applies cookie writes to a cookie list, as the next request would see it. */

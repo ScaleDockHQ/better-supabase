@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import type { OrpcRequestContext } from "../../src/orpc/index.ts";
 
-import { writeSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { createOrpc } from "../../src/orpc/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 

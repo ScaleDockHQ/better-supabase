@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { clearSessionCookies, sessionStatus } from "../../src/auth/ended.ts";
-import { sessionCookieName, writeSession } from "../../src/auth/session.ts";
+import { sessionCookieName } from "../../src/auth/session.ts";
+import { writeSession } from "../fixtures/session-cookies.ts";
 
 const PROJECT = "https://ref.supabase.co";
 const NAME = sessionCookieName(PROJECT);

@@ -1,16 +1,15 @@
+import type { AuthError, SupabaseClient } from "@supabase/supabase-js";
+
+import { createServerClient } from "@supabase/ssr";
+
 import type {
   AuthResolution,
   AuthState,
   ResolveAuthOptions,
 } from "../auth/resolve.ts";
-import type { CookieScope, StoredSession } from "../auth/session.ts";
-import type {
-  EmailFlowPath,
-  ExistingAccount,
-  PasswordGrantOptions,
-} from "../auth/sign-in.ts";
+import type { CookieScope, CookieWrite } from "../auth/session.ts";
+import type { ExistingAccount } from "../auth/sign-in.ts";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
-import type { Result } from "../core/result.ts";
 import type { ActionResult } from "../server/kit.ts";
 import type {
   ExchangeCodeParams,
@@ -29,36 +28,36 @@ import type {
 } from "./types.ts";
 
 import { clientIp } from "../auth/resolve.ts";
+import { applyCookieWrites, sessionCookieName } from "../auth/session.ts";
 import {
-  applyCookieWrites,
-  sessionCookieName,
-  writeSession,
-} from "../auth/session.ts";
-import {
-  authorizeUrlFor,
-  emailFlow,
-  isExistingAccount,
-  mfaGrant,
+  authFailure,
+  isStandInUser,
   needsMfa,
-  otpGrant,
-  passwordGrant,
-  pkceGrant,
-  pkcePair,
-  revokeSession,
   safeRedirectPath,
 } from "../auth/sign-in.ts";
 import { authOfSnapshot, snapshotOf } from "../auth/snapshot.ts";
 import { clearCookieSession } from "../auth/ssr-client.ts";
 import { dbError } from "../core/errors.ts";
-import { ok } from "../core/result.ts";
 
 interface CookieJar {
   getAll(): readonly { readonly name: string; readonly value: string }[];
   set(name: string, value: string, options: object): unknown;
 }
 
-/** How long the PKCE verifier cookie lives, in seconds. */
-const VERIFIER_MAX_AGE = 600;
+const DEFAULT_TIMEOUT_MS = 5000;
+
+/** The part of a new session a commit reads. */
+interface Granted {
+  readonly access_token: string;
+  readonly user?: unknown;
+}
+
+/** One flow's `createServerClient` and the cookie writes it buffered. */
+interface Flow {
+  readonly auth: SupabaseClient["auth"];
+  readonly writes: CookieWrite[];
+  failed(error: AuthError, what: string): ActionResult<never>;
+}
 
 /**
  * Where to send the user after signing in: the `next` value of the search
@@ -170,11 +169,12 @@ function refused(auth: AuthState): ActionResult<never> {
 }
 
 /**
- * The server-side sign-in and sign-out flows. Each runs one Auth call, then one
- * commit: it verifies the new token, writes or clears the session cookies
- * through the request's cookie jar, and publishes the session to later reads in
- * the same request. The result carries no token: it crosses the action
- * boundary, and the session is on the request's reads.
+ * The server-side sign-in and sign-out flows. Each runs one auth-js call on a
+ * `createServerClient` made for it, then one commit: it verifies the new token,
+ * writes the cookies the client produced through the request's cookie jar, and
+ * publishes the session to later reads in the same request. The result carries
+ * no token: it crosses the action boundary, and the session is on the request's
+ * reads.
  */
 export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
   const { auth } = deps;
@@ -182,24 +182,86 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
   const cookieName = (): string =>
     auth?.cookie?.name ?? sessionCookieName(deps.env().url);
 
-  const verifierName = (): string => `${cookieName()}-code-verifier`;
+  /**
+   * A server client on the request's cookies whose writes wait in `writes`: a
+   * session reaches the jar only once its token verifies. With the secret key
+   * and a client IP, Auth's per-IP rate limit counts the user, not the server
+   * (`Sb-Forwarded-For`).
+   */
+  const flow = async (): Promise<Flow> => {
+    const env = deps.env();
 
-  const setVerifier = async (value: string, maxAge: number): Promise<void> => {
-    (await deps.jar()).set(verifierName(), value, {
-      path: "/",
-      ...auth?.cookie?.options,
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge,
-    });
+    const ip =
+      env.secretKey && auth?.clientIp !== false
+        ? (auth?.clientIp ?? clientIp)(await deps.request())
+        : undefined;
+
+    const forwarded = env.secretKey && ip ? env.secretKey : undefined;
+    const existing = (await deps.jar()).getAll();
+    const writes: CookieWrite[] = [];
+    const baseFetch = auth?.fetch ?? fetch;
+    const timeoutMs = auth?.refreshTimeoutMs ?? DEFAULT_TIMEOUT_MS;
+    let timedOut = false;
+
+    const timedFetch: typeof fetch = async (input, init) => {
+      const timeout = AbortSignal.timeout(timeoutMs);
+
+      try {
+        return await baseFetch(input, {
+          ...init,
+          signal: init?.signal
+            ? AbortSignal.any([init.signal, timeout])
+            : timeout,
+        });
+      } catch (error) {
+        timedOut ||= timeout.aborted;
+        throw error;
+      }
+    };
+
+    const client = createServerClient(
+      env.url,
+      forwarded ?? env.publishableKey,
+      {
+        cookieOptions: { ...auth?.cookie?.options, name: cookieName() },
+        cookies: {
+          getAll: () =>
+            existing.map((cookie) => ({
+              name: cookie.name,
+              value: cookie.value,
+            })),
+          setAll: (cookies) => {
+            writes.push(...cookies);
+          },
+          ...(auth?.cookie?.encode === undefined
+            ? {}
+            : { encode: auth.cookie.encode }),
+        },
+        global: {
+          fetch: timedFetch,
+          ...(forwarded && ip ? { headers: { "sb-forwarded-for": ip } } : {}),
+        },
+      },
+    );
+
+    return {
+      auth: client.auth,
+      writes,
+      failed: (error, what) => ({
+        ok: false,
+        data: null,
+        error: authFailure(error, what, timedOut),
+      }),
+    };
   };
 
-  /** Writes a new PKCE verifier cookie and returns its challenge. */
-  const startPkce = async (): Promise<string> => {
-    const { verifier, challenge } = await pkcePair();
-    await setVerifier(verifier, VERIFIER_MAX_AGE);
+  /** Writes a flow's cookies, such as the PKCE verifier of an email flow. */
+  const keep = async (writes: readonly CookieWrite[]): Promise<void> => {
+    const jar = await deps.jar();
 
-    return challenge;
+    for (const write of writes) {
+      jar.set(write.name, write.value, write.options);
+    }
   };
 
   /** `redirectTo` with a same-origin `next` as `?next=`. */
@@ -214,94 +276,45 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
     return target.href;
   };
 
-  /** Starts an email flow; drops the verifier when Auth refuses it. */
-  const sendEmail = async (
-    path: EmailFlowPath,
-    params: EmailRedirect,
-    body: Record<string, unknown>,
-  ): Promise<Result<StoredSession | ExistingAccount | null>> => {
-    const challenge = await startPkce();
+  const requested = async (
+    started: Flow,
+    error: AuthError | null,
+    what: string,
+  ): Promise<ActionResult<null>> => {
+    await keep(started.writes);
 
-    const sent = await emailFlow(
-      path,
-      { body, redirectTo: callbackUrl(params), challenge },
-      await grantOptions(),
-    );
-
-    if (!sent.ok) {
-      await setVerifier("", 0);
-    }
-
-    return sent;
+    return error
+      ? started.failed(error, what)
+      : { ok: true, data: null, error: null };
   };
 
-  const requested = (sent: Result<unknown>): ActionResult<null> =>
-    sent.ok ? { ok: true, data: null, error: null } : sent;
+  const noSession = (what: string): ActionResult<never> => ({
+    ok: false,
+    data: null,
+    error: dbError("unauthorized", `${what} returned no session`, {
+      code: "no_session",
+    }),
+  });
 
-  const grantOptions = async (): Promise<PasswordGrantOptions> => {
-    const env = deps.env();
-    const secretKey = env.secretKey;
-
-    const ip =
-      secretKey && auth?.clientIp !== false
-        ? (auth?.clientIp ?? clientIp)(await deps.request())
-        : undefined;
-
-    return {
-      url: env.url,
-      publishableKey: env.publishableKey,
-      ...(secretKey && ip ? { forwardedFor: { ip, secretKey } } : {}),
-      ...(auth?.fetch ? { fetch: auth.fetch } : {}),
-      ...(auth?.refreshTimeoutMs === undefined
-        ? {}
-        : { timeoutMs: auth.refreshTimeoutMs }),
-    };
-  };
-
-  /** Verifies, writes the cookies and publishes `stored` (`null` clears). */
+  /**
+   * Verifies `granted`, writes `writes` and publishes the session (`null` signs
+   * out).
+   */
   const commit = async (
-    granted: Result<StoredSession | null>,
+    granted: Granted | null,
+    writes: readonly CookieWrite[],
     next: string | null | undefined,
     options: SignInOptions,
   ): Promise<ActionResult<SignedIn>> => {
-    if (!granted.ok) {
-      return granted;
-    }
+    const resolution = await deps.verify(granted?.access_token ?? null);
 
-    const stored = granted.data;
-    const resolution = await deps.verify(stored?.access_token ?? null);
-
-    if (stored && resolution.auth.kind !== "user") {
+    if (granted && resolution.auth.kind !== "user") {
       return refused(resolution.auth);
     }
 
-    const jar = await deps.jar();
-    const existing = jar.getAll();
+    const existing = (await deps.jar()).getAll();
 
-    const writes = stored
-      ? writeSession(
-          existing,
-          cookieName(),
-          stored,
-          auth?.cookie?.options,
-          auth?.cookie?.encode === undefined
-            ? {}
-            : { encode: auth.cookie.encode },
-        )
-      : (
-          await clearCookieSession({
-            cookieName: cookieName(),
-            cookies: existing,
-            ...(auth?.cookie?.options
-              ? { cookieOptions: auth.cookie.options }
-              : {}),
-            scopes: deps.cookieScopes ?? [],
-          })
-        ).writes;
-
-    for (const write of writes) {
-      jar.set(write.name, write.value, write.options);
-    }
+    await keep(writes);
 
     const headers = new Headers((await deps.request()).headers);
 
@@ -322,8 +335,8 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
       data: {
         redirectTo: safeRedirectPath(next, options.fallback ?? "/"),
         mfa:
-          stored !== null &&
-          needsMfa(stored) &&
+          granted !== null &&
+          needsMfa(granted.user) &&
           snapshotOf(resolution.auth)?.claims["aal"] !== "aal2",
         user: resolution.auth.kind === "user" ? resolution.auth.user : null,
       },
@@ -331,114 +344,150 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
     };
   };
 
-  const signInWithPassword: AuthFlows["signInWithPassword"] = async (
-    credentials,
-    options = {},
-  ) =>
-    commit(
-      await passwordGrant(
-        { email: credentials.email, password: credentials.password },
-        await grantOptions(),
-      ),
-      credentials.next,
-      options,
-    );
-
   return {
-    signInWithPassword,
+    async signInWithPassword(credentials, options = {}) {
+      const started = await flow();
 
-    verifyOtp: async (params, options = {}) =>
-      commit(
-        await otpGrant(params, await grantOptions()),
-        params.next,
-        options,
-      ),
+      const { data, error } = await started.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      });
+
+      return error
+        ? started.failed(error, "Sign-in")
+        : commit(data.session, started.writes, credentials.next, options);
+    },
+
+    async verifyOtp(params, options = {}) {
+      const started = await flow();
+
+      const { data, error } = await started.auth.verifyOtp(
+        "tokenHash" in params
+          ? { type: params.type, token_hash: params.tokenHash }
+          : { type: params.type, email: params.email, token: params.token },
+      );
+
+      if (error) {
+        return started.failed(error, "Verification");
+      }
+
+      return data.session
+        ? commit(data.session, started.writes, params.next, options)
+        : noSession("Verification");
+    },
 
     async signInWithOAuth(params) {
-      const challenge = await startPkce();
+      const started = await flow();
 
-      return {
-        url: authorizeUrlFor(
-          deps.env().url,
-          { ...params, redirectTo: callbackUrl(params) },
-          challenge,
-        ),
-      };
+      const { data, error } = await started.auth.signInWithOAuth({
+        provider: params.provider,
+        options: {
+          redirectTo: callbackUrl(params),
+          skipBrowserRedirect: true,
+          ...(params.scopes ? { scopes: params.scopes } : {}),
+          ...(params.queryParams
+            ? { queryParams: { ...params.queryParams } }
+            : {}),
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      await keep(started.writes);
+
+      return { url: data.url };
     },
 
     async signInWithOtp(params) {
-      return requested(
-        await sendEmail("otp", params, {
-          email: params.email,
-          create_user: params.shouldCreateUser ?? true,
-          data: params.data ?? {},
-        }),
-      );
+      const started = await flow();
+
+      const { error } = await started.auth.signInWithOtp({
+        email: params.email,
+        options: {
+          emailRedirectTo: callbackUrl(params),
+          shouldCreateUser: params.shouldCreateUser ?? true,
+          data: { ...params.data },
+        },
+      });
+
+      return requested(started, error, "Email request");
     },
 
     async resetPasswordForEmail(params) {
-      return requested(
-        await sendEmail("recover", params, { email: params.email }),
-      );
+      const started = await flow();
+
+      const { error } = await started.auth.resetPasswordForEmail(params.email, {
+        redirectTo: callbackUrl(params),
+      });
+
+      return requested(started, error, "Email request");
     },
 
     async signUp(params, options = {}) {
-      const sent = await sendEmail("signup", params, {
+      const started = await flow();
+
+      const { data, error } = await started.auth.signUp({
         email: params.email,
         password: params.password,
-        data: params.data ?? {},
+        options: {
+          emailRedirectTo: callbackUrl(params),
+          data: { ...params.data },
+        },
       });
 
-      if (!sent.ok || sent.data === null) {
-        return requested(sent);
+      if (error) {
+        return requested(started, error, "Sign-up");
       }
 
-      await setVerifier("", 0);
-
-      if (isExistingAccount(sent.data)) {
-        return { ok: true, data: sent.data, error: null };
+      if (data.session) {
+        return commit(data.session, started.writes, params.next, options);
       }
 
-      return commit(ok(sent.data), params.next, options);
-    },
+      if (isStandInUser(data.user)) {
+        await keep(started.writes);
 
-    async resend(params) {
-      return requested(
-        await sendEmail("resend", params, {
-          email: params.email,
-          type: params.type,
-        }),
-      );
-    },
-
-    async exchangeCodeForSession(params, options = {}) {
-      const verifier = (await deps.jar())
-        .getAll()
-        .find((cookie) => cookie.name === verifierName())?.value;
-
-      await setVerifier("", 0);
-
-      if (!verifier) {
         return {
-          ok: false,
-          data: null,
-          error: dbError("unauthorized", "Code exchange failed", {
-            code: "code_verifier_missing",
-          }),
+          ok: true,
+          data: { existingAccount: true } satisfies ExistingAccount,
+          error: null,
         };
       }
 
-      return commit(
-        await pkceGrant({ code: params.code, verifier }, await grantOptions()),
-        params.next,
-        options,
+      return requested(started, null, "Sign-up");
+    },
+
+    async resend(params) {
+      const started = await flow();
+
+      const { error } = await started.auth.resend({
+        type: params.type,
+        email: params.email,
+        options: { emailRedirectTo: callbackUrl(params) },
+      });
+
+      return requested(started, error, "Email request");
+    },
+
+    async exchangeCodeForSession(params, options = {}) {
+      const started = await flow();
+
+      const { data, error } = await started.auth.exchangeCodeForSession(
+        params.code,
       );
+
+      if (error) {
+        await keep(started.writes);
+
+        return started.failed(error, "Code exchange");
+      }
+
+      return commit(data.session, started.writes, params.next, options);
     },
 
     async verifyMfa(params, options = {}) {
-      const current = await deps.current();
-
-      if (!current) {
+      if (!(await deps.current())) {
         return {
           ok: false,
           data: null,
@@ -446,18 +495,16 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
         };
       }
 
-      return commit(
-        await mfaGrant(
-          {
-            accessToken: current.accessToken,
-            factorId: params.factorId,
-            code: params.code,
-          },
-          await grantOptions(),
-        ),
-        params.next,
-        options,
-      );
+      const started = await flow();
+
+      const { data, error } = await started.auth.mfa.challengeAndVerify({
+        factorId: params.factorId,
+        code: params.code,
+      });
+
+      return error
+        ? started.failed(error, "MFA verification")
+        : commit(data, started.writes, params.next, options);
     },
 
     async signOut(params = {}, options = {}) {
@@ -465,14 +512,11 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
       const current = await deps.current();
 
       if (current) {
-        const revoked = await revokeSession(
-          current.accessToken,
-          scope,
-          await grantOptions(),
-        );
+        const started = await flow();
+        const { error } = await started.auth.signOut({ scope });
 
-        if (!revoked.ok) {
-          return revoked;
+        if (error) {
+          return started.failed(error, "Sign-out");
         }
       }
 
@@ -496,7 +540,16 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
         };
       }
 
-      return commit(ok(null), params.next, options);
+      const cleared = await clearCookieSession({
+        cookieName: cookieName(),
+        cookies: (await deps.jar()).getAll(),
+        ...(auth?.cookie?.options
+          ? { cookieOptions: auth.cookie.options }
+          : {}),
+        scopes: deps.cookieScopes ?? [],
+      });
+
+      return commit(null, cleared.writes, params.next, options);
     },
   };
 }

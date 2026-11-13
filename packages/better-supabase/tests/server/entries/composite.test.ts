@@ -6,11 +6,7 @@ import { describe, expect, it, test, vi } from "vitest";
 import type { BetterPostgres, SqlClaims } from "../../../src/postgres/pool.ts";
 
 import { authModeOf } from "../../../src/auth/claims.ts";
-import {
-  ssrSession,
-  sessionCookieName,
-  writeSession,
-} from "../../../src/auth/session.ts";
+import { ssrSession, sessionCookieName } from "../../../src/auth/session.ts";
 import { createSupabase } from "../../../src/core/define.ts";
 import { postgresExecutor } from "../../../src/postgres/executor.ts";
 import { withBetterSupabase } from "../../../src/server/composite.ts";
@@ -20,6 +16,7 @@ import { createServer } from "../../../src/server/server.ts";
 import { createTestSigner } from "../../../src/testing/jwt.ts";
 import { fakeSql } from "../../fixtures/fake-sql.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
+import { writeSession } from "../../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 
