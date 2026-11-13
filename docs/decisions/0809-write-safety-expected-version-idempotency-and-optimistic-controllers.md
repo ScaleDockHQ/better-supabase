@@ -59,3 +59,7 @@ keep their integer `expectedVersion`; renaming them is breaking and is listed in
 gaps. The manifest fields grow the server chunk, so the server baselines are reset
 (ADR 0690). A create that sets custom values after the insert re-runs the values on a
 replay; they are idempotent writes.
+
+The next-build first-load and server baselines were reset to the measured numbers of a fresh
+`next build` (emptied, then updated), as in ADR 0690. `supabase/snapshot.json` needs
+`pnpm supabase:reset` and `gen --save-snapshot` on a running stack.
