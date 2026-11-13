@@ -892,11 +892,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G5
 
 - Scope: List contract rollout: all other categories
-- Status: planned
+- Status: PR open #920
 - Branch: `feat/audit-g5`
-- PR: none yet
+- PR: [#920](https://github.com/ScaleDockHQ/better-supabase/pull/920)
 - Findings: EX-1200 to EX-1205, EX-1215
 - Log: 2026-11-12, planned.
+  2026-11-13, lane G5 started from main (7f4bcbfdf7) in `../bsb-audit-g5`.
+  2026-11-13, PR #920 opened: `legal_entity`, `course` and `content_entry` page, facet and count (migration 20261216050005). `sso` keeps SCIM paging and its bounded lists. The other lists wait for a per-call tenant, a caller scope or a parent scope (ADR 0789).
 
 ### Lane H
 
