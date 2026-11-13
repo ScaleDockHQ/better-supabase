@@ -1,10 +1,18 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import {
   applyTemporal,
   blockCall,
@@ -16,6 +24,7 @@ import {
   textOf,
   nullableInstant,
 } from "../shared.ts";
+import { legalEntityListSurface } from "./lists.ts";
 
 /** The fiscal calendar of one legal entity. */
 export interface LegalEntityFiscal {
@@ -123,11 +132,21 @@ export interface LegalEntities {
   archive(id: string): AsyncResult<LegalEntity>;
   restore(id: string): AsyncResult<LegalEntity>;
   get(id: string): AsyncResult<LegalEntity>;
-  /** The default first, then by code. */
+  /** The default first, then by code, at most `limit` (default and cap 500). */
   list(options?: {
     readonly includeArchived?: boolean;
     readonly limit?: number;
   }): AsyncResult<readonly LegalEntity[]>;
+  /**
+   * One keyset page of legal entities, the default first unless `sort` picks
+   * `code` or `name`. Archived entities stay out unless
+   * `filters.includeArchived` is `["true"]`.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<LegalEntity>>;
+  /** The values of each facet and how many entities hold each. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many legal entities match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   /**
    * The entity `id` stands for: itself, or the default when `id` is omitted.
    * `undefined` when the organization has no legal entity yet.
@@ -228,6 +247,15 @@ export function createLegalEntities(
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const one = (fn: string) => (value: unknown) => legalEntityOf(value, fn);
 
+  const entries = entityList({
+    entity: "legal_entity",
+    surface: legalEntityListSurface,
+    call,
+    tenant,
+    fn: "list_legal_entities",
+    rowOf: legalEntityOf,
+  });
+
   const client: LegalEntities = {
     create: (input) =>
       tenant().andThen((organizationId) =>
@@ -286,19 +314,22 @@ export function createLegalEntities(
           "list_legal_entities",
           {
             tenant: organizationId,
-            include_archived: listOptions.includeArchived ?? false,
+            filters: {
+              includeArchived: listOptions.includeArchived ?? false,
+              ...(listOptions.limit === undefined
+                ? {}
+                : { limit: listOptions.limit }),
+            },
           },
-          (value) => {
-            const rows = recordsOf(value, "list_legal_entities").map((row) =>
+          (value) =>
+            recordsOf(value, "list_legal_entities").map((row) =>
               legalEntityOf(row, "list_legal_entities"),
-            );
-
-            return listOptions.limit === undefined
-              ? rows
-              : rows.slice(0, listOptions.limit);
-          },
+            ),
         ),
       ),
+    page: entries.page,
+    facets: entries.facets,
+    count: entries.count,
     of: (id) =>
       tenant().andThen((organizationId) =>
         call(

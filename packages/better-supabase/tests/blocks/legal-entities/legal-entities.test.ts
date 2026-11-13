@@ -121,9 +121,43 @@ describe("createLegalEntities", () => {
     expect(await entities.of("none").orThrow()).toBeUndefined();
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "org-1",
-      include_archived: true,
+      filters: { includeArchived: true },
     });
     expect(t.calls[1]?.[1]).toEqual({ tenant: "org-1", id: null });
+  });
+
+  it("pages, counts and facets legal entities", async () => {
+    const t = fieldsTransport({
+      list_legal_entities: (args) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: "isDefault",
+            values: [{ value: "true", count: { value: 1, exact: true } }],
+          };
+        }
+
+        return filters["count"] === true
+          ? { value: 1, exact: true }
+          : { items: [ENTITY], hasMore: false, nextCursor: null };
+      },
+    });
+
+    const entities = createLegalEntities({ transport: t, tenant: "org-1" });
+
+    const page = await entities
+      .page({ sort: { by: "name" }, filters: { includeArchived: ["true"] } })
+      .orThrow();
+
+    expect(page.items).toHaveLength(1);
+    expect(await entities.count().orThrow()).toEqual({ value: 1, exact: true });
+    expect((await entities.facets().orThrow())[0]?.facet).toBe("isDefault");
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "org-1",
+      filters: { sort: "name", includeArchived: ["true"], paged: true },
+    });
+    expect((await entities.page({ sort: { by: "nope" } })).ok).toBe(false);
   });
 
   it("reads, writes and resets an entity's settings", async () => {

@@ -2,7 +2,8 @@ import type { BlockSqlContext } from "../context.ts";
 import type { ContentSql } from "./content-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, pageSize, userGrant } from "../shared.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import { fail, userGrant } from "../shared.ts";
 import { contentSql, MAX_BODY, SLUG } from "./content-sql.ts";
 
 /** The checks every write runs on the title, slug, summary, body and cover. */
@@ -252,6 +253,53 @@ function entryReads(ctx: BlockSqlContext): string {
   const q = contentSql(ctx);
   const { fn, e, entries, json } = q;
 
+  const list = {
+    name: "list_content_entries",
+    from: entries,
+    alias: "x",
+    where: [
+      `x.${e("tenant")} = list_content_entries.tenant`,
+      filterAny("type", `x.${e("type")}::text`),
+      filterAny("locale", `x.${e("locale")}::text`),
+      filterAny("status", `x.${e("status")}::text`),
+      filterAny("translationGroupId", `x.${e("translationGroup")}`, "uuid"),
+      `(v_search is null or x.${e("title")} ilike v_search or x.${e("slug")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${e("updatedAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      updatedAt: [
+        { expr: `x.${e("updatedAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+      ],
+      title: [
+        { expr: `x.${e("title")}`, dir: "asc", type: "text" },
+        { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+      ],
+      createdAt: [
+        { expr: `x.${e("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+      ],
+      publishedAt: [
+        {
+          expr: `coalesce(x.${e("publishedAt")}, '-infinity'::timestamptz)`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: {
+      type: `x.${e("type")}`,
+      locale: `x.${e("locale")}`,
+      status: `x.${e("status")}`,
+    },
+    rowJson: json("x"),
+    invalid: q.invalid,
+  } as const;
+
   return `-- One entry with its translations, or null when there is none the caller reads.
 create or replace function ${fn("get_content_entry")}(entry_id uuid)
 returns jsonb
@@ -277,9 +325,11 @@ end;
 $$;
 ${userGrant(`${fn("get_content_entry")}(uuid)`)}
 
--- The organization's entries, latest change first. filter is { type, locale,
--- status, translationGroupId, query, limit (1 to 200, default 50), offset }.
-create or replace function ${fn("list_content_entries")}(tenant ${ctx.idType}, filter jsonb default '{}'::jsonb)
+-- The organization's entries, latest change first. filters is { type, locale,
+-- status, translationGroupId (each a value or a list of them), search, sort,
+-- direction, facet, count, limit (default 50, cap 200), after, offset, paged,
+-- total, totalCap } (ADR 0749).
+create or replace function ${fn("list_content_entries")}(tenant ${ctx.idType}, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
 stable
@@ -288,28 +338,15 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_filter jsonb := coalesce(list_content_entries.filter, '{}'::jsonb);
-  v_query text := nullif(trim(v_filter ->> 'query'), '');
-  v_rows jsonb;
+  v_filters jsonb := coalesce(list_content_entries.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' end;
+  ${listDeclare(list)}
 begin
   if not ${q.allowed("list_content_entries.tenant", q.read)} then
     ${q.forbidden("not allowed to read content")}
   end if;
-  select coalesce(jsonb_agg(q.item order by q.updated desc, q.id), '[]'::jsonb) into v_rows
-  from (
-    select ${json("x")} as item, x.${e("updatedAt")} as updated, x.${e("id")} as id
-    from ${entries} x
-    where x.${e("tenant")} = list_content_entries.tenant
-      and (v_filter ->> 'type' is null or x.${e("type")} = ${q.cast("type", "v_filter ->> 'type'", "null")})
-      and (v_filter ->> 'locale' is null or x.${e("locale")} = ${q.cast("locale", "v_filter ->> 'locale'", "null")})
-      and (v_filter ->> 'status' is null or x.${e("status")} = ${q.cast("status", "v_filter ->> 'status'", "null")})
-      and (v_filter ->> 'translationGroupId' is null or x.${e("translationGroup")} = (v_filter ->> 'translationGroupId')::uuid)
-      and (v_query is null or x.${e("title")} ilike '%' || v_query || '%' or x.${e("slug")} ilike '%' || v_query || '%')
-    order by x.${e("updatedAt")} desc, x.${e("id")}
-    limit ${pageSize("(v_filter ->> 'limit')::integer", 50, 200)}
-    offset greatest(coalesce((v_filter ->> 'offset')::integer, 0), 0)
-  ) q;
-  return v_rows;
+  ${listBody(list)}
 end;
 $$;
 ${userGrant(`${fn("list_content_entries")}(${ctx.idType}, jsonb)`)}

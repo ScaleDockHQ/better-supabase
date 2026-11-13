@@ -1,6 +1,6 @@
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:13fd29a8b0a61381de6874b838cf2fe806aa94bacb99b4fd0e52f3cebc72376c
+-- @bsb-hash sha256:5e93aac2476fb20427c4cf0332df0ea50e1ff869b929c542adc54b5964d674a6
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -313,9 +313,11 @@ $$;
 revoke execute on function "better_supabase"."get_content_entry"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_content_entry"(uuid) to authenticated, service_role;
 
--- The organization's entries, latest change first. filter is { type, locale,
--- status, translationGroupId, query, limit (1 to 200, default 50), offset }.
-create or replace function "better_supabase"."list_content_entries"(tenant uuid, filter jsonb default '{}'::jsonb)
+-- The organization's entries, latest change first. filters is { type, locale,
+-- status, translationGroupId (each a value or a list of them), search, sort,
+-- direction, facet, count, limit (default 50, cap 200), after, offset, paged,
+-- total, totalCap } (ADR 0749).
+create or replace function "better_supabase"."list_content_entries"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
 stable
@@ -324,28 +326,321 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_filter jsonb := coalesce(list_content_entries.filter, '{}'::jsonb);
-  v_query text := nullif(trim(v_filter ->> 'query'), '');
-  v_rows jsonb;
+  v_filters jsonb := coalesce(list_content_entries.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_content_entries.tenant is not null and coalesce(better_supabase.can('tenant', list_content_entries.tenant, 'content.read'), false))) then
     raise exception 'not allowed to read content' using errcode = '42501', hint = 'CONTENT_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(q.item order by q.updated desc, q.id), '[]'::jsonb) into v_rows
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('type', 'locale', 'status') then
+      raise exception 'facet is one of type, locale, status' using errcode = '22023', hint = 'CONTENT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'type' then (x."type")::text when 'locale' then (x."locale")::text when 'status' then (x."status")::text end) as v
+      from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('updatedAt', 'title', 'createdAt', 'publishedAt') then
+    raise exception 'sort is one of updatedAt, title, createdAt, publishedAt' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
   from (
-    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as item, x."updated_at" as updated, x."id" as id
-    from "better_supabase"."content_entries" x
-    where x."tenant_id" = list_content_entries.tenant
-      and (v_filter ->> 'type' is null or x."type" = v_filter ->> 'type')
-      and (v_filter ->> 'locale' is null or x."locale" = v_filter ->> 'locale')
-      and (v_filter ->> 'status' is null or x."status" = v_filter ->> 'status')
-      and (v_filter ->> 'translationGroupId' is null or x."translation_group_id" = (v_filter ->> 'translationGroupId')::uuid)
-      and (v_query is null or x."title" ilike '%' || v_query || '%' or x."slug" ilike '%' || v_query || '%')
-    order by x."updated_at" desc, x."id"
-    limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
-    offset greatest(coalesce((v_filter ->> 'offset')::integer, 0), 0)
-  ) q;
-  return v_rows;
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."title")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."title", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."title" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."title")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."title" <= (v_after ->> 0)::text and ((x."title" < (v_after ->> 0)::text) or (x."title" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."title" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'publishedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."published_at", '-infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", '-infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", '-infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'publishedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'type', x."type", 'locale', x."locale", 'slug', x."slug", 'title', x."title", 'summary', x."summary", 'body', x."body", 'status', x."status", 'publishAt', x."publish_at", 'publishedAt', x."published_at", 'authorId', x."author_id", 'translationGroupId', x."translation_group_id", 'coverAttachmentId', x."cover_attachment_id", 'approvalId', x."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = x."approval_id"), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."published_at", '-infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", '-infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", '-infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", '-infinity'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."content_entries" x
+      where x."tenant_id" = list_content_entries.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'locale' is not null and jsonb_typeof(v_filters -> 'locale') <> 'null' and not (jsonb_typeof(v_filters -> 'locale') = 'array' and jsonb_array_length(v_filters -> 'locale') = 0)) or x."locale"::text = any((case when jsonb_typeof(v_filters -> 'locale') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locale')) else array[v_filters ->> 'locale'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'translationGroupId' is not null and jsonb_typeof(v_filters -> 'translationGroupId') <> 'null' and not (jsonb_typeof(v_filters -> 'translationGroupId') = 'array' and jsonb_array_length(v_filters -> 'translationGroupId') = 0)) or x."translation_group_id" = any((case when jsonb_typeof(v_filters -> 'translationGroupId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'translationGroupId')) else array[v_filters ->> 'translationGroupId'] end)::uuid[]))
+        and (v_search is null or x."title" ilike v_search or x."slug" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_content_entries"(uuid, jsonb) from public, anon;
@@ -722,7 +1017,7 @@ as $$ select "better_supabase"."get_content_entry"($1) $$;
 revoke execute on function "api"."get_content_entry"(uuid) from public, anon;
 grant execute on function "api"."get_content_entry"(uuid) to authenticated, service_role;
 
-create or replace function "api"."list_content_entries"(tenant uuid, filter jsonb default '{}'::jsonb)
+create or replace function "api"."list_content_entries"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
 language sql
 stable

@@ -4,6 +4,7 @@ import type { LegalEntitiesEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { legalEntitiesEvents } from "./events.ts";
 import { createLegalEntities } from "./legal-entities.ts";
+import { legalEntityListSurface } from "./lists.ts";
 import { legalEntitiesSqlOptions } from "./options.ts";
 import { legalEntityInputSchema } from "./schemas.ts";
 
@@ -22,6 +23,7 @@ export const legalEntitiesBlock: BlockOf<
   category: "tenancy",
   entities: {
     legal_entity: {
+      ...legalEntityListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },

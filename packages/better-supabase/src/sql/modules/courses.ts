@@ -357,7 +357,7 @@ ${courseLearningFunctions(ctx)}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_course", args: ["{id}", "jsonb"], returns: "jsonb" },
-    { name: "list_courses", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "list_courses", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "course_outline", args: ["uuid"], returns: "jsonb" },
     { name: "course_lesson", args: ["uuid"], returns: "jsonb" },
     { name: "enroll_in_course", args: ["uuid", "uuid"], returns: "jsonb" },
