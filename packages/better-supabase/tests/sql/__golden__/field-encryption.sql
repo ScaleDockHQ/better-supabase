@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
--- @bsb-hash sha256:d18b7192121633003a676e605d8321de2e1c2d75dd1598f1971ea4fae4ea9227
--- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found.
+-- @bsb-hash sha256:cc929b14ceab901dc0c961f377e10459526b88f8b00c74a890dbe874e87411c5
+-- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found. Members read which of their owners have keys through field_key_status().
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -168,6 +168,44 @@ end;
 $$;
 revoke execute on function "better_supabase"."field_lookup"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."field_lookup"(text, text) to service_role;
+
+-- Which owners the caller reaches have a data key and a lookup key: their
+-- tenants (or themselves) for a signed-in user, every owner with a key for the
+-- service role. It reads no key material, only whether the Vault secret exists.
+create or replace function "better_supabase"."field_key_status"()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+begin
+  if (select auth.uid()) is null and not v_service then
+    raise exception 'only signed-in users and the service role read field key status' using errcode = '42501', hint = 'FIELD_KEY_STATUS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'owner', o.owner,
+      'has_key', exists (select 1 from vault.secrets s where s.name = 'bs:field-key:' || o.owner),
+      'has_lookup_key', exists (select 1 from vault.secrets s where s.name = 'bs:field-lookup-key:' || o.owner)
+    ) order by o.owner)
+    from (
+      select substr(s.name, 14) as owner
+      from vault.secrets s
+      where v_service and left(s.name, 13) = 'bs:field-key:'
+      union
+      select 'tenant:' || (m.id)::text
+      from better_supabase.member_organization_ids() as m(id)
+      where not v_service
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."field_key_status"() from public, anon;
+grant execute on function "better_supabase"."field_key_status"() to authenticated, service_role;
 
 -- Deletes an owner's data key and lookup key, so every value encrypted with
 -- them reads as null and no lookup finds it (crypto-shredding, for example
@@ -212,8 +250,8 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
--- @bsb-hash sha256:f90f002503b098619df749a48b35c2531d8bbb142796d77841404a693f237b4b
--- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found.
+-- @bsb-hash sha256:809f644cd967a34011bf9df1d1dabd8a0a17999aba3220655bad82c3d65e0159
+-- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found. Members read which of their owners have keys through field_key_status().
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -379,6 +417,44 @@ end;
 $$;
 revoke execute on function "better_supabase"."field_lookup"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."field_lookup"(text, text) to service_role;
+
+-- Which owners the caller reaches have a data key and a lookup key: their
+-- tenants (or themselves) for a signed-in user, every owner with a key for the
+-- service role. It reads no key material, only whether the Vault secret exists.
+create or replace function "better_supabase"."field_key_status"()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+begin
+  if (select auth.uid()) is null and not v_service then
+    raise exception 'only signed-in users and the service role read field key status' using errcode = '42501', hint = 'FIELD_KEY_STATUS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'owner', o.owner,
+      'has_key', exists (select 1 from vault.secrets s where s.name = 'bs:field-key:' || o.owner),
+      'has_lookup_key', exists (select 1 from vault.secrets s where s.name = 'bs:field-lookup-key:' || o.owner)
+    ) order by o.owner)
+    from (
+      select substr(s.name, 14) as owner
+      from vault.secrets s
+      where v_service and left(s.name, 13) = 'bs:field-key:'
+      union
+      select 'tenant:' || (m.id)::text
+      from better_supabase.member_organization_ids() as m(id)
+      where not v_service
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."field_key_status"() from public, anon;
+grant execute on function "better_supabase"."field_key_status"() to authenticated, service_role;
 
 -- Deletes an owner's data key and lookup key, so every value encrypted with
 -- them reads as null and no lookup finds it (crypto-shredding, for example
@@ -430,8 +506,8 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
--- @bsb-hash sha256:be0de5a49dccc6a0c084155a3707262a1b6d7c54c90219df9207f37938339a27
--- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found.
+-- @bsb-hash sha256:0fdeb2f010c59cd560a71607ffd391491e8856c935bb6c33a555f280f64aa71b
+-- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found. Members read which of their owners have keys through field_key_status().
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -603,6 +679,44 @@ $$;
 revoke execute on function "app_private"."field_lookup"(text, text) from public, anon, authenticated;
 grant execute on function "app_private"."field_lookup"(text, text) to service_role;
 
+-- Which owners the caller reaches have a data key and a lookup key: their
+-- tenants (or themselves) for a signed-in user, every owner with a key for the
+-- service role. It reads no key material, only whether the Vault secret exists.
+create or replace function "app_private"."field_key_status"()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+begin
+  if (select auth.uid()) is null and not v_service then
+    raise exception 'only signed-in users and the service role read field key status' using errcode = '42501', hint = 'FIELD_KEY_STATUS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'owner', o.owner,
+      'has_key', exists (select 1 from vault.secrets s where s.name = 'bs:field-key:' || o.owner),
+      'has_lookup_key', exists (select 1 from vault.secrets s where s.name = 'bs:field-lookup-key:' || o.owner)
+    ) order by o.owner)
+    from (
+      select substr(s.name, 14) as owner
+      from vault.secrets s
+      where v_service and left(s.name, 13) = 'bs:field-key:'
+      union
+      select 'tenant:' || (m.id)::text
+      from better_supabase.member_organization_ids() as m(id)
+      where not v_service
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."field_key_status"() from public, anon;
+grant execute on function "app_private"."field_key_status"() to authenticated, service_role;
+
 -- Deletes an owner's data key and lookup key, so every value encrypted with
 -- them reads as null and no lookup finds it (crypto-shredding, for example
 -- after a tenant is erased).
@@ -646,8 +760,8 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_141_field_encryption.sql
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
--- @bsb-hash sha256:e2a154da40fe5b11449c7d577ce93e0fb4511f320227edb4f44a062930836068
--- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found.
+-- @bsb-hash sha256:1cbf6f2fc32b44157382cd91577132f1d3eb81cb5620b57eb53dfa2acb5ac3d6
+-- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found. Members read which of their owners have keys through field_key_status().
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -814,6 +928,44 @@ $$;
 revoke execute on function "better_supabase"."field_lookup"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."field_lookup"(text, text) to service_role;
 
+-- Which owners the caller reaches have a data key and a lookup key: their
+-- tenants (or themselves) for a signed-in user, every owner with a key for the
+-- service role. It reads no key material, only whether the Vault secret exists.
+create or replace function "better_supabase"."field_key_status"()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
+begin
+  if (select auth.uid()) is null and not v_service then
+    raise exception 'only signed-in users and the service role read field key status' using errcode = '42501', hint = 'FIELD_KEY_STATUS_FORBIDDEN';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'owner', o.owner,
+      'has_key', exists (select 1 from vault.secrets s where s.name = 'bs:field-key:' || o.owner),
+      'has_lookup_key', exists (select 1 from vault.secrets s where s.name = 'bs:field-lookup-key:' || o.owner)
+    ) order by o.owner)
+    from (
+      select substr(s.name, 14) as owner
+      from vault.secrets s
+      where v_service and left(s.name, 13) = 'bs:field-key:'
+      union
+      select 'tenant:' || (m.id)::text
+      from better_supabase.member_organization_ids() as m(id)
+      where not v_service
+    ) o
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."field_key_status"() from public, anon;
+grant execute on function "better_supabase"."field_key_status"() to authenticated, service_role;
+
 -- Deletes an owner's data key and lookup key, so every value encrypted with
 -- them reads as null and no lookup finds it (crypto-shredding, for example
 -- after a tenant is erased).
@@ -869,6 +1021,16 @@ set search_path = ''
 as $$ select "better_supabase"."field_lookup"($1, $2) $$;
 revoke execute on function "api"."field_lookup"(text, text) from public, anon, authenticated;
 grant execute on function "api"."field_lookup"(text, text) to service_role;
+
+create or replace function "api"."field_key_status"()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."field_key_status"() $$;
+revoke execute on function "api"."field_key_status"() from public, anon;
+grant execute on function "api"."field_key_status"() to authenticated, service_role;
 
 create or replace function "api"."drop_field_key"(owner text)
 returns boolean

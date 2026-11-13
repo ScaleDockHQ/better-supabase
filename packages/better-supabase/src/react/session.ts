@@ -91,6 +91,12 @@ export interface SessionProviderProps {
   /** The broadcast event. Defaults to `changed`. */
   readonly event?: string;
   /**
+   * The schema of `caller_authz_version()`, read through the client's
+   * `schema()`. Defaults to `api`, so a client set to `public` needs no
+   * wrapper.
+   */
+  readonly schema?: string;
+  /**
    * Whether to listen for authorization changes, or a test on the signed-in
    * session. Defaults to true. A support session reads another user's data, so
    * `(session) => !supportOf(session)` keeps it off that user's topic.
@@ -145,7 +151,7 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   const version = useRef<number | null>(null);
   const user = useUser(store, version);
   const userId = user?.user.id;
-  const { client, source, topic, event, authzRefresh = true } = props;
+  const { client, source, topic, event, schema, authzRefresh = true } = props;
 
   const refreshes =
     user !== undefined &&
@@ -170,11 +176,12 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
       ...(source ? { source } : {}),
       ...(topic ? { topic } : {}),
       ...(event ? { event } : {}),
+      ...(schema ? { schema } : {}),
       tokenVersion: () => version.current,
       onChange: () => handlers.current.onAuthzChange?.(),
       onError: (error) => handlers.current.onError?.(error),
     });
-  }, [client, userId, refreshes, channel, source, topic, event]);
+  }, [client, userId, refreshes, channel, source, topic, event, schema]);
 
   return createElement(
     SessionContext.Provider,

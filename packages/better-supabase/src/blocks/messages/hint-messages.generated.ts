@@ -680,6 +680,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "FAVORITE_SUBJECT_FORBIDDEN": "The record is unknown or not readable in this organization.",
   "FIELD_KEY_FORBIDDEN": "Only the service role drops field keys.",
   "FIELD_KEY_OWNER": "A field key needs an owner.",
+  "FIELD_KEY_STATUS_FORBIDDEN": "Only signed-in users and the service role read field key status.",
   "FLAGS_FORBIDDEN": "Not allowed to manage feature flags.",
   "FLAGS_OVERRIDE_TARGET": "Pass one target: a tenant, a member, or a context with its key.",
   "FLAGS_ROLLOUT_VARIANTS": "Each rollout variant needs a known variant and a weight from 0 to 100.",

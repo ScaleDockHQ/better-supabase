@@ -7022,6 +7022,39 @@
       "RuleWorkflows"
     ]
   },
+  "./blocks/field-encryption": {
+    "values": [
+      "createFieldEncryption",
+      "fieldEncryptionBlock",
+      "fieldEncryptionEvents",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "FieldEncryption",
+      "FieldEncryptionEvents",
+      "FieldEncryptionOptions",
+      "FieldKeyStatus"
+    ]
+  },
+  "./blocks/impersonation": {
+    "values": [
+      "createImpersonation",
+      "impersonationBlock",
+      "impersonationEvents",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Impersonation",
+      "ImpersonationEvents",
+      "ImpersonationOptions",
+      "ImpersonationRequest",
+      "ImpersonationSession",
+      "ImpersonationTarget",
+      "SupportSessionEndedBy"
+    ]
+  },
   "./blocks/vercel-marketplace": {
     "values": [
       "createVercelMarketplace",

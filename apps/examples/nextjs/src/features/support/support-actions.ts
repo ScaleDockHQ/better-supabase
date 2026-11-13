@@ -1,6 +1,6 @@
 "use server";
 
-import { dbError, err, ok } from "better-supabase";
+import { err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
@@ -23,12 +23,14 @@ export const requestSupportSession = bsb.action(
     permission: "impersonation.start",
   },
   async ({ target, reason }, { db, auth }) => {
-    const response = await db.$client
-      .schema("api")
-      .rpc("request_support_session", { target, reason, read_only: true });
+    const result = await db.impersonation.request({
+      target,
+      reason,
+      readOnly: true,
+    });
 
-    if (response.error) {
-      return err(dbError("forbidden", response.error.message));
+    if (!result.ok) {
+      return err(result.error);
     }
 
     await refreshCaller(auth, [SUPPORT_TAG]);
@@ -41,12 +43,10 @@ export const requestSupportSession = bsb.action(
 export const endSupportSession = bsb.action(
   { input: v.object({ sessionId: Id }), permission: "impersonation.revoke" },
   async ({ sessionId }, { db, auth }) => {
-    const response = await db.$client
-      .schema("api")
-      .rpc("end_support_session", { session_id: sessionId });
+    const result = await db.impersonation.end(sessionId);
 
-    if (response.error) {
-      return err(dbError("forbidden", response.error.message));
+    if (!result.ok) {
+      return err(result.error);
     }
 
     await refreshCaller(auth, [SUPPORT_TAG]);

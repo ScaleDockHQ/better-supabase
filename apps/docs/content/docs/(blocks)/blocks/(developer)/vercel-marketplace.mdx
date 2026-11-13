@@ -128,6 +128,8 @@ await marketplace.upsertResource({
 });
 ```
 
+`installationFor(tenant)` and `resourcesFor(tenant)` are the reads for a signed-in member of the tenant, so a settings page needs no service role. They leave out the Vault handle of the access token and the `secretRefs` of each resource. The block's env contract lists `VERCEL_MARKETPLACE_CLIENT_ID` and `VERCEL_MARKETPLACE_CLIENT_SECRET`.
+
 `resource` and `resources` read a resource or the installation's live ones, `deleteResource` marks one deleted and `removeInstallation` marks the installation removed. The rows stay for invoices and audit.
 
 ## Webhooks
