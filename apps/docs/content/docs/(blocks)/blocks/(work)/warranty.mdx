@@ -74,7 +74,10 @@ facet is `status`. Claims declare no text search, so `q` returns
 
 ```ts
 const first = await warranty
-  .page({ filters: { status: ["submitted", "approved"] }, sort: { by: "amount" } })
+  .page({
+    filters: { status: ["submitted", "approved"] },
+    sort: { by: "amount" },
+  })
   .orThrow();
 
 const facets = await warranty.facets().orThrow();
