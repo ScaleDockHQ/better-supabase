@@ -29343,7 +29343,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "composedBy": [
         "care"
-      ]
+      ],
+      "events": {
+        "type": "FieldEncryptionEvents",
+        "types": [
+          "field_key.dropped"
+        ]
+      }
     },
     {
       "name": "flags",
