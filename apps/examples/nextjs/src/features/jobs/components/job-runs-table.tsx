@@ -69,32 +69,38 @@ async function retry() {
   refresh();
 }
 
-type Translate = Awaited<ReturnType<typeof getExtracted>>;
+type JobStatusLabels = Readonly<Record<JobRunStatus, string>>;
 
-function JobStatusBadge({ status, t }: { status: JobRunStatus; t: Translate }) {
+function JobStatusBadge({
+  status,
+  labels,
+}: {
+  status: JobRunStatus;
+  labels: JobStatusLabels;
+}) {
   switch (status) {
     case "queued": {
-      return <Badge variant="info-light">{t("Queued")}</Badge>;
+      return <Badge variant="info-light">{labels.queued}</Badge>;
     }
 
     case "scheduled": {
-      return <Badge variant="secondary">{t("Scheduled")}</Badge>;
+      return <Badge variant="secondary">{labels.scheduled}</Badge>;
     }
 
     case "running": {
-      return <Badge variant="primary-light">{t("Running")}</Badge>;
+      return <Badge variant="primary-light">{labels.running}</Badge>;
     }
 
     case "retrying": {
-      return <Badge variant="warning-light">{t("Retrying")}</Badge>;
+      return <Badge variant="warning-light">{labels.retrying}</Badge>;
     }
 
     case "succeeded": {
-      return <Badge variant="success-light">{t("Succeeded")}</Badge>;
+      return <Badge variant="success-light">{labels.succeeded}</Badge>;
     }
 
     case "dead": {
-      return <Badge variant="destructive-light">{t("Failed")}</Badge>;
+      return <Badge variant="destructive-light">{labels.dead}</Badge>;
     }
 
     default: {
@@ -120,6 +126,15 @@ export async function JobRunsTable() {
   if (!can(permissions, JOBS_PERMISSION)) {
     forbidden();
   }
+
+  const statusLabels: JobStatusLabels = {
+    queued: t("Queued"),
+    scheduled: t("Scheduled"),
+    running: t("Running"),
+    retrying: t("Retrying"),
+    succeeded: t("Succeeded"),
+    dead: t("Failed"),
+  };
 
   const state = await loadJobRunsState();
 
@@ -203,7 +218,7 @@ export async function JobRunsTable() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <JobStatusBadge status={run.status} t={t} />
+                    <JobStatusBadge status={run.status} labels={statusLabels} />
                   </TableCell>
                   <TableCell className="tabular-nums">{run.attempts}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">

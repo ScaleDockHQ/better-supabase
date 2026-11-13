@@ -73,7 +73,9 @@ export default defineConfig({
     },
   },
   gen: {
-    // The snapshot above covers public and better_supabase only, so the api schema stays untyped.
+    // The snapshot covers public and better_supabase only, so the api schema stays untyped:
+    // its 2,529 wrappers would add about 342 KB of types to a 31 KB database.types.ts (EX-1612).
+    // Pages call those functions through the typed block clients (db.impersonation and the rest).
     api: { types: false },
     casing: "camel",
     codecs: { int8: "bigint" },
@@ -715,7 +717,19 @@ export default defineConfig({
     "service-accounts": {},
     "signing-keys": {},
     // Per-tenant data keys in Vault for encrypted columns and custom fields.
-    "field-encryption": {},
+    // client_notes seals its columns in its own trigger, so key rotation
+    // needs it listed.
+    "field-encryption": {
+      options: {
+        sealed: [
+          {
+            table: "public.client_notes",
+            columns: ["diagnosis", "birth_date"],
+            owner: "tenant",
+          },
+        ],
+      },
+    },
     // Exports leave out token, hash and secret columns (doctor BS341).
     "data-lifecycle": { options: { omitPattern: true } },
     "reserved-slugs": {},

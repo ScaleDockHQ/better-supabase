@@ -188,7 +188,7 @@ describe.skipIf(!live)("support session approvals as real users", () => {
       ).toMatch(/GRANT UPDATE ON better_supabase.support_requests/);
       expect(
         await s.hint(
-          "insert into better_supabase.support_requests (admin_id, target_user_id, reason, expires_at, approved_by, approved_at) values ($1, $2, 'x', now() + interval '1 hour', $3, now())",
+          "insert into better_supabase.support_requests (admin_id, target_id, reason, expires_at, approved_by, approved_at) values ($1, $2, 'x', now() + interval '1 hour', $3, now())",
           [requester.id, target.id, approver.id],
         ),
       ).toMatch(/GRANT INSERT ON better_supabase.support_requests/);

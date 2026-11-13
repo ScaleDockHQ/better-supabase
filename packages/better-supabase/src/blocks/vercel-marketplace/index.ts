@@ -11,6 +11,7 @@ export {
   type SubmitInvoiceInput,
   type UsageRouteOptions,
   type VercelMarketplace,
+  VERCEL_MARKETPLACE_ENV,
   type VercelMarketplaceOptions,
 } from "./vercel-marketplace.ts";
 

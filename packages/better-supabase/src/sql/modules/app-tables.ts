@@ -1,4 +1,3 @@
-import type { BlockScope } from "../../config/blocks.ts";
 import type {
   AppColumnConfig,
   AppReference,
@@ -49,6 +48,7 @@ import {
   scopePolicyName,
 } from "./app-table-enrich.ts";
 import { columnGroupChecks, columnGroupsSql } from "./app-table-groups.ts";
+import { appTableScope } from "./app-table-scope.ts";
 import {
   checkSealBlocks,
   findSql,
@@ -111,26 +111,6 @@ interface AppTable {
 
 const qualified = (table: string): string =>
   `${sqlIdent(SCHEMA)}.${sqlIdent(table)}`;
-
-function scopeOf(table: AppTableConfig, layout: BlockSqlLayout): BlockScope {
-  switch (table.scope) {
-    case "user":
-    case "none": {
-      return table.scope;
-    }
-
-    case undefined:
-    case "inherit": {
-      return layout.scope ?? "tenant";
-    }
-
-    default: {
-      const never: never = table.scope;
-
-      throw new TypeError(`Unknown app table scope "${String(never)}"`);
-    }
-  }
-}
 
 function scopeColumn(
   name: string,
@@ -1172,7 +1152,7 @@ export function appTablesFiles(
 
       const ctx = moduleContext(
         APP_TABLES_MODULE,
-        { ...layout, scope: scopeOf(config, layout) },
+        { ...layout, scope: appTableScope(config, layout) },
         installed,
       );
 

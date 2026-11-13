@@ -1014,8 +1014,8 @@ export interface BlockNameRegistry {
   };
   readonly "field-encryption": {
     readonly tables: {};
-    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_hash" | "field_key" | "field_key_status" | "field_lookup" | "field_lookup_key" | "field_open" | "field_seal";
-    readonly actions: never;
+    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_hash" | "field_key" | "field_key_status" | "field_lookup" | "field_lookup_key" | "field_open" | "field_seal" | "rotate_field_key";
+    readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;

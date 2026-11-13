@@ -133,6 +133,11 @@ export interface DoctorContext {
   readonly configToml: SupabaseToml | undefined;
   readonly envFiles: readonly TextFile[];
   readonly gitignore: string;
+  /**
+   * The env files git ignores, from `git check-ignore` or every `.gitignore` up
+   * to the repository root. Without it, BS502 reads `gitignore` only.
+   */
+  readonly ignoredEnvFiles?: ReadonlySet<string>;
   /** App source files matched by `doctor.sources`. */
   readonly sources: readonly TextFile[];
   /** `config.readSets`, compiled, or why they could not be loaded. */

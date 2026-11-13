@@ -66,6 +66,17 @@ methods, which the examples' typecheck catches. After a change, run
 `pnpm build` in the package and `pnpm exec better-supabase gen` in
 `apps/examples/nextjs`, the one example with record binding blocks.
 
+## The render cache
+
+`gen` and `upgrade` keep module renders in `node_modules/.cache/better-supabase`,
+salted with `VERSION` and `generatorHash()`, which hashes all of `dist` (or
+`src` from a checkout). Keep the hashed root that wide: the built CLI loads the
+generator from `better-supabase/sql` at the root of `dist`, and renders read
+the preset catalog, so a narrower root serves stale SQL after a library change
+(EX-1115). `gen --check` finds leftovers through the manifest and through
+files with gen's header in the folders it writes; another command's output
+needs its own header.
+
 ## Content mapper
 
 `src/mapper` is the TypeScript 7.1 content mapper (ADR 0097). It reuses gen's

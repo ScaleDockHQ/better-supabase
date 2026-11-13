@@ -6,6 +6,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { FieldCipherContribution } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { CUSTOM_FIELD_TYPES } from "../../core/contracts/field-formats.ts";
@@ -721,6 +722,31 @@ function encrypts(ctx: BlockSqlContext): boolean {
 }
 
 /**
+ * The encrypted text values, so `rotate_field_key` seals them again under a
+ * tenant's new key and `field_key_status` counts the encrypted fields.
+ */
+function encryptedValues(
+  own: BlockSqlContext,
+): readonly FieldCipherContribution[] {
+  if (own.mode === "custom" || !encrypts(own)) {
+    return [];
+  }
+
+  const definitions = own.table("definitions");
+  const d = (logical: string): string => own.col("definitions", logical);
+
+  return [
+    {
+      table: own.table("values"),
+      column: own.col("values", "valueText"),
+      owner: `'tenant:' || (x.${own.col("values", "tenant")})::text`,
+      fields: (owner) =>
+        `select count(*) from ${definitions} d where d.${d("encrypted")} and 'tenant:' || (d.${d("tenant")})::text = ${owner}`,
+    },
+  ];
+}
+
+/**
  * `encrypt_field_definition(definition)`: turns encryption on for a text field
  * and encrypts the values it already has with the tenant's data key. There is
  * no way back: a field that holds ciphertext stays encrypted.
@@ -963,7 +989,10 @@ export const CUSTOM_FIELDS: BlockSqlDefinition = {
   target: "schema",
   modes: ["managed", "custom"],
   version: 4,
-  contributes: { imports: fieldValueImportTargets },
+  contributes: {
+    imports: fieldValueImportTargets,
+    "field-encryption": encryptedValues,
+  },
   upgrades: [
     {
       from: 1,

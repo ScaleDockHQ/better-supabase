@@ -7073,10 +7073,16 @@
     ],
     "types": [
       "BlockTransport",
+      "EncryptedColumn",
       "FieldEncryption",
       "FieldEncryptionEvents",
       "FieldEncryptionOptions",
-      "FieldKeyStatus"
+      "FieldEncryptionSqlOptions",
+      "FieldKeyEventData",
+      "FieldKeyRotatedEventData",
+      "FieldKeyRotation",
+      "FieldKeyStatus",
+      "SealedColumns"
     ]
   },
   "./blocks/impersonation": {
@@ -7102,6 +7108,7 @@
       "createVercelMarketplace",
       "sqlTransport",
       "VERCEL_ENVIRONMENTS",
+      "VERCEL_MARKETPLACE_ENV",
       "vercelMarketplaceBlock",
       "vercelMarketplaceEvents"
     ],

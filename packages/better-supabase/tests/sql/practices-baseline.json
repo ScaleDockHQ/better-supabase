@@ -210,7 +210,7 @@
     "security-definer-functions": 92
   },
   "field-encryption": {
-    "security-definer-functions": 28
+    "security-definer-functions": 32
   },
   "field-history": {
     "security-definer-functions": 6

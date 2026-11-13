@@ -2143,7 +2143,11 @@
   },
   {
     "code": "FIELD_KEY_FORBIDDEN",
-    "message": "only the service role drops field keys"
+    "message": "not allowed to rotate the field key of this owner"
+  },
+  {
+    "code": "FIELD_KEY_NOT_FOUND",
+    "message": "the owner has no field key"
   },
   {
     "code": "FIELD_KEY_OWNER",

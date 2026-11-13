@@ -11889,6 +11889,11 @@ msgid "Retry"
 msgstr "Opnieuw proberen"
 
 #: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.du1laW"
+msgid "Never"
+msgstr "Nooit"
+
+#: src/features/encryption/components/encrypted-fields.tsx
 msgctxt "encryption.hkENym"
 msgid "Customer"
 msgstr "Klant"
@@ -11904,14 +11909,44 @@ msgid "Data key"
 msgstr "Gegevenssleutel"
 
 #: src/features/encryption/components/encrypted-fields.tsx
-msgctxt "encryption.g5AEsp"
-msgid "Values of sensitive fields are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them."
-msgstr "Waarden van gevoelige velden worden opgeslagen met een sleutel uit Supabase Vault. Alleen functies die je toegang controleren ontsleutelen ze."
+msgctxt "encryption.M_fgIO"
+msgid "Values of sensitive fields and encrypted columns are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them."
+msgstr "Waarden van gevoelige velden en versleutelde kolommen worden opgeslagen versleuteld met een sleutel in Supabase Vault. Alleen de functies die je toegang controleren ontsleutelen ze."
 
 #: src/features/encryption/components/encrypted-fields.tsx
 msgctxt "encryption.UVKDU0"
 msgid "Key owner"
 msgstr "Sleuteleigenaar"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.ORGv1Q"
+msgid "Created"
+msgstr "Aangemaakt"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.SWWUQl"
+msgid "No key yet"
+msgstr "Nog geen sleutel"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.ffRGLy"
+msgid "Last rotated"
+msgstr "Laatst vervangen"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.u8xl3o"
+msgid "Lookup key"
+msgstr "Zoeksleutel"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.450Fty"
+msgid "None"
+msgstr "Geen"
+
+#: src/features/encryption/components/encrypted-fields.tsx
+msgctxt "encryption.hPF2iF"
+msgid "Encrypted columns"
+msgstr "Versleutelde kolommen"
 
 #: src/features/encryption/components/encrypted-fields.tsx
 msgctxt "encryption.pxKgbm"
@@ -11972,6 +12007,31 @@ msgstr "Status"
 msgctxt "encryption.-Cegy-"
 msgid "Encrypted"
 msgstr "Versleuteld"
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.1YrFvL"
+msgid "Key rotated; {count} stored values encrypted again"
+msgstr "Sleutel vervangen; {count} opgeslagen waarden opnieuw versleuteld"
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.afYI6-"
+msgid "Rotate key"
+msgstr "Sleutel vervangen"
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.c97Bzv"
+msgid "Rotate the data key?"
+msgstr "De gegevenssleutel vervangen?"
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.9yC9I0"
+msgid "A new key replaces the current one and every encrypted value is encrypted again in one step. Writes to those tables wait until it finishes."
+msgstr "Een nieuwe sleutel vervangt de huidige en elke versleutelde waarde wordt in één stap opnieuw versleuteld. Schrijfacties op die tabellen wachten tot dat klaar is."
+
+#: src/features/encryption/components/rotate-key-button.tsx
+msgctxt "encryption.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
 
 #: src/features/evals/components/eval-items-card.tsx
 msgctxt "evals.IRrIur"
@@ -16668,26 +16728,31 @@ msgid "Queued"
 msgstr "In de wachtrij"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.cXAlMR"
 msgid "Scheduled"
 msgstr "Gepland"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.nDyaq_"
 msgid "Running"
 msgstr "Actief"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.6p8Isg"
 msgid "Retrying"
 msgstr "Wordt opnieuw geprobeerd"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.LOghU6"
 msgid "Succeeded"
 msgstr "Geslaagd"
 
 #: src/features/jobs/components/job-record-list.tsx
+#: src/features/jobs/components/job-runs-table.tsx
 msgctxt "jobs.vXCeIi"
 msgid "Failed"
 msgstr "Mislukt"
@@ -31408,6 +31473,51 @@ msgid "Send a test event"
 msgstr "Testevent sturen"
 
 #: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.eKEL_g"
+msgid "Pending"
+msgstr "In afwachting"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.rVHwFO"
+msgid "Delivering"
+msgstr "Bezig met afleveren"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.DMqnF4"
+msgid "Delivered"
+msgstr "Afgeleverd"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.6p8Isg"
+msgid "Retrying"
+msgstr "Opnieuw proberen"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.vXCeIi"
+msgid "Failed"
+msgstr "Mislukt"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.PFtMy9"
+msgid "Canceled"
+msgstr "Geannuleerd"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.OvzONl"
+msgid "Off"
+msgstr "Uit"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.tKELc3"
+msgid "Failing"
+msgstr "Faalt"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
+msgctxt "webhooks.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/webhooks/components/webhook-endpoints.tsx
 msgctxt "webhooks.G3Nn73"
 msgid "Webhook endpoints"
 msgstr "Webhook-endpoints"
@@ -32210,6 +32320,7 @@ msgid "No node matches {query}"
 msgstr "Geen node komt overeen met {query}"
 
 #: src/features/workflows/builder/components/node-panel.tsx
+#: src/features/workflows/builder/components/schema-form.tsx
 msgctxt "workflows.Sa3kyT"
 msgid "Pick a credential"
 msgstr "Kies een inloggegeven"
@@ -32374,6 +32485,21 @@ msgstr "De run openen"
 msgctxt "workflows.orxoH6"
 msgid "This is not valid JSON"
 msgstr "Dit is geen geldige JSON"
+
+#: src/features/workflows/builder/components/schema-form.tsx
+msgctxt "workflows.x3H7PM"
+msgid "Pick a step"
+msgstr "Kies een stap"
+
+#: src/features/workflows/builder/components/schema-form.tsx
+msgctxt "workflows.iGwcJE"
+msgid "Pick a workflow"
+msgstr "Kies een workflow"
+
+#: src/features/workflows/builder/components/schema-form.tsx
+msgctxt "workflows.jv0kC8"
+msgid "Its published version starts when this node runs."
+msgstr "De gepubliceerde versie start wanneer deze stap draait."
 
 #: src/features/workflows/builder/components/schema-form.tsx
 msgctxt "workflows.lXeyAt"

@@ -284,6 +284,88 @@ describe.skipIf(!live)("field encryption", () => {
     ).toBe(0);
   });
 
+  // EX-1605: the key dates, the encrypted columns and a rotation members can run.
+  it("rotates a tenant key and every value reads and finds the same after", async () => {
+    const ids = await charts();
+    const owner = `tenant:${annOrg}`;
+
+    await s.asRole(ann);
+    await s.client.query(
+      "insert into public.it_charts (organization_id, title, bsn) values ($1, 'P', '111222333')",
+      [annOrg],
+    );
+
+    const statusOf = async () =>
+      (
+        await s.value<
+          readonly {
+            readonly owner: string;
+            readonly key_created_at: string | null;
+            readonly key_rotated_at: string | null;
+            readonly columns: readonly { readonly column: string }[];
+          }[]
+        >("better_supabase.field_key_status()")
+      ).find((entry) => entry.owner === owner);
+
+    const status = await statusOf();
+
+    expect(status?.key_created_at).not.toBeNull();
+    expect(status?.key_rotated_at).toBeNull();
+    expect(status?.columns.map((column) => column.column).toSorted()).toEqual([
+      "bsn",
+      "diagnosis",
+      "dose",
+    ]);
+    expect(JSON.stringify(status)).not.toMatch(/bsf1:/u);
+
+    await s.service();
+
+    const before = await s.rows<{ diagnosis: string | null }>(
+      "select diagnosis from public.it_charts order by title",
+    );
+
+    await s.asRole(ann);
+
+    // The session is one transaction, so the key's Vault row keeps one
+    // timestamp; the rotation reports its own time instead.
+    const rotated = await s.value<{
+      readonly values: number;
+      readonly rotated_at: string | null;
+    }>("better_supabase.rotate_field_key($1)", [owner]);
+
+    expect(rotated.values).toBe(3);
+    expect(rotated.rotated_at).not.toBeNull();
+    expect(
+      await s.rows<{ diagnosis: string; dose: string }>(
+        "select diagnosis, dose::text from public.it_charts_reveal($1::uuid[]) order by diagnosis",
+        [ids],
+      ),
+    ).toEqual([
+      { diagnosis: "asthma", dose: "2.5" },
+      { diagnosis: "flu", dose: "1" },
+    ]);
+    expect(
+      await s.rows<{ title: string }>(
+        "select c.title from public.it_charts_find('bsn', '111222333') f join public.it_charts c on c.id = f.id",
+      ),
+    ).toEqual([{ title: "P" }]);
+
+    await s.service();
+
+    const after = await s.rows<{ diagnosis: string | null }>(
+      "select diagnosis from public.it_charts order by title",
+    );
+
+    expect(after[0]?.diagnosis).not.toBe(before[0]?.diagnosis);
+
+    const bob = await s.user("bob");
+    await s.organization(bob);
+    await s.asRole(bob);
+    expect(
+      await s.hint("select better_supabase.rotate_field_key($1)", [owner]),
+    ).toBe("FIELD_KEY_FORBIDDEN");
+  });
+
   it("checks identifier formats of custom field values", async () => {
     await s.asRole(ann);
 
