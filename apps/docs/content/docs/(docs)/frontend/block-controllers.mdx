@@ -184,6 +184,23 @@ const { state } = useBlockController(createAnnouncementsController, {
 </template>
 ```
 
+## The trio every block has
+
+A block's frontend is three parts. The client is the block's `create<Name>`,
+which wraps the SQL functions as typed calls and takes `hooks`. The controller is
+the generic `createBlockQuery` and `createBlockMutation`, which call any method of
+any client and keep its state. The hooks are `useBlockQuery`, `useBlockMutation`
+and `useBlockEvent` (and the Vue, Svelte and Solid versions) over that controller.
+A block with its own UI state, such as bookings' slot picker, adds a bespoke
+controller in `client.ts` next to it.
+
+So a block only has to supply its client. `tests/blocks/client-trio.test.ts` fails
+for a block that declares an entity that changes after it is created but has no
+`create`. Three blocks are listed with the reason they have none: `credentials`
+(read through `vaultCredentials()`), `field-encryption` (used by the SQL read
+paths of the blocks that encrypt) and `impersonation` (started through the
+support session). The list can only shrink.
+
 ## Any block method
 
 Blocks without a controller of their own, and renamed blocks, use three
