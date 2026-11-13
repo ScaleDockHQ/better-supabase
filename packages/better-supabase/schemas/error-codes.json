@@ -2122,6 +2122,10 @@
     "message": "a field key needs an owner"
   },
   {
+    "code": "FIELD_KEY_STATUS_FORBIDDEN",
+    "message": "only signed-in users and the service role read field key status"
+  },
+  {
     "code": "FIELD_NOT_ENCRYPTABLE",
     "message": "only text fields can be encrypted"
   },

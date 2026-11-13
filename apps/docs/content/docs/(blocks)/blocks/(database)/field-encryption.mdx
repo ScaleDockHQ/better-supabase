@@ -44,12 +44,25 @@ owner's key and seals it with the new one.
 | `field_decrypt(owner, value)`           | service role           | Decrypts a value; `null` when the key was dropped       |
 | `field_lookup(owner, value)`            | service role           | The lookup hash of a value under the owner's lookup key |
 | `drop_field_key(owner)`                 | service role           | Deletes the owner's keys, which shreds every value      |
+| `field_key_status()`                    | members, service role  | Which owners have a data key and a lookup key           |
 | `field_key`, `field_seal`, `field_open` | nobody through the API | The helpers the definer functions call                  |
 | `field_lookup_key`, `field_hash`        | nobody through the API | The lookup helpers the definer functions call           |
 
-Signed-in users can't call any of them. They read plaintext only through the
+Signed-in users can't call the functions that encrypt, decrypt or drop keys. They read plaintext only through the
 definer functions of the table or block that owns the value, which check the
 caller's scope first.
+
+`field_key_status()` is the one read a member can call. It lists the owners the
+caller reaches (their tenants, or themselves) and whether each has a data key
+and a lookup key, and the service role sees every owner with a key. It returns
+no key material. The `better-supabase/blocks/field-encryption` client wraps it:
+
+```ts
+const owners = await db.fieldEncryption.keyStatus().orThrow();
+// [{ owner: "tenant:7c1e...", hasKey: true, hasLookupKey: true }]
+```
+
+A rotate action and a count of encrypted columns are not part of the block yet.
 
 ## Searching encrypted values
 

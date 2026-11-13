@@ -13,4 +13,15 @@ read-only session.
 better-supabase add impersonation
 ```
 
-The [Impersonation guide](/docs/auth/impersonation) has the setup and the full reference.
+The `better-supabase/blocks/impersonation` client calls the same functions from TypeScript:
+
+```ts
+await db.impersonation
+  .request({ target: userId, reason: "Ticket 4812" })
+  .orThrow();
+await db.impersonation.approve(requestId).orThrow();
+const sessions = await db.impersonation.list({ active: true }).orThrow();
+await db.impersonation.end(sessionId).orThrow();
+```
+
+`start` opens a session without a request, as the admin who is calling. The [Impersonation guide](/docs/auth/impersonation) has the setup and the full reference.

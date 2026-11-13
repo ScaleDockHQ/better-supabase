@@ -236,6 +236,9 @@ export function SideNav() {
 
 - `SessionProvider` renders from Server Components: the `react-server` build
   exports it as a client reference.
+- `SessionProvider` reads `caller_authz_version()` from the `api` schema through
+  the client's `schema()`. Pass `schema="public"` for a client that exposes it
+  there, so you pass the client itself and need no wrapper.
 - `useSession()` suspends, so keep it under a `<Suspense>` boundary, and
   create the promise inside that boundary.
 - The session is a plain `AuthSession` (no token), the same type

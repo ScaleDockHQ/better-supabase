@@ -452,9 +452,9 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Scope: Example follow-up block fixes
 - Status: in progress
 - Branch: `feat/audit-e`
-- PR: none yet
+- PR: PR TBD
 - Findings: EX-1602, EX-1604, EX-1605, EX-1606, EX-1607, EX-1610, EX-1612, EX-1613, EX-1614
-- Log: 2026-11-12, planned.
+- Log: 2026-11-12, E1 PR opened (fixes 1604 in part, 1605 in part, 1606, 1607, 1610, 1612, 1614). EX-1602 and EX-1613 remain for E2.
 
 ### Lane F
 

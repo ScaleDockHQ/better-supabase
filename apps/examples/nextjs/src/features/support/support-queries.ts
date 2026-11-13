@@ -1,20 +1,9 @@
 import "server-only";
 import { cacheTag } from "next/cache";
-import * as v from "valibot";
 
 import { bsb } from "@/lib/supabase/server";
 
 import { SUPPORT_TAG } from "./support-cache";
-
-const SessionJson = v.object({
-  id: v.string(),
-  target_user_id: v.string(),
-  reason: v.nullable(v.string()),
-  read_only: v.boolean(),
-  started_at: v.string(),
-  expires_at: v.string(),
-  ended_at: v.nullable(v.string()),
-});
 
 export interface SupportSessionRow {
   readonly id: string;
@@ -38,27 +27,15 @@ export async function getSupportSessions(): Promise<
   const { db } = await bsb.cached();
   cacheTag(SUPPORT_TAG);
 
-  // The api schema is untyped here, so the reply is typed at the call.
-  const response: {
-    readonly data: unknown;
-    readonly error: { readonly message: string } | null;
-  } = await db.$client
-    .schema("api")
-    .rpc("list_support_sessions", { max_rows: 50 });
+  const sessions = await db.impersonation.list({ limit: 50 }).orThrow();
 
-  if (response.error) {
-    throw new Error(response.error.message);
-  }
-
-  return v
-    .parse(v.array(SessionJson), response.data)
-    .map((row) => ({
-      id: row.id,
-      targetUserId: row.target_user_id,
-      reason: row.reason,
-      readOnly: row.read_only,
-      startedAt: row.started_at,
-      expiresAt: row.expires_at,
-      endedAt: row.ended_at,
-    }));
+  return sessions.map((row) => ({
+    id: row.id,
+    targetUserId: row.targetUserId,
+    reason: row.reason,
+    readOnly: row.readOnly,
+    startedAt: row.startedAt.toString(),
+    expiresAt: row.expiresAt.toString(),
+    endedAt: row.endedAt?.toString() ?? null,
+  }));
 }

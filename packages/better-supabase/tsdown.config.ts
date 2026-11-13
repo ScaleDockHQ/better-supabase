@@ -94,6 +94,8 @@ const entries = [
   "blocks/oauth-server/index",
   "blocks/domains/index",
   "blocks/automations/index",
+  "blocks/field-encryption/index",
+  "blocks/impersonation/index",
   "blocks/vercel-marketplace/index",
   "blocks/reviews/index",
   "blocks/leave/index",

@@ -1014,7 +1014,7 @@ export interface BlockNameRegistry {
   };
   readonly "field-encryption": {
     readonly tables: {};
-    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_hash" | "field_key" | "field_lookup" | "field_lookup_key" | "field_open" | "field_seal";
+    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_hash" | "field_key" | "field_key_status" | "field_lookup" | "field_lookup_key" | "field_open" | "field_seal";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -2532,7 +2532,7 @@ export interface BlockNameRegistry {
       readonly "invoices": "id" | "installation" | "externalId" | "state" | "periodStart" | "periodEnd" | "total" | "currency" | "items" | "eventAt" | "createdAt" | "updatedAt";
       readonly "meterReports": "id" | "installation" | "resourceExternalId" | "meterId" | "periodStart" | "periodEnd" | "quantity" | "reportedQuantity" | "reportedAt" | "createdAt";
     };
-    readonly functions: "delete_marketplace_resource" | "link_marketplace_tenant" | "mark_marketplace_meter_reported" | "mark_marketplace_meter_sent" | "marketplace_access_token" | "marketplace_installation" | "marketplace_resource" | "marketplace_resources" | "record_marketplace_invoice" | "record_marketplace_meter_report" | "remove_marketplace_installation" | "seal_marketplace_access_token" | "set_marketplace_resource_state" | "unreported_marketplace_meter_reports" | "upsert_marketplace_installation" | "upsert_marketplace_plan" | "upsert_marketplace_resource";
+    readonly functions: "delete_marketplace_resource" | "link_marketplace_tenant" | "mark_marketplace_meter_reported" | "mark_marketplace_meter_sent" | "marketplace_access_token" | "marketplace_installation" | "marketplace_installation_for" | "marketplace_resource" | "marketplace_resources" | "marketplace_resources_for" | "record_marketplace_invoice" | "record_marketplace_meter_report" | "remove_marketplace_installation" | "seal_marketplace_access_token" | "set_marketplace_resource_state" | "unreported_marketplace_meter_reports" | "upsert_marketplace_installation" | "upsert_marketplace_plan" | "upsert_marketplace_resource";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
