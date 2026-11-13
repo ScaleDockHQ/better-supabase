@@ -1,6 +1,6 @@
 -- better-supabase module: search
--- @bsb-block search@3 managed
--- @bsb-hash sha256:1cfad43bf394196aae1431477fea3ac130077f06e6f75629dbc13c935356f6a8
+-- @bsb-block search@4 managed
+-- @bsb-hash sha256:03dd83d036a12eba726f558a3cf5d0a02ef7c6e8bb6d40278f2d88724eb398f9
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,6 +36,19 @@ create index search_documents_browse_idx on "better_supabase"."search_documents"
 create policy bsb_search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
+
+-- The records an import run changed (search_enqueue while
+-- better_supabase.import_run is set), until finish_import_run or
+-- cancel_import_run indexes each once through search_refresh_run.
+create table better_supabase.import_search_dirty (
+  run_id uuid not null,
+  subject_type text not null,
+  subject_id text not null,
+  primary key (run_id, subject_type, subject_id)
+);
+alter table better_supabase.import_search_dirty enable row level security;
+revoke all on better_supabase.import_search_dirty from public, anon, authenticated;
+grant all on better_supabase.import_search_dirty to service_role;
 
 -- Lowercase and without accents. unaccent is stable because its dictionary
 -- can change; pinning the dictionary makes this safe to index.
@@ -953,12 +966,14 @@ revoke execute on function "better_supabase"."search_reindex"(text) from public,
 grant execute on function "better_supabase"."search_reindex"(text) to service_role;
 
 -- Runs as its caller (the definer trigger functions and import_upsert_batch
--- call it), so it adds no definer function. Indexes a record now, or, while an import batch runs with
+-- call it), so it adds no definer function. Indexes a record now, or, with
 -- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
--- key once, one line per key, in one of 256 transaction-local settings
--- (better_supabase.search_dirty_<hash>) so search_refresh_dirty indexes it
--- once at the end of the batch. A setting holds a 256th of the keys: one text
--- setting rewrote the whole list on every note.
+-- key for later: in import_search_dirty when an import run is set, so the run
+-- indexes it once when it closes, and otherwise once, one line per key, in one
+-- of 256 transaction-local settings (better_supabase.search_dirty_<hash>) so
+-- search_refresh_dirty indexes it at the end of the transaction. A setting
+-- holds a 256th of the keys: one text setting rewrote the whole list on every
+-- note.
 create or replace function "better_supabase"."search_enqueue"(subject_type text, subject_id text)
 returns void
 language plpgsql
@@ -970,8 +985,13 @@ declare
   v_key text := search_enqueue.subject_type || E'\x1f' || search_enqueue.subject_id;
   v_name text := 'better_supabase.search_dirty_' || (hashtext(v_key) & 255)::text;
   v_dirty text;
+  v_run text := nullif(current_setting('better_supabase.import_run', true), '');
 begin
-  if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
+  if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' and v_run is not null then
+    insert into better_supabase.import_search_dirty (run_id, subject_type, subject_id)
+    values (v_run::uuid, search_enqueue.subject_type, search_enqueue.subject_id)
+    on conflict do nothing;
+  elsif coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
     v_dirty := coalesce(current_setting(v_name, true), '');
     if position(E'\n' || v_key || E'\n' in E'\n' || v_dirty) = 0 then
       perform set_config(v_name, v_dirty || v_key || E'\n', true);
@@ -1016,6 +1036,34 @@ $$;
 revoke execute on function "better_supabase"."search_refresh_dirty"() from public, anon, authenticated;
 grant execute on function "better_supabase"."search_refresh_dirty"() to service_role;
 
+-- Indexes every record an import run noted (import_search_dirty) once, and
+-- clears the run's notes. finish_import_run and cancel_import_run call it.
+create or replace function "better_supabase"."search_refresh_run"(run uuid)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_count integer := 0;
+  v_row record;
+begin
+  for v_row in
+    delete from better_supabase.import_search_dirty d
+    where d.run_id = search_refresh_run.run
+    returning d.subject_type, d.subject_id
+  loop
+    if "better_supabase"."search_refresh"(v_row.subject_type, v_row.subject_id) then
+      v_count := v_count + 1;
+    end if;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."search_refresh_run"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."search_refresh_run"(uuid) to service_role;
+
 create or replace function "better_supabase"."search_index_row"()
 returns trigger
 language plpgsql
@@ -1036,15 +1084,86 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."search_index_row"() from public, anon, authenticated;
+
+-- search_enqueue for many ids of one type, as the statement triggers call it.
+create or replace function "better_supabase"."search_enqueue_many"(subject_type text, subject_ids text[])
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id text;
+  v_run text := nullif(current_setting('better_supabase.import_run', true), '');
+begin
+  if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' and v_run is not null then
+    insert into better_supabase.import_search_dirty (run_id, subject_type, subject_id)
+    select v_run::uuid, search_enqueue_many.subject_type, i.id
+    from unnest(search_enqueue_many.subject_ids) i(id)
+    on conflict do nothing;
+    return;
+  end if;
+  foreach v_id in array coalesce(search_enqueue_many.subject_ids, '{}'::text[]) loop
+    perform "better_supabase"."search_enqueue"(search_enqueue_many.subject_type, v_id);
+  end loop;
+end;
+$$;
+revoke execute on function "better_supabase"."search_enqueue_many"(text, text[]) from public, anon, authenticated;
+
+-- The statement form of search_index_row (search.statement): one call per
+-- statement reads the changed ids from the transition tables. tg_argv[2] lists
+-- the columns whose change re-indexes an updated row; empty means any change.
+create or replace function "better_supabase"."search_index_stmt"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_key text := tg_argv[1];
+  v_columns text[] := string_to_array(nullif(coalesce(tg_argv[2], ''), ''), ',');
+  v_ids text[];
+begin
+  if tg_op = 'INSERT' then
+    select array_agg(distinct to_jsonb(n) ->> v_key) into v_ids from new_rows n;
+  elsif tg_op = 'DELETE' then
+    select array_agg(distinct to_jsonb(o) ->> v_key) into v_ids from old_rows o;
+  else
+    with o as (select to_jsonb(r) as j from old_rows r),
+      n as (select to_jsonb(r) as j from new_rows r)
+    select array_agg(distinct x.id) into v_ids
+    from (
+      select n.j ->> v_key as id
+      from n left join o on o.j ->> v_key = n.j ->> v_key
+      where o.j is null or v_columns is null
+        or exists (select 1 from unnest(v_columns) c where o.j -> c is distinct from n.j -> c)
+      union
+      select o.j ->> v_key
+      from o left join n on n.j ->> v_key = o.j ->> v_key
+      where n.j is null
+    ) x;
+  end if;
+  perform "better_supabase"."search_enqueue_many"(tg_argv[0], array_remove(v_ids, null));
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."search_index_stmt"() from public, anon, authenticated;
 create trigger "bsb_search_product_index"
   after insert or delete or update of "id", "tenant_id", "title", "description", "slug" on "better_supabase"."products"
   for each row execute function "better_supabase"."search_index_row"('product', 'id');
 create trigger "bsb_search_product_variant_index"
   after insert or delete or update of "id", "tenant_id", "sku", "title", "barcode" on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."search_index_row"('product_variant', 'id');
-create trigger "bsb_search_customer_index"
-  after insert or delete or update of "id", "organization_id", "name", "status", "archived_at" on "public"."customers"
-  for each row execute function "better_supabase"."search_index_row"('customer', 'id');
+create trigger "bsb_search_customer_insert"
+  after insert on "public"."customers" referencing new table as new_rows
+  for each statement execute function "better_supabase"."search_index_stmt"('customer', 'id');
+create trigger "bsb_search_customer_update"
+  after update on "public"."customers" referencing old table as old_rows new table as new_rows
+  for each statement execute function "better_supabase"."search_index_stmt"('customer', 'id', 'id,organization_id,name,status,archived_at');
+create trigger "bsb_search_customer_delete"
+  after delete on "public"."customers" referencing old table as old_rows
+  for each statement execute function "better_supabase"."search_index_stmt"('customer', 'id');
 create trigger "bsb_search_drive_node_index"
   after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."search_index_row"('drive_node', 'id');

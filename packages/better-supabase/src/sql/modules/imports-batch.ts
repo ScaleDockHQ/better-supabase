@@ -72,7 +72,7 @@ export function batchSql(input: {
   `;
 
   const deferPending = `v_pending := v_pending || jsonb_build_object('subjectId', v_subject_id, 'found', v_found, 'key', v_key, 'scope', v_scope, 'hash', v_hash);
-            v_calls := v_calls || v_call;
+            v_calls := v_calls || (v_call || jsonb_build_object('subjectId', v_subject_id));
             v_pending_keys := v_pending_keys || (v_scope || chr(31) || v_key);`;
 
   const batchArms = batched

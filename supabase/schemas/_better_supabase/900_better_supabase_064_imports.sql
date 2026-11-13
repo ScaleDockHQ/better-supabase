@@ -1,6 +1,6 @@
 -- better-supabase module: imports
--- @bsb-block imports@2 managed
--- @bsb-hash sha256:1a7c4f891e0fdfca2f8e5da2260f7354d097457f872b6a69d55461f0e0cbfa80
+-- @bsb-block imports@3 managed
+-- @bsb-hash sha256:329ddf4c65f12b803efa3d3c53c245d7b871edb11acf4bbb8f31ec7690f7b792
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -273,6 +273,7 @@ begin
   end if;
   update "better_supabase"."import_runs" r set "status" = 'canceled', "finished_at" = now()
   where r."id" = cancel_import_run.id;
+  perform "better_supabase"."search_refresh_run"(cancel_import_run.id);
   return true;
 end;
 $$;
@@ -1183,7 +1184,7 @@ begin
   v_call := v_call || jsonb_build_object('resolved', v_resolved);
         if v_entity = any (array['customer']::text[]) then
             v_pending := v_pending || jsonb_build_object('subjectId', v_subject_id, 'found', v_found, 'key', v_key, 'scope', v_scope, 'hash', v_hash);
-            v_calls := v_calls || v_call;
+            v_calls := v_calls || (v_call || jsonb_build_object('subjectId', v_subject_id));
             v_pending_keys := v_pending_keys || (v_scope || chr(31) || v_key);
           else
             case v_entity
@@ -1664,7 +1665,6 @@ begin
     end;
   else
     v_result := "better_supabase"."import_apply_batch"(v_run_id, v_entity, import_upsert_batch.items);
-    perform "better_supabase"."search_refresh_dirty"();
   end if;
 
   foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
@@ -1830,6 +1830,7 @@ begin
     end loop;
     perform "better_supabase".emit_event('import.completed', jsonb_build_object('organizationId', v_run."tenant_id", 'id', v_run_id, 'count', v_total), 'imports/' || v_run_id::text, (v_run."tenant_id")::text, null, 'better-supabase/imports');
   end if;
+  perform "better_supabase"."search_refresh_run"(v_run_id);
   return v_counts;
 end;
 $$;
