@@ -450,7 +450,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane E
 
 - Scope: Example follow-up block fixes
-- Status: in progress
+- Status: PR open #902
 - Branch: `feat/audit-e`
 - PR: PR TBD
 - Findings: EX-1602, EX-1604, EX-1605, EX-1606, EX-1607, EX-1610, EX-1612, EX-1613, EX-1614
