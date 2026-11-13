@@ -803,9 +803,9 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane B
 
 - Scope: Event verbs, hint prefix rule, one key per block
-- Status: in progress
+- Status: PR open #900
 - Branch: `feat/audit-b`
-- PR: none yet
+- PR: [#900](https://github.com/ScaleDockHQ/better-supabase/pull/900)
 - Findings: EX-1230, EX-1233, EX-1234
 - Log: 2026-11-12, planned.
 - Log: 2026-11-12, lane B started in `../bsb-audit-b` from main.
