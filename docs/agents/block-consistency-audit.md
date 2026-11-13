@@ -853,13 +853,14 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G1
 
 - Scope: Shared page, facets and count implementation
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-g1`
 - PR: [#906](https://github.com/ScaleDockHQ/better-supabase/pull/906)
 - Findings: EX-1200 to EX-1205, EX-1215
 - Log: 2026-11-12, planned.
   2026-11-13, lane G1 started from main (6f9b3af232) in `../bsb-audit-g1`.
-  2026-11-13, PR #906 opened: shared page, facets and count (ADR 0749), nine blocks moved over, `sso` kept on SCIM paging, `get` added for three entities, migration 20261207000000.
+  2026-11-13, PR #906 opened: shared page, facets and count (ADR 0749), nine blocks moved over, `sso` kept on SCIM paging, `get` added for three entities, migration 20261215140000.
+  2026-11-13, merged as [#906](https://github.com/ScaleDockHQ/better-supabase/pull/906).
 
 ### Lane G2
 
