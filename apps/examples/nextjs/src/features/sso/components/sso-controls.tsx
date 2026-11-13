@@ -3,7 +3,11 @@
 import type { DbError } from "better-supabase";
 import type { ReactNode } from "react";
 
-import { useAction, useActionForm } from "better-supabase/react";
+import {
+  useAction,
+  useActionForm,
+  useErrorMessage,
+} from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
 
@@ -39,7 +43,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { SsoDomainRow } from "../sso-queries";
 

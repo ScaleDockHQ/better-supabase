@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -20,7 +20,6 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Playbook } from "../agents-tools";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSessionChange } from "better-supabase/next/client";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { LogOutIcon, MonitorIcon, MonitorSmartphoneIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState, useTransition } from "react";
@@ -30,7 +30,6 @@ import { sessionChanged } from "@/features/user/user-actions";
 import { useRouter } from "@/i18n/navigation";
 import { useSupabase } from "@/lib/hooks";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { CurrentSession, OtherSession } from "../sessions-queries";
 

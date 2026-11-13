@@ -1,7 +1,7 @@
 "use client";
 
 import { formatMoney, money } from "better-supabase/commerce";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { ArrowRightIcon, HistoryIcon } from "lucide-react";
 import { useExtracted, useFormatter, useLocale } from "next-intl";
 
@@ -23,7 +23,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { ProjectHistoryField, ProjectVersion } from "../project-types";
 

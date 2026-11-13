@@ -16,13 +16,13 @@ route grows past its baseline, and the update script only lowers one.
 Reset `server-baseline.json` to the measured numbers of a fresh `next build`, by
 emptying the file and running the update.
 
-Measured change per route against the old baseline, in bytes, over the 346 routes:
+Measured change per route against the baseline on main, in bytes, over the 346 routes:
 
-| Size   | Smallest | Median | Largest |
-| ------ | -------- | ------ | ------- |
-| raw    | -165     | 3702   | 3853    |
-| gzip   | -82      | 1150   | 1636    |
-| brotli | -173     | 942    | 1142    |
+| Size | Smallest | Median | Largest |
+| ---- | -------- | ------ | ------- |
+| raw | -1630 | 3731 | 3773 |
+| gzip | -41 | 2019 | 2052 |
+| brotli | -184 | 1726 | 1889 |
 
 ## Alternatives considered
 

@@ -4,7 +4,7 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { Tag, Tags } from "./tags.ts";
 
-import { dbError } from "../../core/errors.ts";
+import { dbError, invalidInput } from "../../core/errors.ts";
 import { err, ok, toDbError } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 
@@ -203,7 +203,15 @@ export function createTagInputController(
             const label = name.trim();
 
             if (label === "") {
-              return err(dbError("invalid_input", "A tag needs a name"));
+              return err(
+                invalidInput("A tag needs a name", [
+                  {
+                    path: ["name"],
+                    code: "TAG_NAME_REQUIRED",
+                    message: "A tag needs a name",
+                  },
+                ]),
+              );
             }
 
             const existing = state

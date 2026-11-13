@@ -29,6 +29,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { contains, ruleOperators } from "better-supabase/blocks/automations";
 import { FILTER_OPERATOR_LABELS } from "better-supabase/list";
+import { useErrorMessage } from "better-supabase/react";
 import {
   GripVerticalIcon,
   ListFilterIcon,
@@ -82,7 +83,6 @@ import { useStatusLabel } from "@/features/customers/use-status-label";
 import { useRuleBuilder } from "@/hooks/use-automations";
 import { useRouter } from "@/i18n/navigation";
 import { automationsConfig } from "@/lib/supabase/blocks/slices";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import {
   initialConditions,

@@ -3,6 +3,7 @@
 
 import type { SubmitEvent } from "react";
 
+import { useErrorMessage } from "better-supabase/react";
 import { XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -12,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTagInput } from "@/hooks/use-tags";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
  * A record's tags. Typing a name adds the organization's tag of the subject's

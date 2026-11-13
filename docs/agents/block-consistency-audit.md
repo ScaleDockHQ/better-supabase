@@ -812,11 +812,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane C
 
 - Scope: Field-aware invalid_input, generated messages, locale
-- Status: planned
+- Status: PR open #898
 - Branch: `feat/audit-c`
-- PR: none yet
+- PR: [#898](https://github.com/ScaleDockHQ/better-supabase/pull/898)
 - Findings: EX-1235, EX-1236, EX-1317
 - Log: 2026-11-12, planned.
+- Log: 2026-11-12, lane C started from main in `../bsb-audit-c`.
+- Log: 2026-11-12, PR #898 opened (ADR 0709).
 
 ### Lane D
 
@@ -915,11 +917,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane K
 
 - Scope: Client, controller and hooks trio, record bindings
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-k`
 - PR: none yet
 - Findings: EX-1237, EX-1238, EX-1319, EX-1326
 - Log: 2026-11-12, planned.
+  2026-11-13, lane K started from main (6f9b3af232) in `../bsb-audit-k`; K1 is the employees binding.
+  2026-11-13, K1 built (ADR 0819): `employeeContractsBinding`. The other seven bindings, the trio, the status union and realtime hooks stay open.
 
 ### Lane N
 

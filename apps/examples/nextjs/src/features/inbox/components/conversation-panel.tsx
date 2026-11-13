@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   BotIcon,
   CheckCheckIcon,
@@ -42,7 +42,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useConversation } from "@/hooks/use-inbox";
 import { useAuth } from "@/lib/hooks";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { ConversationRow, MessageRow } from "../inbox-types";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   CircleCheckIcon,
   CircleDotIcon,
@@ -36,7 +36,6 @@ import {
 } from "@/components/ui/empty";
 import { Link } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { InspectionRunView, Loaded } from "../inspections-queries";
 

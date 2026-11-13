@@ -46,6 +46,7 @@ export type { RecordRef } from "../schema/types.ts";
 
 export type {
   BlockCall,
+  BlockMessages,
   BlockOptions,
   BlockTemporalOptions,
   Count,

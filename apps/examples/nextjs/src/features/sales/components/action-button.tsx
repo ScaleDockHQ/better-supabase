@@ -2,12 +2,11 @@
 
 import type { ActionInputOf, ActionResultOf } from "better-supabase/react";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 
 import { Button } from "@/components/ui/button";
 import { useRouter, toAppHref } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
  * A button that runs one Server Action with a fixed input, toasts the result

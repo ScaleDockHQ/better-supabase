@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { PlugIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useSearchParams } from "next/navigation";
@@ -50,7 +50,6 @@ import {
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {
   IntegrationRow,

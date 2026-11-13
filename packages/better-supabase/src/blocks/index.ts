@@ -151,6 +151,7 @@ export type {
 } from "../core/block-events.ts";
 
 export type {
+  BlockMessages,
   BlockOptions,
   Count,
   CountOptions,

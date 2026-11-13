@@ -2,7 +2,7 @@
 
 import type { CellContext } from "@tanstack/react-table";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { CheckIcon, InboxIcon, XIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { createContext, use, useMemo, useState } from "react";
@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { PendingApprovalRow } from "../agents-queries";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 
@@ -9,7 +9,6 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { TimelineSubjectType } from "../crm-queries";
 

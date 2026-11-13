@@ -21,7 +21,6 @@ export { damUsageRightRecord } from "./dam-usage-right.ts";
 export { dealRecord } from "./deal.ts";
 export { documentRecord } from "./document.ts";
 export { driveNodeRecord } from "./drive-node.ts";
-export { employeeRecord } from "./employee.ts";
 export { expenseLineRecord } from "./expense-line.ts";
 export { expenseReportRecord } from "./expense-report.ts";
 export { formRecord } from "./form.ts";

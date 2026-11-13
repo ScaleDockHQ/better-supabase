@@ -3,6 +3,7 @@
 import type { DbError } from "better-supabase";
 import type { SubmitEvent } from "react";
 
+import { useErrorMessage } from "better-supabase/react";
 import { CopyIcon, PlusIcon, SendIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState, useTransition } from "react";
@@ -39,7 +40,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import {
   createWebhookEndpoint,

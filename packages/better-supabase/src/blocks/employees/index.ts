@@ -47,3 +47,8 @@ export {
   type EmployeeFromApplicationClients,
   type EmployeeFromApplicationOptions,
 } from "./actions.ts";
+
+export {
+  employeeContractsBinding,
+  type EmployeeContractsWrites,
+} from "./record-binding.ts";

@@ -3,6 +3,7 @@
 
 import type { SubmitEvent } from "react";
 
+import { useErrorMessage } from "better-supabase/react";
 import { CopyIcon, UserPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -41,7 +42,6 @@ import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
  * Invites a teammate through `invite_member` in the browser, then shows the

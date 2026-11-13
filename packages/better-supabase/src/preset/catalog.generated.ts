@@ -21653,9 +21653,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "RiskMatrixLevel"
         },
         {
-          "name": "RiskPageOptions"
-        },
-        {
           "name": "RiskRating"
         },
         {
@@ -28620,6 +28617,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "EmployeeChangeResult"
         },
         {
+          "name": "EmployeeContractsWrites"
+        },
+        {
           "name": "EmployeeField"
         },
         {
@@ -28840,6 +28840,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
+      "record": [
+        "remove"
+      ],
       "events": {
         "type": "EmployeesEvents",
         "types": [
