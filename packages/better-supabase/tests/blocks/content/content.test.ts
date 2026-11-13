@@ -131,8 +131,56 @@ describe("createContent", () => {
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
       "list_content_entries",
-      { tenant: "org", filter: { type: "post", status: "draft" } },
+      { tenant: "org", filters: { type: "post", status: "draft" } },
     );
+  });
+
+  it("pages, counts and facets entries", async () => {
+    const { transport, call } = fakeTransport({
+      list_content_entries: (args: Record<string, unknown>) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: "status",
+            values: [{ value: "draft", count: { value: 3, exact: true } }],
+          };
+        }
+
+        return filters["count"] === true
+          ? { value: 3, exact: false }
+          : { items: [ENTRY], hasMore: false, nextCursor: null };
+      },
+    });
+
+    const content = createContent({ transport, tenant: "org" });
+
+    const page = await content
+      .page({ q: "hello", sort: { by: "title" }, filters: { type: ["post"] } })
+      .orThrow();
+
+    expect(page.items).toHaveLength(1);
+    expect(await content.count().orThrow()).toEqual({ value: 3, exact: false });
+    expect((await content.facets({ facets: ["status"] }).orThrow())[0]).toEqual(
+      {
+        facet: "status",
+        values: [{ value: "draft", count: { value: 3, exact: true } }],
+      },
+    );
+    expect(call).toHaveBeenCalledWith(
+      "better_supabase",
+      "list_content_entries",
+      {
+        tenant: "org",
+        filters: {
+          sort: "title",
+          type: ["post"],
+          search: "hello",
+          paged: true,
+        },
+      },
+    );
+    expect((await content.facets({ facets: ["nope"] })).ok).toBe(false);
   });
 
   it("publishes, schedules and requests approval", async () => {

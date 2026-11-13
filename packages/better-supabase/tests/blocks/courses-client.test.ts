@@ -108,12 +108,27 @@ describe("course client", () => {
     }
   });
 
-  it("limits a course list", async () => {
-    const courses = createCourses({ transport: transport(), tenant: "org-1" });
-    const listed = await courses.list({ limit: 1 });
-    const all = await courses.list();
+  it("sends the limit of a course list to the SQL function", async () => {
+    const args: Record<string, unknown>[] = [];
+    const base = transport();
 
-    expect(listed.ok ? listed.data : []).toHaveLength(1);
+    const courses = createCourses({
+      transport: {
+        call(schema: string, fn: string, callArgs: Record<string, unknown>) {
+          args.push(callArgs);
+
+          return base.call(schema, fn, callArgs);
+        },
+      },
+      tenant: "org-1",
+    });
+
+    const all = await courses.list({ limit: 1, status: "draft" });
+
     expect(all.ok ? all.data : []).toHaveLength(2);
+    expect(args[0]).toEqual({
+      tenant: "org-1",
+      filters: { status: "draft", limit: 1 },
+    });
   });
 });

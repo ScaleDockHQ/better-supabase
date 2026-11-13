@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
+import { contentBlock } from "../../src/blocks/content/manifest.ts";
+import { coursesBlock } from "../../src/blocks/courses/manifest.ts";
 import { damBlock } from "../../src/blocks/dam/manifest.ts";
 import { ePrescribingBlock } from "../../src/blocks/e-prescribing/manifest.ts";
 import { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
+import { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
 import { limsBlock } from "../../src/blocks/lims/manifest.ts";
 import { maintenanceBlock } from "../../src/blocks/maintenance/manifest.ts";
 import { passesBlock } from "../../src/blocks/passes/manifest.ts";
@@ -20,9 +23,12 @@ import { renderBlocks } from "../../src/sql/render.ts";
 const BLOCKS = [
   agentCheckoutBlock,
   appraisalsBlock,
+  contentBlock,
+  coursesBlock,
   damBlock,
   ePrescribingBlock,
   enrollmentsBlock,
+  legalEntitiesBlock,
   limsBlock,
   maintenanceBlock,
   passesBlock,
@@ -89,6 +95,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(16);
+    expect(CASES).toHaveLength(19);
   });
 });

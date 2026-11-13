@@ -520,11 +520,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "get_legal_entity", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "list_legal_entities",
-      args: ["{id}", "boolean"],
-      returns: "jsonb",
-    },
+    { name: "list_legal_entities", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "legal_entity_of", args: ["{id}", "uuid"], returns: "uuid" },
     { name: "get_legal_entity_settings", args: ["uuid"], returns: "jsonb" },
     {

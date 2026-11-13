@@ -1387,7 +1387,7 @@
   "/api/bs-sessions/route": {
     "raw": 2523938,
     "gzip": 762312,
-    "brotli": 645520
+    "brotli": 647169
   },
   "/api/bs-stats/route": {
     "raw": 1059029,
@@ -1447,12 +1447,12 @@
   "/api/customers/[id]/fhir/route": {
     "raw": 2531221,
     "gzip": 764720,
-    "brotli": 647659
+    "brotli": 649288
   },
   "/api/customers/[id]/reads/route": {
     "raw": 2523808,
     "gzip": 762250,
-    "brotli": 645486
+    "brotli": 647133
   },
   "/api/customers/[id]/route": {
     "raw": 1059242,
@@ -1552,12 +1552,12 @@
   "/api/invoices/[id]/send/route": {
     "raw": 2531879,
     "gzip": 765557,
-    "brotli": 648408
+    "brotli": 650050
   },
   "/api/invoices/[id]/ubl/route": {
     "raw": 2531956,
     "gzip": 765609,
-    "brotli": 648436
+    "brotli": 650076
   },
   "/api/jobs/list/route": {
     "raw": 1194135,
@@ -1701,12 +1701,12 @@
   },
   "/api/webhooks/inbox/route": {
     "raw": 2881598,
-    "gzip": 867426,
+    "gzip": 869679,
     "brotli": 739671
   },
   "/api/workflows/definitions/list/route": {
     "raw": 4678086,
-    "gzip": 1402486,
+    "gzip": 1406087,
     "brotli": 1178453
   },
   "/api/workflows/hooks/[token]/route": {
@@ -1716,7 +1716,7 @@
   },
   "/api/workflows/runs/list/route": {
     "raw": 4678089,
-    "gzip": 1402489,
+    "gzip": 1406091,
     "brotli": 1178455
   },
   "/api/workflows/tick/route": {

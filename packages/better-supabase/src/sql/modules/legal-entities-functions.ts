@@ -1,5 +1,11 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -39,6 +45,37 @@ export function legalEntityFunctions(ctx: BlockSqlContext): string {
 
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'code', ${row}.${e("code")}, 'name', ${row}.${e("name")}, 'address', ${row}.${e("address")}, 'vatNumber', ${row}.${e("vatNumber")}, 'cocNumber', ${row}.${e("cocNumber")}, 'iban', ${row}.${e("iban")}, 'bic', ${row}.${e("bic")}, 'logoAttachmentId', ${row}.${e("logoAttachment")}, 'defaultCurrency', ${row}.${e("defaultCurrency")}, 'fiscal', ${row}.${e("fiscal")}, 'isDefault', ${row}.${e("isDefault")}, 'archivedAt', ${row}.${e("archivedAt")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")})`;
+
+  const list = {
+    name: "list_legal_entities",
+    from: entities,
+    alias: "x",
+    where: [
+      `x.${e("tenant")} = list_legal_entities.tenant`,
+      `(${filterFlag("includeArchived")} or x.${e("archivedAt")} is null)`,
+      filterAny("isDefault", `x.${e("isDefault")}::text`),
+    ],
+    keys: [
+      { expr: `x.${e("isDefault")}`, dir: "desc", type: "boolean" },
+      { expr: `x.${e("code")}`, dir: "asc", type: "text" },
+      { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      code: [
+        { expr: `x.${e("code")}`, dir: "asc", type: "text" },
+        { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+      ],
+      name: [
+        { expr: `x.${e("name")}`, dir: "asc", type: "text" },
+        { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { isDefault: `x.${e("isDefault")}` },
+    rowJson: json("x"),
+    defaultLimit: 200,
+    maxLimit: 500,
+    invalid,
+  } as const;
 
   const record = (
     verb: "created" | "updated",
@@ -276,20 +313,26 @@ end;
 $$;
 ${userGrant(`${fn("get_legal_entity")}(uuid)`)}
 
--- The default entity first, then by code.
-create or replace function ${fn("list_legal_entities")}(tenant ${idType}, include_archived boolean default false)
+-- The default entity first, then by code. filters is { includeArchived, isDefault,
+-- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749); includeArchived takes true, and archived entities stay out
+-- without it.
+create or replace function ${fn("list_legal_entities")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${json("x")} order by x.${e("isDefault")} desc, x.${e("code")}), '[]'::jsonb)
-  from ${entities} x
-  where x.${e("tenant")} = list_legal_entities.tenant
-    and (coalesce(list_legal_entities.include_archived, false) or x.${e("archivedAt")} is null)
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_legal_entities.filters, '{}'::jsonb);
+  ${listDeclare(list)}
+begin
+  ${listBody(list)}
+end;
 $$;
-${userGrant(`${fn("list_legal_entities")}(${idType}, boolean)`)}
+${userGrant(`${fn("list_legal_entities")}(${idType}, jsonb)`)}
 
 -- The legal entity a row belongs to: the given one when it is the
 -- organization's, otherwise the organization's default. Null means the

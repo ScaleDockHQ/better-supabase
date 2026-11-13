@@ -1,10 +1,18 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import {
   applyTemporal,
   blockCall,
@@ -18,6 +26,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { contentEntryListSurface } from "./lists.ts";
 
 const STATUSES = ["draft", "scheduled", "published", "archived"] as const;
 
@@ -158,6 +167,15 @@ export interface Content {
   /** The entry with its translations, or null when the caller can't read it. */
   get(entryId: string): AsyncResult<ContentEntry | null>;
   list(filter?: ContentFilter): AsyncResult<readonly ContentEntry[]>;
+  /**
+   * One keyset page of entries, latest change first unless `sort` picks
+   * `title`, `createdAt` or `publishedAt`. `q` matches the title or slug.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<ContentEntry>>;
+  /** The values of each facet (`type`, `locale`, `status`) and their counts. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many entries match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   /**
    * Publishes an entry now; needs `content.publish`. Under `requireApproval` a
    * member's call opens a publish request and returns the waiting draft.
@@ -300,6 +318,15 @@ export function createContent(options: ContentOptions): Content {
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const entry = (fn: string) => (value: unknown) => entryOf(value, fn);
 
+  const entries = entityList({
+    entity: "content_entry",
+    surface: contentEntryListSurface,
+    call,
+    tenant,
+    fn: "list_content_entries",
+    rowOf: entryOf,
+  });
+
   const client: Content = {
     create: (input) =>
       tenant().andThen((organizationId) =>
@@ -327,17 +354,26 @@ export function createContent(options: ContentOptions): Content {
           ? null
           : entryOf(value, "get_content_entry"),
       ),
-    list: (filter = {}) =>
+    list: ({ query, ...filter } = {}) =>
       tenant().andThen((organizationId) =>
         call(
           "list_content_entries",
-          { tenant: organizationId, filter: definedOf(filter) },
+          {
+            tenant: organizationId,
+            filters: {
+              ...definedOf(filter),
+              ...(query === undefined ? {} : { search: query }),
+            },
+          },
           (value) =>
             recordsOf(value, "list_content_entries").map(
               entry("list_content_entries"),
             ),
         ),
       ),
+    page: entries.page,
+    facets: entries.facets,
+    count: entries.count,
     publish: (entryId) =>
       call(
         "publish_content_entry",

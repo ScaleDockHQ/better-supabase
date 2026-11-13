@@ -172,10 +172,60 @@ describe("createCourses", () => {
           },
         },
       ],
-      ["list_courses", { tenant: "org-1", status: "published" }],
-      ["list_courses", { tenant: "org-1", status: null }],
+      ["list_courses", { tenant: "org-1", filters: { status: "published" } }],
+      ["list_courses", { tenant: "org-1", filters: {} }],
       ["delete_course", { course_id: "c2" }],
     ]);
+  });
+
+  it("pages courses with their fields, and counts and facets them", async () => {
+    const seen: Record<string, unknown>[] = [];
+
+    const courses = createCourses({
+      transport: {
+        call(_schema: string, _fn: string, args: Record<string, unknown>) {
+          const filters = args["filters"] as Record<string, unknown>;
+
+          seen.push(filters);
+
+          if (filters["facet"] !== undefined) {
+            return Promise.resolve({
+              facet: "status",
+              values: [
+                { value: "published", count: { value: 2, exact: true } },
+              ],
+            });
+          }
+
+          return Promise.resolve(
+            filters["count"] === true
+              ? { value: 2, exact: true }
+              : { items: [COURSE], hasMore: true, nextCursor: ["a", "c1"] },
+          );
+        },
+      },
+      tenant: "org-1",
+      fields: v.object({ level: v.string() }),
+    });
+
+    const page = await courses
+      .page({
+        sort: { by: "title", direction: "desc" },
+        filters: { status: ["published"] },
+      })
+      .orThrow();
+
+    expect(page.items[0]?.fields).toEqual({ level: "intro" });
+    expect(page.nextCursor).toEqual(["a", "c1"]);
+    expect(await courses.count().orThrow()).toEqual({ value: 2, exact: true });
+    expect((await courses.facets().orThrow())[0]?.facet).toBe("status");
+    expect(seen[0]).toEqual({
+      sort: "title",
+      direction: "desc",
+      status: ["published"],
+      paged: true,
+    });
+    expect((await courses.page({ q: "x" })).ok).toBe(false);
   });
 
   it("saves a course without fields and with certificates off", async () => {

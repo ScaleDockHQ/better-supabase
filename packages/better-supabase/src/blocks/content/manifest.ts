@@ -4,6 +4,7 @@ import type { ContentEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createContent } from "./content.ts";
 import { contentEvents } from "./events.ts";
+import { contentEntryListSurface } from "./lists.ts";
 import { contentSqlOptions } from "./options.ts";
 import { contentEntryInputSchema } from "./schemas.ts";
 
@@ -22,6 +23,7 @@ export const contentBlock: BlockOf<
   category: "content",
   entities: {
     content_entry: {
+      ...contentEntryListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },
