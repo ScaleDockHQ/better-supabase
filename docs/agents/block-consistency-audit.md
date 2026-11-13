@@ -1063,11 +1063,11 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X2
 
 - Scope: Library follow-ups: what lane H left open, the facet count and the diff rewrites
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x2`
 - PR: none yet
 - Findings: EX-611, EX-506, EX-513, EX-808, EX-1108, EX-016, EX-924, EX-814
-- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start).
+- Log: 2026-11-14, lane X2 started from main (f6e7d2b78d) in `../bsb-findings-x2`; planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start).
 
 ### Lane X2b
 
