@@ -17,7 +17,8 @@ baseline, and the update script only lowers a baseline (ADR 0684).
 
 Raise the baselines by the difference between two fresh `next build`s on the
 same machine, one of `main` and one of this branch, and keep every other
-number. The 110 KB table of hint messages is not in the figures: the provider
+number. The CI runners measured the server chunks up to 1,541 B raw above that
+difference, so every server route also gets 1,550 B raw. The 110 KB table of hint messages is not in the figures: the provider
 loads `better-supabase/blocks/messages` after hydration with a dynamic import,
 and a build with a static import measured about 740 first-load entries over
 their baselines.
@@ -26,7 +27,7 @@ their baselines.
 | -------------------------------------- | ------------------------- | ------------------------------------------------------------------ |
 | First load (`baseline.json`)           | every route under `(app)` | median +1,028 B gzip, +1,707 B raw: the provider and its sentences |
 | First load                             | `/invite/[token]`         | +19,365 B gzip: the page now reads the react entry's shared chunk  |
-| Server chunks (`server-baseline.json`) | 279 route entries         | median +274 B gzip, at most +486 B                                 |
+| Server chunks (`server-baseline.json`) | 279 route entries         | median +274 B gzip, at most +486 B; every route +1,550 B raw       |
 
 ## Alternatives considered
 
