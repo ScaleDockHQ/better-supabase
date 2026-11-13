@@ -28,6 +28,7 @@ import {
 } from "../doctor/baseline.ts";
 import { loadStackEnvCheck } from "../doctor/env.ts";
 import { formatReport, jsonReport } from "../doctor/format.ts";
+import { gitIgnored } from "../doctor/git-ignored.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
 import {
   ENV_FILES,
@@ -426,6 +427,7 @@ export async function runDoctor(
     localStacks,
     nextConfig,
     install,
+    ignoredEnvFiles,
   ] = await Promise.all([
     options.snapshot ??
       loadSnapshot(config, env, source, pg, opened.open).catch(
@@ -475,6 +477,9 @@ export async function runDoctor(
       (rules.some((rule) => rule.code === "BS607")
         ? betterSupabaseInstall(config.root).catch(() => undefined)
         : undefined),
+    rules.some((rule) => rule.code === "BS502")
+      ? gitIgnored(config.root, ENV_FILES, env)
+      : undefined,
   ]).catch(async (cause: unknown) => {
     await opened.close();
     throw cause;
@@ -499,6 +504,7 @@ export async function runDoctor(
     configToml,
     envFiles,
     gitignore,
+    ...(ignoredEnvFiles ? { ignoredEnvFiles } : {}),
     sources,
     readSets,
     peers,
