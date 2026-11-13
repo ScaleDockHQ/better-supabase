@@ -201,7 +201,7 @@
     "security-definer-functions": 24
   },
   "enrollments": {
-    "security-definer-functions": 126
+    "security-definer-functions": 138
   },
   "entitlements": {
     "security-definer-functions": 9
@@ -376,10 +376,10 @@
     "security-definer-functions": 60
   },
   "passes": {
-    "security-definer-functions": 43
+    "security-definer-functions": 49
   },
   "payroll-export": {
-    "security-definer-functions": 42
+    "security-definer-functions": 48
   },
   "periods": {
     "security-definer-functions": 42
@@ -475,7 +475,7 @@
     "security-definer-functions": 54
   },
   "sequences": {
-    "security-definer-functions": 91,
+    "security-definer-functions": 97,
     "row-triggers": 1
   },
   "service-accounts": {
