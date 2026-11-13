@@ -10,6 +10,7 @@ import {
   staleVariables,
 } from "../stack-env.ts";
 import { readStackStatus } from "../stack-status.ts";
+import { ignoredBy } from "./git-ignored.ts";
 
 const PUBLIC_PREFIXES = [
   "NEXT_PUBLIC_",
@@ -155,26 +156,10 @@ export const ENV_RULES: readonly Rule[] = [
     description:
       "Env files holding a secret key or database password should never be committed.",
     check: (context) => {
-      const patterns = context.gitignore
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(
-          (line) =>
-            line.length > 0 && !line.startsWith("#") && !line.startsWith("!"),
-        );
+      const lines = context.gitignore.split("\n");
 
       const ignored = (path: string): boolean =>
-        patterns.some((pattern) => {
-          const source = pattern
-            .replace(/^\//, "")
-            .replaceAll(/[.+^${}()|[\]\\]/g, "\\$&")
-            .replaceAll("*", ".*");
-
-          return (
-            new RegExp(`^${source}$`).test(path) ||
-            new RegExp(`(^|/)${source}$`).test(path)
-          );
-        });
+        context.ignoredEnvFiles?.has(path) ?? ignoredBy(lines, path) === true;
 
       return context.envFiles.flatMap((file) => {
         const secret = envEntries(file).find(
@@ -189,7 +174,7 @@ export const ENV_RULES: readonly Rule[] = [
 
         return [
           {
-            message: `${file.path} contains ${secret.key} but isn't in .gitignore.`,
+            message: `${file.path} contains ${secret.key} but git doesn't ignore it. Add it to a .gitignore, or untrack it with \`git rm --cached\` if it was committed.`,
             target: file.path,
             location: { file: file.path, line: secret.line },
           },

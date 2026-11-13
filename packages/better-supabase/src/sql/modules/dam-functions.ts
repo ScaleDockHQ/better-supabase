@@ -1,7 +1,12 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { DamSql } from "./dam-sql.ts";
 
-import { listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  filterFirst,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { serviceGrant, userGrant } from "../shared.ts";
 import { damSql } from "./dam-sql.ts";
 import { DAM_RENDITION_STATUSES } from "./dam-values.ts";
@@ -101,8 +106,8 @@ function rightFunctions(ctx: BlockSqlContext, q: DamSql): string {
     alias: "x",
     where: [
       `x.${u("tenant")} = list_usage_rights.tenant`,
-      `(v_node is null or x.${u("node")} = v_node::uuid)`,
-      `(v_status is null or ${q.rightStatus("x", "current_date")} = v_status)`,
+      filterAny("nodeId", `x.${u("node")}`, "uuid"),
+      filterAny("status", `(${q.rightStatus("x", "current_date")})`),
       `(v_expiring is null or (x.${u("revokedAt")} is null and x.${u("expiresOn")} is not null and x.${u("expiresOn")} between current_date and current_date + v_expiring))`,
     ],
     keys: [
@@ -113,6 +118,25 @@ function rightFunctions(ctx: BlockSqlContext, q: DamSql): string {
       },
       { expr: `x.${u("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      expiresOn: [
+        {
+          expr: `coalesce(x.${u("expiresOn")}, 'infinity'::date)`,
+          dir: "asc",
+          type: "date",
+        },
+        { expr: `x.${u("id")}`, dir: "asc", type: "uuid" },
+      ],
+      startsOn: [
+        {
+          expr: `coalesce(x.${u("startsOn")}, '-infinity'::date)`,
+          dir: "desc",
+          type: "date",
+        },
+        { expr: `x.${u("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: q.rightStatus("x", "current_date") },
     rowJson: q.rightJson("x"),
     invalid: q.invalid,
   } as const;
@@ -186,9 +210,31 @@ end;
 $$;
 ${userGrant(`${fn("revoke_usage_right")}(uuid)`)}
 
+-- One usage right, as listed. Needs dam.read.
+create or replace function ${fn("get_usage_right")}(right_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${rights};
+begin
+  select * into v_row from ${rights} x where x.${u("id")} = get_usage_right.right_id;
+  if not found or not ${q.allowed(`v_row.${u("tenant")}`, q.read)} then
+    ${q.rightMissing}
+  end if;
+  return ${q.rightJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_usage_right")}(uuid)`)}
+
 -- Usage rights, soonest expiry first. filters is { nodeId, status: 'upcoming'
--- | 'active' | 'expired' | 'revoked', expiringWithinDays, limit, after, offset, paged, total,
--- totalCap }.
+-- | 'active' | 'expired' | 'revoked' (nodeId and status each a value or a list of
+-- them), expiringWithinDays, sort, direction, facet, count, limit, after, offset,
+-- paged, total, totalCap } (ADR 0749).
 create or replace function ${fn("list_usage_rights")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -200,9 +246,7 @@ as $$
 declare
   v_filters jsonb := coalesce(list_usage_rights.filters, '{}'::jsonb);
   ${listDeclare(list_list_usage_rights)}
-  v_node text := nullif(v_filters ->> 'nodeId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_expiring integer := (v_filters ->> 'expiringWithinDays')::integer;
+  v_expiring integer := ${filterFirst("expiringWithinDays")}::integer;
 begin
   if not ${q.allowed("list_usage_rights.tenant", q.read)} then
     ${q.forbidden("not allowed to read usage rights")}

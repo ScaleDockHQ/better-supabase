@@ -1,5 +1,6 @@
 import "server-only";
 import type { Result } from "better-supabase";
+import type { PageOptions } from "better-supabase/blocks";
 import type { CheckoutSession } from "better-supabase/blocks/agent-checkout";
 
 import { ok } from "better-supabase";
@@ -9,7 +10,7 @@ import { cacheTag } from "next/cache";
 import * as v from "valibot";
 
 import type { BlockPage } from "@/lib/block-page";
-import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
+import type { BlockListQuery } from "@/lib/block-status-list";
 
 import { bsb } from "@/lib/supabase/server";
 
@@ -27,10 +28,6 @@ import {
 const Cursor = v.pipe(v.string(), v.parseJson(), v.array(v.string()));
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
-
-type CheckoutSessionPageOptions = NonNullable<
-  Parameters<Db["agentCheckout"]["sessionPage"]>[0]
->;
 
 const isStatus = (value: string): value is SessionRow["status"] =>
   SESSION_STATUSES.some((status) => status === value);
@@ -73,9 +70,8 @@ function toRow(session: CheckoutSession): SessionRow {
 }
 
 /**
- * One page of sessions. One status and one protocol per block call, so each
- * selected pair is a call; with a single pair the block's keyset cursor pages
- * (`after` holds it as JSON), and with several the first page of each merges.
+ * One page of sessions. The selected statuses and protocols are list filters of
+ * one block call, and its keyset cursor pages (`after` holds it as JSON).
  */
 export async function loadSessionPage(
   db: Db,
@@ -84,56 +80,36 @@ export async function loadSessionPage(
   const statuses = (query.facets["status"] ?? []).filter(isStatus);
   const protocols = (query.facets["protocol"] ?? []).filter(isProtocol);
 
-  const pairs = (statuses.length > 0 ? statuses : [undefined]).flatMap(
-    (status) =>
-      (protocols.length > 0 ? protocols : [undefined]).map(
-        (protocol) => [status, protocol] as const,
-      ),
-  );
-
   const cursor =
     query.after === undefined ? undefined : v.safeParse(Cursor, query.after);
 
-  const results = await Promise.all(
-    pairs.map(([status, protocol]) => {
-      const options: Mutable<CheckoutSessionPageOptions> = {
-        limit: SESSION_PAGE_SIZE,
-      };
+  const filters: Record<string, readonly string[]> = {};
 
-      if (status !== undefined) {
-        options.status = status;
-      }
-
-      if (protocol !== undefined) {
-        options.protocol = protocol;
-      }
-
-      if (pairs.length === 1 && cursor?.success) {
-        options.after = cursor.output;
-      }
-
-      return db.agentCheckout.sessionPage(options);
-    }),
-  );
-
-  const rows: SessionRow[] = [];
-  let nextCursor: string | null = null;
-
-  for (const result of results) {
-    if (!result.ok) {
-      return result;
-    }
-
-    rows.push(...result.data.items.map(toRow));
-
-    if (pairs.length === 1 && result.data.nextCursor !== null) {
-      nextCursor = JSON.stringify(result.data.nextCursor);
-    }
+  if (statuses.length > 0) {
+    filters["status"] = statuses;
   }
 
-  rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  if (protocols.length > 0) {
+    filters["protocol"] = protocols;
+  }
 
-  return ok({ items: rows, nextCursor });
+  const options: PageOptions = { limit: SESSION_PAGE_SIZE, filters };
+
+  const result = await db.agentCheckout.sessionPage(
+    cursor?.success ? { ...options, after: cursor.output } : options,
+  );
+
+  if (!result.ok) {
+    return result;
+  }
+
+  return ok({
+    items: result.data.items.map(toRow),
+    nextCursor:
+      result.data.nextCursor === null
+        ? null
+        : JSON.stringify(result.data.nextCursor),
+  });
 }
 
 /** The first page of sessions, for the instant shell. */

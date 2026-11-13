@@ -46,6 +46,49 @@ const webhook = async (body: string, secret = SECRET) =>
   });
 
 describe("createVercelMarketplace", () => {
+  it("takes the credentials from env when the options leave them out", async () => {
+    const { transport } = fakeTransport();
+
+    const marketplace = createVercelMarketplace({
+      transport,
+      env: {
+        VERCEL_MARKETPLACE_CLIENT_ID: "oac_1",
+        VERCEL_MARKETPLACE_CLIENT_SECRET: SECRET,
+      },
+    });
+
+    const body = '{"type":"x"}';
+
+    expect(
+      await marketplace.verifyWebhook({ body, signature: await sign(body) }),
+    ).toBe(true);
+  });
+
+  // EX-1606: a settings page builds the client for its reads without the secret.
+  it("refuses webhooks and the SSO exchange without credentials", async () => {
+    const { calls, transport } = fakeTransport();
+    const marketplace = createVercelMarketplace({ transport, env: {} });
+    const body = '{"type":"x"}';
+
+    expect(
+      await marketplace.verifyWebhook({ body, signature: await sign(body) }),
+    ).toBe(false);
+
+    const webhookResult = await marketplace.handleWebhook(await webhook(body));
+
+    expect(webhookResult.error).toMatchObject({
+      kind: "forbidden",
+      hint: "MARKETPLACE_CREDENTIALS_MISSING",
+    });
+
+    const sso = await marketplace.exchangeSso({ code: "c" });
+
+    expect(sso.error).toMatchObject({
+      hint: "MARKETPLACE_CREDENTIALS_MISSING",
+    });
+    expect(calls).toEqual([]);
+  });
+
   it("verifies the HMAC-SHA1 signature of the raw body", async () => {
     const { transport } = fakeTransport();
 
@@ -173,8 +216,8 @@ describe("createVercelMarketplace", () => {
     installation_id: "i1",
     resource_external_id: "",
     meter_id: "requests",
-    period_start: "2026-10-01T00:00:00Z",
-    period_end: "2026-11-01T00:00:00Z",
+    period_starts_at: "2026-10-01T00:00:00Z",
+    period_ends_at: "2026-11-01T00:00:00Z",
     quantity: 12,
     reported_quantity: 0,
     reported_at: null,
@@ -233,8 +276,8 @@ describe("createVercelMarketplace", () => {
 
     const september = meterRow({
       id: "r0",
-      period_start: "2026-09-01T00:00:00Z",
-      period_end: "2026-10-01T00:00:00Z",
+      period_starts_at: "2026-09-01T00:00:00Z",
+      period_ends_at: "2026-10-01T00:00:00Z",
       quantity: 50,
       reported_quantity: 40,
     });

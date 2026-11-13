@@ -30,7 +30,8 @@ Set `auditReads` on either to write a `read` entry to the
 A value is stored as `bsf1:` followed by the base64 of the pgcrypto message.
 The data key is a Vault secret named `bs:field-key:<owner>`, where the owner
 is `tenant:<id>`, `user:<id>` or `app`. A key is created on the first write
-of its owner and is never rotated in place.
+of its owner; [`rotate_field_key`](#rotating-a-key) replaces it and encrypts
+the owner's values again.
 
 The seal trigger never seals a value that already starts with `bsf1:`. An
 upsert's `excluded` row was sealed by its insert attempt, so its values are
@@ -38,15 +39,16 @@ stored once, not wrapped twice. The one exception is a row that moves to
 another owner with the value unchanged: the trigger opens it with the old
 owner's key and seals it with the new one.
 
-| Function                                | Who                    | What it does                                            |
-| --------------------------------------- | ---------------------- | ------------------------------------------------------- |
-| `field_encrypt(owner, value)`           | service role           | Encrypts a value with the owner's key, creating the key |
-| `field_decrypt(owner, value)`           | service role           | Decrypts a value; `null` when the key was dropped       |
-| `field_lookup(owner, value)`            | service role           | The lookup hash of a value under the owner's lookup key |
-| `drop_field_key(owner)`                 | service role           | Deletes the owner's keys, which shreds every value      |
-| `field_key_status()`                    | members, service role  | Which owners have a data key and a lookup key           |
-| `field_key`, `field_seal`, `field_open` | nobody through the API | The helpers the definer functions call                  |
-| `field_lookup_key`, `field_hash`        | nobody through the API | The lookup helpers the definer functions call           |
+| Function                                | Who                                                   | What it does                                                |
+| --------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------- |
+| `field_encrypt(owner, value)`           | service role                                          | Encrypts a value with the owner's key, creating the key     |
+| `field_decrypt(owner, value)`           | service role                                          | Decrypts a value; `null` when the key was dropped           |
+| `field_lookup(owner, value)`            | service role                                          | The lookup hash of a value under the owner's lookup key     |
+| `drop_field_key(owner)`                 | service role                                          | Deletes the owner's keys, which shreds every value          |
+| `field_key_status()`                    | members, service role                                 | Which owners have keys, the key dates and what they encrypt |
+| `rotate_field_key(owner)`               | `field_encryption.manage` in the tenant, service role | Replaces the data key and encrypts every value again        |
+| `field_key`, `field_seal`, `field_open` | nobody through the API                                | The helpers the definer functions call                      |
+| `field_lookup_key`, `field_hash`        | nobody through the API                                | The lookup helpers the definer functions call               |
 
 Signed-in users can't call the functions that encrypt, decrypt or drop keys. They read plaintext only through the
 definer functions of the table or block that owns the value, which check the
@@ -54,18 +56,66 @@ caller's scope first.
 
 `field_key_status()` is the one read a member can call. It lists the owners the
 caller reaches (their tenants, or themselves) and whether each has a data key
-and a lookup key, and the service role sees every owner with a key. It returns
-no key material. The `better-supabase/blocks/field-encryption` client wraps it:
+and a lookup key, when each key was created and the data key last rotated,
+the app table columns that kind of owner's key encrypts and how many
+encrypted custom fields the owner has. The service role sees every owner with
+a key. It returns no key material. The `better-supabase/blocks/field-encryption`
+client wraps it:
 
 ```ts
 import { createFieldEncryption } from "better-supabase/blocks/field-encryption";
 
 const fieldEncryption = createFieldEncryption({ transport });
 const owners = await fieldEncryption.keyStatus().orThrow();
-// [{ owner: "tenant:7c1e...", hasKey: true, hasLookupKey: true }]
+// [{ owner: "tenant:7c1e...", hasKey: true, hasLookupKey: true,
+//    keyCreatedAt, keyRotatedAt, lookupKeyCreatedAt,
+//    columns: [{ table: "client_notes", column: "diagnosis" }], fields: 2 }]
 ```
 
-A rotate action and a count of encrypted columns are not part of the block yet.
+## Rotating a key
+
+`rotateKey(owner)` (SQL `rotate_field_key`) replaces the owner's data key in
+Vault with a new random key and encrypts every value sealed under the old one
+again, in one transaction: the encrypted columns of the app tables in
+`tables`, the encrypted custom field values, and the columns
+`options.sealed` lists. The tables that hold ciphertext are locked against
+writes until it commits, so no write seals a value with the old key
+meanwhile; reads go on. The lookup key stays, so lookup hashes don't change.
+It records a `field_key.rotated` event and a `security` audit entry with the
+owner and the number of rows. `keyRotatedAt` comes from the Vault row's
+update time, so a key created and rotated in one transaction reports no
+rotation.
+
+```ts
+const rotated = await fieldEncryption
+  .rotateKey(`tenant:${organizationId}`)
+  .orThrow();
+// { owner, values: 42, rotatedAt }
+```
+
+A member rotates their tenant's key with `field_encryption.manage` (owner and
+admin by default); user and app keys rotate through the service role.
+
+A table whose own trigger seals values with `field_seal` (one the app wrote,
+or one an older release generated) is invisible to the generator, so list it
+in `options.sealed`. A trigger like that must leave a value that already
+starts with `bsf1:` alone, as the generated one does, or the rotation's
+update fails and rolls back.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "field-encryption": {
+    options: {
+      sealed: [
+        { table: "public.client_notes", columns: ["diagnosis"], owner: "tenant" },
+      ],
+    },
+  },
+},
+```
+
+`owner` is `tenant`, `user` or `app`; `column` names the row's tenant or
+user column when it isn't `organization_id` (as renamed) or `user_id`.
 
 ## Searching encrypted values
 
@@ -138,6 +188,8 @@ the key.
   not encrypted.
 - Row policies you add to an app table yourself don't apply to `reveal`: it
   checks the table's own scope, the same one its generated policies use.
+- A rotation rewrites every row that holds the owner's ciphertext in one
+  transaction, so on a large table run it when writes can wait.
 - The service role and `postgres` can always decrypt. Encryption at rest
   protects backups, replicas, logs and a leaked `select`, not a compromised
   service key.

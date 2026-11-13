@@ -10,7 +10,6 @@ export {
   type RiskInput,
   type RiskLink,
   type RiskListOptions,
-  type RiskPageOptions,
   type RiskMatrix,
   type RiskMatrixBand,
   type RiskMatrixInput,

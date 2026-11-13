@@ -14,6 +14,7 @@ import {
   createOfflineBlockMutation,
   createOfflineBlockQuery,
 } from "../../src/blocks/block-offline.ts";
+import { optimisticUpdate } from "../../src/blocks/optimistic.ts";
 import { organizationsEvents } from "../../src/blocks/organizations/events.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { dbError } from "../../src/core/errors.ts";
@@ -429,5 +430,79 @@ describe("offline types", () => {
     expectTypeOf(mutation.actions.setOffline).toEqualTypeOf<
       (offline: boolean) => void
     >();
+  });
+});
+
+describe("createBlockMutation with optimistic", () => {
+  const rows: readonly Task[] = [
+    { id: "t1", title: "one" },
+    { id: "t2", title: "two" },
+  ];
+
+  const make = (fail: boolean) => {
+    const gate = held(true as const);
+
+    const refused = (): AsyncResult<true> =>
+      AsyncResult.from<true>(async () => {
+        await gate.result;
+
+        return err(dbError("conflict", "stale"));
+      });
+
+    const client = {
+      list: (): AsyncResult<readonly Task[]> => resolved(rows),
+      rename: (_id: string, _title: string): AsyncResult<true> =>
+        fail ? refused() : gate.result,
+    };
+
+    const options = {
+      engine: blockControllerEngine(new QueryClient()),
+      instance: "tasks",
+      optimistic: optimisticUpdate({
+        reads: ["list"],
+        target: (id: string, title: string) => ({ id, patch: { title } }),
+      }),
+    } as const;
+
+    return { client, options, gate };
+  };
+
+  it("shows the change before the call answers and keeps it on success", async () => {
+    const { client, options, gate } = make(false);
+    const list = mount(createBlockQuery(client, "list", [], options));
+    await flush();
+
+    const pending = createBlockMutation(
+      client,
+      "rename",
+      options,
+    ).actions.mutate("t1", "uno");
+
+    expect(list.view().data?.[0]?.title).toBe("uno");
+
+    gate.release();
+    await pending;
+    list.unmount();
+  });
+
+  it("puts the cached read back when the call fails", async () => {
+    const { client, options, gate } = make(true);
+    const list = mount(createBlockQuery(client, "list", [], options));
+    await flush();
+
+    const pending = createBlockMutation(
+      client,
+      "rename",
+      options,
+    ).actions.mutate("t1", "uno");
+
+    expect(list.view().data?.[0]?.title).toBe("uno");
+
+    gate.release();
+    const result = await pending;
+
+    expect(result.ok).toBe(false);
+    expect(list.view().data?.[0]?.title).toBe("one");
+    list.unmount();
   });
 });

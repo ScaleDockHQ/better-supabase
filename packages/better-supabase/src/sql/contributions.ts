@@ -13,6 +13,7 @@ export interface BlockContributions {
   readonly approvals: ApprovalContribution;
   readonly "bulk-actions": BulkActionContribution;
   readonly consents: ConsentPurposeContribution;
+  readonly "field-encryption": FieldCipherContribution;
   readonly housekeeping: HousekeepingContribution;
   readonly imports: ImportTargetContribution;
   readonly numbering: NumberingContribution;
@@ -52,6 +53,25 @@ export interface ConsentPurposeContribution {
     | "vital_interest"
     | "public_task"
     | "legitimate_interest";
+}
+
+/**
+ * A column the contributing block writes ciphertext to with the
+ * field-encryption block's keys. `rotate_field_key` encrypts its values again
+ * under the new key, and `field_key_status` counts the encrypted fields.
+ */
+export interface FieldCipherContribution {
+  /** The table, qualified and quoted. */
+  readonly table: string;
+  /** The ciphertext column, quoted. */
+  readonly column: string;
+  /** The key owner of row `x` as text, such as `'tenant:' || x.tenant_id::text`. */
+  readonly owner: string;
+  /**
+   * How many encrypted fields owner `owner` (a text expression) has here, as
+   * SQL.
+   */
+  readonly fields: (owner: string) => string;
 }
 
 /**

@@ -3,8 +3,14 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -18,6 +24,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -26,12 +33,12 @@ import {
   isRecord,
   optionalInstant,
   optionalText,
-  pageRowsOf,
   recordOf,
   recordsOf,
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { riskListSurface } from "./lists.ts";
 
 export type { RiskMatrixBand, RiskMatrixLevel };
 
@@ -212,16 +219,6 @@ export interface RiskListOptions {
   readonly offset?: number;
 }
 
-/** What `risks.page` reads: the filters of `list`, paged by keyset (ADR 0637). */
-export interface RiskPageOptions extends Omit<RiskListOptions, "offset"> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching risks, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most risks the total counts. Default 10,000. */
-  readonly totalCap?: number;
-}
-
 /** One cell of a heatmap: the open risks rated at a likelihood and impact. */
 export interface RiskHeatmapCell {
   readonly likelihood: number;
@@ -282,10 +279,16 @@ export interface Risks<F extends object = Record<never, never>> {
   }): AsyncResult<readonly Risk<F>[]>;
   list(options?: RiskListOptions): AsyncResult<readonly Risk<F>[]>;
   /**
-   * One keyset page of `list`: the rows, `hasMore` and a `nextCursor` to pass
-   * as `after`. The cost of a page does not grow with its depth.
+   * One keyset page of risks, in the order of `sort` (the highest residual
+   * score first by default): the rows, `hasMore` and a `nextCursor` to pass as
+   * `after`. Closed risks are left out unless `filters.status` asks for them.
+   * The cost of a page does not grow with its depth.
    */
-  page(options?: RiskPageOptions): AsyncResult<ListPage<Risk<F>>>;
+  page(options?: PageOptions): AsyncResult<ListPage<Risk<F>>>;
+  /** The risks per status, category and residual band, under the page's filters. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many risks match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   /**
    * The open risks per matrix cell; the default matrix and residual rating by
    * default.
@@ -508,6 +511,15 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
   const fields: BlockFields<F> = blockFields(options.fields, "risk fields");
   const risk = (fn: string) => (value: unknown) => riskOf(value, fn);
 
+  const list = entityList({
+    entity: "risk",
+    surface: riskListSurface,
+    call,
+    tenant,
+    fn: "list_risks",
+    rowOf: riskOf,
+  });
+
   const withFields = (
     input: object & { readonly fields?: Partial<F> },
   ): AsyncResult<Record<string, unknown>> =>
@@ -626,25 +638,13 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
         ).andThen(fields.rows),
       ),
     page: (page = {}) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "list_risks",
-          {
-            tenant: organizationId,
-            filters: { ...definedOf(page), paged: true },
-          },
-          (value) => {
-            const read = pageRowsOf(value, "list_risks");
-
-            return {
-              ...read,
-              items: read.items.map((row) => riskOf(row, "list_risks")),
-            };
-          },
-        ).andThen((read) =>
+      list
+        .page(page)
+        .andThen((read) =>
           fields.rows(read.items).map((items) => ({ ...read, items })),
         ),
-      ),
+    facets: list.facets,
+    count: list.count,
     heatmap: (heatmap = {}) =>
       tenant().andThen((organizationId) =>
         call(

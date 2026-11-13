@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { LimsSql } from "./lims-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { listBody, listDeclare } from "../list-template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { userGrant } from "../shared.ts";
 import { limsSql } from "./lims-sql.ts";
@@ -153,12 +153,25 @@ function sampleFunctions(ctx: BlockSqlContext, q: LimsSql): string {
     alias: "x",
     where: [
       `x.${s("tenant")} = list_samples.tenant`,
-      `(v_status is null or x.${s("status")} = v_status)`,
+      filterAny("status", `x.${s("status")}`),
+      filterAny("kind", `x.${s("kind")}`),
     ],
     keys: [
       { expr: `x.${s("sequence")}`, dir: "desc", type: "bigint" },
       { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      number: [
+        { expr: `x.${s("sequence")}`, dir: "desc", type: "bigint" },
+        { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+      ],
+      receivedOn: [
+        { expr: `x.${s("receivedOn")}`, dir: "desc", type: "date" },
+        { expr: `x.${s("sequence")}`, dir: "desc", type: "bigint" },
+        { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${s("status")}`, kind: `x.${s("kind")}` },
     rowJson: q.sampleJson("x"),
     invalid: q.invalid,
   } as const;
@@ -239,7 +252,9 @@ end;
 $$;
 ${userGrant(`${fn("get_sample")}(uuid)`)}
 
--- Samples, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
+-- Samples, newest first. filters is { status, kind (each a value or a list of
+-- them), sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap } (ADR 0749).
 create or replace function ${fn("list_samples")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -251,7 +266,6 @@ as $$
 declare
   v_filters jsonb := coalesce(list_samples.filters, '{}'::jsonb);
   ${listDeclare(list)}
-  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not ${q.allowed("list_samples.tenant", q.read)} then
     ${q.forbidden("not allowed to read samples")}

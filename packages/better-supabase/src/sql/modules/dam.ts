@@ -194,6 +194,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "list_renditions", args: ["{id}", "uuid"], returns: "jsonb" },
     { name: "grant_usage_right", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "revoke_usage_right", args: ["uuid"], returns: "jsonb" },
+    { name: "get_usage_right", args: ["uuid"], returns: "jsonb" },
     { name: "list_usage_rights", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "check_usage", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     {

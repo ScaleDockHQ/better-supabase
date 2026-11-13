@@ -35,6 +35,8 @@ export const tasksBlock: BlockOf<
   entities: {
     task: {
       mutability: "editable",
+      expectedVersion: true,
+      idempotent: ["create"],
       emits: { create: true, update: true, delete: true },
     },
     project: { mutability: "editable", emits: { update: false } },

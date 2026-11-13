@@ -61,13 +61,14 @@ exist, and `search.reindex()` does it again after a config change.
 
 ### Labels, descriptions and archived rows
 
-A `search` entry takes four more keys for records whose label or matches live
+A `search` entry takes five more keys for records whose label or matches live
 outside their own row:
 
 | Key           | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `description` | A column whose value each hit returns as `description` (`SearchHit.description`), such as a SKU or the customer a record belongs to. The index adds a `description` column only once a subject sets it                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `exclude`     | A column that keeps a row out of search while it is set (not null and not `false`), such as `archived_at`. Unlike `deletedAt`, the other blocks still see the row                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `facets`      | Columns of the row (or of `from`) whose non-null values `search_page` filters on, such as `["customer_id", "status"]`. The index keeps them in a `facets` jsonb column with a GIN `jsonb_path_ops` index, and a change to one re-indexes the record                                                                                                                                                                                                                                                                                                                                                                  |
 | `from`        | `{ view, key }`: a view or table with one row per record, keyed by the record's id, that `title`, `body`, `description` and `exclude` read instead of the record's own row. The tenant, `deletedAt` and `url` still come from the record, and any update of the record's row re-indexes it, since the view may read any of its columns, unless `columns` lists them                                                                                                                                                                                                                                                  |
 | `columns`     | With `from`: the columns of the record's own table the view reads. The trigger then fires on an update of those columns (and the id, tenant and `deletedAt` columns) instead of every update, so an unrelated column costs no re-index. The drive's `drive_node` subject sets `["name"]`                                                                                                                                                                                                                                                                                                                             |
 | `watch`       | `[{ table, key, via?, through?, columns? }]`: tables whose insert, update or delete re-index the record. The update trigger lists `key` and `columns`, and its `when` clause skips a row when none of them changed. `columns` names the values the title or body reads from that table; without it, only a change to `key` re-indexes the record. `key` holds the record's id, or, with `via`, the value the record's `via` column holds. `through: [{ table, from, to }]` follows `key` across more tables first, such as a junction table: each hop reads `to` from the rows whose `from` holds the previous value |
@@ -178,6 +179,37 @@ back.
 | `SEARCH_QUERY_TOO_LONG`  | The query is longer than 256 characters       |
 | `SEARCH_SIGNED_OUT`      | `touch` or `star` without a signed-in user    |
 | `SEARCH_SUBJECT_UNKNOWN` | `refresh` for a type without a `search` entry |
+
+## Browse and page
+
+`search_page` returns one page as `{ items, nextCursor }`, as the caller. Use it
+for a list view; `search` stays the call for a command palette.
+
+```ts
+const first = await db.search
+  .page({
+    query: { types: ["customer"], filter: { status: "active" }, limit: 20 },
+  })
+  .orThrow();
+
+const next = await db.search
+  .page({ query: { filter: { status: "active" }, after: first.nextCursor } })
+  .orThrow();
+```
+
+| Without `q`                                                                                                                                                                   | With `q`                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browses by the normalized title (`sort_key`), then `subject_id`, over an index on `(tenant, subject_type, sort_key, subject_id)`. Items have no `snippet` and a null `score`. | Ranks like `search` (websearch, prefix and trigram) over at most 500 candidates, then pages by score, `subject_type` and `subject_id`. Scores are rounded to six decimals so the cursor compares exactly. |
+
+- `filter` is a JSON object, and a document matches when its `facets` contain it (`facets @> filter`). A facet whose value is null is not stored, so it never matches.
+- `nextCursor` is opaque and null on the last page. Pass it back as `after` with the same `q`.
+- Like `search`, the call keeps the caller's tenants and drops what `can_subject` hides, so a page can come back with fewer rows than the limit only on the last page.
+- `search_page` does not use embeddings.
+
+| Hint                    | When                                                      |
+| ----------------------- | --------------------------------------------------------- |
+| `SEARCH_FILTER_INVALID` | `filter` is not a JSON object                             |
+| `SEARCH_CURSOR_INVALID` | `after` is malformed, or comes from another query or mode |
 
 ## Recents and favorites
 

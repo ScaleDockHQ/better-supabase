@@ -1,12 +1,18 @@
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import {
   APPRAISAL_ANONYMITY,
   APPRAISAL_CYCLE_STATUSES,
@@ -24,6 +30,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { appraisalListSurface } from "./lists.ts";
 
 /** Where a review cycle stands. */
 export type AppraisalCycleStatus = (typeof APPRAISAL_CYCLE_STATUSES)[number];
@@ -194,22 +201,6 @@ export interface AppraisalListOptions {
   readonly offset?: number;
 }
 
-/**
- * What `appraisalPage` reads: the filters of `listAppraisals`, paged by keyset
- * (ADR 0642).
- */
-export interface AppraisalPageOptions extends Omit<
-  AppraisalListOptions,
-  "offset"
-> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching rows, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most rows the total counts. Default 10,000. */
-  readonly totalCap?: number;
-}
-
 export interface Appraisals {
   /** Creates a draft cycle; needs `appraisals.manage`. */
   createCycle(input: AppraisalCycleInput): AsyncResult<AppraisalCycle>;
@@ -263,10 +254,18 @@ export interface Appraisals {
   listAppraisals(
     options?: AppraisalListOptions,
   ): AsyncResult<readonly Appraisal[]>;
-  /** One keyset page of `listAppraisals`, with `hasMore` and a `nextCursor`. */
-  appraisalPage(
-    options?: AppraisalPageOptions,
-  ): AsyncResult<ListPage<Appraisal>>;
+  /**
+   * One keyset page of appraisals, in the order of `sort` (the default order
+   * without it), with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  appraisalPage(options?: PageOptions): AsyncResult<ListPage<Appraisal>>;
+  /**
+   * The values of each facet of appraisals and their counts, under the page's
+   * filters.
+   */
+  appraisalFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many of appraisals match the page's filters. */
+  appraisalCount(options?: CountOptions): AsyncResult<Count>;
 }
 
 /** Options for {@link createAppraisals}. */
@@ -430,6 +429,15 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
   const cycle = (fn: string) => (value: unknown) => cycleOf(value, fn);
   const appraisal = (fn: string) => (value: unknown) => appraisalOf(value, fn);
 
+  const appraisals = entityList({
+    entity: "appraisal",
+    surface: appraisalListSurface,
+    call,
+    tenant,
+    fn: "list_appraisals",
+    rowOf: appraisalOf,
+  });
+
   const client: Appraisals = {
     createCycle: (input) =>
       tenant().andThen((organizationId) =>
@@ -538,8 +546,9 @@ export function createAppraisals(options: AppraisalsOptions): Appraisals {
             ),
         ),
       ),
-    appraisalPage: (page = {}) =>
-      blockPage(call, tenant, "list_appraisals", appraisalOf, definedOf(page)),
+    appraisalPage: appraisals.page,
+    appraisalFacets: appraisals.facets,
+    appraisalCount: appraisals.count,
   };
 
   return withBlockHooks(client, options.hooks, {

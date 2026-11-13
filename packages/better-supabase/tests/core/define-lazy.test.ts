@@ -262,4 +262,35 @@ describe("a lazy schema", () => {
     ).toMatchObject({ ok: true });
     expect(loaded).toEqual(["customers", "contacts"]);
   });
+
+  it("loads the result table of $rpc in a fresh process and returns app keys", async () => {
+    const { meta, loaded } = lazyMeta();
+
+    const fn = {
+      name: "ensure_customer",
+      schema: "public",
+      args: [],
+      returns: "customers",
+      returnsSet: false,
+      volatility: "volatile",
+      result: { table: "customers" },
+    } as const;
+
+    const app = createSupabase(
+      defineSchema({ ...meta, functions: { ensure_customer: fn } }),
+    );
+
+    const db = app.connect({
+      name: "stub",
+      execute: () => Promise.resolve(ok({ rows: [], count: 0 })),
+      rpc: () => Promise.resolve(ok({ id: "c1", primary_contact_id: "p1" })),
+    }) as unknown as { $rpc: (name: string) => Promise<unknown> };
+
+    const first = await db.$rpc("ensure_customer");
+    const second = await db.$rpc("ensure_customer");
+
+    expect(first).toEqual(ok({ id: "c1", primaryContactId: "p1" }));
+    expect(second).toEqual(first);
+    expect(loaded).toEqual(["customers"]);
+  });
 });

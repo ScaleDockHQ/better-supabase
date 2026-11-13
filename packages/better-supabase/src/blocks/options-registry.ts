@@ -42,6 +42,7 @@ import type { DriveSqlOptions } from "./drive/options.ts";
 import type { EmployeesSqlOptions } from "./employees/options.ts";
 import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
 import type { ExpensesSqlOptions } from "./expenses/options.ts";
+import type { FieldEncryptionSqlOptions } from "./field-encryption/options.ts";
 import type { FieldHistorySqlOptions } from "./field-history/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions } from "./forms/options.ts";
@@ -179,6 +180,7 @@ import { driveSqlOptions } from "./drive/options.ts";
 import { employeesSqlOptions } from "./employees/options.ts";
 import { enrollmentsSqlOptions } from "./enrollments/options.ts";
 import { expensesSqlOptions } from "./expenses/options.ts";
+import { fieldEncryptionSqlOptions } from "./field-encryption/options.ts";
 import { fieldHistorySqlOptions } from "./field-history/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions } from "./forms/options.ts";
@@ -340,7 +342,7 @@ export interface BlockOptionsRegistry {
   readonly enrollments: EnrollmentsSqlOptions;
   readonly entitlements: None;
   readonly expenses: ExpensesSqlOptions;
-  readonly "field-encryption": None;
+  readonly "field-encryption": FieldEncryptionSqlOptions;
   readonly "field-history": FieldHistorySqlOptions;
   readonly forecasts: None;
   readonly forms: FormsSqlOptions;
@@ -537,7 +539,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   entitlements: NO_OPTIONS,
   expenses: expensesSqlOptions,
   flags: flagsSqlOptions,
-  "field-encryption": NO_OPTIONS,
+  "field-encryption": fieldEncryptionSqlOptions,
   "field-history": fieldHistorySqlOptions,
   forecasts: NO_OPTIONS,
   forms: formsSqlOptions,

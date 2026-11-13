@@ -28,6 +28,8 @@ export const dealsBlock: BlockOf<
   entities: {
     deal: {
       mutability: "editable",
+      expectedVersion: true,
+      idempotent: ["create"],
       emits: { create: true, update: true, delete: true },
     },
   },

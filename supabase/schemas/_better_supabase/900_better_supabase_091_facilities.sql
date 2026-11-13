@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@5 managed tasks
--- @bsb-hash sha256:afbc4aa1f5cb597198f68c637a27a52034e919b465927d0fe1d0d9fc81890ff8
+-- @bsb-hash sha256:3f9ad67bcd0291b56281942e7409168642505a5c297b65d9d149e661d92f3e00
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -443,6 +443,8 @@ declare
   v_reason text;
   v_touched uuid[] := '{}';
   v_linked integer;
+  v_seen jsonb := '{}';
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -456,6 +458,16 @@ begin
       v_item := (v_change ->> 'maintenanceRequestId')::uuid;
       if not exists (select 1 from "better_supabase"."maintenance_requests" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+      end if;
+      -- expectedVersion is the updatedAt the caller read. Every change of the
+      -- batch compares to the row as it was before the batch, which an earlier
+      -- change of the same item has already moved on.
+      if not v_seen ? v_item::text then
+        select x."updated_at" into v_was from "better_supabase"."maintenance_requests" x where x."id" = v_item for update;
+        v_seen := v_seen || jsonb_build_object(v_item::text, v_was);
+      end if;
+      if v_change ? 'expectedVersion' and (v_seen ->> v_item::text)::timestamptz is distinct from (v_change ->> 'expectedVersion')::timestamptz then
+        raise exception 'the work item changed since it was read' using errcode = 'BS409', hint = 'STALE_WRITE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_maintenance_request_update"(uuid, text, jsonb)');

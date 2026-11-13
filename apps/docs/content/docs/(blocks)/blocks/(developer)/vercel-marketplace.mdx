@@ -128,7 +128,7 @@ await marketplace.upsertResource({
 });
 ```
 
-`installationFor(tenant)` and `resourcesFor(tenant)` are the reads for a signed-in member of the tenant, so a settings page needs no service role. They leave out the Vault handle of the access token and the `secretRefs` of each resource. The block's env contract lists `VERCEL_MARKETPLACE_CLIENT_ID` and `VERCEL_MARKETPLACE_CLIENT_SECRET`.
+`installationFor(tenant)` and `resourcesFor(tenant)` are the reads for a signed-in member of the tenant, so a settings page needs no service role. They leave out the Vault handle of the access token and the `secretRefs` of each resource. The block's env contract lists `VERCEL_MARKETPLACE_CLIENT_ID` and `VERCEL_MARKETPLACE_CLIENT_SECRET`; a client built only for these reads can leave both out (see [Options and events](#options-and-events)).
 
 `resource` and `resources` read a resource or the installation's live ones, `deleteResource` marks one deleted and `removeInstallation` marks the installation removed. The rows stay for invoices and audit.
 
@@ -213,6 +213,15 @@ export const GET = marketplace.usageRoute({
 
 `blocks.vercel-marketplace.options.currency` (default `usd`) is the currency an invoice takes when the webhook names none.
 
+The client reads the integration's credentials from `clientId` and `clientSecret`, or from `env` when the options leave them out (`env: process.env`):
+
+| Key                                | Used for                                                  |
+| ---------------------------------- | --------------------------------------------------------- |
+| `VERCEL_MARKETPLACE_CLIENT_ID`     | The SSO exchange and the audience of Vercel's OIDC tokens |
+| `VERCEL_MARKETPLACE_CLIENT_SECRET` | Webhook signatures and the SSO exchange                   |
+
+Without them, `verifyWebhook` answers `false`, and `handleWebhook`, `exchangeSso` and the Partner API's token check return a `forbidden` error with the hint `MARKETPLACE_CREDENTIALS_MISSING`; the reads and writes over the transport keep working.
+
 The block writes `marketplace_installation.created`, `marketplace_installation.updated`, `marketplace_installation.deleted` and `marketplace_invoice.status_changed` to the [outbox](/docs/blocks/outbox) and the [audit log](/docs/blocks/audit) when they are installed.
 
 ## Without the client
@@ -224,7 +233,7 @@ import { createVercelMarketplace } from "better-supabase/blocks/vercel-marketpla
 
 const marketplace = createVercelMarketplace({
   transport: serviceTransport,
-  clientId: process.env.VERCEL_MARKETPLACE_CLIENT_ID,
-  clientSecret: process.env.VERCEL_MARKETPLACE_CLIENT_SECRET,
+  // VERCEL_MARKETPLACE_CLIENT_ID and VERCEL_MARKETPLACE_CLIENT_SECRET
+  env: process.env,
 });
 ```

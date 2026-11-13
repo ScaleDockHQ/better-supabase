@@ -3,7 +3,7 @@
 -- the definer paths that check scope, and write one read audit entry per call.
 -- The admin (…00a1) owns Acme; …00a3 belongs to another organization.
 begin;
-select plan(24);
+select plan(33);
 
 create temporary table acme_field (id uuid) on commit drop;
 grant all on acme_field to authenticated;
@@ -141,6 +141,17 @@ select throws_ok(
   'not allowed to manage custom fields',
   'a stranger cannot encrypt the field'
 );
+select ok(
+  not exists (select 1 from jsonb_array_elements(better_supabase.field_key_status()) e
+    where e ->> 'owner' = 'tenant:00000000-0000-4000-8000-000000000001'),
+  'a stranger does not see the tenant key status'
+);
+select throws_ok(
+  $$select better_supabase.rotate_field_key('tenant:00000000-0000-4000-8000-000000000001')$$,
+  '42501',
+  'not allowed to rotate the field key of this owner',
+  'a stranger cannot rotate the tenant key'
+);
 
 reset role;
 select set_config('request.jwt.claims', '', true);
@@ -152,8 +163,68 @@ select throws_ok(
   null,
   'anon cannot reveal'
 );
+select throws_ok(
+  $$select better_supabase.field_key_status()$$,
+  '42501',
+  null,
+  'anon cannot read a key status'
+);
 
 reset role;
+
+-- The admin reads the key status and rotates the key; every value reads the same after.
+create temporary table acme_before (diagnosis text, value_text text) on commit drop;
+insert into acme_before
+select n.diagnosis, v.value_text
+from public.client_notes n, better_supabase.field_values v
+where v.definition_id = (select id from acme_field);
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
+  true
+);
+set local role authenticated;
+
+select ok(
+  (select e ->> 'key_created_at' is not null and e ->> 'key_rotated_at' is null and (e ->> 'fields')::int = 1
+      and e -> 'columns' @> '[{"table":"client_notes","column":"diagnosis"}]'
+      and e::text not like '%bsf1:%'
+    from jsonb_array_elements(better_supabase.field_key_status()) e
+    where e ->> 'owner' = 'tenant:00000000-0000-4000-8000-000000000001'),
+  'the admin reads the key dates, the encrypted columns and fields, and no key material'
+);
+select is(
+  (better_supabase.rotate_field_key('tenant:00000000-0000-4000-8000-000000000001') ->> 'values')::int,
+  2,
+  'the admin rotates the key and both stored rows are encrypted again'
+);
+select is(
+  (select diagnosis from public.client_notes_reveal((select array_agg(id) from public.client_notes))),
+  'asthma',
+  'the note reveals the same diagnosis after the rotation'
+);
+select is(
+  better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1') -> 0 ->> 'text',
+  'flu',
+  'the field value reads the same after the rotation'
+);
+
+reset role;
+
+select ok(
+  (select n.diagnosis <> b.diagnosis and v.value_text <> b.value_text
+    from public.client_notes n, better_supabase.field_values v, acme_before b
+    where v.definition_id = (select id from acme_field)),
+  'the stored ciphertext changed'
+);
+select is(
+  (select count(*)::int from better_supabase.audit_events
+    where event_type = 'field_key.rotated' and category = 'security'),
+  1,
+  'rotating a key writes a security audit entry'
+);
+select set_config('request.jwt.claims', '', true);
 
 -- Dropping the key shreds every value sealed under it.
 select ok(

@@ -130,16 +130,36 @@ functions. In custom mode you implement them over your own tables.
 
 ## Paging a list
 
-`listRfqs` still takes `offset`. For a deep list, `rfqPage` pages by keyset and
-returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
-`after`, and set `total: true` to count up to `totalCap` rows (ADR 0642).
+`listRfqs` is the capped convenience list. `rfqPage` is the full contract for requests for quotation (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `number`, `dueAt`, and the default order is number (newest first); filters are `status`; facets are `status`.
 
 ```ts
-const first = await rfqs.rfqPage({ limit: 50, total: true }).orThrow();
+const first = await rfqs
+  .rfqPage({
+    filters: { status: ["open", "closed"] },
+    sort: { by: "number" },
+    limit: 50,
+  })
+  .orThrow();
 
 if (first.hasMore) {
   const next = await rfqs
-    .rfqPage({ limit: 50, after: first.nextCursor })
+    .rfqPage({
+      filters: { status: ["open", "closed"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
     .orThrow();
 }
+
+// How many rows each facet value holds under the same filters.
+const facets = await rfqs
+  .rfqFacets({ filters: { status: ["open", "closed"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await rfqs
+  .rfqCount({ filters: { status: ["open", "closed"] } })
+  .orThrow();
 ```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.

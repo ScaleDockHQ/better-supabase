@@ -179,16 +179,36 @@ In custom mode you implement them over your own tables.
 
 ## Paging a list
 
-`listRights` still takes `offset`. `rightPage` pages the same list by keyset and
-returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
-`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+`listRights` is the capped convenience list. `rightPage` is the full contract for usage rights (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `expiresOn`, `startsOn`, and the default order is expiresOn (soonest expiry first); filters are `nodeId`, `status`, `expiringWithinDays`; facets are `status`. `expiringWithinDays` is one value, such as `["30"]`.
 
 ```ts
-const first = await dam.rightPage({ limit: 50, total: true }).orThrow();
+const first = await dam
+  .rightPage({
+    filters: { status: ["active", "upcoming"] },
+    sort: { by: "expiresOn" },
+    limit: 50,
+  })
+  .orThrow();
 
 if (first.hasMore) {
   const next = await dam
-    .rightPage({ limit: 50, after: first.nextCursor })
+    .rightPage({
+      filters: { status: ["active", "upcoming"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
     .orThrow();
 }
+
+// How many rows each facet value holds under the same filters.
+const facets = await dam
+  .rightFacets({ filters: { status: ["active", "upcoming"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await dam
+  .rightCount({ filters: { status: ["active", "upcoming"] } })
+  .orThrow();
 ```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.

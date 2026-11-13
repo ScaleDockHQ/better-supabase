@@ -379,6 +379,14 @@ program; `git-workflow.mdc` is unchanged. A lane is done when:
 5. The subsection and the lane's rows in `example-findings.md` carry the PR
    link (`fixed (PR #n)`), and the merging agent sets `merged`.
 
+The G2 to G5 lanes add the list contract to each block with the five-step
+recipe under "The list contract" in `apps/docs/content/docs/(reference)/extending/blocks.mdx`.
+Three things trip a lane: a list also needs a `get` (add the SQL function, its
+contract, its name in `src/sql/client-functions.ts` and the client method), a new
+`security-definer-functions` count raises `tests/sql/practices-baseline.json`
+for that module, and the example's `better-supabase upgrade` rewrites the
+`900_*.sql` schema files that the migration is diffed from.
+
 Conflict hotspots:
 
 - ADR numbers come only from the lane's reserved range.

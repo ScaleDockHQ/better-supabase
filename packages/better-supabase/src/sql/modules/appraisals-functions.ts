@@ -2,7 +2,12 @@ import type { BlockSqlContext } from "../context.ts";
 import type { AppraisalsSql } from "./appraisals-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { userGrant } from "../shared.ts";
 import { rubricFunctions } from "./appraisals-rubrics.ts";
 import { appraisalsSql } from "./appraisals-sql.ts";
@@ -442,15 +447,30 @@ function reviewFunctions(ctx: BlockSqlContext, q: AppraisalsSql): string {
     alias: "x",
     where: [
       `x.${a("tenant")} = list_appraisals.tenant`,
-      `(v_cycle is null or x.${a("cycle")} = v_cycle::uuid)`,
-      `(v_status is null or x.${a("status")} = v_status)`,
-      `(v_subject is null or x.${a("subjectUser")} = v_subject::uuid)`,
-      `((v_all and (v_filters ->> 'mine') is distinct from 'true') or ${ownership(q, "x")})`,
+      filterAny("cycleId", `x.${a("cycle")}`, "uuid"),
+      filterAny("status", `x.${a("status")}`),
+      filterAny("subjectUserId", `x.${a("subjectUser")}`, "uuid"),
+      `((v_all and not ${filterFlag("mine")}) or ${ownership(q, "x")})`,
     ],
     keys: [
       { expr: `x.${a("createdAt")}`, dir: "desc", type: "timestamptz" },
       { expr: `x.${a("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${a("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${a("id")}`, dir: "asc", type: "uuid" },
+      ],
+      rating: [
+        {
+          expr: `coalesce(x.${a("calibratedRating")}::numeric, x.${a("rating")}, -1)`,
+          dir: "desc",
+          type: "numeric",
+        },
+        { expr: `x.${a("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${a("status")}` },
     rowJson: `${fn("appraisal_json")}(x.${a("id")}, v_all)`,
     invalid: q.invalid,
   } as const;
@@ -764,9 +784,10 @@ end;
 $$;
 ${userGrant(`${fn("get_appraisal")}(uuid)`)}
 
--- Appraisals of an organization. filters is { cycleId, status, subjectUserId,
--- mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of them; everyone else sees
--- the ones they are the subject or a reviewer of.
+-- Appraisals of an organization. filters is { cycleId, status, subjectUserId
+-- (each a value or a list of them), mine: true, sort, direction, facet, count,
+-- limit, after, offset, paged, total, totalCap } (ADR 0749). Readers see all of
+-- them; everyone else sees the ones they are the subject or a reviewer of.
 create or replace function ${fn("list_appraisals")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -778,9 +799,6 @@ as $$
 declare
   v_filters jsonb := coalesce(list_appraisals.filters, '{}'::jsonb);
   ${listDeclare(list_list_appraisals)}
-  v_cycle text := nullif(v_filters ->> 'cycleId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_subject text := nullif(v_filters ->> 'subjectUserId', '');
   v_all boolean := ${q.allowed("list_appraisals.tenant", q.read)};
 begin
   ${listBody(list_list_appraisals)}

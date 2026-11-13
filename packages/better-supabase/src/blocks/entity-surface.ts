@@ -49,6 +49,8 @@ export interface EntitySurface {
   readonly sorts?: readonly string[];
   /** The columns a list counts distinct values of. */
   readonly facets?: readonly string[];
+  /** The columns `page` filters by, each with a list of values (ADR 0749). */
+  readonly filters?: readonly string[];
   /** `true` when the entity registers for search, or the searched columns. */
   readonly search?: boolean | readonly string[];
   /**
@@ -74,6 +76,16 @@ export interface EntitySurface {
   readonly offline?: boolean;
   /** `true` when every change keeps a version. */
   readonly versioned?: boolean;
+  /**
+   * `true` when `update` takes an `expectedVersion` (the row's `updatedAt`) and
+   * refuses a stale one with a `STALE_WRITE` conflict (ADR 0809).
+   */
+  readonly expectedVersion?: boolean;
+  /**
+   * The client methods that take an `idempotencyKey` and claim it through the
+   * idempotency block (ADR 0809), such as `["create"]`.
+   */
+  readonly idempotent?: readonly string[];
   /** The feature flag that turns the entity on. */
   readonly flag?: string;
   /** The meter each write counts against. */

@@ -71,6 +71,12 @@ export interface MarketplaceResource {
   readonly secretRefs: readonly string[];
 }
 
+/** The environment variables `env` reads the integration's credentials from. */
+export const VERCEL_MARKETPLACE_ENV = {
+  clientId: "VERCEL_MARKETPLACE_CLIENT_ID",
+  clientSecret: "VERCEL_MARKETPLACE_CLIENT_SECRET",
+} as const;
+
 export interface MarketplaceInvoice {
   readonly id: string;
   readonly installationId: string;
@@ -117,11 +123,21 @@ export interface VercelMarketplaceOptions extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /**
    * The integration's client secret: signs webhooks and authenticates the SSO
-   * exchange.
+   * exchange. Default: `VERCEL_MARKETPLACE_CLIENT_SECRET` from `env`. Without
+   * it, webhooks and the SSO exchange are refused.
    */
-  readonly clientSecret: string;
-  /** The integration's client id, for the SSO exchange and the `aud` claim. */
-  readonly clientId: string;
+  readonly clientSecret?: string;
+  /**
+   * The integration's client id, for the SSO exchange and the `aud` claim.
+   * Default: `VERCEL_MARKETPLACE_CLIENT_ID` from `env`. Without it, Vercel's
+   * tokens and the SSO exchange are refused.
+   */
+  readonly clientId?: string;
+  /**
+   * Where the credentials come from when the options leave them out, such as
+   * `process.env`.
+   */
+  readonly env?: Readonly<Record<string, string | undefined>>;
   /**
    * A bearer token for the Marketplace API on behalf of an installation, for
    * invoices and usage. Default: the token Vercel handed out at installation,
@@ -355,8 +371,8 @@ function meterReportOf(value: unknown): MeterReport {
     installationId: textOf(row["installation_id"]),
     resourceExternalId: textOf(row["resource_external_id"]),
     meterId: textOf(row["meter_id"]),
-    periodStart: textOf(row["period_start"]),
-    periodEnd: textOf(row["period_end"]),
+    periodStart: textOf(row["period_starts_at"]),
+    periodEnd: textOf(row["period_ends_at"]),
     quantity: Number(row["quantity"]),
     reportedQuantity: Number(row["reported_quantity"] ?? 0),
     reported: row["reported_at"] !== null && row["reported_at"] !== undefined,
@@ -393,6 +409,9 @@ function payloadOf(body: Record<string, unknown>): Record<string, unknown> {
   return isRecord(body["payload"]) ? body["payload"] : {};
 }
 
+const credential = (value: string | undefined): string | undefined =>
+  value === undefined || value.length === 0 ? undefined : value;
+
 /** Vercel Marketplace provider state, webhooks, SSO and billing. */
 export function createVercelMarketplace(
   options: VercelMarketplaceOptions,
@@ -403,6 +422,23 @@ export function createVercelMarketplace(
   const base = options.apiUrl ?? API;
   const keys = jwksSource(options.jwks ?? new URL(JWKS), { rsa: true });
 
+  const clientId = credential(
+    options.clientId ?? options.env?.[VERCEL_MARKETPLACE_ENV.clientId],
+  );
+
+  const clientSecret = credential(
+    options.clientSecret ?? options.env?.[VERCEL_MARKETPLACE_ENV.clientSecret],
+  );
+
+  const missing = (key: string): Result<never> =>
+    err(
+      dbError(
+        "forbidden",
+        `The Vercel Marketplace credential ${key} is not set; pass it in the options or env`,
+        { hint: "MARKETPLACE_CREDENTIALS_MISSING" },
+      ),
+    );
+
   const verifyWebhook = async ({
     body,
     signature,
@@ -410,9 +446,10 @@ export function createVercelMarketplace(
     body: string;
     signature: string | null;
   }): Promise<boolean> =>
+    clientSecret !== undefined &&
     signature !== null &&
     timingSafeEqual(
-      await sha1Hex(options.clientSecret, body),
+      await sha1Hex(clientSecret, body),
       signature.trim().toLowerCase(),
     );
 
@@ -532,6 +569,10 @@ export function createVercelMarketplace(
   const verifyToken = async (
     token: string,
   ): Promise<Result<Readonly<Record<string, unknown>>>> => {
+    if (clientId === undefined) {
+      return missing(VERCEL_MARKETPLACE_ENV.clientId);
+    }
+
     const verified = await verifySignature(token);
 
     if (!verified.ok) {
@@ -545,8 +586,8 @@ export function createVercelMarketplace(
     if (
       claims["iss"] !== ISSUER ||
       !(
-        audience === options.clientId ||
-        (Array.isArray(audience) && audience.includes(options.clientId))
+        audience === clientId ||
+        (Array.isArray(audience) && audience.includes(clientId))
       ) ||
       typeof claims["exp"] !== "number" ||
       claims["exp"] <= now
@@ -568,6 +609,10 @@ export function createVercelMarketplace(
 
     handleWebhook: (request) =>
       AsyncResult.from(async () => {
+        if (clientSecret === undefined) {
+          return missing(VERCEL_MARKETPLACE_ENV.clientSecret);
+        }
+
         const body = await request.text();
 
         if (
@@ -650,14 +695,22 @@ export function createVercelMarketplace(
 
     exchangeSso: ({ code, state }) =>
       AsyncResult.from(async () => {
+        if (clientId === undefined) {
+          return missing(VERCEL_MARKETPLACE_ENV.clientId);
+        }
+
+        if (clientSecret === undefined) {
+          return missing(VERCEL_MARKETPLACE_ENV.clientSecret);
+        }
+
         try {
           const response = await http(`${base}/v1/integrations/sso/token`, {
             method: "POST",
             headers: { "content-type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
               code,
-              client_id: options.clientId,
-              client_secret: options.clientSecret,
+              client_id: clientId,
+              client_secret: clientSecret,
               ...(state === undefined ? {} : { state }),
             }),
           });

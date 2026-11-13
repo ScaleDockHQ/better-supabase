@@ -10,6 +10,7 @@ import {
   nullableText,
   optionalInstant,
   optionalText,
+  recordOf,
   recordsOf,
   run,
   textOf,
@@ -52,6 +53,43 @@ export interface SearchQuery {
    * full-text and nearest-neighbour ranks.
    */
   readonly embedding?: readonly number[] | null;
+}
+
+/** What `page` narrows and where it continues. */
+export interface SearchPageQuery {
+  /** Subject types to list. Default: every type with a `search` entry. */
+  readonly types?: readonly string[];
+  /** One tenant. Default: every tenant the caller can read. */
+  readonly organizationId?: string | null;
+  /**
+   * Facet values a document must contain, such as `{ status: "active" }`, for
+   * the columns a record type lists in `search.facets`.
+   */
+  readonly filter?: Readonly<Record<string, unknown>>;
+  /** The `nextCursor` of the previous page. Pass the same `q` with it. */
+  readonly after?: string | null;
+  /** At most 100. Default 20. */
+  readonly limit?: number;
+}
+
+/** One document of a page. Browsing has no `snippet` and no `score`. */
+export interface SearchPageHit {
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  readonly title: string | null;
+  readonly url: string | null;
+  readonly snippet: string | null;
+  readonly description?: string;
+  readonly score: number | null;
+  /** The record's `search.facets` values that are not null. */
+  readonly facets: Readonly<Record<string, unknown>>;
+}
+
+/** A page of documents and the cursor of the next one, or null on the last. */
+export interface SearchPage {
+  readonly items: readonly SearchPageHit[];
+  readonly nextCursor: string | null;
 }
 
 /** A subject the caller opened or starred (the share-links per-user state). */
@@ -117,6 +155,15 @@ export interface Search {
     q: string;
     query?: SearchQuery | undefined;
   }): AsyncResult<readonly SearchHit[]>;
+  /**
+   * One page as the caller. An empty `q` browses by title; otherwise the
+   * matches are ranked as in `search` over at most 500 candidates. Pass
+   * `nextCursor` back as `query.after` for the next page.
+   */
+  page(input?: {
+    q?: string;
+    query?: SearchPageQuery | undefined;
+  }): AsyncResult<SearchPage>;
   /** The caller's recently opened subjects, newest first. */
   recents(options?: SearchListOptions): AsyncResult<readonly SearchUserItem[]>;
   /** The caller's starred subjects, newest first. */
@@ -189,6 +236,29 @@ function hitOf(row: Record<string, unknown>): SearchHit {
     url: nullableText(row["url"]),
     snippet: nullableText(row["snippet"]),
     score: Number(row["score"] ?? 0),
+  };
+}
+
+function pageHitOf(row: Record<string, unknown>): SearchPageHit {
+  const description = optionalText(row["description"]);
+  const facets = row["facets"];
+
+  return {
+    ...(description === undefined ? {} : { description }),
+    organizationId: textOf(row["organizationId"]),
+    subjectType: textOf(row["subjectType"]),
+    subjectId: textOf(row["subjectId"]),
+    title: nullableText(row["title"]),
+    url: nullableText(row["url"]),
+    snippet: nullableText(row["snippet"]),
+    score:
+      row["score"] === null || row["score"] === undefined
+        ? null
+        : Number(row["score"]),
+    facets:
+      typeof facets === "object" && facets !== null && !Array.isArray(facets)
+        ? Object.fromEntries(Object.entries(facets))
+        : {},
   };
 }
 
@@ -276,6 +346,27 @@ export function createSearch(options: SearchOptions): Search {
           },
           (value) => recordsOf(value, "search").map(hitOf),
         ),
+      ),
+    page: ({ q, query = {} } = {}) =>
+      call(
+        "search_page",
+        {
+          q: q ?? null,
+          types: query.types ?? null,
+          tenant: query.organizationId ?? null,
+          filter: query.filter ?? null,
+          after: query.after ?? null,
+          page_size: query.limit ?? 20,
+        },
+        (value) => {
+          const body = recordOf(value, "search_page");
+          const items = body["items"];
+
+          return {
+            items: recordsOf(items ?? [], "search_page").map(pageHitOf),
+            nextCursor: nullableText(body["nextCursor"]),
+          };
+        },
       ),
     recents: list("search_recents"),
     favorites: list("search_favorites"),
