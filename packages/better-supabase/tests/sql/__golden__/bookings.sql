@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:532c38b69b567cc545a7bee03fbf7d4f3f6777943ef1bc306360f6374799c067
+-- @bsb-hash sha256:f815c1ab8dd002b10dd8e14f0408adb2659b2ef9880c47b22a87ca86796b39a2
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -738,6 +738,28 @@ $$;
 revoke execute on function "better_supabase"."list_booking_services"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_booking_services"(uuid, boolean) to authenticated, service_role;
 
+-- A customer's bookings, newest first, as the caller: the table's policy shows
+-- a tenant's bookings to readers and a customer their own.
+create or replace function "better_supabase"."list_bookings_for_customer"(tenant uuid, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.starts desc, z.id desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") as item, lower(bk."during") as starts, bk."id" as id
+    from "better_supabase"."bookings" bk
+    where bk."tenant_id" = list_bookings_for_customer.tenant
+      and bk."customer_id"::text = list_bookings_for_customer.customer
+    order by lower(bk."during") desc, bk."id" desc
+    limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -841,7 +863,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:ac89718cc173be77ab0de895ae72f4a756b26e9b63a5e5ef73715f3489414fda
+-- @bsb-hash sha256:09df1d25bf49c69a9132d7699f53983b1eee48c03766ee4288a76779b83a9007
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1623,6 +1645,28 @@ $$;
 revoke execute on function "better_supabase"."list_booking_services"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_booking_services"(uuid, boolean) to authenticated, service_role;
 
+-- A customer's bookings, newest first, as the caller: the table's policy shows
+-- a tenant's bookings to readers and a customer their own.
+create or replace function "better_supabase"."list_bookings_for_customer"(tenant uuid, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.starts desc, z.id desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") as item, lower(bk."during") as starts, bk."id" as id
+    from "better_supabase"."bookings" bk
+    where bk."tenant_id" = list_bookings_for_customer.tenant
+      and bk."customer_id"::text = list_bookings_for_customer.customer
+    order by lower(bk."during") desc, bk."id" desc
+    limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
+
 -- Public booking through a share link to a service (subjectType
 -- "booking_service"): the token is the credential, hashed before the lookup.
 create or replace function "better_supabase"."public_booking_service"(token text)
@@ -1932,7 +1976,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:61f4c2e4844883cb13a905772a4bea34ef63a37d2b85cb759396c444c98156c3
+-- @bsb-hash sha256:b546101e0a99a6487332fe6308ec88754dfe85c59d07fd30cdcdaac584e059c5
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2674,6 +2718,28 @@ $$;
 revoke execute on function "app_private"."list_booking_services"(uuid, boolean) from public, anon;
 grant execute on function "app_private"."list_booking_services"(uuid, boolean) to authenticated, service_role;
 
+-- A customer's bookings, newest first, as the caller: the table's policy shows
+-- a tenant's bookings to readers and a customer their own.
+create or replace function "app_private"."list_bookings_for_customer"(tenant uuid, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.starts desc, z.id desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") as item, lower(bk."during") as starts, bk."id" as id
+    from "app_private"."bookings" bk
+    where bk."tenant_id" = list_bookings_for_customer.tenant
+      and bk."customer_id"::text = list_bookings_for_customer.customer
+    order by lower(bk."during") desc, bk."id" desc
+    limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
+  ) z
+$$;
+revoke execute on function "app_private"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
+grant execute on function "app_private"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2777,7 +2843,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:21ec2df12f6dd81be4a2c62993d39c83686b9ed7b9263d9f2a6d97dbf41277fe
+-- @bsb-hash sha256:487184d3e0d0ab70832d2f7289c8e85404fcf85fc73d2684ff175cc770b103c2
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3514,6 +3580,28 @@ $$;
 revoke execute on function "better_supabase"."list_booking_services"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_booking_services"(uuid, boolean) to authenticated, service_role;
 
+-- A customer's bookings, newest first, as the caller: the table's policy shows
+-- a tenant's bookings to readers and a customer their own.
+create or replace function "better_supabase"."list_bookings_for_customer"(tenant uuid, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.starts desc, z.id desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") as item, lower(bk."during") as starts, bk."id" as id
+    from "better_supabase"."bookings" bk
+    where bk."tenant_id" = list_bookings_for_customer.tenant
+      and bk."customer_id"::text = list_bookings_for_customer.customer
+    order by lower(bk."during") desc, bk."id" desc
+    limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3760,6 +3848,16 @@ as $$ select "better_supabase"."list_booking_services"($1, $2) $$;
 revoke execute on function "api"."list_booking_services"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_booking_services"(uuid, boolean) to authenticated, service_role;
 
+create or replace function "api"."list_bookings_for_customer"(tenant uuid, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_bookings_for_customer"($1, $2, $3) $$;
+revoke execute on function "api"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
+grant execute on function "api"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block-data bookings
@@ -3779,7 +3877,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:d4dafe78b8c2db944a1a5c51d69c10f9c748a7830b636956722eeb70dee8ab1c
+-- @bsb-hash sha256:9b07427f8611a143ec35fb80c2d45ece5d88d9eb84f907724f46ce8053a0c122
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4500,6 +4598,28 @@ $$;
 revoke execute on function "better_supabase"."list_booking_services"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_booking_services"(uuid, boolean) to authenticated, service_role;
 
+-- A customer's bookings, newest first, as the caller: the table's policy shows
+-- a tenant's bookings to readers and a customer their own.
+create or replace function "better_supabase"."list_bookings_for_customer"(tenant uuid, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.starts desc, z.id desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") as item, lower(bk."during") as starts, bk."id" as id
+    from "better_supabase"."bookings" bk
+    where bk."tenant_id" = list_bookings_for_customer.tenant
+      and bk."customer_id"::text = list_bookings_for_customer.customer
+    order by lower(bk."during") desc, bk."id" desc
+    limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4603,7 +4723,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:dec2c04b44dfe16048dbf21c34f29ba4bc4bf3e296a25089e5299356bc5bdac2
+-- @bsb-hash sha256:3302a85e674a6db8f448112265a209237a4512fbc87ac3a3178e730f9b8e334b
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5339,6 +5459,28 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_booking_services"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_booking_services"(uuid, boolean) to authenticated, service_role;
+
+-- A customer's bookings, newest first, as the caller: the table's policy shows
+-- a tenant's bookings to readers and a customer their own.
+create or replace function "better_supabase"."list_bookings_for_customer"(tenant uuid, customer text, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.item order by z.starts desc, z.id desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") as item, lower(bk."during") as starts, bk."id" as id
+    from "better_supabase"."bookings" bk
+    where bk."org_id" = list_bookings_for_customer.tenant
+      and bk."customer_id"::text = list_bookings_for_customer.customer
+    order by lower(bk."during") desc, bk."id" desc
+    limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

@@ -4,6 +4,7 @@ import { workItemsBlock } from "../blocks/tasks-block.ts";
 import { assetsBlock } from "better-supabase/blocks/assets";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { billableTimeBlock } from "better-supabase/blocks/billable-time";
+import { bookingsBlock } from "better-supabase/blocks/bookings";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { contractsBlock } from "better-supabase/blocks/contracts";
 import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
@@ -13,9 +14,11 @@ import { donationsBlock } from "better-supabase/blocks/donations";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
+import { expensesBlock } from "better-supabase/blocks/expenses";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
 import { leasesBlock } from "better-supabase/blocks/leases";
+import { leaveBlock } from "better-supabase/blocks/leave";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { moderationBlock } from "better-supabase/blocks/moderation";
 import { passesBlock } from "better-supabase/blocks/passes";
@@ -23,6 +26,7 @@ import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { quotesBlock } from "better-supabase/blocks/quotes";
 import { reactionsBlock } from "better-supabase/blocks/reactions";
 import { relationsBlock } from "better-supabase/blocks/relations";
+import { risksBlock } from "better-supabase/blocks/risks";
 import { scoresBlock } from "better-supabase/blocks/scores";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { shipmentsBlock } from "better-supabase/blocks/shipments";
@@ -36,6 +40,7 @@ import {
   assetsConfig,
   attachmentsConfig,
   billableTimeConfig,
+  bookingsConfig,
   commentsConfig,
   contractsConfig,
   customFieldsConfig,
@@ -45,15 +50,18 @@ import {
   driveConfig,
   employeesConfig,
   enrollmentsConfig,
+  expensesConfig,
   guestsConfig,
   invoicesConfig,
   leasesConfig,
+  leaveConfig,
   ledgerConfig,
   moderationConfig,
   passesConfig,
   quotesConfig,
   reactionsConfig,
   relationsConfig,
+  risksConfig,
   scoresConfig,
   shareLinksConfig,
   shipmentsConfig,
@@ -73,9 +81,11 @@ export const projectRecord = defineRecordType({
   type: "project",
   blocks: {
     attachments: attachmentsBlock,
+    bookings: bookingsBlock,
     comments: commentsBlock,
     customFields: customFieldsBlock,
     deals: dealsBlock,
+    leave: leaveBlock,
     ledger: ledgerBlock,
     assets: assetsBlock,
     scores: scoresBlock,
@@ -85,10 +95,12 @@ export const projectRecord = defineRecordType({
     passes: passesBlock,
     billableTime: billableTimeBlock,
     leases: leasesBlock,
+    expenses: expensesBlock,
     donations: donationsBlock,
     dispatch: dispatchBlock,
     shipments: shipmentsBlock,
     contracts: contractsBlock,
+    risks: risksBlock,
     drive: driveBlock,
     employees: employeesBlock,
     signatures: signaturesBlock,
@@ -104,9 +116,11 @@ export const projectRecord = defineRecordType({
   },
   config: {
     attachments: attachmentsConfig,
+    bookings: bookingsConfig,
     comments: commentsConfig,
     "custom-fields": customFieldsConfig,
     deals: dealsConfig,
+    leave: leaveConfig,
     ledger: ledgerConfig,
     assets: assetsConfig,
     scores: scoresConfig,
@@ -116,10 +130,12 @@ export const projectRecord = defineRecordType({
     passes: passesConfig,
     "billable-time": billableTimeConfig,
     leases: leasesConfig,
+    expenses: expensesConfig,
     donations: donationsConfig,
     dispatch: dispatchConfig,
     shipments: shipmentsConfig,
     contracts: contractsConfig,
+    risks: risksConfig,
     drive: driveConfig,
     employees: employeesConfig,
     signatures: signaturesConfig,

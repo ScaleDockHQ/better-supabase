@@ -28,6 +28,7 @@ describe("invoicesBinding", () => {
     );
 
     expect(loaded.ok && loaded.data).toEqual([]);
+
     expect(calls).toEqual([
       [
         "list_invoices_for_subject",

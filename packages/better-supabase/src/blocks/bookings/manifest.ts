@@ -5,12 +5,16 @@ import { defineBlock } from "../define-block.ts";
 import { createBookings } from "./bookings.ts";
 import { bookingsEvents } from "./events.ts";
 import { bookingsSqlOptions } from "./options.ts";
+import { bookingsBinding } from "./record-binding.ts";
 
 /** The `bookings` block's manifest (ADR 0029). */
 export const bookingsBlock: BlockOf<
   "bookings",
   typeof createBookings,
-  BookingsEvents
+  BookingsEvents,
+  Record<never, never>,
+  never,
+  typeof bookingsBinding
 > = defineBlock({
   name: "bookings",
   sql: ["bookings"],
@@ -18,6 +22,7 @@ export const bookingsBlock: BlockOf<
   events: bookingsEvents,
   create: createBookings,
   client: "bookings",
+  record: bookingsBinding,
   category: "scheduling",
   entities: { booking: { mutability: "state-machine" } },
   concerns: ["lifecycle", "search"],

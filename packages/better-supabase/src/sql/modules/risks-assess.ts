@@ -367,7 +367,45 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_risks")}(${idType}, jsonb)`)}
-
+${
+  rel === undefined
+    ? ""
+    : `
+-- The open risks linked to a record (ADR 0822): a relation from the risk to
+-- the record, of any kind. The highest residual score first.
+create or replace function ${fn("list_risks_for_subject")}(tenant ${idType}, subject_type text, subject_id text, page_size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not ${q.allowed("list_risks_for_subject.tenant", q.read)} then
+    ${q.forbidden("not allowed to read risks")}
+  end if;
+  return coalesce((
+    select jsonb_agg(z.item order by z.score desc, z.seq, z.id)
+    from (
+      select ${riskJson("x")} as item, coalesce(x.${r("residualScore")}, -1) as score, x.${r("sequence")} as seq, x.${r("id")} as id
+      from ${risks} x
+      where x.${r("tenant")} = list_risks_for_subject.tenant
+        and x.${r("archivedAt")} is null and x.${r("status")} <> 'closed'
+        and exists (
+          select 1 from ${rel.table("relations")} l
+          where l.${rel.col("relations", "tenant")} = x.${r("tenant")}
+            and l.${rel.col("relations", "sourceType")} = ${q.subject} and l.${rel.col("relations", "sourceId")} = x.${r("id")}::text
+            and l.${rel.col("relations", "targetType")} = list_risks_for_subject.subject_type and l.${rel.col("relations", "targetId")}::text = list_risks_for_subject.subject_id)
+      order by coalesce(x.${r("residualScore")}, -1) desc, x.${r("sequence")}, x.${r("id")}
+      limit least(greatest(coalesce(list_risks_for_subject.page_size, 50), 1), 200)
+    ) z
+  ), '[]'::jsonb);
+end;
+$$;
+${userGrant(`${fn("list_risks_for_subject")}(${idType}, text, text, integer)`)}
+`
+}
 -- A matrix (the default without matrix_id) with one cell per likelihood and
 -- impact: the open risks scored there, on their residual or inherent score.
 create or replace function ${fn("risk_heatmap")}(tenant ${idType}, matrix_id uuid default null, basis text default 'residual')

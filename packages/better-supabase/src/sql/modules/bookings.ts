@@ -20,7 +20,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { catalogLists } from "./bookings-lists.ts";
+import { catalogLists, customerList } from "./bookings-lists.ts";
 import {
   BOOKINGS_CONTRIBUTES,
   hostBusy,
@@ -932,7 +932,7 @@ function build(ctx: BlockSqlContext): string {
   };
 
   return `${schemaPreamble(ctx)}
-${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${catalogLists(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
+${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${catalogLists(p)}${customerList(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -980,6 +980,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     {
       name: "list_bookings",
       args: ["{id}", "timestamptz", "timestamptz", "uuid"],
+      returns: "jsonb",
+    },
+    {
+      name: "list_bookings_for_customer",
+      args: ["{id}", "text", "integer"],
       returns: "jsonb",
     },
     ...(ctx.installed("share-links")

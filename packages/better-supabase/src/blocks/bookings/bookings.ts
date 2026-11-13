@@ -5,6 +5,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { WeeklyHours } from "../calendar/availability.ts";
 import type { JobHandler } from "../queue/types.ts";
+import type { RecordRef } from "../sales-shared.ts";
 import type {
   BookedSeries,
   BookingRecurrence,
@@ -20,6 +21,7 @@ import {
 } from "../../core/block-fields.ts";
 import { applyTemporal } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -297,6 +299,17 @@ export interface Bookings<F extends object = Record<never, never>> {
       readonly resourceId?: string;
     },
   ): AsyncResult<(Booking & F)[]>;
+  /**
+   * A customer's bookings, newest first, at most `limit` (default 50, up to
+   * 200): the subject's `id` is the customer's user id, whatever its `type`. As
+   * with `list`, the caller's policies decide which bookings show. The
+   * organization comes from `options.tenant` (without it the call fails with
+   * `TENANT_REQUIRED`).
+   */
+  forCustomer(input: {
+    subject: RecordRef;
+    limit?: number | undefined;
+  }): AsyncResult<readonly (Booking & F)[]>;
   /** Cancels every hold whose time is up. Service only. */
   expireHolds(): AsyncResult<number>;
   /**
@@ -607,6 +620,21 @@ export function createBookings<
             (raw) => [raw, bookingOf(raw)] as const,
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
+    forCustomer: ({ subject, limit }) =>
+      requireTenant(options.tenant).andThen((organizationId) =>
+        call(
+          "list_bookings_for_customer",
+          {
+            tenant: organizationId,
+            customer: subject.id,
+            page_size: limit ?? null,
+          },
+          (value) =>
+            recordsOf(value, "bookings").map(
+              (raw) => [raw, bookingOf(raw)] as const,
+            ),
+        ).andThen((rows) => allWithFields(fields, rows)),
+      ),
     expireHolds,
     resources: ({ organizationId, includeInactive }) =>
       call(

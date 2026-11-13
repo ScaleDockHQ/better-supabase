@@ -5,6 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { risksEvents } from "./events.ts";
 import { riskListSurface } from "./lists.ts";
 import { risksSqlOptions } from "./options.ts";
+import { risksBinding } from "./record-binding.ts";
 import { createRisks } from "./risks.ts";
 import {
   riskAssessmentInputSchema,
@@ -13,41 +14,48 @@ import {
 } from "./schemas.ts";
 
 /** The `risks` block's manifest (ADR 0029). */
-export const risksBlock: BlockOf<"risks", typeof createRisks, RisksEvents> =
-  defineBlock({
-    name: "risks",
-    sql: ["risks"],
-    options: { risks: risksSqlOptions },
-    events: risksEvents,
-    schemas: {
-      risk: { input: riskInputSchema },
-      risk_matrix: { input: riskMatrixInputSchema },
-      risk_assessment: { input: riskAssessmentInputSchema },
+export const risksBlock: BlockOf<
+  "risks",
+  typeof createRisks,
+  RisksEvents,
+  Record<never, never>,
+  never,
+  typeof risksBinding
+> = defineBlock({
+  name: "risks",
+  sql: ["risks"],
+  options: { risks: risksSqlOptions },
+  events: risksEvents,
+  schemas: {
+    risk: { input: riskInputSchema },
+    risk_matrix: { input: riskMatrixInputSchema },
+    risk_assessment: { input: riskAssessmentInputSchema },
+  },
+  create: createRisks,
+  recipes: ["risk-register", "risk-heatmap"],
+  record: risksBinding,
+  category: "work",
+  entities: {
+    risk: {
+      mutability: "editable",
+      ...riskListSurface,
+      emits: { create: true, update: true },
     },
-    create: createRisks,
-    recipes: ["risk-register", "risk-heatmap"],
-    category: "work",
-    entities: {
-      risk: {
-        mutability: "editable",
-        ...riskListSurface,
-        emits: { create: true, update: true },
-      },
-      risk_matrix: {
-        mutability: "editable",
-        emits: { create: true, update: true },
-      },
-      risk_assessment: { mutability: "read-only" },
+    risk_matrix: {
+      mutability: "editable",
+      emits: { create: true, update: true },
     },
-    concerns: ["lifecycle", "search"],
-    description:
-      "A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.",
-    schedules: [
-      {
-        name: "review-due",
-        cron: "0 6 * * *",
-        runs: "notifyDueReviews()",
-        description: "Reports the risks whose review date has come.",
-      },
-    ],
-  });
+    risk_assessment: { mutability: "read-only" },
+  },
+  concerns: ["lifecycle", "search"],
+  description:
+    "A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.",
+  schedules: [
+    {
+      name: "review-due",
+      cron: "0 6 * * *",
+      runs: "notifyDueReviews()",
+      description: "Reports the risks whose review date has come.",
+    },
+  ],
+});

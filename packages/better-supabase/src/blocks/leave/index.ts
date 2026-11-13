@@ -49,3 +49,5 @@ export type {
   LeaveEvents,
   LeaveRequestEventData,
 } from "./events.ts";
+
+export { leaveBinding } from "./record-binding.ts";

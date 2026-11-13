@@ -14434,6 +14434,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "PublicBookingService"
         }
       ],
+      "record": [],
       "events": {
         "type": "BookingsEvents",
         "types": [
@@ -16636,6 +16637,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "LeaveTypeInput"
         }
       ],
+      "record": [],
       "events": {
         "type": "LeaveEvents",
         "types": [
@@ -18075,6 +18077,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
+      "record": [],
       "events": {
         "type": "ExpensesEvents",
         "types": [
@@ -22041,6 +22044,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
+      "record": [],
       "events": {
         "type": "RisksEvents",
         "types": [
