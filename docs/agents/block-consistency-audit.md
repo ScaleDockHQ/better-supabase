@@ -926,6 +926,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
   2026-11-13, K1 built (ADR 0819): `employeeContractsBinding`. The other seven bindings, the trio, the status union and realtime hooks stay open.
   2026-11-13, K2 (`feat/audit-k2`, ADR 0820, PR #904): EX-1326 and EX-1319 fixed.
   2026-11-13, trio PR #908 (`feat/audit-k4-trio`, ADR 0821): EX-1238 fixed. The SQL-backed bindings (K3) wait for a local stack: 24 of the 32 macOS shared memory segments are held by other worktrees' stacks, so `pnpm supabase:start` refuses.
+  2026-11-13, K3 (bindings) blocked: no free shared memory segment for a local stack (24 of 32 held); ADR 0822 is drafted on `feat/audit-k3`.
 
 ### Lane N
 
