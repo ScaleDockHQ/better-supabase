@@ -1,5 +1,5 @@
 import { LockKeyholeIcon, TriangleAlertIcon } from "lucide-react";
-import { getExtracted } from "next-intl/server";
+import { getExtracted, getFormatter } from "next-intl/server";
 import { refresh } from "next/cache";
 
 import type { FieldEntity } from "@/features/custom-fields/custom-fields-types";
@@ -14,6 +14,7 @@ import { Badge } from "@/components/reui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -36,9 +37,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getPermissions } from "@/features/user/permission-snapshot";
+import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
 import { getEncryptionView } from "../encryption-queries";
+import { RotateKeyButton } from "./rotate-key-button";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
 async function retry() {
@@ -48,15 +52,19 @@ async function retry() {
 
 /**
  * Render inside `<Suspense>` and a `PermissionGate` for `custom_fields.read`:
- * the fields the field-encryption block seals with the organization's key.
+ * the organization's key status from the field-encryption block and the fields
+ * it seals with that key. Members with `field_encryption.manage` rotate the
+ * key.
  */
 export async function EncryptedFields() {
-  const [result, t] = await Promise.all([
+  const [result, t, format, permissions] = await Promise.all([
     getEncryptionView().then(
       (data) => ({ ok: true as const, data }),
       () => ({ ok: false as const }),
     ),
     getExtracted("encryption"),
+    getFormatter(),
+    getPermissions(),
   ]);
 
   if (!result.ok) {
@@ -81,6 +89,14 @@ export async function EncryptedFields() {
   if (view === null) {
     return null;
   }
+
+  const when = (iso: string | undefined): string =>
+    iso === undefined
+      ? t("Never")
+      : format.dateTime(new Date(iso), {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
 
   const entityLabel = (entity: FieldEntity): string => {
     switch (entity) {
@@ -107,16 +123,62 @@ export async function EncryptedFields() {
           <CardTitle>{t("Data key")}</CardTitle>
           <CardDescription>
             {t(
-              "Values of sensitive fields are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them.",
+              "Values of sensitive fields and encrypted columns are encrypted at rest with a key kept in Supabase Vault. Only the functions that check your access decrypt them.",
             )}
           </CardDescription>
+          {view.key !== undefined &&
+          can(permissions, "field_encryption.manage") ? (
+            <CardAction>
+              <RotateKeyButton />
+            </CardAction>
+          ) : null}
         </CardHeader>
-        <CardContent className="grid gap-4 text-sm sm:grid-cols-2">
+        <CardContent className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">
               {t("Key owner")}
             </span>
             <span className="font-mono text-xs">{view.keyOwner}</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">
+              {t("Created")}
+            </span>
+            {view.key === undefined ? (
+              <span>
+                <Badge variant="secondary">{t("No key yet")}</Badge>
+              </span>
+            ) : (
+              <span className="tabular-nums">{when(view.key.createdAt)}</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">
+              {t("Last rotated")}
+            </span>
+            <span className="tabular-nums">{when(view.key?.rotatedAt)}</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">
+              {t("Lookup key")}
+            </span>
+            <span className="tabular-nums">
+              {view.lookupKey === undefined
+                ? t("None")
+                : when(view.lookupKey.createdAt)}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">
+              {t("Encrypted columns")}
+            </span>
+            <span>
+              {view.columns.length === 0
+                ? t("None")
+                : view.columns
+                    .map((column) => `${column.table}.${column.column}`)
+                    .join(", ")}
+            </span>
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">
