@@ -110,6 +110,13 @@ The fixture's own rows and role settings (RBAC role permissions, the
 are in the `_fixture_data.sql` migration. A new one goes in a new
 hand-written migration.
 
+pg-delta writes a renamed column as `drop column` and `add column`, which loses
+the rows. Edit the new migration to `alter table ... rename column` (and
+`rename constraint` for a foreign key named after the column) before you
+commit it, and declare the rename in the module's `NAMES.migrations` so
+`upgrade` writes the same rename for apps. The diff that follows a reset then
+reports no changes.
+
 When `pnpm supabase:diff` writes the same migration after every reset, look
 for an expression Postgres rewrites. `x between a and b` inside an `and`
 chain comes back from the catalog as `x >= a and x <= b`, so the diff never
