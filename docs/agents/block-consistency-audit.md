@@ -824,11 +824,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane D
 
 - Scope: Shared recurrence, digest and money cores
-- Status: PR open #899
+- Status: merged
 - Branch: `feat/audit-d`
 - PR: [#899](https://github.com/ScaleDockHQ/better-supabase/pull/899)
 - Findings: EX-1290, EX-1291, EX-1293, EX-1315, EX-1316
-- Log: 2026-11-12, planned. 2026-11-12, lane D started from main in `../bsb-audit-d`. 2026-11-12, PR #899 opened (ADR 0719 replaces 0197).
+- Log: 2026-11-12, planned. 2026-11-12, lane D started from main in `../bsb-audit-d`. 2026-11-12, PR #899 opened (ADR 0719 replaces 0197). 2026-11-13, merged as [#899](https://github.com/ScaleDockHQ/better-supabase/pull/899).
 
 ### Lane E
 
